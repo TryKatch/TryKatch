@@ -2,7 +2,7 @@ import React from "react";
 const HomePage = () => {
   return (
     <div>
-      <p className="text-xl">Home page will go here</p>
+      <p className="text-xl p-5"></p>
     </div>
   );
 };
