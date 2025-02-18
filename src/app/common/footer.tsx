@@ -82,7 +82,13 @@ export function SiteFooter() {
           {/* Logo and social section */}
           <div className="lg:col-span-2">
             <Link href="/" className="mb-6 inline-block">
-              <Image src="/favicon.ico" alt="Logo" width={100} height={50} />
+              <Image
+                src="/favicon.ico"
+                alt="Logo"
+                width={100}
+                height={50}
+                className="w-[200px] h-[90px]"
+              />
             </Link>
             <p className="mb-6 text-sm">
               Making the world a better place through constructing elegant
@@ -170,7 +176,7 @@ export function SiteFooter() {
 
         {/* Copyright */}
         <div className="mt-12 border-t border-gray-800 pt-8 text-sm">
-          © 2024 Your Company, Inc. All rights reserved.
+          © {new Date().getFullYear()} TryKatch, Inc. All rights reserved.
         </div>
       </div>
     </footer>
