@@ -34,7 +34,7 @@ export function TeamCarousel() {
         Our Team
       </h2>
 
-      <div className="relative h-[400px]">
+      <div className="relative h-[300px] w-[70%] m-auto">
         <div className="absolute left-0 right-0 flex items-center justify-center">
           <div className="relative h-[300px] w-full max-w-4xl">
             <div className="flex items-center justify-center gap-8">
