@@ -62,7 +62,7 @@ export function NavBar() {
           {/* Contact Button - Desktop */}
           <div className="hidden md:block">
             <Button asChild>
-              <Link href="/contact">Contact</Link>
+              <Link href="#contact">Contact</Link>
             </Button>
           </div>
         </nav>
