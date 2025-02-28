@@ -7,10 +7,10 @@ import Link from "next/link";
 
 export default function HeroSection() {
   return (
-    <section className="w-[90%] mx-auto bg-gray-50 py-8 md:py-8">
+    <section className="w-[90%] m-auto bg-gray-50 py-8 md:py-8">
       <div className="container px-4 md:px-6">
-        <div className="grid items-center gap-6 lg:grid-cols-2 lg:gap-6">
-          <div className="flex flex-col justify-center space-y-4">
+        <div className="flex flex-col-reverse items-center justify-center gap-6 lg:flex-row-reverse lg:gap-6">
+          <div className="flex flex-col justify-center space-y-4 ">
             <div className="space-y-2">
               <h1 className="text-4xl font-bold tracking-tighter text-[#2a3990] sm:text-5xl xl:text-6xl/none">
                 We Code
@@ -41,7 +41,7 @@ export default function HeroSection() {
             </div>
           </div>
           <div className="flex justify-center lg:justify-end">
-            <div className="relative h-[350px] w-[350px] sm:h-[400px] sm:w-[400px] md:h-[500px] md:w-[500px]">
+            <div className="h-fit">
               <Image
                 src="/hero.svg"
                 alt="Developer working at desk with plants and computer"
