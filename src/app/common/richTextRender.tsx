@@ -1,7 +1,5 @@
 "use client";
 
-// @ts-expect-error: This is necessary because the type is not defined correctly.
-
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -22,7 +20,7 @@ const RichTextRenderer = ({ content }: { content: RichTextNode[] }) => {
       {content.map((node, index) => {
         switch (node.type) {
           case "heading":
-            const HeadingTag = `h${node.level}` as keyof JSX.IntrinsicElements;
+            const HeadingTag = `h${node.level}` as any;
             return (
               <HeadingTag key={index} className="font-bold">
                 {node.children.map((child, i) => (
