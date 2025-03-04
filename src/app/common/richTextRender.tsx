@@ -1,5 +1,7 @@
 "use client";
-// @ts-ignore
+
+// @ts-expect-error: This is necessary because the type is not defined correctly.
+
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
