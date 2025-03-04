@@ -5,6 +5,7 @@ import { SiteFooter } from "./common/footer";
 import { NavBar } from "./common/navBar";
 import { TeamCarousel } from "./components/teamMembers";
 import ContactSection from "./components/contactForm";
+import AdvantagesSection from "./components/avantage";
 
 export default function Home() {
   return (
@@ -13,6 +14,9 @@ export default function Home() {
       <main className="flex-grow min-h-[500px]">
         <HeroSection />
         <TeamCarousel />
+        <div className="w-[90%] mx-auto">
+          <AdvantagesSection />
+        </div>
         <div id="contact">
           <ContactSection />
         </div>
