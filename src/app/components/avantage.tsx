@@ -105,7 +105,7 @@ export default function AdvantagesSection() {
               Advantages
             </h2>
             <p className="text-muted-foreground">
-              At Aldoric, we&apos;re not just a company, we&apos;re your
+              At TryKatch, we&apos;re not just a company, we&apos;re your
               dedicated partner in success. Our unwavering commitment sets us
               apart. Discover what makes us the right choice for your next
               project.
