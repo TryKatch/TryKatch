@@ -13,7 +13,9 @@ export default function Home() {
       <NavBar />
       <main className="flex-grow min-h-[500px]">
         <HeroSection />
-        <TeamCarousel />
+        <div className="hidden md:block">
+          <TeamCarousel />
+        </div>
         <div className="w-[90%] mx-auto">
           <AdvantagesSection />
         </div>
