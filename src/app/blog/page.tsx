@@ -1,4 +1,5 @@
 "use client";
+import { SiteFooter } from "../common/footer";
 import { NavBar } from "../common/navBar";
 import BlogList from "../components/blogList";
 
@@ -7,6 +8,7 @@ export default function BlogPage() {
     <div>
       <NavBar />
       <BlogList />
+      <SiteFooter />
     </div>
   );
 }
