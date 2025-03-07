@@ -1,4 +1,4 @@
-// "use client";
+"use client";
 
 // import { SiteFooter } from "@/app/common/footer";
 // import BlogDetail from "./blogDetail";
@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { useParams } from "next/navigation";
 
 // Types for our blog data
 interface Author {
@@ -128,13 +129,10 @@ const getBlogPost = (slug: string): BlogPost | undefined => {
   return blogPosts[slug];
 };
 
-export default async function BlogPostPage({
-  params,
-}: {
-  params: { slug: string } | Promise<{ slug: string }>;
-}) {
+export default function BlogPostPage() {
   // const post = getBlogPost(params?.slug);
-  const post = getBlogPost((await params).slug);
+  const { slug } = useParams(); // Get slug from URL
+  const post = getBlogPost(slug as string); // Fetch the blog post
 
   if (!post) {
     return (
