@@ -224,44 +224,46 @@ const BlogList = () => {
       {/* Featured Post */}
       {/* <div className="grid md:grid-cols-5 gap-8 mb-16"> */}
       <div className="flex flex-col md:flex-row  gap-8">
-        <div className="flex flex-col md:flex-col gap-6 mb-16">
-          <div className="md:col-span-3">
-            <Image
-              src={featuredPost.image || "/placeholder.png"}
-              // src="/placeholder.png"
-              alt={featuredPost.title}
-              width={600}
-              height={400}
-              className="rounded-lg object-cover w-full h-[300px] md:h-[400px]"
-            />
-          </div>
-          <div className="md:col-span-2 flex flex-col justify-center">
-            <h1 className="text-3xl font-bold mb-4">{featuredPost.title}</h1>
-            <p className="text-gray-600 mb-4">{featuredPost.description}</p>
-            <div className="flex items-center gap-3 mt-2">
-              <Avatar className="h-8 w-8">
-                <AvatarImage
-                  src={featuredPost.author.avatar}
-                  alt={featuredPost.author.name}
-                />
-                <AvatarFallback>
-                  {featuredPost.author.name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="text-sm font-medium">
-                  {featuredPost.author.name}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {featuredPost.author.role}
-                </p>
-              </div>
-              <div className="text-sm text-gray-500 ml-auto">
-                {featuredPost.date} • {featuredPost.readTime}
+        <Link href={`/blog/${featuredPost.id}`} key={featuredPost.id}>
+          <div className="flex flex-col md:flex-col gap-6 mb-16">
+            <div className="md:col-span-3">
+              <Image
+                src={featuredPost.image || "/placeholder.png"}
+                // src="/placeholder.png"
+                alt={featuredPost.title}
+                width={600}
+                height={400}
+                className="rounded-lg object-cover w-full h-[300px] md:h-[400px]"
+              />
+            </div>
+            <div className="md:col-span-2 flex flex-col justify-center">
+              <h1 className="text-3xl font-bold mb-4">{featuredPost.title}</h1>
+              <p className="text-gray-600 mb-4">{featuredPost.description}</p>
+              <div className="flex items-center gap-3 mt-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={featuredPost.author.avatar}
+                    alt={featuredPost.author.name}
+                  />
+                  <AvatarFallback>
+                    {featuredPost.author.name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="text-sm font-medium">
+                    {featuredPost.author.name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {featuredPost.author.role}
+                  </p>
+                </div>
+                <div className="text-sm text-gray-500 ml-auto">
+                  {featuredPost.date} • {featuredPost.readTime}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </Link>
 
         {/* Trending Section */}
         <div className="mb-16">
