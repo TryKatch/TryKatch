@@ -119,7 +119,7 @@ const getBlogPost = (slug: string): BlogPost | undefined => {
       author: {
         name: "Stephen Robles",
         role: "Video & Podcast Creator",
-        avatar: "/placeholder.svg?height=80&width=80",
+        avatar: "/placeholder.png",
       },
     },
     // Add more blog posts as needed
@@ -128,8 +128,13 @@ const getBlogPost = (slug: string): BlogPost | undefined => {
   return blogPosts[slug];
 };
 
-export default function BlogPostPage({ params }: { params: { slug: string } }) {
-  const post = getBlogPost(params?.slug);
+export default async function BlogPostPage({
+  params,
+}: {
+  params: { slug: string } | Promise<{ slug: string }>;
+}) {
+  // const post = getBlogPost(params?.slug);
+  const post = getBlogPost((await params).slug);
 
   if (!post) {
     return (
