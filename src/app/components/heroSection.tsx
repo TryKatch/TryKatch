@@ -60,10 +60,10 @@ export default function HeroSection() {
             initial={{ opacity: 0, scale: 0.8, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-            className="relative h-[300px] md:h-[400px] lg:h-[450px] order-1 md:order-2 mb-6 md:mb-0"
+            className="relative h-[300px] md:h-[580px] lg:h-[450px] order-1 md:order-2 mb-6 md:mb-0"
           >
             <Image
-              src="/hero.svg"
+              src="/trykatch-hero.png"
               alt="Developer working at desk with plants and computer"
               fill
               className="object-contain"

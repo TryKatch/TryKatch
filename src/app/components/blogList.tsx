@@ -220,7 +220,7 @@ const BlogList = () => {
   // );
 
   return (
-    <div className="container mx-auto mb-12 px-4 py-8 max-w-7xl">
+    <div className="container mx-auto mb-12 mt-8 px-4 py-8 max-w-7xl">
       {/* Featured Post */}
       {/* <div className="grid md:grid-cols-5 gap-8 mb-16"> */}
       <div className="flex flex-col md:flex-row  gap-8">
