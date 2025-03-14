@@ -31,7 +31,7 @@ export function TeamCarousel() {
   return (
     <div className="relative mx-auto max-w-6xl px-4 py-16">
       <h2 className="mb-16 text-center text-3xl font-bold text-blue-600">
-        Our Team
+        Our Board Team
       </h2>
 
       <div className="relative h-[300px] w-[70%] m-auto">
