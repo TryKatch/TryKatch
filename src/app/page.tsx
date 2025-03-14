@@ -6,6 +6,11 @@ import { NavBar } from "./common/navBar";
 import { TeamCarousel } from "./components/teamMembers";
 import ContactSection from "./components/contactForm";
 import AdvantagesSection from "./components/avantage";
+// import { AboutUs } from "./pages/about";
+import { AboutSection } from "./pages/about";
+import { ServicesSection } from "./pages/services";
+// import { Testimonials } from "./pages/testimonial";
+// import { AboutSection } from "./pages/about";
 
 export default function Home() {
   return (
@@ -13,11 +18,18 @@ export default function Home() {
       <NavBar />
       <main className="flex-grow min-h-[500px]">
         <HeroSection />
-        <div className="hidden md:block">
-          <TeamCarousel />
+        {/* <AboutUs /> */}
+        <AboutSection />
+        {/* <Services /> */}
+        <div className="w-[90%] mx-auto">
+          <ServicesSection />
         </div>
         <div className="w-[90%] mx-auto">
           <AdvantagesSection />
+        </div>
+        {/* <Testimonials /> */}
+        <div className="hidden md:block">
+          <TeamCarousel />
         </div>
         <div id="contact">
           <ContactSection />
