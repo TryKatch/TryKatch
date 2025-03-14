@@ -15,6 +15,7 @@
 // };
 
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 
 interface StatProps {
   number: string;
@@ -23,10 +24,16 @@ interface StatProps {
 
 function StatBox({ number, text }: StatProps) {
   return (
-    <div className="">
-      <h3 className="text-4xl font-bold mb-2">{number}</h3>
-      <p className="text-sm uppercase tracking-wider text-[#2a2a8e]">{text}</p>
-    </div>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.8 }}
+      whileInView={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
+      viewport={{ once: true }}
+      className="bg-gradient-to-br from-blue-700 to-black/30 p-6 rounded-lg backdrop-blur-sm border"
+    >
+      <h3 className="text-4xl text-white font-bold mb-2">{number}</h3>
+      <p className="text-sm uppercase tracking-wider text-[#fff]">{text}</p>
+    </motion.div>
   );
 }
 
@@ -34,17 +41,36 @@ export function AboutSection() {
   return (
     <section className="w-full py-20 text-gray-600">
       <div className="container px-4 md:px-6">
-        <div className="text-center max-w-3xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          viewport={{ once: true }}
+          className="text-center max-w-3xl mx-auto"
+        >
           <h2 className="text-3xl md:text-4xl font-bold mb-2">Our Passion</h2>
           <h3 className="text-3xl md:text-4xl font-bold mb-16">
             Proven <span className="text-[#2a2a8e]">Results</span>
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            variants={{
+              hidden: { opacity: 0, y: 20 },
+              visible: {
+                opacity: 1,
+                y: 0,
+                transition: { staggerChildren: 0.2 },
+              },
+            }}
+            viewport={{ once: true }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16"
+          >
             <StatBox number="200+" text="Successful Projects" />
             <StatBox number="037+" text="Awards Winning Agency" />
-            <StatBox number="019+" text="Design Specialised Expert" />
-          </div>
+            <StatBox number="019+" text="Design Specialized Expert" />
+          </motion.div>
 
           <p className="text-lg md:text-xl leading-relaxed mb-12">
             At Our Digital Agency, We Specialize In Creating Impactful Digital
@@ -57,7 +83,7 @@ export function AboutSection() {
           <Button className="bg-gradient-to-r from-primary to-blue-800 hover:from-primary/90 hover:to-blue-500/90 text-white px-8 py-6 text-lg rounded-full">
             Book A Call
           </Button>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
