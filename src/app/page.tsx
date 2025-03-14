@@ -21,7 +21,7 @@ export default function Home() {
         {/* <AboutUs /> */}
         <AboutSection />
         {/* <Services /> */}
-        <div className="w-[90%] mx-auto">
+        <div id="service" className="w-[90%] mx-auto">
           <ServicesSection />
         </div>
         <div className="w-[90%] mx-auto">
