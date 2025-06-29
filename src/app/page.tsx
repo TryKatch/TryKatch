@@ -16,12 +16,12 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       <NavBar />
-      <main className="flex-grow min-h-[500px]">
+      <main className="flex-grow pt-16 lg:pt-20">
         <HeroSection />
         {/* <AboutUs /> */}
         <AboutSection />
         {/* <Services /> */}
-        <div id="service" className="w-[90%] mx-auto">
+        <div id="service">
           <ServicesSection />
         </div>
         <div className="w-[90%] mx-auto">

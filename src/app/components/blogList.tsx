@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Search, Calendar, Clock, ArrowRight, User } from "lucide-react";
+import { motion } from "framer-motion";
 
 // type BlogPost = {
 //   id: string;
@@ -23,7 +24,7 @@ import { Input } from "@/components/ui/input";
 interface Author {
   name: string;
   role: string;
-  avatar: string;
+  avatar?: string;
 }
 
 interface BlogPost {
@@ -35,408 +36,349 @@ interface BlogPost {
   readTime: string;
   category: string;
   author: Author;
+  featured?: boolean;
 }
 
-// Featured post data
-const featuredPost: BlogPost = {
-  id: "webinar-TryKatch",
-  title: "How to Run a Webinar with TryKatch: A Complete Step-by-Step Guide",
-  description:
-    "This complete guide shows you how you can plan, schedule, host, recording, and repurpose your webinar with just one platform; TryKatch!",
-  image: "/placeholder.png",
-  date: "January 23, 2025",
-  readTime: "20 min",
-  category: "Webinar",
-  author: {
-    name: "Kendall Breitman",
-    role: "Social Media & Community Expert",
-    avatar: "/placeholder.png",
-  },
-};
-
-// Trending posts data
-const trendingPosts: BlogPost[] = [
+// Sample blog posts data
+const samplePosts: BlogPost[] = [
   {
-    id: "video-podcast-2025",
-    title: "How to Record a Video Podcast in 2025 (5 Easy Methods)",
+    id: "webinar-trykatch",
+    title: "How to Run a Webinar with TryKatch: A Complete Step-by-Step Guide",
     description:
-      "Learn the best ways to record high-quality video podcasts in 2025",
+      "This complete guide shows you how you can plan, schedule, host, record, and repurpose your webinar with just one platform; TryKatch!",
     image: "/placeholder.png",
-    date: "Jan 25, 2025",
-    readTime: "14 min",
-    category: "Video podcast",
-    author: {
-      name: "Stephen Robles",
-      role: "Video & Podcast Creator",
-      avatar: "/placeholder.png",
-    },
-  },
-  {
-    id: "zoom-video-quality",
-    title: "How to Improve Zoom Video Quality (A Step-by-Step Guide)",
-    description: "Enhance your Zoom calls with these simple techniques",
-    image: "/placeholder.png",
-    date: "Jan 10, 2025",
-    readTime: "10 min",
-    category: "Recording software",
-    author: {
-      name: "Stephen Robles",
-      role: "Video & Podcast Creator",
-      avatar: "/placeholder.png",
-    },
-  },
-  {
-    id: "iphone-webcam",
-    title: "How to Use iPhone as Webcam on Mac & Windows | Step-by-Step Guide",
-    description:
-      "Turn your iPhone into a high-quality webcam for your computer",
-    image: "/placeholder.png",
-    date: "Jun 28, 2024",
-    readTime: "14 min",
-    category: "Studio equipment",
+    date: "January 23, 2025",
+    readTime: "20 min",
+    category: "Webinar",
     author: {
       name: "Kendall Breitman",
       role: "Social Media & Community Expert",
       avatar: "/placeholder.png",
     },
-  },
-];
-
-// Popular posts data
-const popularPosts: BlogPost[] = [
-  {
-    id: "podcast-equipment-2025",
-    title: "Best Podcast Equipment for Beginners & Pros in 2025 - All Budgets",
-    description:
-      "Discover the best podcast equipment for a pro or beginner setup. We share considerations and recommendations for mics, cameras, and more.",
-    image: "/placeholder.png",
-    date: "January 24, 2025",
-    readTime: "9 min",
-    category: "Podcast equipment",
-    author: {
-      name: "Stephen Robles",
-      role: "Video & Podcast Creator",
-      avatar: "/placeholder.png",
-    },
+    featured: true,
   },
   {
-    id: "podcast-recording-software",
-    title: "21 Best Podcast Recording Software for Pros & Beginners | 2025",
+    id: "modern-web-development",
+    title: "Modern Web Development Trends in 2025",
     description:
-      "Looking for top-quality podcast software? Check out our list of 15 of the best podcast recording software. We cover free and paid options for Mac & PC.",
+      "Explore the latest trends in web development including AI integration, serverless architecture, and progressive web apps.",
     image: "/placeholder.png",
-    date: "January 2, 2025",
-    readTime: "10 min",
-    category: "Podcast Software",
-    author: {
-      name: "Stephen Robles",
-      role: "Video & Podcast Creator",
-      avatar: "/placeholder.png",
-    },
-  },
-  {
-    id: "live-podcasting-guide",
-    title: "A Guide To Live Podcasting | Audio & Video (2025)",
-    description:
-      "Discover the many benefits of live podcasting and find out how to record a live podcast with audio and video in the highest quality possible.",
-    image: "/placeholder.png",
-    date: "December 23, 2024",
+    date: "January 20, 2025",
     readTime: "15 min",
-    category: "Podcast Software",
+    category: "Development",
     author: {
-      name: "Kendall Breitman",
-      role: "Social Media & Community Expert",
+      name: "Sarah Johnson",
+      role: "Senior Developer",
       avatar: "/placeholder.png",
     },
   },
   {
-    id: "start-podcast-guide",
-    title: "How to Start a Podcast | Complete Step-by-Step Guide for 2025",
+    id: "ui-ux-best-practices",
+    title: "UI/UX Best Practices for Better User Experience",
     description:
-      "Learn how to start a podcast and podcast like a pro. The ultimate step-by-step guide on launching a podcast: from planning & equipment to publishing.",
+      "Learn essential UI/UX principles that will help you create more engaging and user-friendly interfaces.",
     image: "/placeholder.png",
-    date: "November 21, 2024",
-    readTime: "22 min",
-    category: "Start a podcast",
+    date: "January 18, 2025",
+    readTime: "12 min",
+    category: "Design",
     author: {
-      name: "Stephen Robles",
-      role: "Video & Podcast Creator",
+      name: "Michael Chen",
+      role: "UX Designer",
       avatar: "/placeholder.png",
     },
   },
   {
-    id: "record-video-interviews",
-    title: "4 Best Ways to Record Video Interviews Remotely Online",
+    id: "cloud-computing-guide",
+    title: "Complete Guide to Cloud Computing for Businesses",
     description:
-      "Learn how to effortlessly record video interviews remotely. We cover 4 of the best methods and dive into tips for better remote video interviews.",
+      "Everything you need to know about migrating your business to the cloud and choosing the right cloud services.",
     image: "/placeholder.png",
-    date: "May 7, 2024",
-    readTime: "10 min",
-    category: "Video recording",
+    date: "January 15, 2025",
+    readTime: "18 min",
+    category: "Cloud",
     author: {
-      name: "Stephen Robles",
-      role: "Video & Podcast Creator",
+      name: "David Wilson",
+      role: "Cloud Architect",
       avatar: "/placeholder.png",
     },
   },
 ];
 
-const BlogList = () => {
-  const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [loading, setLoading] = useState(true);
+const categories = ["All", "Development", "Design", "Webinar", "Cloud", "Business"];
 
+export default function BlogList() {
+  const [posts, setPosts] = useState<BlogPost[]>(samplePosts);
+  const [filteredPosts, setFilteredPosts] = useState<BlogPost[]>(samplePosts);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [loading, setLoading] = useState(false);
+
+  // Filter posts based on search and category
   useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const { data } = await axios.get(
-          "http://localhost:1337/api/blog-posts"
-        );
-        setPosts(data.data);
-      } catch (error) {
-        console.error("Error fetching posts:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    let filtered = posts;
 
-    fetchPosts();
-  }, []);
+    if (selectedCategory !== "All") {
+      filtered = filtered.filter(post => post.category === selectedCategory);
+    }
 
-  console.log(posts);
-  if (loading) return <p>Loading...</p>;
+    if (searchTerm) {
+      filtered = filtered.filter(post =>
+        post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        post.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
 
-  // return (
-  //   <div className="container mx-auto p-5">
-  //     <h1 className="text-2xl font-bold">Blog</h1>
-  //     {posts.map((post) => (
-  //       <div key={post?.id} className="mt-4">
-  //         <h2 className="text-xl font-semibold">{post?.title}</h2>
-  //         <Link href={`/blog/${post?.slug}`} className="text-blue-500">
-  //           Read More
-  //         </Link>
-  //       </div>
-  //     ))}
-  //   </div>
-  // );
+    setFilteredPosts(filtered);
+  }, [posts, searchTerm, selectedCategory]);
+
+  const featuredPost = posts.find(post => post.featured);
+  const regularPosts = filteredPosts.filter(post => !post.featured);
 
   return (
-    <div className="container mx-auto mb-12 mt-8 px-4 py-8 max-w-7xl">
-      {/* Featured Post */}
-      {/* <div className="grid md:grid-cols-5 gap-8 mb-16"> */}
-      <div className="flex flex-col md:flex-row  gap-8">
-        <Link href={`/blog/${featuredPost.id}`} key={featuredPost.id}>
-          <div className="flex flex-col md:flex-col gap-6 mb-16">
-            <div className="md:col-span-3">
-              <Image
-                src={featuredPost.image || "/placeholder.png"}
-                // src="/placeholder.png"
-                alt={featuredPost.title}
-                width={600}
-                height={400}
-                className="rounded-lg object-cover w-full h-[300px] md:h-[400px]"
+    <div className="min-h-screen bg-gradient-to-br from-background via-accent/30 to-accent/50">
+      <div className="container mx-auto px-4 py-16 md:py-20">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center mb-16"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent border border-border rounded-full text-sm font-medium text-accent-foreground mb-6">
+            <Calendar className="w-4 h-4" />
+            Our Blog
+          </div>
+          
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6">
+            Latest Insights &
+            <br />
+            <span className="text-brand-gradient">Tech Stories</span>
+          </h1>
+          
+          <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+            Stay updated with the latest trends in technology, development, and digital innovation. 
+            Our experts share insights to help you stay ahead in the digital world.
+          </p>
+        </motion.div>
+
+        {/* Search and Filter */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="mb-12"
+        >
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+            {/* Search */}
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+              <Input
+                type="text"
+                placeholder="Search articles..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-12 border-border focus:border-blue-500"
               />
             </div>
-            <div className="md:col-span-2 flex flex-col justify-center">
-              <h1 className="text-3xl font-bold mb-4">{featuredPost.title}</h1>
-              <p className="text-gray-600 mb-4">{featuredPost.description}</p>
-              <div className="flex items-center gap-3 mt-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage
-                    src={featuredPost.author.avatar}
-                    alt={featuredPost.author.name}
-                  />
-                  <AvatarFallback>
-                    {featuredPost.author.name.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-sm font-medium">
-                    {featuredPost.author.name}
+
+            {/* Category Filter */}
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <Button
+                  key={category}
+                  variant={selectedCategory === category ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedCategory(category)}
+                  className={`${
+                    selectedCategory === category
+                      ? "brand-gradient text-white"
+                      : "border-border text-foreground hover:bg-accent"
+                  }`}
+                >
+                  {category}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Featured Post */}
+        {featuredPost && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+            className="mb-16"
+          >
+            <div className="bg-card/80 backdrop-blur-sm rounded-3xl shadow-xl border border-border overflow-hidden hover-lift">
+              <div className="grid md:grid-cols-2 gap-8 p-8 md:p-12">
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <Badge className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                      Featured
+                    </Badge>
+                    <Badge variant="outline" className="border-border text-foreground">
+                      {featuredPost.category}
+                    </Badge>
+                  </div>
+                  
+                  <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-card-foreground leading-tight">
+                    {featuredPost.title}
+                  </h2>
+                  
+                  <p className="text-lg text-muted-foreground leading-relaxed">
+                    {featuredPost.description}
                   </p>
-                  <p className="text-xs text-gray-500">
-                    {featuredPost.author.role}
-                  </p>
+
+                  <div className="flex items-center gap-4 pt-4">
+                    <Avatar className="w-12 h-12">
+                      <AvatarImage src={featuredPost.author.avatar} alt={featuredPost.author.name} />
+                      <AvatarFallback>
+                        <User className="w-6 h-6" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-semibold text-card-foreground">{featuredPost.author.name}</p>
+                      <p className="text-sm text-muted-foreground">{featuredPost.author.role}</p>
+                    </div>
+                    <div className="ml-auto flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        {featuredPost.date}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        {featuredPost.readTime}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button asChild className="brand-gradient text-white hover:opacity-90 shadow-lg hover:shadow-xl group">
+                    <Link href={`/blog/${featuredPost.id}`}>
+                      Read Full Article
+                      <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    </Link>
+                  </Button>
                 </div>
-                <div className="text-sm text-gray-500 ml-auto">
-                  {featuredPost.date} • {featuredPost.readTime}
+                
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden">
+                  <Image
+                    src={featuredPost.image}
+                    alt={featuredPost.title}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
               </div>
             </div>
-          </div>
-        </Link>
+          </motion.div>
+        )}
 
-        {/* Trending Section */}
-        <div className="mb-16">
-          <div className="bg-purple-950 rounded-lg p-6 mb-6 min-h-[196px]">
-            <h2 className="text-2xl font-bold text-white">
-              Trending on TryKatch
-            </h2>
-          </div>
-          <div className="space-y-6">
-            {trendingPosts.map((post) => (
-              <Link href={`/blog/${post.id}`} key={post.id}>
-                <div className="grid grid-cols-4 gap-4 hover:bg-gray-50 p-2 rounded-lg transition-colors">
-                  <div className="col-span-1">
-                    <Image
-                      src={post.image || "/placeholder.svg"}
-                      alt={post.title}
-                      width={180}
-                      height={120}
-                      className="rounded-lg object-cover w-full h-24"
-                    />
-                  </div>
-                  <div className="col-span-3">
-                    <h3 className="font-bold mb-2">{post.title}</h3>
-                    <div className="flex items-center text-sm text-gray-500 mb-2">
+        {/* Regular Posts Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {regularPosts.map((post, index) => (
+            <motion.article
+              key={post.id}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 * index }}
+              className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-lg border border-border overflow-hidden hover-lift group"
+            >
+              <div className="relative aspect-[16/10] overflow-hidden">
+                <Image
+                  src={post.image}
+                  alt={post.title}
+                  fill
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+                <div className="absolute top-4 left-4">
+                  <Badge variant="secondary" className="bg-background/90 text-foreground">
+                    {post.category}
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <h3 className="text-xl font-bold text-card-foreground leading-tight group-hover:text-blue-600 transition-colors">
+                  <Link href={`/blog/${post.id}`}>
+                    {post.title}
+                  </Link>
+                </h3>
+                
+                <p className="text-muted-foreground leading-relaxed line-clamp-3">
+                  {post.description}
+                </p>
+
+                <div className="flex items-center gap-3 pt-4 border-t border-border">
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage src={post.author.avatar} alt={post.author.name} />
+                    <AvatarFallback>
+                      <User className="w-4 h-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-card-foreground">{post.author.name}</p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{post.date}</span>
-                      <span className="mx-2">•</span>
+                      <span>•</span>
                       <span>{post.readTime}</span>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className="bg-purple-100 text-purple-800 hover:bg-purple-200"
-                    >
-                      {post.category}
-                    </Badge>
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Most Popular Posts */}
-      <div>
-        <h2 className="text-2xl font-bold mb-6">Most popular posts</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {popularPosts.slice(0, 2).map((post) => (
-            <Link href={`/blog/${post.id}`} key={post.id} className="group">
-              <div className="rounded-lg overflow-hidden mb-3">
-                <Image
-                  src={post.image || "/placeholder.svg"}
-                  alt={post.title}
-                  width={400}
-                  height={250}
-                  className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-              <Badge variant="outline" className="mb-2">
-                {post.category}
-              </Badge>
-              <h3 className="font-bold text-lg mb-2 group-hover:text-purple-800 transition-colors">
-                {post.title}
-              </h3>
-              <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                {post.description}
-              </p>
-              <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage
-                    src={post.author.avatar}
-                    alt={post.author.name}
-                  />
-                  <AvatarFallback>{post.author.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{post.author.name}</p>
-                  <p className="text-xs text-gray-500">{post.author.role}</p>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {post.date} • {post.readTime}
-                </div>
-              </div>
-            </Link>
-          ))}
-
-          {/* Newsletter Subscription */}
-          <div className="bg-purple-950 rounded-lg p-6 flex flex-col justify-center">
-            <div className="relative h-full flex flex-col justify-between">
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  Never miss another article
-                </h3>
-              </div>
-              <div className="mt-auto">
-                <div className="relative mt-4">
-                  <Input
-                    type="email"
-                    placeholder="Enter your email"
-                    className="bg-white/10 text-white placeholder:text-gray-300 border-none"
-                  />
-                  <Button className="absolute right-0 top-0 bg-white text-purple-950 hover:bg-gray-100">
-                    Subscribe
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/blog/${post.id}`}>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
                   </Button>
                 </div>
               </div>
-              <div className="absolute -right-4 -top-4">
-                <div className="bg-yellow-300 h-16 w-16 rounded-full flex items-center justify-center rotate-12">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-purple-950"
-                  >
-                    <path d="M21.5 12H16c-.7 2-2 3-4 3s-3.3-1-4-3H2.5" />
-                    <path d="M5.5 5.1L2 12v6c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2v-6l-3.4-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.8 1.1z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Remaining Popular Posts */}
-          {popularPosts.slice(2).map((post) => (
-            <Link href={`/blog/${post.id}`} key={post.id} className="group">
-              <div className="rounded-lg overflow-hidden mb-3">
-                <Image
-                  src={post.image || "/placeholder.svg"}
-                  alt={post.title}
-                  width={400}
-                  height={250}
-                  className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-              <Badge variant="outline" className="mb-2">
-                {post.category}
-              </Badge>
-              <h3 className="font-bold text-lg mb-2 group-hover:text-purple-800 transition-colors">
-                {post.title}
-              </h3>
-              <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                {post.description}
-              </p>
-              <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage
-                    src={post.author.avatar}
-                    alt={post.author.name}
-                  />
-                  <AvatarFallback>{post.author.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{post.author.name}</p>
-                  <p className="text-xs text-gray-500">{post.author.role}</p>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {post.date} • {post.readTime}
-                </div>
-              </div>
-            </Link>
+            </motion.article>
           ))}
         </div>
-        <div className="text-center mt-8">
-          <Button variant="outline">View More</Button>
-        </div>
+
+        {/* No Results */}
+        {filteredPosts.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-16"
+          >
+            <div className="max-w-md mx-auto">
+              <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">No articles found</h3>
+              <p className="text-muted-foreground mb-6">
+                Try adjusting your search terms or browse different categories.
+              </p>
+              <Button 
+                onClick={() => {
+                  setSearchTerm("");
+                  setSelectedCategory("All");
+                }}
+                variant="outline"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Load More Button */}
+        {regularPosts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-center mt-12"
+          >
+            <Button 
+              variant="outline" 
+              size="lg"
+              className="border-border text-foreground hover:bg-accent px-8 py-6"
+            >
+              Load More Articles
+            </Button>
+          </motion.div>
+        )}
       </div>
     </div>
   );
-};
-
-export default BlogList;
+}
