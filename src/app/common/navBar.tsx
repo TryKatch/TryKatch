@@ -13,8 +13,8 @@ const navigation = [
   { name: "Home", href: "/" },
   { name: "About", href: "/about" },
   { name: "Services", href: "/#service" },
+  { name: "Portfolio", href: "/portfolio" },
   { name: "Blog", href: "/blog" },
-  { name: "Team", href: "/team" },
   { name: "Career", href: "/career" },
 ];
 
@@ -85,8 +85,8 @@ export function NavBar() {
         <div className="hidden lg:flex items-center space-x-3">
           <ThemeToggle />
           <Button 
-            variant="ghost" 
-            className="text-foreground/70 hover:text-foreground hover:bg-accent"
+            variant="outline" 
+            className="text-foreground/70 hover:text-foreground hover:bg-accent border-border"
             asChild
           >
             <Link href="#contact">Get Quote</Link>

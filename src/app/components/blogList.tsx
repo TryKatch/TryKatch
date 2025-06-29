@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
 import Link from "next/link";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
@@ -107,11 +106,10 @@ const samplePosts: BlogPost[] = [
 const categories = ["All", "Development", "Design", "Webinar", "Cloud", "Business"];
 
 export default function BlogList() {
-  const [posts, setPosts] = useState<BlogPost[]>(samplePosts);
+  const [posts] = useState<BlogPost[]>(samplePosts);
   const [filteredPosts, setFilteredPosts] = useState<BlogPost[]>(samplePosts);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [loading, setLoading] = useState(false);
 
   // Filter posts based on search and category
   useEffect(() => {

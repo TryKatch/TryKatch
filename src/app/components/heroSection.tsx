@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Phone, ArrowRight, Star, Users, Award } from "lucide-react";
+import { Phone, ArrowRight, Star, Users, Award, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const stats = [
@@ -77,18 +77,26 @@ export default function HeroSection() {
                 <Button 
                   size="lg"
                   className="brand-gradient text-white hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-xl group px-8 py-6 text-lg"
+                  asChild
                 >
-                  <Phone className="mr-2 h-5 w-5" />
-                  Start Your Project
-                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  <a href="#contact" className="flex items-center">
+                    <Phone className="mr-2 h-5 w-5" />
+                    Start Your Project
+                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  </a>
                 </Button>
                 
                 <Button 
                   variant="outline" 
                   size="lg"
-                  className="border-border text-foreground hover:bg-accent px-8 py-6 text-lg"
+                  className="border-border text-foreground hover:bg-accent px-8 py-6 text-lg group"
+                  asChild
                 >
-                  View Our Work
+                  <a href="#contact" className="flex items-center">
+                    <Calculator className="mr-2 h-5 w-5" />
+                    Get Free Quote
+                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  </a>
                 </Button>
               </motion.div>
 

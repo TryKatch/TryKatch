@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Mail, Phone, Send, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { MapPin, Mail, Phone, Send, Clock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,7 +99,7 @@ export default function ContactSection() {
         preferredMethod: "email",
         message: "",
       });
-    } catch (error) {
+    } catch {
       toast.error("Failed to send message", {
         description: "Please try again or contact us directly.",
       });
@@ -154,14 +154,14 @@ export default function ContactSection() {
               </div>
               
               <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-6">
-                Let's Start Your
+                Let&apos;s Start Your
                 <br />
                 <span className="text-gradient">Next Project</span>
               </h2>
               
               <p className="text-lg text-muted-foreground leading-relaxed mb-8">
-                Ready to transform your ideas into reality? We're here to help you build 
-                something amazing. Get in touch and let's discuss your project.
+                Ready to transform your ideas into reality? We&apos;re here to help you build 
+                something amazing. Get in touch and let&apos;s discuss your project.
               </p>
             </div>
 
@@ -230,7 +230,7 @@ export default function ContactSection() {
                 Send us a message
               </h3>
               <p className="text-muted-foreground mb-8">
-                Fill out the form below and we'll get back to you within 24 hours.
+                Fill out the form below and we&apos;ll get back to you within 24 hours.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-6">

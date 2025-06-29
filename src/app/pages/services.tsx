@@ -51,7 +51,7 @@ import {
   CardFooter,
   CardHeader,
 } from "@/components/ui/card";
-import { Code, Users, Palette, ArrowRight, CheckCircle } from "lucide-react";
+import { Code, Users, Palette, ArrowRight, CheckCircle, Calculator, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface ServiceItem {
@@ -224,7 +224,7 @@ export function ServicesSection() {
 
                 <CardContent className="flex-1 pb-6">
                   <div className="space-y-3">
-                    <h4 className="font-semibold text-card-foreground mb-3">What's included:</h4>
+                    <h4 className="font-semibold text-card-foreground mb-3">What&apos;s included:</h4>
                     {service.features.map((feature, featureIndex) => (
                       <div
                         key={featureIndex}
@@ -257,7 +257,7 @@ export function ServicesSection() {
           ))}
         </motion.div>
 
-        {/* Bottom CTA */}
+        {/* Enhanced Bottom CTA */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -270,24 +270,51 @@ export function ServicesSection() {
               Ready to Transform Your Business?
             </h3>
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Let's discuss how our expertise can help you achieve your goals. 
-              Get a free consultation and project estimate.
+              Let&apos;s discuss how our expertise can help you achieve your goals. 
+              Get a free consultation and project estimate tailored to your needs.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button 
                 size="lg"
-                className="brand-gradient text-white hover:opacity-90 shadow-lg hover:shadow-xl px-8 py-6 text-lg"
+                className="brand-gradient text-white hover:opacity-90 shadow-lg hover:shadow-xl px-8 py-6 text-lg group"
+                asChild
               >
-                Get Free Consultation
-                <ArrowRight className="ml-2 h-5 w-5" />
+                <a href="#contact" className="flex items-center">
+                  <MessageCircle className="mr-2 h-5 w-5" />
+                  Get Free Consultation
+                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </a>
               </Button>
               <Button 
                 variant="outline" 
                 size="lg"
-                className="border-border text-card-foreground hover:bg-accent px-8 py-6 text-lg"
+                className="border-border text-card-foreground hover:bg-accent px-8 py-6 text-lg group"
+                asChild
               >
-                View Portfolio
+                <a href="#contact" className="flex items-center">
+                  <Calculator className="mr-2 h-5 w-5" />
+                  Get Project Quote
+                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </a>
               </Button>
+            </div>
+            
+            {/* Trust indicators */}
+            <div className="mt-8 pt-8 border-t border-border">
+              <div className="grid grid-cols-3 gap-8 text-center">
+                <div>
+                  <div className="text-2xl font-bold text-card-foreground">24h</div>
+                  <div className="text-sm text-muted-foreground">Response Time</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-card-foreground">Free</div>
+                  <div className="text-sm text-muted-foreground">Initial Consultation</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-card-foreground">Custom</div>
+                  <div className="text-sm text-muted-foreground">Project Quotes</div>
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>
