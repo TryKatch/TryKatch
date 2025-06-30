@@ -16,6 +16,12 @@ const eslintConfig = [
       "@typescript-eslint/no-explicit-any": "off", // Allow explicit any type
     },
   },
+  {
+    files: ["**/*.config.{js,mjs,cjs}", "jest.setup.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off", // Allow require in config files
+    },
+  },
 ];
 
 export default eslintConfig;
