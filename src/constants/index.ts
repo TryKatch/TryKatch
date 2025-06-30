@@ -100,6 +100,66 @@ export const ADVANTAGES = [
   },
 ] as const;
 
+export const TEAM_MEMBERS = [
+  {
+    id: 'sudi-david',
+    name: 'Sudi David',
+    role: 'CTO',
+    bio: 'Chief Technology Officer with extensive experience in software architecture, technology strategy, and leading high-performance development teams.',
+    image: '/team/sudi-david.jpg',
+    socialLinks: [
+      {
+        name: 'LinkedIn',
+        href: '#',
+        icon: 'Linkedin',
+      },
+      {
+        name: 'GitHub',
+        href: 'https://github.com/SudiDav',
+        icon: 'Github',
+      },
+    ],
+  },
+  {
+    id: 'cedric-justin',
+    name: 'Cedric Justin',
+    role: 'Tech Lead',
+    bio: 'Experienced technology leader with expertise in software architecture, team management, and delivering scalable solutions.',
+    image: '/team/cedric-justin.jpg',
+    socialLinks: [
+      {
+        name: 'LinkedIn',
+        href: '#',
+        icon: 'Linkedin',
+      },
+      {
+        name: 'GitHub',
+        href: '#',
+        icon: 'Github',
+      },
+    ],
+  },
+  {
+    id: 'jean-claude',
+    name: 'Jean Claude',
+    role: 'Software Developer',
+    bio: 'Passionate software developer focused on building high-quality applications using modern technologies and best practices.',
+    image: '/team/jean-claude.jpg',
+    socialLinks: [
+      {
+        name: 'LinkedIn',
+        href: '#',
+        icon: 'Linkedin',
+      },
+      {
+        name: 'GitHub',
+        href: '#',
+        icon: 'Github',
+      },
+    ],
+  },
+] as const;
+
 export const ANIMATION_VARIANTS = {
   fadeIn: {
     hidden: { opacity: 0, y: 20 },

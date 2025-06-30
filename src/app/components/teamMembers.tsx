@@ -2,43 +2,51 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, User } from "lucide-react";
+import { ChevronLeft, ChevronRight, User, Linkedin, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-interface TeamMember {
-  id: number;
-  name: string;
-  role: string;
-  image?: string;
-}
-
-const teamMembers: TeamMember[] = [
-  { id: 1, name: "Jane Doe", role: "COO" },
-  { id: 2, name: "Sudi David M.", role: "CEO/CTO" },
-  { id: 3, name: "John Doe", role: "CFO" },
-];
+import { TEAM_MEMBERS } from "@/constants";
+import Image from "next/image";
 
 export function TeamCarousel() {
-  const [currentIndex, setCurrentIndex] = React.useState(1); // Start with middle member
+  const [currentIndex, setCurrentIndex] = React.useState(0);
 
   const navigate = (direction: number) => {
     const newIndex = currentIndex + direction;
-    if (newIndex >= 0 && newIndex < teamMembers.length) {
+    if (newIndex >= 0 && newIndex < TEAM_MEMBERS.length) {
       setCurrentIndex(newIndex);
     }
   };
 
-  return (
-    <div className="relative mx-auto max-w-6xl px-4 py-16">
-      <h2 className="mb-16 text-center text-3xl font-bold text-blue-600">
-        Our Board Team
-      </h2>
+  const getIconComponent = (iconName: string) => {
+    const icons: { [key: string]: React.ComponentType<any> } = {
+      Linkedin,
+      Github,
+    };
+    return icons[iconName] || Github;
+  };
 
-      <div className="relative h-[300px] w-[70%] m-auto">
+  return (
+    <section id="team" className="relative mx-auto max-w-6xl px-4 py-16">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true }}
+        className="text-center mb-16"
+      >
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+          Meet Our Team
+        </h2>
+        <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          Our experienced team of professionals is dedicated to delivering exceptional software solutions
+        </p>
+      </motion.div>
+
+      <div className="relative h-[400px] w-[80%] mx-auto">
         <div className="absolute left-0 right-0 flex items-center justify-center">
-          <div className="relative h-[300px] w-full max-w-4xl">
+          <div className="relative h-[400px] w-full max-w-4xl">
             <div className="flex items-center justify-center gap-8">
-              {teamMembers.map((member, index) => (
+              {TEAM_MEMBERS.map((member, index) => (
                 <motion.div
                   key={member.id}
                   initial={false}
@@ -54,33 +62,78 @@ export function TeamCarousel() {
                   className="flex flex-col items-center"
                 >
                   <div
-                    className={`relative overflow-hidden rounded-lg bg-gray-200 transition-all duration-300 ${
-                      currentIndex === index ? "h-48 w-48 p-8" : "h-32 w-32 p-6"
+                    className={`relative overflow-hidden rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 border border-gray-200 dark:border-gray-700 transition-all duration-300 ${
+                      currentIndex === index ? "h-48 w-48 p-2" : "h-32 w-32 p-2"
                     }`}
                   >
-                    <User className="h-full w-full text-gray-400" />
+                    {member.image ? (
+                      <Image
+                        src={member.image}
+                        alt={member.name}
+                        fill
+                        className="object-cover rounded-md"
+                        sizes="(max-width: 768px) 128px, 192px"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center">
+                        <User className={`text-gray-400 ${currentIndex === index ? "h-24 w-24" : "h-16 w-16"}`} />
+                      </div>
+                    )}
                   </div>
+                  
                   <motion.div
                     initial={false}
                     animate={{
                       scale: currentIndex === index ? 1 : 0.9,
                     }}
-                    className="mt-4 text-center"
+                    className="mt-4 text-center max-w-xs"
                   >
                     <p
-                      className={`font-medium transition-all ${
-                        currentIndex === index ? "text-lg" : "text-base"
+                      className={`font-semibold transition-all text-gray-900 dark:text-white ${
+                        currentIndex === index ? "text-xl" : "text-lg"
                       }`}
                     >
                       {member.name}
                     </p>
                     <p
-                      className={`text-gray-500 transition-all ${
-                        currentIndex === index ? "text-base" : "text-sm"
+                      className={`text-blue-600 dark:text-blue-400 font-medium transition-all ${
+                        currentIndex === index ? "text-base mb-2" : "text-sm"
                       }`}
                     >
                       {member.role}
                     </p>
+                    
+                    {currentIndex === index && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        transition={{ delay: 0.2 }}
+                      >
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 leading-relaxed">
+                          {member.bio}
+                        </p>
+                        
+                        {member.socialLinks && member.socialLinks.length > 0 && (
+                          <div className="flex justify-center space-x-3">
+                            {member.socialLinks.map((link) => {
+                              const IconComponent = getIconComponent(link.icon);
+                              return (
+                                <a
+                                  key={link.name}
+                                  href={link.href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                  aria-label={`${member.name} ${link.name}`}
+                                >
+                                  <IconComponent className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
                   </motion.div>
                 </motion.div>
               ))}
@@ -91,19 +144,19 @@ export function TeamCarousel() {
         {/* Navigation Buttons */}
         {currentIndex > 0 && (
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="absolute left-4 top-1/2 -translate-y-1/2 transform"
+            className="absolute left-4 top-1/2 -translate-y-1/2 transform bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800"
             onClick={() => navigate(-1)}
           >
             <ChevronLeft className="h-6 w-6" />
           </Button>
         )}
-        {currentIndex < teamMembers.length - 1 && (
+        {currentIndex < TEAM_MEMBERS.length - 1 && (
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="absolute right-4 top-1/2 -translate-y-1/2 transform"
+            className="absolute right-4 top-1/2 -translate-y-1/2 transform bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800"
             onClick={() => navigate(1)}
           >
             <ChevronRight className="h-6 w-6" />
@@ -113,18 +166,18 @@ export function TeamCarousel() {
 
       {/* Navigation Dots */}
       <div className="mt-8 flex justify-center space-x-2">
-        {teamMembers.map((_, index) => (
+        {TEAM_MEMBERS.map((_, index) => (
           <button
             key={index}
             onClick={() => setCurrentIndex(index)}
             className={`h-2 rounded-full transition-all ${
-              currentIndex === index ? "w-4 bg-blue-600" : "w-2 bg-gray-300"
+              currentIndex === index ? "w-4 bg-blue-600" : "w-2 bg-gray-300 dark:bg-gray-600"
             }`}
           >
-            <span className="sr-only">Go to slide {index + 1}</span>
+            <span className="sr-only">View {TEAM_MEMBERS[index].name}</span>
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

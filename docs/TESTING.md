@@ -41,3 +41,46 @@ If you encounter module resolution issues:
 1. Check that path aliases are correctly configured in `jest.config.mjs`
 2. Ensure `@testing-library/jest-dom` is imported in test files
 3. Verify that mocked modules match the actual import paths
+
+### Testing Team Components
+
+When testing team-related components:
+1. **Mock team data**: Use test data instead of actual team member information
+2. **Test interactions**: Verify carousel navigation and team member selection
+3. **Image handling**: Test both cases when images are present and when using placeholders
+4. **Accessibility**: Ensure proper ARIA labels and keyboard navigation
+
+Example test for team component:
+```typescript
+// Mock team data for testing
+const mockTeamMembers = [
+  {
+    id: 'test-cto',
+    name: 'Test CTO',
+    role: 'CTO',
+    bio: 'Test CTO bio',
+    image: '/test-cto.jpg',
+    socialLinks: [{ name: 'LinkedIn', href: '#', icon: 'Linkedin' }]
+  },
+  {
+    id: 'test-tech-lead',
+    name: 'Test Tech Lead',
+    role: 'Tech Lead',
+    bio: 'Test tech lead bio',
+    image: '/test-tech-lead.jpg',
+    socialLinks: [{ name: 'GitHub', href: '#', icon: 'Github' }]
+  },
+  {
+    id: 'test-developer',
+    name: 'Test Developer',
+    role: 'Software Developer',
+    bio: 'Test developer bio',
+    image: '/test-developer.jpg',
+    socialLinks: [{ name: 'LinkedIn', href: '#', icon: 'Linkedin' }]
+  }
+];
+
+jest.mock('@/constants', () => ({
+  TEAM_MEMBERS: mockTeamMembers
+}));
+```

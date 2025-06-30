@@ -1,6 +1,12 @@
 # TryKatch - Professional Software Development Services
 
-A modern, responsive website for TryKatch - delivering high-quality, scalable software development, UI/UX design, and IT consulting services.
+A modern, responsive website for TryKatch - delivering high-qu## 👥 Team
+
+Our experienced team is dedicated to delivering exceptional software solutions:
+
+- **Sudi David** - CTO (Chief Technology Officer)
+- **Cedric Justin** - Tech Lead
+- **Jean Claude** - Software Developer scalable software development, UI/UX design, and IT consulting services.
 
 ## 🚀 Features
 
@@ -117,7 +123,14 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 📞 Contact
+## � Team
+
+Our experienced team is dedicated to delivering exceptional software solutions:
+
+- **Cedric Justin** - Tech Lead
+- **Jean Claude** - Software Developer
+
+## �📞 Contact
 
 For inquiries about TryKatch services:
 - Website: [trykatch.com](https://trykatch.com)

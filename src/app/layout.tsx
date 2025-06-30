@@ -30,8 +30,11 @@ export const metadata: Metadata = {
     "digital transformation",
     "TryKatch"
   ],
-  authors: [{ name: "TryKatch Team" }],
-  creator: "TryKatch",
+  authors: [
+    { name: "Sudi David", url: "https://github.com/sudi" },
+    { name: "TryKatch Team" }
+  ],
+  creator: "Sudi David - TryKatch CTO",
   openGraph: {
     type: "website",
     locale: "en_US",
