@@ -1,0 +1,16 @@
+name: dependency-review
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  licenses-and-vulnerabilities:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+          allow-licenses: Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC, PostgreSQL, MS-PL, Zlib, Unlicense

@@ -1,0 +1,40 @@
+{
+  "name": "@flatpackapp/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@flatpackapp/api-client": "workspace:*",
+    "@flatpackapp/ui": "workspace:*",
+    "@tanstack/react-query": "5.102.8",
+    "@tanstack/react-router": "1.170.33",
+    "lucide-react": "1.42.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/jest-dom": "7.0.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "27.0.0",
+    "axe-core": "4.13.0",
+    "msw": "2.15.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.2.2",
+    "vitest": "5.0.0"
+  }
+}

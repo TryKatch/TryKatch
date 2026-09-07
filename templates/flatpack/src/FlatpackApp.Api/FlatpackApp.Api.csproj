@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OpenApiGenerateDocuments>true</OpenApiGenerateDocuments>
+    <OpenApiDocumentsDirectory Condition="'$(FlatpackUi)' == 'react'">$(MSBuildProjectDirectory)/../../web/packages/api-client/openapi</OpenApiDocumentsDirectory>
+    <OpenApiDocumentsDirectory Condition="'$(FlatpackUi)' == 'none'">$(BaseIntermediateOutputPath)openapi</OpenApiDocumentsDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <PackageReference Include="OpenIddict.AspNetCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
+    <PackageReference Include="Serilog.Sinks.OpenTelemetry" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../FlatpackApp.Application/FlatpackApp.Application.csproj" />
+    <ProjectReference Include="../FlatpackApp.Infrastructure/FlatpackApp.Infrastructure.csproj" />
+    <ProjectReference Include="../FlatpackApp.Identity/FlatpackApp.Identity.csproj" />
+    <ProjectReference Include="../FlatpackApp.ServiceDefaults/FlatpackApp.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

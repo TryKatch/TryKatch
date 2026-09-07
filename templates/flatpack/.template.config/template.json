@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json.schemastore.org/template",
+  "author": "Flatpack contributors",
+  "classifications": ["Web", "API", "SaaS", "PostgreSQL", "React", "Aspire"],
+  "identity": "Flatpack.Templates.Enterprise",
+  "groupIdentity": "Flatpack.Templates",
+  "name": "Flatpack enterprise multi-tenant application",
+  "description": "A production-oriented .NET 10 and React solution with PostgreSQL tenant isolation, organization RBAC, secure identity, and open-source observability.",
+  "shortName": "flatpack",
+  "defaultName": "FlatpackApp",
+  "sourceName": "FlatpackApp",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "solution"
+  },
+  "symbols": {
+    "safeName": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "namespaceName",
+      "replaces": "FlatpackApp",
+      "fileRename": "FlatpackApp",
+      "description": "A C#-safe namespace and project path derived from the requested name."
+    },
+    "slugSource": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "kebabName"
+    },
+    "deploymentName": {
+      "type": "derived",
+      "valueSource": "slugSource",
+      "valueTransform": "lowerCase",
+      "replaces": "flatpack-app-slug",
+      "description": "A lowercase deployment-safe name."
+    },
+    "projectIdentifier": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "identifierName",
+      "replaces": "TemplateProjectIdentifier",
+      "description": "A C# identifier-safe name for generated Aspire project-reference types."
+    },
+    "ui": {
+      "type": "parameter",
+      "datatype": "choice",
+      "description": "Frontend to include.",
+      "defaultValue": "react",
+      "choices": [
+        { "choice": "react", "description": "React, Vite, TanStack, and the Flatpack component system." },
+        { "choice": "none", "description": "Backend-only output." }
+      ]
+    },
+    "email": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "Include SMTP email and Mailpit development support.",
+      "defaultValue": "false"
+    },
+    "storage": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "Include local and S3-compatible object storage adapters.",
+      "defaultValue": "false"
+    },
+    "documents": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "Include spreadsheet and PDF exporters.",
+      "defaultValue": "false"
+    },
+    "images": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "Include image validation and processing.",
+      "defaultValue": "false"
+    }
+  },
+  "forms": {
+    "namespaceName": {
+      "identifier": "replace",
+      "pattern": "[-\\s]+",
+      "replacement": "."
+    },
+    "kebabName": {
+      "identifier": "replace",
+      "pattern": "[\\s._]+",
+      "replacement": "-"
+    },
+    "identifierName": {
+      "identifier": "replace",
+      "pattern": "[.\\-\\s]+",
+      "replacement": "_"
+    }
+  },
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "exclude": [
+        ".template.config/**/*",
+        "**/bin/**",
+        "**/obj/**",
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/.playwright-cli/**",
+        "**/*.tsbuildinfo",
+        "**/packages.lock.json",
+        "**/*.user",
+        "**/.DS_Store"
+      ],
+      "modifiers": [
+        {
+          "condition": "(ui == \"none\")",
+          "exclude": [
+            "web/**",
+            ".github/workflows/web.yml",
+            "compose.yml",
+            "README.md"
+          ],
+          "rename": {
+            "compose.backend.yml": "compose.yml",
+            "README.backend.md": "README.md"
+          }
+        },
+        {
+          "condition": "(ui == \"react\")",
+          "exclude": [
+            "compose.backend.yml",
+            "README.backend.md"
+          ]
+        },
+        {
+          "condition": "(!email)",
+          "exclude": ["src/FlatpackApp.Infrastructure/Optional/Email/**"]
+        },
+        {
+          "condition": "(!storage)",
+          "exclude": ["src/FlatpackApp.Infrastructure/Optional/Storage/**"]
+        },
+        {
+          "condition": "(!documents)",
+          "exclude": ["src/FlatpackApp.Infrastructure/Optional/Documents/**"]
+        },
+        {
+          "condition": "(!images)",
+          "exclude": ["src/FlatpackApp.Infrastructure/Optional/Images/**"]
+        }
+      ]
+    }
+  ],
+  "primaryOutputs": [
+    { "path": "FlatpackApp.slnx" }
+  ]
+}

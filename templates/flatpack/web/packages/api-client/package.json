@@ -1,0 +1,15 @@
+{
+  "name": "@flatpackapp/api-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "generate": "orval --config orval.config.ts",
+    "build": "tsc -b",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": { "@tanstack/react-query": "5.102.8" },
+  "devDependencies": { "orval": "8.30.0", "typescript": "6.0.3", "vitest": "5.0.0" }
+}

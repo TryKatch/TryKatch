@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FlatpackApp.Api/FlatpackApp.Api.csproj" />
+    <Project Path="src/FlatpackApp.AppHost/FlatpackApp.AppHost.csproj" />
+    <Project Path="src/FlatpackApp.Application/FlatpackApp.Application.csproj" />
+    <Project Path="src/FlatpackApp.Domain/FlatpackApp.Domain.csproj" />
+    <Project Path="src/FlatpackApp.Identity/FlatpackApp.Identity.csproj" />
+    <Project Path="src/FlatpackApp.Infrastructure/FlatpackApp.Infrastructure.csproj" />
+    <Project Path="src/FlatpackApp.ServiceDefaults/FlatpackApp.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FlatpackApp.IntegrationTests/FlatpackApp.IntegrationTests.csproj" />
+    <Project Path="tests/FlatpackApp.UnitTests/FlatpackApp.UnitTests.csproj" />
+  </Folder>
+</Solution>

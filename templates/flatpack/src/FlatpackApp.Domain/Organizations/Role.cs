@@ -1,0 +1,94 @@
+using FlatpackApp.Domain.Common;
+
+namespace FlatpackApp.Domain.Organizations;
+
+public sealed class Role : RecoverableEntity
+{
+    private Role(Guid id, Guid organizationId, string name, bool isSystem) : base(id)
+    {
+        OrganizationId = organizationId;
+        Name = name;
+        IsSystem = isSystem;
+    }
+
+    private Role() : base(Guid.Empty) { }
+
+    public Guid OrganizationId { get; private init; }
+    public string Name { get; private set; } = string.Empty;
+    public bool IsSystem { get; private init; }
+    public ICollection<RolePermissionGrant> Permissions { get; private set; } = [];
+
+    public static Role Create(Guid organizationId, string name, bool isSystem = false)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new DomainException("Role name is required.");
+        }
+
+        return new Role(Guid.CreateVersion7(), organizationId, name.Trim(), isSystem);
+    }
+
+    public void Rename(string name)
+    {
+        if (IsSystem)
+        {
+            throw new DomainException("System roles cannot be renamed.");
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new DomainException("Role name is required.");
+        }
+
+        Name = name.Trim();
+    }
+
+    public void SetPermissions(IEnumerable<string> permissions)
+    {
+        Permissions.Clear();
+        foreach (string permission in permissions.Distinct(StringComparer.Ordinal))
+        {
+            Permissions.Add(new RolePermissionGrant(Id, permission));
+        }
+    }
+
+    public bool Archive(Guid actorId, DateTimeOffset now)
+    {
+        EnsureCustomRole("archived");
+        return MarkArchived(actorId, now);
+    }
+
+    public bool Restore()
+    {
+        EnsureCustomRole("restored");
+        return MarkRestored();
+    }
+
+    public bool Delete(Guid actorId, string reason, DateTimeOffset now)
+    {
+        EnsureCustomRole("deleted");
+        return MarkArchivedAsDeleted(actorId, reason, now);
+    }
+
+    private void EnsureCustomRole(string operation)
+    {
+        if (IsSystem)
+        {
+            throw new DomainException($"System roles cannot be {operation}.");
+        }
+    }
+}
+
+public sealed class RolePermissionGrant
+{
+    private RolePermissionGrant() { }
+
+    public RolePermissionGrant(Guid roleId, string permission)
+    {
+        RoleId = roleId;
+        Permission = permission;
+    }
+
+    public Guid RoleId { get; private init; }
+    public string Permission { get; private init; } = string.Empty;
+}
