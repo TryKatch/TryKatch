@@ -13,7 +13,7 @@
   --panel-raised: color-mix(in srgb, var(--accent) 3%, var(--base-panel-raised));
   --line: #dce3e1;
   --line-strong: #c8d2cf;
-  --muted: #667370;
+  --muted: #626f6c;
   --text: #18201f;
   --accent: #0f766e;
   --accent-hover: color-mix(in srgb, var(--accent) 82%, #000000);
