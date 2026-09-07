@@ -45,7 +45,8 @@ The customer-facing workspace word is **organization**. Platform administrators 
 ## Development commands
 
 ```bash
-dotnet build FlatpackApp.slnx -p:RestoreLockedMode=true
+dotnet restore FlatpackApp.slnx
+dotnet build FlatpackApp.slnx --no-restore
 dotnet test tests/FlatpackApp.UnitTests
 pnpm --dir web generate
 pnpm --dir web typecheck

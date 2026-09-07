@@ -26,7 +26,10 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: templates/flatpack/web/pnpm-lock.yaml
-      - run: dotnet restore templates/flatpack/FlatpackApp.slnx --locked-mode
+      # Aspire's AppHost lock contains an SDK-runtime-specific dashboard package.
+      # A normal restore preserves the pinned graph while translating that one
+      # package for the runner OS.
+      - run: dotnet restore templates/flatpack/FlatpackApp.slnx
       - run: dotnet build templates/flatpack/FlatpackApp.slnx -c Release --no-restore
       - run: dotnet test templates/flatpack/tests/FlatpackApp.UnitTests -c Release --no-build
       - run: dotnet test templates/flatpack/tests/FlatpackApp.IntegrationTests -c Release --no-build
