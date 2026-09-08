@@ -26,6 +26,13 @@ services:
       ConnectionStrings__flatpackdb: ${FLATPACK_RUNTIME_CONNECTION}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: flatpack-app-slug-api
+      OpenIddict__SigningCertificate__Path: /run/secrets/signing.pfx
+      OpenIddict__SigningCertificate__Password: ${FLATPACK_SIGNING_CERTIFICATE_PASSWORD}
+      OpenIddict__EncryptionCertificate__Path: /run/secrets/encryption.pfx
+      OpenIddict__EncryptionCertificate__Password: ${FLATPACK_ENCRYPTION_CERTIFICATE_PASSWORD}
+      Bootstrap__PlatformAdminEmail: ${FLATPACK_BOOTSTRAP_ADMIN_EMAIL:-}
+      Bootstrap__PlatformAdminPassword: ${FLATPACK_BOOTSTRAP_ADMIN_PASSWORD:-}
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -33,6 +40,9 @@ services:
         condition: service_started
     read_only: true
     tmpfs: [/tmp]
+    volumes:
+      - ${FLATPACK_SECRETS_PATH:-./secrets}/signing.pfx:/run/secrets/signing.pfx:ro
+      - ${FLATPACK_SECRETS_PATH:-./secrets}/encryption.pfx:/run/secrets/encryption.pfx:ro
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
 
@@ -68,20 +78,36 @@ services:
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes: ["./deploy/observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro"]
     depends_on: [loki, tempo]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
 
   prometheus:
     image: prom/prometheus:v3.14.0
     volumes: ["./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro", prometheus-data:/prometheus]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
 
   loki:
     image: grafana/loki:3.7.2
     command: ["-config.file=/etc/loki/local-config.yaml"]
     volumes: ["./deploy/observability/loki.yml:/etc/loki/local-config.yaml:ro", loki-data:/loki]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
 
   tempo:
     image: grafana/tempo:3.0.2
     command: ["-config.file=/etc/tempo.yml"]
     volumes: ["./deploy/observability/tempo.yml:/etc/tempo.yml:ro", tempo-data:/var/tempo]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
 
   grafana:
     image: grafana/grafana:13.2.1
@@ -90,6 +116,10 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
     volumes: ["./deploy/observability/grafana:/etc/grafana/provisioning:ro", grafana-data:/var/lib/grafana]
     depends_on: [prometheus, loki, tempo]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
 
 volumes:
   postgres-data:

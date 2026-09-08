@@ -18,6 +18,8 @@
 *.suo
 *.nupkg
 artifacts/
+**/secrets/
+**/*.pfx
 .env
 .env.*
 !.env.example

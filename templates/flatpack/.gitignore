@@ -14,6 +14,8 @@
 .DS_Store
 *.user
 *.suo
+secrets/
+*.pfx
 .env
 .env.*
 !.env.example
