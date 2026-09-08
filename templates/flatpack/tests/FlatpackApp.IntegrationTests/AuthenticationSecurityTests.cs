@@ -73,6 +73,7 @@ public sealed class AuthenticationSecurityTests
         signedIn.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await client.GetAsync("/api/v1/auth/session")).StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        antiforgery = await GetAntiforgeryTokenAsync(client);
         HttpResponseMessage signedOut = await PostWithAntiforgeryAsync(client, "/api/v1/auth/logout", antiforgery, new { });
         signedOut.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await client.GetAsync("/api/v1/auth/session")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -146,7 +147,9 @@ public sealed class AuthenticationSecurityTests
         });
         mfaStep.StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        antiforgery = await GetAntiforgeryTokenAsync(client);
         await PostWithAntiforgeryAsync(client, "/api/v1/auth/logout", antiforgery, new { });
+        antiforgery = await GetAntiforgeryTokenAsync(client);
         await PostWithAntiforgeryAsync(client, "/api/v1/auth/login", antiforgery, new { email, password, rememberMe = false });
         HttpResponseMessage recovery = await PostWithAntiforgeryAsync(client, "/api/v1/auth/login/mfa", antiforgery, new
         {
@@ -157,7 +160,9 @@ public sealed class AuthenticationSecurityTests
         });
         recovery.StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        antiforgery = await GetAntiforgeryTokenAsync(client);
         await PostWithAntiforgeryAsync(client, "/api/v1/auth/logout", antiforgery, new { });
+        antiforgery = await GetAntiforgeryTokenAsync(client);
         await PostWithAntiforgeryAsync(client, "/api/v1/auth/login", antiforgery, new { email, password, rememberMe = false });
         HttpResponseMessage replay = await PostWithAntiforgeryAsync(client, "/api/v1/auth/login/mfa", antiforgery, new
         {
