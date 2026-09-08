@@ -3,7 +3,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
 
 permissions:
   contents: read
@@ -21,6 +21,8 @@ jobs:
       - run: dotnet tool restore
       - run: dotnet restore FlatpackApp.slnx
       - run: dotnet build FlatpackApp.slnx -c Release --no-restore
+      - name: Validate full-stack module composition
+        run: dotnet run --project tools/FlatpackApp.ModuleTool -c Release --no-build -- module doctor --root .
       - run: dotnet test tests/FlatpackApp.UnitTests -c Release --no-build
       - run: dotnet test tests/FlatpackApp.IntegrationTests -c Release --no-build
       - run: dotnet list FlatpackApp.slnx package --vulnerable --include-transitive

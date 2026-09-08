@@ -15,13 +15,16 @@ This file is the compact repository map for coding agents. The architectural dec
 
 - Backend contract: `src/FlatpackApp.Modules.Abstractions`
 - Secured HTTP contribution: `src/FlatpackApp.Modules.AspNetCore`
-- Backend registry: `src/FlatpackApp.Api/Modules/EnabledModules.cs`
+- Authoritative catalog: `flatpack.modules.json`
+- Module lifecycle and diagnostics: `tools/FlatpackApp.ModuleTool`
+- Generated backend registry: `src/FlatpackApp.Api/Modules/EnabledModules.cs`
 - Web contract: `web/packages/module-sdk`
-- Web registry: `web/apps/web/src/modules.ts`
+- Generated web registry: `web/apps/web/src/modules.ts`
+- Application-owned web overrides: `web/apps/web/src/module-overrides.ts`
 - Package-shaped example: `src/FlatpackApp.Modules.GettingStarted` and `web/packages/module-getting-started`
 - Full data example: Projects across Domain, Application, Infrastructure, API, and React
 
-Add a capability through module interfaces and explicit registries. Do not use runtime assembly scanning or import another module's private implementation. Publish a named extension point when another module needs to contribute UI or behavior.
+Add a capability through module interfaces and a versioned manifest registered in `flatpack.modules.json`. Regenerate both explicit registries with the module tool. Do not use runtime assembly scanning or import another module's private implementation. Publish a named extension point when another module needs to contribute UI or behavior.
 
 ## API and AI workflow
 
@@ -35,6 +38,7 @@ Add a capability through module interfaces and explicit registries. Do not use r
 
 ```bash
 dotnet build FlatpackApp.slnx
+dotnet run --project tools/FlatpackApp.ModuleTool -- module doctor
 dotnet test tests/FlatpackApp.UnitTests
 dotnet test tests/FlatpackApp.IntegrationTests
 pnpm --dir web generate

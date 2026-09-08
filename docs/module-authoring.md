@@ -9,7 +9,7 @@ The delivery order is:
 3. A package-shaped `GettingStarted` module with a manifest, secured API contribution, owned permission, React route, navigation, and cross-module extension. **Implemented.**
 4. Module-owned permissions, RLS, audit/outbox behavior, routes, and navigation. **Implemented for Projects; the reference package proves the non-data path.**
 5. Named web extension slots beyond routes and navigation. **Implemented for UI slots; typed table/form/command contracts remain.**
-6. A CLI-managed NuGet + npm package pair with add, disable, doctor, upgrade, eject, remove, and separate purge-data workflows.
+6. A CLI-managed NuGet + npm package pair with add, disable, doctor, upgrade, eject, remove, and separate purge-data workflows. **The authoritative full-stack catalog plus list, doctor, deterministic generation, and dependency-safe enable/disable are implemented; acquisition, upgrade, eject, unregister, and purge remain.**
 7. A provider-neutral assistant contract generated from explicitly allowlisted module operations. **Implemented for strict read-only tools; a runtime provider adapter, permission-filtered discovery, approval UI, and mutation execution remain.**
 
-Until lifecycle tooling and its release gates exist, external module installation is an architectural capability under development rather than a production support promise.
+CI now enforces catalog validity and backend/web registry parity, including in generated template permutations. Until package acquisition, upgrade, eject, unregister, migration ownership, provenance, and rollback gates exist, external third-party module installation remains an architectural capability under development rather than a production support promise.

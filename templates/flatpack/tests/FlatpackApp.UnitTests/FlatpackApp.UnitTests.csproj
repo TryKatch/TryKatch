@@ -15,6 +15,7 @@
     <ProjectReference Include="../../src/FlatpackApp.Modules.Abstractions/FlatpackApp.Modules.Abstractions.csproj" />
     <ProjectReference Include="../../src/FlatpackApp.Modules.AspNetCore/FlatpackApp.Modules.AspNetCore.csproj" />
     <ProjectReference Include="../../src/FlatpackApp.Modules.GettingStarted/FlatpackApp.Modules.GettingStarted.csproj" />
+    <ProjectReference Include="../../tools/FlatpackApp.ModuleTool/FlatpackApp.ModuleTool.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +24,7 @@
 
   <ItemGroup>
     <None Include="../../src/FlatpackApp.Modules.GettingStarted/flatpack.module.json" Link="fixtures/getting-started.module.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/FlatpackApp.Infrastructure/Modules/projects.flatpack.module.json" Link="fixtures/projects.module.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

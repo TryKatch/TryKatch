@@ -15,18 +15,15 @@ namespace FlatpackApp.UnitTests;
 public sealed class ReferenceModuleTests
 {
     [TestMethod]
-    public void PackageManifestMatchesRuntimeDescriptor()
+    public void GettingStartedManifestMatchesRuntimeDescriptor()
     {
-        string json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "getting-started.module.json"));
-        using JsonDocument document = JsonDocument.Parse(json);
-        JsonElement root = document.RootElement;
-        FlatpackModuleDescriptor descriptor = new GettingStartedModule().Descriptor;
+        AssertManifestMatches("getting-started.module.json", new GettingStartedModule().Descriptor);
+    }
 
-        root.GetProperty("id").GetString().ShouldBe(descriptor.Id);
-        root.GetProperty("version").GetString().ShouldBe(descriptor.Version);
-        root.GetProperty("requires").EnumerateArray().Select(value => value.GetString()).ShouldBe(descriptor.Requires);
-        root.GetProperty("assistantTools")[0].GetProperty("name").GetString()
-            .ShouldBe(descriptor.AssistantTools[0].Name);
+    [TestMethod]
+    public void ProjectsManifestMatchesRuntimeDescriptor()
+    {
+        AssertManifestMatches("projects.module.json", new ProjectsModule().Descriptor);
     }
 
     [TestMethod]
@@ -63,5 +60,50 @@ public sealed class ReferenceModuleTests
         ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
             .ShouldNotContain(value => value.RoutePattern.RawText == "/api/v1/getting-started");
+    }
+
+    private static void AssertManifestMatches(string fixture, FlatpackModuleDescriptor descriptor)
+    {
+        string json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", fixture));
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement root = document.RootElement;
+
+        root.GetProperty("id").GetString().ShouldBe(descriptor.Id);
+        root.GetProperty("name").GetString().ShouldBe(descriptor.Name);
+        root.GetProperty("version").GetString().ShouldBe(descriptor.Version);
+        root.GetProperty("description").GetString().ShouldBe(descriptor.Description);
+        root.GetProperty("requires").EnumerateArray().Select(value => value.GetString()).ShouldBe(descriptor.Requires);
+        root.GetProperty("optionalDependencies").EnumerateArray().Select(value => value.GetString())
+            .ShouldBe(descriptor.OptionalDependencies);
+        ParseCapabilities(root.GetProperty("capabilities")).ShouldBe(descriptor.Capabilities);
+        root.GetProperty("contributions").GetProperty("extensionPoints").EnumerateArray()
+            .Select(value => value.GetProperty("id").GetString())
+            .ShouldBe(descriptor.ExtensionPoints.Select(point => point.Id));
+
+        JsonElement.ArrayEnumerator tools = root.GetProperty("contributions").GetProperty("assistantTools").EnumerateArray();
+        tools.Select(value => value.GetProperty("name").GetString()).ShouldBe(descriptor.AssistantTools.Select(tool => tool.Name));
+        tools.Select(value => value.GetProperty("operationId").GetString()).ShouldBe(descriptor.AssistantTools.Select(tool => tool.OperationId));
+        tools.Select(value => value.GetProperty("requiresHumanConfirmation").GetBoolean())
+            .ShouldBe(descriptor.AssistantTools.Select(tool => tool.RequiresHumanConfirmation));
+    }
+
+    private static FlatpackModuleCapabilities ParseCapabilities(JsonElement capabilities)
+    {
+        FlatpackModuleCapabilities result = FlatpackModuleCapabilities.None;
+        foreach (JsonElement value in capabilities.EnumerateArray())
+        {
+            result |= value.GetString() switch
+            {
+                "api" => FlatpackModuleCapabilities.Api,
+                "web" => FlatpackModuleCapabilities.Web,
+                "data" => FlatpackModuleCapabilities.Data,
+                "background-work" => FlatpackModuleCapabilities.BackgroundWork,
+                "assistant" => FlatpackModuleCapabilities.Assistant,
+                string unknown => throw new InvalidOperationException($"Unknown manifest capability '{unknown}'."),
+                null => throw new InvalidOperationException("Manifest capability cannot be null.")
+            };
+        }
+
+        return result;
     }
 }

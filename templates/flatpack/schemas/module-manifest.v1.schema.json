@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flatpack.dev/schemas/module-manifest.v1.json",
+  "title": "Flatpack module manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "version",
+    "description",
+    "compatibility",
+    "requires",
+    "optionalDependencies",
+    "capabilities",
+    "artifacts",
+    "entrypoints",
+    "contributions"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "format": "uri-reference" },
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/moduleId" },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "$ref": "#/$defs/version" },
+    "description": { "type": "string", "minLength": 1 },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimumHostVersion", "maximumHostVersionExclusive"],
+      "properties": {
+        "minimumHostVersion": { "$ref": "#/$defs/version" },
+        "maximumHostVersionExclusive": { "$ref": "#/$defs/version" }
+      }
+    },
+    "requires": { "$ref": "#/$defs/moduleIds" },
+    "optionalDependencies": { "$ref": "#/$defs/moduleIds" },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["api", "web", "data", "background-work", "assistant"]
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dotnetProject", "webPackage"],
+      "properties": {
+        "dotnetProject": { "$ref": "#/$defs/relativePath" },
+        "webPackage": { "type": "string" }
+      }
+    },
+    "entrypoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dotnet", "web"],
+      "properties": {
+        "dotnet": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+$"
+            }
+          }
+        },
+        "web": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["specifier", "export"],
+          "properties": {
+            "specifier": { "type": "string" },
+            "export": {
+              "type": "string",
+              "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+            }
+          }
+        }
+      }
+    },
+    "contributions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["permissions", "routes", "extensionPoints", "extensions", "assistantTools"],
+      "properties": {
+        "permissions": { "$ref": "#/$defs/contracts" },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "path"],
+            "properties": {
+              "id": { "$ref": "#/$defs/contractId" },
+              "path": { "type": "string", "pattern": "^/" }
+            }
+          }
+        },
+        "extensionPoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id"],
+            "properties": { "id": { "$ref": "#/$defs/contractId" } }
+          }
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "point"],
+            "properties": {
+              "id": { "$ref": "#/$defs/contractId" },
+              "point": { "$ref": "#/$defs/contractId" }
+            }
+          }
+        },
+        "assistantTools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "operationId", "risk", "requiresHumanConfirmation"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+              },
+              "operationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+              },
+              "risk": { "enum": ["read-only", "state-changing"] },
+              "requiresHumanConfirmation": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "moduleId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+    },
+    "moduleIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/moduleId" }
+    },
+    "contractId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*([.-][a-z0-9]+)*$"
+    },
+    "contracts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/contractId" }
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": { "pattern": "^(?:/|[A-Za-z]:[\\\\/])" }
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    }
+  }
+}

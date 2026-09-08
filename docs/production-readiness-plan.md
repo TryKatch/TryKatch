@@ -13,6 +13,19 @@ Move Flatpack from a production-oriented pre-release template to a stable templa
 - `Flatpack.Templates` can be packed, installed with `dotnet new install`, generated with renamed solutions, and discovered by Rider and Visual Studio through the .NET template engine.
 - OpenAPI 3.1 now drives the generated React client, development-only Scalar reference, module ownership metadata, and a deny-by-default assistant tool contract with drift checks.
 
+## Hardening evidence — 2026-09-08
+
+The first production-hardening slice for modularity is complete:
+
+- `flatpack.modules.json` is now the single full-stack module catalog; generated .NET and React registries cannot drift independently.
+- `Flatpack.Cli` provides `module list`, `doctor`, `generate`, `enable`, and `disable`. Changes are dependency-checked, deterministic, use atomic file replacement with rollback, and preserve module files and data.
+- Module manifests declare host compatibility, dependencies, capabilities, artifacts, entrypoints, permissions, routes, extension contracts, and explicitly allowlisted assistant tools.
+- CI validates the module graph, backend/web parity, package shape, and generated-template matrix. Release tags package both `Flatpack.Templates` and `Flatpack.Cli` from `main`.
+- Local verification passed a zero-warning Release build, 48 unit tests, 33 web/contract tests, TypeScript typecheck, Vite production build, NuGet and pnpm vulnerability audits, CLI pack/install/doctor, and all template permutations.
+- Four non-container integration tests passed. Four PostgreSQL/Testcontainers tests could not execute because the local Docker daemon did not become responsive; CI remains the required authority for that gate.
+
+This hardening does not promote Flatpack out of preview. Package acquisition/upgrade/eject/unregister, module-owned migration history and rollback, provenance/signing, container qualification, recovery drills, observability ingestion, performance budgets, and final UAT remain release gates below.
+
 ## Delivery plan
 
 ### 0. Repository and release governance

@@ -335,6 +335,9 @@
         "resolved": "10.0.0",
         "contentHash": "UPWqLSygJlFerRi9XNIuM0a1VC8gHUIufyP24xQ0sc+XimqUAEcjpOz9DhKpyDjH+5B/wO3RpC0KpkEeDj/ddg=="
       },
+      "Flatpack.Cli": {
+        "type": "Project"
+      },
       "Flatpack.Modules.GettingStarted": {
         "type": "Project",
         "dependencies": {
