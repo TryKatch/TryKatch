@@ -1,11 +1,13 @@
 using System.Reflection;
 using System.Threading.RateLimiting;
 using FlatpackApp.Api.Development;
+using FlatpackApp.Api.Modules;
 using FlatpackApp.Api.Security;
 using FlatpackApp.Application;
 using FlatpackApp.Identity;
 using FlatpackApp.Infrastructure;
 using FlatpackApp.Infrastructure.Persistence;
+using FlatpackApp.Modules;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -37,6 +39,7 @@ builder.Host.UseSerilog((context, services, logging) =>
 builder.AddServiceDefaults();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddFlatpackModules(builder.Configuration, EnabledModules.All);
 builder.Services.AddFlatpackIdentity(builder.Configuration, builder.Environment.IsDevelopment(), isOpenApiGeneration);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();

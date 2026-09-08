@@ -433,6 +433,9 @@
       "flatpackapp.domain": {
         "type": "Project"
       },
+      "flatpackapp.modules.abstractions": {
+        "type": "Project"
+      },
       "FluentValidation": {
         "type": "CentralTransitive",
         "requested": "[12.1.1, )",

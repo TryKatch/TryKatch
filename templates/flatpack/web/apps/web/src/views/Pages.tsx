@@ -8,8 +8,6 @@ import { RoleEditorDialog } from '../components/RoleEditorDialog'
 import { RolePermissionDisclosure } from '../components/RolePermissionDisclosure'
 import { formatRecordDate, LifecycleBadge, RecordDetailsDialog, type RecordLifecycle } from '../components/RecordLifecycle'
 
-interface Project { id: string; name: string; description: string; createdAt: string; updatedAt?: string; lifecycle: RecordLifecycle }
-interface ProjectPage { items: Project[]; page: number; pageSize: number; totalCount: number }
 type Role = RoleDto & { lifecycle: RecordLifecycle }
 interface Member { id: string; userId: string; email: string; displayName: string; status: string; joinedAt: string; roles: Role[]; lifecycle: RecordLifecycle }
 interface Invitation { id: string; email: string; createdAt: string; expiresAt: string; status: string; lifecycle: RecordLifecycle }
@@ -79,69 +77,6 @@ export function DashboardPage() {
     { label: 'Events today', value: data?.eventsToday ?? 0, note: 'Recorded audit events', icon: Activity },
   ]
   return <><PageHeader eyebrow="Workspace" title="Overview" description="Live activity, access, and application records for this workspace." actions={<Button asChild variant="primary"><Link to="/projects"><Plus size={14} /> New project</Link></Button>} />{overview.isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div> : overview.isError ? <EmptyState title="Workspace overview could not be loaded" description={overview.error.message} action={<Button onClick={() => overview.refetch()}>Try again</Button>} /> : <><div className="stat-grid">{stats.map(({ label, value, note, icon: Icon }) => <Surface className="stat" key={label}><div className="stat-top"><span>{label}</span><Icon size={15} /></div><strong>{value}</strong><small>{note}</small></Surface>)}</div><Surface><div className="panel-title"><div><h2>Recent activity</h2><p>Latest audited changes in this workspace.</p></div><Button asChild variant="ghost"><Link to="/audit">View all <ArrowUpRight size={13} /></Link></Button></div>{data?.recentActivity.length ? <div className="activity-list">{data.recentActivity.map((item) => <div className="activity-row" key={`${item.action}-${item.occurredAt}`}><span className="activity-dot" /><div><strong>{item.title}: {item.targetDisplayName}</strong><small>{relativeTime(item.occurredAt)} · {item.actorDisplayName}</small></div></div>)}</div> : <EmptyState title="No activity yet" description="Audited project and access changes will appear here." />}</Surface></>}</>
-}
-
-export function ProjectsPage() {
-  const queryClient = useQueryClient()
-  const [editing, setEditing] = useState<Project | null | undefined>(undefined)
-  const [viewing, setViewing] = useState<Project>()
-  const [error, setError] = useState<string>()
-  const query = useQuery({ queryKey: ['projects', 'active'], queryFn: () => customFetch<ProjectPage>('/api/v1/projects?page=1&pageSize=100&lifecycle=active', { method: 'GET' }) })
-  const save = useMutation({
-    mutationFn: (input: { id?: string; name: string; description: string }) => customFetch<Project>(
-      input.id ? `/api/v1/projects/${input.id}` : '/api/v1/projects',
-      { method: input.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) },
-    ),
-    onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }) },
-    onError: (reason) => setError(reason instanceof Error ? reason.message : 'Unable to save project'),
-  })
-  const changeLifecycle = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'archive' | 'restore' }) => customFetch<void>(`/api/v1/projects/${id}/${action}`, { method: 'POST' }),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
-  })
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setError(undefined)
-    const form = new FormData(event.currentTarget)
-    save.mutate({ id: editing?.id, name: String(form.get('name')), description: String(form.get('description') ?? '') })
-  }
-
-  const openCreate = () => { setError(undefined); setEditing(null) }
-  const actionsFor = (project: Project): RowAction[] => [
-    { label: 'View', icon: 'view', onSelect: () => setViewing(project) },
-    { label: 'Edit', icon: 'edit', onSelect: () => { setError(undefined); setEditing(project) } },
-    { label: 'Archive', icon: 'archive', onSelect: () => changeLifecycle.mutate({ id: project.id, action: 'archive' }) },
-  ]
-  const columns: DataTableColumn<Project>[] = [
-    { id: 'name', header: 'Project', cell: (project) => <div><strong>{project.name}</strong><small>{project.description}</small></div>, sortValue: (project) => project.name, searchValue: (project) => `${project.name} ${project.description}`, hideable: false },
-    { id: 'status', header: 'Status', cell: (project) => <LifecycleBadge lifecycle={project.lifecycle} />, sortValue: (project) => project.lifecycle.status },
-    { id: 'created', header: 'Created', cell: (project) => new Date(project.createdAt).toLocaleDateString(), sortValue: (project) => new Date(project.createdAt) },
-    { id: 'actions', header: '', cell: (project) => <RowActions label={`Actions for ${project.name}`} actions={actionsFor(project)} />, hideable: false, align: 'right', width: 54 },
-  ]
-  return <>
-    <PageHeader eyebrow="Application" title="Projects" description="Create, manage, archive, and recover organization-scoped projects." actions={<Button variant="primary" onClick={openCreate}><Plus size={14} /> New project</Button>} />
-    <Surface className="collection">
-      {query.isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div> : query.isError ? <EmptyState title="Projects could not be loaded" description={query.error.message} action={<Button onClick={() => query.refetch()}>Try again</Button>} /> : <DataTable ariaLabel="Projects" data={query.data?.items ?? []} columns={columns} getRowId={(project) => project.id} searchPlaceholder="Search projects…" initialSort={{ id: 'created', direction: 'desc' }} empty={<EmptyState title="No projects" description="Create the first project to exercise organization-scoped RLS." action={<Button variant="primary" onClick={openCreate}>Create project</Button>} />} />}
-    </Surface>
-    <Dialog open={editing !== undefined} onOpenChange={(open) => !open && setEditing(undefined)} title={editing ? 'Edit project' : 'Create project'} description="Changes are authorized in the application layer and isolated by PostgreSQL RLS.">
-      <form className="dialog-form" onSubmit={submit}>
-        <label>Name<input name="name" defaultValue={editing?.name} maxLength={120} required autoFocus /></label>
-        <label>Description<textarea name="description" defaultValue={editing?.description} maxLength={2000} rows={5} /></label>
-        {error && <div className="form-error" role="alert">{error}</div>}
-        <div className="dialog-actions">
-          <Button type="button" variant="ghost" onClick={() => setEditing(undefined)}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={save.isPending}>{save.isPending ? 'Saving…' : 'Save project'}</Button>
-        </div>
-      </form>
-    </Dialog>
-    <RecordDetailsDialog open={viewing !== undefined} onOpenChange={(open) => !open && setViewing(undefined)} title={viewing?.name ?? 'Project'} description="Project details and record lifecycle." recordType="Project" status={viewing ? <LifecycleBadge lifecycle={viewing.lifecycle} /> : undefined} details={viewing ? [
-      { label: 'Name', value: viewing.name }, { label: 'Status', value: <LifecycleBadge lifecycle={viewing.lifecycle} /> },
-      { label: 'Description', value: viewing.description || 'No description' }, { label: 'Created', value: formatRecordDate(viewing.createdAt) },
-      { label: 'Updated', value: formatRecordDate(viewing.updatedAt) }, { label: 'Archived', value: formatRecordDate(viewing.lifecycle.archivedAt) },
-      ...(viewing.lifecycle.deletionReason ? [{ label: 'Deletion reason', value: viewing.lifecycle.deletionReason }] : []),
-    ] : []} />
-  </>
 }
 
 export function CollectionPage({ title, description }: { title: string; description: string }) {

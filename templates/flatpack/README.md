@@ -31,10 +31,14 @@ Demo seeding and its relaxed eight-character minimum are guarded by both the Dev
 - `Infrastructure` owns EF Core, PostgreSQL RLS, auditing, the transactional outbox, and selected adapters.
 - `Identity` owns ASP.NET Core Identity, OpenIddict, MFA primitives, session cookies, and data-protection keys.
 - `Migrator` applies ordered schema migrations, verifies the bootstrap-created runtime role, and grants it least-privilege data access.
+- `Modules.Abstractions` defines the small install-time module seam and validates module identity and dependency graphs.
 - `Api` owns controllers, HTTP contracts, BFF endpoints, middleware, and composition.
 - `ServiceDefaults` owns OpenTelemetry, health, discovery, and resilient HTTP defaults.
 - `AppHost` orchestrates development and tests only.
 - `web/apps/web` is the React application; `web/packages/ui` is the owned component system; `web/packages/api-client` is machine-generated from OpenAPI.
+- `web/packages/module-sdk` validates typed routes and navigation contributed by enabled full-stack modules.
+
+Projects is the reference full-stack module. Its backend registration and permission definitions are activated through the explicit module registry, while its React route and navigation are contributed through the web module catalog. See [module authoring](docs/modules.md).
 
 The customer-facing workspace word is **organization**. Platform administrators use the dedicated **Tenant Management** console at `/dashboard/tenants`; ordinary workspace navigation does not expose a tenant selector.
 

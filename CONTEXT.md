@@ -28,6 +28,18 @@ The association between a person and a role. An organization membership can hold
 
 A stable, code-defined capability that can be assigned to a role.
 
+## Flatpack module
+
+An install-time, full-stack business capability with a stable identity and explicit dependencies. A module may contribute domain behavior, permissions, data, endpoints, background work, web routes, and assistant tools without weakening the security kernel.
+
+## Extension
+
+A typed contribution from one Flatpack module to a named host seam. Extensions add behavior without modifying another module's private implementation.
+
+## Security kernel
+
+The non-replaceable organization resolution, authentication, authorization, PostgreSQL RLS, auditing, and module-validation rules that every Flatpack module must obey.
+
 ## Platform administrator
 
 A global operator with the protected Administrator platform role. Platform administration is not an organization role, and role managers cannot create, edit, delete, or assign grants beyond their own effective platform permissions.

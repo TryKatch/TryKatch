@@ -1,5 +1,6 @@
 using FlatpackApp.Application.Authorization;
 using FlatpackApp.Application.Organizations;
+using FlatpackApp.Application.Projects;
 using Shouldly;
 
 namespace FlatpackApp.UnitTests;
@@ -52,7 +53,10 @@ public sealed class PermissionCatalogTests
         result.ErrorCode.ShouldBe("forbidden");
     }
 
-    private static PermissionCatalog CreateCatalog() => new([new BuiltInPermissionDefinitionProvider()]);
+    private static PermissionCatalog CreateCatalog() => new([
+        new BuiltInPermissionDefinitionProvider(),
+        new ProjectPermissionDefinitionProvider()
+    ]);
 
     private sealed class TestProvider(IReadOnlyList<PermissionModuleDefinition> modules) : IPermissionDefinitionProvider
     {

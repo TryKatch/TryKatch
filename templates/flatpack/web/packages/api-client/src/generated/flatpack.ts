@@ -53,6 +53,7 @@ import type {
   MfaCodeRequest,
   MfaLoginRequest,
   MfaSetupResponse,
+  ModuleDto,
   MyOrganizationDto,
   OrganizationAccessResponse,
   OrganizationDto,
@@ -1855,6 +1856,123 @@ export function useMeListOrganizations<TData = Awaited<ReturnType<typeof meListO
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getMeListOrganizationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type modulesListResponse200TextPlain = {
+  data: ModuleDto[]
+  status: 200
+}
+
+export type modulesListResponse200ApplicationJson = {
+  data: ModuleDto[]
+  status: 200
+}
+
+export type modulesListResponse200TextJson = {
+  data: ModuleDto[]
+  status: 200
+}
+
+export type modulesListResponseSuccess = (modulesListResponse200TextPlain | modulesListResponse200ApplicationJson | modulesListResponse200TextJson) & {
+  headers: Headers;
+};
+;
+
+export type modulesListResponse = (modulesListResponseSuccess)
+
+export const getModulesListUrl = () => {
+
+
+
+
+  return `/api/v1/modules`
+}
+
+export const modulesList = async ( options?: Parameters<typeof customFetch>[1]): Promise<modulesListResponse> => {
+
+  return customFetch<modulesListResponse>(getModulesListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getModulesListQueryKey = () => {
+    return [
+    `/api/v1/modules`
+    ] as const;
+    }
+
+
+export const getModulesListQueryOptions = <TData = Awaited<ReturnType<typeof modulesList>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof modulesList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getModulesListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof modulesList>>> = ({ signal }) => modulesList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof modulesList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ModulesListQueryResult = NonNullable<Awaited<ReturnType<typeof modulesList>>>
+export type ModulesListQueryError = unknown
+
+
+export function useModulesList<TData = Awaited<ReturnType<typeof modulesList>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof modulesList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof modulesList>>,
+          TError,
+          Awaited<ReturnType<typeof modulesList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useModulesList<TData = Awaited<ReturnType<typeof modulesList>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof modulesList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof modulesList>>,
+          TError,
+          Awaited<ReturnType<typeof modulesList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useModulesList<TData = Awaited<ReturnType<typeof modulesList>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof modulesList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useModulesList<TData = Awaited<ReturnType<typeof modulesList>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof modulesList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getModulesListQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

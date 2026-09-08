@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { customFetch } from '@flatpackapp/api-client'
+import type { FlatpackNavigationContribution } from '@flatpackapp/module-sdk'
 import { Button, Dialog, Skeleton } from '@flatpackapp/ui'
 import {
   Activity,
   ArchiveRestore,
   ChevronDown,
-  FolderKanban,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -25,33 +25,19 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { FlatpackLogo } from '../components/FlatpackLogo'
 import { SignOutDialog } from '../components/SignOutDialog'
+import { workspaceModules } from '../modules'
 import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 
-const navSections = [
-  {
-    label: 'Workspace',
-    items: [
-      { to: '/overview', label: 'Overview', icon: LayoutDashboard },
-      { to: '/projects', label: 'Projects', icon: FolderKanban },
-    ],
-  },
-  {
-    label: 'Administration',
-    items: [
-      { to: '/user-management', label: 'User Management', icon: Users },
-      { to: '/audit', label: 'Audit', icon: Activity },
-    ],
-  },
-  {
-    label: 'Recovery',
-    items: [
-      { to: '/archive', label: 'Archive', icon: ArchiveRestore },
-    ],
-  },
-] as const
-
-type NavItem = (typeof navSections)[number]['items'][number]
-const nav = navSections.reduce<NavItem[]>((items, section) => [...items, ...section.items], [])
+const coreNavigation: readonly FlatpackNavigationContribution[] = [
+  { id: 'core.overview', section: 'Workspace', order: 10, to: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
+  { id: 'core.user-management', section: 'Administration', order: 10, to: '/user-management', label: 'User Management', icon: Users },
+  { id: 'core.audit', section: 'Administration', order: 20, to: '/audit', label: 'Audit', icon: Activity },
+  { id: 'core.archive', section: 'Recovery', order: 10, to: '/archive', label: 'Archive', icon: ArchiveRestore },
+]
+const nav = [...coreNavigation, ...workspaceModules.navigation]
+  .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
+const sectionOrder = ['Workspace', 'Administration', 'Recovery']
+const navSections = sectionOrder.map((label) => ({ label, items: nav.filter((item) => item.section === label) }))
 
 interface Session { displayName: string; email: string; isPlatformAdministrator: boolean }
 interface RequestError extends Error { status?: number }
@@ -154,7 +140,7 @@ export function AppShell() {
       <nav aria-label="Organization navigation">
         {navSections.map((section) => <section className="sidebar-nav-section" key={section.label} aria-labelledby={`nav-${section.label.toLowerCase()}`}>
           <span className="sidebar-label sidebar-section-label" id={`nav-${section.label.toLowerCase()}`}>{section.label}</span>
-          <div>{section.items.map(({ to, label, icon: Icon }) => <Link key={label} to={to} aria-label={label} title={label} activeOptions={{ exact: to === '/overview' }} activeProps={{ className: 'active' }} onClick={() => setMobileNavOpen(false)}><Icon size={16} /><span className="sidebar-label">{label}</span></Link>)}</div>
+          <div>{section.items.map(({ id, to, label, icon: Icon, exact }) => <Link key={id} to={to} aria-label={label} title={label} activeOptions={{ exact }} activeProps={{ className: 'active' }} onClick={() => setMobileNavOpen(false)}><Icon size={16} /><span className="sidebar-label">{label}</span></Link>)}</div>
         </section>)}
       </nav>
       <div className="sidebar-bottom" ref={accountMenu}>
@@ -193,7 +179,7 @@ export function AppShell() {
     </main>
     <Dialog open={commandOpen} onOpenChange={setCommandOpen} title="Jump to" description="Navigate this organization without leaving the keyboard.">
       <nav className="command-list" aria-label="Command palette">
-        {nav.map(({ to, label, icon: Icon }) => <Link key={label} to={to} onClick={() => setCommandOpen(false)}><Icon size={15} /><span>{label}</span></Link>)}
+        {nav.map(({ id, to, label, icon: Icon }) => <Link key={id} to={to} onClick={() => setCommandOpen(false)}><Icon size={15} /><span>{label}</span></Link>)}
       </nav>
     </Dialog>
     <SignOutDialog open={signOutOpen} identity={identity} isPending={logout.isPending} error={logout.error?.message} onOpenChange={setSignOutOpen} onConfirm={() => logout.mutate()} />

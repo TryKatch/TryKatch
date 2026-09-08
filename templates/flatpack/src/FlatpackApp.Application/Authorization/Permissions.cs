@@ -136,11 +136,6 @@ public sealed class BuiltInPermissionDefinitionProvider : IPermissionDefinitionP
             new(Permissions.RolesRead, "View roles", "View system and custom role definitions.", Order: 30),
             new(Permissions.RolesManage, "Manage roles", "Create, change, archive, restore, and request deletion of custom roles and permission grants.", IsSensitive: true, Order: 40)
         ]),
-        new("projects", "Projects", "Organization-owned project records.", 30,
-        [
-            new(Permissions.ProjectsRead, "View projects", "View projects and their details.", Order: 10),
-            new(Permissions.ProjectsManage, "Manage projects", "Create, change, archive, restore, and request reasoned deletion of projects.", IsSensitive: true, Order: 20)
-        ]),
         new("security", "Security and audit", "Security activity and accountability records.", 40,
         [
             new(Permissions.AuditRead, "View audit activity", "View security-sensitive actions and their actors.", IsSensitive: true, Order: 10)

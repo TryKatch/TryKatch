@@ -19,6 +19,14 @@ generate_and_build() {
   dotnet new flatpack -n "$name" -o "$output" "$@"
   dotnet restore "$output/$namespace_name.slnx"
   dotnet build "$output/$namespace_name.slnx" --no-restore
+  if [[ -f "$output/web/package.json" ]]; then
+    (
+      cd "$output/web"
+      corepack pnpm install --frozen-lockfile
+      corepack pnpm typecheck
+      corepack pnpm build
+    )
+  fi
   # Each generated solution can produce several gigabytes of runtime assets.
   # Retain the generated source for assertions, but release build intermediates
   # before exercising the next template permutation on constrained CI runners.

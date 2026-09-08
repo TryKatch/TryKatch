@@ -18,6 +18,7 @@
     <ProjectReference Include="../FlatpackApp.Application/FlatpackApp.Application.csproj" />
     <ProjectReference Include="../FlatpackApp.Infrastructure/FlatpackApp.Infrastructure.csproj" />
     <ProjectReference Include="../FlatpackApp.Identity/FlatpackApp.Identity.csproj" />
+    <ProjectReference Include="../FlatpackApp.Modules.Abstractions/FlatpackApp.Modules.Abstractions.csproj" />
     <ProjectReference Include="../FlatpackApp.ServiceDefaults/FlatpackApp.ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>

@@ -661,6 +661,45 @@
         }
       }
     },
+    "/api/v1/modules": {
+      "get": {
+        "tags": [
+          "Modules"
+        ],
+        "operationId": "Modules_List",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModuleDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModuleDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModuleDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/access": {
       "get": {
         "tags": [
@@ -3654,6 +3693,50 @@
           }
         }
       },
+      "ModuleDto": {
+        "required": [
+          "id",
+          "name",
+          "version",
+          "description",
+          "requires",
+          "optionalDependencies",
+          "capabilities"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "optionalDependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "MyOrganizationDto": {
         "required": [
           "id",
@@ -4514,6 +4597,9 @@
     },
     {
       "name": "Me"
+    },
+    {
+      "name": "Modules"
     },
     {
       "name": "OrganizationAdministration"

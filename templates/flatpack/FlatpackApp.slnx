@@ -7,6 +7,7 @@
     <Project Path="src/FlatpackApp.Identity/FlatpackApp.Identity.csproj" />
     <Project Path="src/FlatpackApp.Infrastructure/FlatpackApp.Infrastructure.csproj" />
     <Project Path="src/FlatpackApp.Migrator/FlatpackApp.Migrator.csproj" />
+    <Project Path="src/FlatpackApp.Modules.Abstractions/FlatpackApp.Modules.Abstractions.csproj" />
     <Project Path="src/FlatpackApp.ServiceDefaults/FlatpackApp.ServiceDefaults.csproj" />
   </Folder>
   <Folder Name="/tests/">

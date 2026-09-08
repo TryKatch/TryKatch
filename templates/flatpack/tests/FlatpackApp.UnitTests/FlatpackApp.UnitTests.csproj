@@ -8,6 +8,7 @@
     <ProjectReference Include="../../src/FlatpackApp.Application/FlatpackApp.Application.csproj" />
     <ProjectReference Include="../../src/FlatpackApp.Domain/FlatpackApp.Domain.csproj" />
     <ProjectReference Include="../../src/FlatpackApp.Infrastructure/FlatpackApp.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/FlatpackApp.Modules.Abstractions/FlatpackApp.Modules.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

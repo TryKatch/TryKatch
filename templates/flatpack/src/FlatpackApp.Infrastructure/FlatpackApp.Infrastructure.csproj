@@ -24,5 +24,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../FlatpackApp.Application/FlatpackApp.Application.csproj" />
+    <ProjectReference Include="../FlatpackApp.Modules.Abstractions/FlatpackApp.Modules.Abstractions.csproj" />
   </ItemGroup>
 </Project>

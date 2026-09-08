@@ -13,6 +13,9 @@ importers:
       '@flatpackapp/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@flatpackapp/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
       '@flatpackapp/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -90,6 +93,22 @@ importers:
       orval:
         specifier: 8.30.0
         version: 8.30.0(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@26.5.0)(jsdom@27.0.0)(msw@2.15.0(@types/node@26.5.0)(typescript@6.0.3))(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/module-sdk:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+    devDependencies:
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
       typescript:
         specifier: 6.0.3
         version: 6.0.3

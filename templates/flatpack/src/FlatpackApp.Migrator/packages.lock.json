@@ -502,6 +502,7 @@
           "AWSSDK.S3": "[4.0.102.5, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "FlatpackApp.Application": "[1.0.0, )",
+          "FlatpackApp.Modules.Abstractions": "[1.0.0, )",
           "MailKit": "[4.17.0, )",
           "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": "[10.0.11, )",
           "Microsoft.EntityFrameworkCore": "[10.0.11, )",
@@ -512,6 +513,9 @@
           "Serilog.Sinks.OpenTelemetry": "[4.2.0, )",
           "SkiaSharp": "[4.151.2, )"
         }
+      },
+      "flatpackapp.modules.abstractions": {
+        "type": "Project"
       },
       "AWSSDK.S3": {
         "type": "CentralTransitive",

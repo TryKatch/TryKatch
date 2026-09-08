@@ -41,6 +41,7 @@ export * from './membersListParams';
 export * from './mfaCodeRequest';
 export * from './mfaLoginRequest';
 export * from './mfaSetupResponse';
+export * from './moduleDto';
 export * from './myOrganizationDto';
 export * from './organizationAccessResponse';
 export * from './organizationDto';
