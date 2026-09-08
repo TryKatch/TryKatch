@@ -45,6 +45,7 @@ builder.Services.AddFlatpackIdentity(builder.Configuration, builder.Environment.
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
 builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
+builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();
 builder.Services.AddControllers().ConfigureApplicationPartManager(parts =>
     parts.FeatureProviders.Add(new FlatpackModuleControllerFeatureProvider(moduleCatalog.ModuleIds)));
 builder.Services.AddOpenApi();

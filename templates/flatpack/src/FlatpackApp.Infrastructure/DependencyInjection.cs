@@ -55,6 +55,7 @@ public static class DependencyInjection
         services.AddFlatpackEmail();
 #else
         services.AddSingleton<IAccountRecoveryNotifier, NoOpAccountRecoveryNotifier>();
+        services.AddSingleton<IInvitationNotifier, NoOpInvitationNotifier>();
 #endif
 #if FLATPACK_STORAGE
         services.AddFlatpackStorage(configuration);

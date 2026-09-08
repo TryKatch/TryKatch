@@ -20,8 +20,8 @@ public sealed class AuthenticationController(
     IWorkspaceContextCookie workspaceCookie,
     IPlatformAccessDirectory platformAccess,
     IAccountRecoveryNotifier recoveryNotifier,
+    IApplicationUrlResolver applicationUrls,
     IWebHostEnvironment environment,
-    IConfiguration configuration,
     ILogger<AuthenticationController> logger) : ControllerBase
 {
     private static readonly Action<ILogger, Guid, Exception?> LogPasswordResetDeliveryFailure =
@@ -130,7 +130,7 @@ public sealed class AuthenticationController(
         {
             string token = await users.GeneratePasswordResetTokenAsync(user);
             string encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-            string resetUrl = $"{ResolveApplicationBaseUrl()}/reset-password?email={Uri.EscapeDataString(user.Email ?? email)}&token={Uri.EscapeDataString(encodedToken)}";
+            string resetUrl = $"{applicationUrls.ResolveBaseUrl(Request)}/reset-password?email={Uri.EscapeDataString(user.Email ?? email)}&token={Uri.EscapeDataString(encodedToken)}";
             if (environment.IsDevelopment())
             {
                 developmentResetUrl = resetUrl;
@@ -154,32 +154,6 @@ public sealed class AuthenticationController(
             "If an eligible account exists, password reset instructions are on the way.",
             recoveryNotifier.IsConfigured,
             developmentResetUrl));
-    }
-
-    private string ResolveApplicationBaseUrl()
-    {
-        string? configuredUrl = configuration["Application:PublicUrl"]?.TrimEnd('/');
-        if (IsHttpUrl(configuredUrl, allowInsecure: environment.IsDevelopment()))
-        {
-            return configuredUrl!;
-        }
-
-        string? origin = Request.Headers.Origin.FirstOrDefault()?.TrimEnd('/');
-        if (environment.IsDevelopment()
-            && Uri.TryCreate(origin, UriKind.Absolute, out Uri? originUri)
-            && originUri.IsLoopback
-            && IsHttpUrl(origin, allowInsecure: true))
-        {
-            return origin!;
-        }
-
-        return $"{Request.Scheme}://{Request.Host}";
-    }
-
-    private static bool IsHttpUrl(string? value, bool allowInsecure)
-    {
-        return Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
-            && (uri.Scheme == Uri.UriSchemeHttps || (allowInsecure && uri.Scheme == Uri.UriSchemeHttp));
     }
 
     [AllowAnonymous]

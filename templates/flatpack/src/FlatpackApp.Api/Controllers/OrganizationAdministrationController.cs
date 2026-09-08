@@ -1,6 +1,7 @@
 using FlatpackApp.Application.Authorization;
 using FlatpackApp.Application.Auditing;
 using FlatpackApp.Application.Common;
+using FlatpackApp.Application.Identity;
 using FlatpackApp.Application.Organizations;
 using FlatpackApp.Api.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -12,8 +13,19 @@ namespace FlatpackApp.Api.Controllers;
 [Authorize]
 [OrganizationScoped]
 [Route("api/v1")]
-public sealed class OrganizationAdministrationController(OrganizationAdministration administration, IOrganizationContext context) : ControllerBase
+public sealed class OrganizationAdministrationController(
+    OrganizationAdministration administration,
+    IOrganizationContext context,
+    IInvitationNotifier invitationNotifier,
+    IApplicationUrlResolver applicationUrls,
+    ILogger<OrganizationAdministrationController> logger) : ControllerBase
 {
+    private static readonly Action<ILogger, Guid, Exception?> LogInvitationDeliveryFailure =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Error,
+            new EventId(1001, nameof(CreateInvitation)),
+            "Invitation delivery failed for invitation {InvitationId}");
+
     [HttpGet("access", Name = "OrganizationAccess_Get")]
     public ActionResult<OrganizationAccessResponse> GetAccess()
     {
@@ -138,9 +150,34 @@ public sealed class OrganizationAdministrationController(OrganizationAdministrat
     [HttpPost("invitations", Name = "Invitations_Create")]
     [CookieAntiforgery]
     [RequirePermission(Permissions.MembersManage)]
-    public async Task<ActionResult<CreateInvitationResult>> CreateInvitation(CreateInvitationCommand command, CancellationToken cancellationToken)
+    public async Task<ActionResult<CreateInvitationResponse>> CreateInvitation(CreateInvitationCommand command, CancellationToken cancellationToken)
     {
-        return ToActionResult(await administration.CreateInvitationAsync(command, cancellationToken));
+        Result<CreateInvitationResult> result = await administration.CreateInvitationAsync(command, cancellationToken);
+        if (!result.IsSuccess || result.Value is null)
+        {
+            return ProblemResult(result.ErrorCode, result.ErrorMessage);
+        }
+
+        string invitationUrl = $"{applicationUrls.ResolveBaseUrl(Request)}/invite/{Uri.EscapeDataString(result.Value.Token)}";
+        bool emailDelivered = false;
+        if (invitationNotifier.IsConfigured)
+        {
+            try
+            {
+                await invitationNotifier.SendOrganizationInvitationAsync(
+                    result.Value.Invitation.Email,
+                    result.Value.OrganizationName,
+                    invitationUrl,
+                    cancellationToken);
+                emailDelivered = true;
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                LogInvitationDeliveryFailure(logger, result.Value.Invitation.Id, exception);
+            }
+        }
+
+        return Ok(new CreateInvitationResponse(result.Value.Invitation, invitationUrl, emailDelivered));
     }
 
     [HttpPut("invitations/{id:guid}", Name = "Invitations_Update")]
@@ -213,5 +250,7 @@ public sealed class OrganizationAdministrationController(OrganizationAdministrat
     private ObjectResult ProblemResult(string? code, string? detail) =>
         Problem(statusCode: code switch { "forbidden" => 403, "not_found" => 404, "conflict" => 409, _ => 400 }, title: code, detail: detail);
 }
+
+public sealed record CreateInvitationResponse(InvitationDto Invitation, string InvitationUrl, bool EmailDelivered);
 
 public sealed record OrganizationAccessResponse(Guid OrganizationId, Guid MembershipId, IReadOnlyList<string> Permissions);

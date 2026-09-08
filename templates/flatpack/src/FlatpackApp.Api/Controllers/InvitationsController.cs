@@ -36,9 +36,13 @@ public sealed class InvitationsController(OrganizationAdministration administrat
             return Problem(statusCode: 400, title: preview.ErrorCode, detail: preview.ErrorMessage);
         if (await users.FindByEmailAsync(preview.Value.Email) is not null)
             return Problem(statusCode: 409, title: "account_exists", detail: "Sign in with the invited email address to accept this invitation.");
-        string displayName = request.DisplayName.Trim();
-        if (displayName.Length is < 2 or > 120)
-            return Problem(statusCode: 400, title: "validation", detail: "Display name must be between 2 and 120 characters.");
+        string firstName = request.FirstName?.Trim() ?? string.Empty;
+        string lastName = request.LastName?.Trim() ?? string.Empty;
+        if (firstName.Length is < 1 or > 60 || lastName.Length is < 1 or > 60)
+            return Problem(statusCode: 400, title: "validation", detail: "First name and last name are required and must be 60 characters or fewer.");
+        if (string.IsNullOrWhiteSpace(request.Password))
+            return Problem(statusCode: 400, title: "validation", detail: "A password is required.");
+        string displayName = $"{firstName} {lastName}";
 
         ApplicationUser user = new()
         {
@@ -93,4 +97,4 @@ public sealed class InvitationsController(OrganizationAdministration administrat
 public sealed record AcceptInvitationRequest(string Token);
 public sealed record AcceptInvitationResponse(Guid OrganizationId);
 public sealed record InvitationPreviewResponse(string Email, string OrganizationName, DateTimeOffset ExpiresAt, bool AccountExists);
-public sealed record ActivateOrganizationInvitationRequest(string Token, string DisplayName, string Password);
+public sealed record ActivateOrganizationInvitationRequest(string Token, string? FirstName, string? LastName, string? Password);

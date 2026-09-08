@@ -48,6 +48,7 @@ The customer-facing workspace word is **organization**. Platform administrators 
 - Platform administration uses immutable Administrator, Operator, and Auditor defaults plus validated custom roles expanded from the API-published `platform.resource.action` permission catalog; it never trusts organization membership permissions.
 - Platform access invitations use 24-hour Identity activation tokens. Suspending or changing access invalidates existing sessions, and the final active administrator cannot be removed.
 - Tenant provisioning creates a seven-day Owner invitation. Platform operators do not receive implicit workspace membership; the invited owner creates an account or signs in before middleware establishes tenant context.
+- Workspace invitations return a complete one-time URL rather than a standalone token. The optional SMTP adapter sends that URL; otherwise an administrator can copy it. New invitees provide first and last name plus a password, while existing identities sign in before accepting.
 - Organization access is resolved from the authenticated actor plus protected workspace context.
 - Every scoped transaction sets PostgreSQL `app.organization_id` and `app.actor_id`; RLS fails closed without them.
 - Runtime database credentials cannot own tables or bypass RLS.

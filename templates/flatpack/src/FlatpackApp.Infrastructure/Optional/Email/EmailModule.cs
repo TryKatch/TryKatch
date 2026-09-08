@@ -57,12 +57,34 @@ internal sealed class SmtpAccountRecoveryNotifier(IEmailSender emailSender) : IA
     }
 }
 
+internal sealed class SmtpInvitationNotifier(IEmailSender emailSender) : IInvitationNotifier
+{
+    public bool IsConfigured => true;
+
+    public Task SendOrganizationInvitationAsync(
+        string recipient,
+        string organizationName,
+        string invitationUrl,
+        CancellationToken cancellationToken = default)
+    {
+        string safeOrganization = System.Net.WebUtility.HtmlEncode(organizationName);
+        string safeUrl = System.Net.WebUtility.HtmlEncode(invitationUrl);
+        return emailSender.SendAsync(new EmailMessage(
+            recipient,
+            $"Join {organizationName} on Flatpack",
+            $"You have been invited to join {organizationName}.\n\nAccept the invitation and set up your account:\n{invitationUrl}\n\nThis invitation can be accepted once. If you were not expecting it, you can safely ignore this message.",
+            $"<p>You have been invited to join <strong>{safeOrganization}</strong>.</p><p><a href=\"{safeUrl}\">Accept invitation</a></p><p>This invitation can be accepted once. If you were not expecting it, you can safely ignore this message.</p>"),
+            cancellationToken);
+    }
+}
+
 public static class EmailModule
 {
     public static IServiceCollection AddFlatpackEmail(this IServiceCollection services)
     {
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IAccountRecoveryNotifier, SmtpAccountRecoveryNotifier>();
+        services.AddScoped<IInvitationNotifier, SmtpInvitationNotifier>();
         return services;
     }
 }

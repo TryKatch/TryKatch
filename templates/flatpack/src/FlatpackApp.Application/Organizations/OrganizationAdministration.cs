@@ -43,7 +43,7 @@ public sealed record AuditPageDto(
     AuditFilterOptionsDto Filters);
 public sealed record CreateInvitationCommand(string Email, int ExpiresInDays = 7);
 public sealed record UpdateInvitationCommand(int ExpiresInDays);
-public sealed record CreateInvitationResult(InvitationDto Invitation, string Token);
+public sealed record CreateInvitationResult(InvitationDto Invitation, string OrganizationName, string Token);
 public sealed record InvitationPreviewDto(string Email, string OrganizationName, DateTimeOffset ExpiresAt);
 public sealed record SaveRoleCommand(Guid? Id, string Name, string Description, IReadOnlyList<string> Permissions);
 public sealed record UpdateMembershipCommand(Guid MembershipId, IReadOnlyList<Guid> RoleIds, bool IsActive);
@@ -286,13 +286,16 @@ public sealed class OrganizationAdministration(
 
         Role? memberRole = (await store.ListRolesAsync(context.OrganizationId, RecordLifecycleFilter.Active, cancellationToken)).SingleOrDefault(x => x.Name == "Member" && x.IsSystem);
         if (memberRole is null) return Result.Failure<CreateInvitationResult>("configuration", "The organization Member role is missing.");
+        Organization? organization = await store.FindOrganizationAsync(context.OrganizationId, cancellationToken);
+        if (organization is null || !organization.IsActive)
+            return Result.Failure<CreateInvitationResult>("configuration", "The destination workspace is not available.");
         string token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         Invitation invitation = Invitation.Create(context.OrganizationId, memberRole.Id, email, HashToken(token), now.AddDays(command.ExpiresInDays));
         await store.AddInvitationAsync(invitation, cancellationToken);
         auditWriter.Record(AuditActions.InvitationCreated, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email));
         await store.SaveChangesAsync(cancellationToken);
         await auditWriter.SaveChangesAsync(cancellationToken);
-        return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), token));
+        return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), organization.Name, token));
     }
 
     public async Task<Result<InvitationDto>> UpdateInvitationAsync(Guid invitationId, UpdateInvitationCommand command, CancellationToken cancellationToken)

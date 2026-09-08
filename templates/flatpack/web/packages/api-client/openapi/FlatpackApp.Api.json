@@ -1387,17 +1387,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateInvitationResult"
+                  "$ref": "#/components/schemas/CreateInvitationResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateInvitationResult"
+                  "$ref": "#/components/schemas/CreateInvitationResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateInvitationResult"
+                  "$ref": "#/components/schemas/CreateInvitationResponse"
                 }
               }
             }
@@ -3081,7 +3081,8 @@
       "ActivateOrganizationInvitationRequest": {
         "required": [
           "token",
-          "displayName",
+          "firstName",
+          "lastName",
           "password"
         ],
         "type": "object",
@@ -3089,11 +3090,23 @@
           "token": {
             "type": "string"
           },
-          "displayName": {
-            "type": "string"
+          "firstName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastName": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "password": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -3377,18 +3390,22 @@
           }
         }
       },
-      "CreateInvitationResult": {
+      "CreateInvitationResponse": {
         "required": [
           "invitation",
-          "token"
+          "invitationUrl",
+          "emailDelivered"
         ],
         "type": "object",
         "properties": {
           "invitation": {
             "$ref": "#/components/schemas/InvitationDto"
           },
-          "token": {
+          "invitationUrl": {
             "type": "string"
+          },
+          "emailDelivered": {
+            "type": "boolean"
           }
         }
       },

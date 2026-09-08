@@ -75,12 +75,30 @@ public sealed class InvitationActivationRlsTests
         HttpResponseMessage activation = await PostWithAntiforgeryAsync(client, "/api/v1/invitations/activate", antiforgery, new
         {
             token = invitationToken,
-            displayName = "Workspace Owner",
+            firstName = "Workspace",
+            lastName = "Owner",
             password = OwnerPassword
         });
         activation.StatusCode.ShouldBe(HttpStatusCode.OK, await activation.Content.ReadAsStringAsync());
-        (await client.GetAsync("/api/v1/auth/session")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        HttpResponseMessage session = await client.GetAsync("/api/v1/auth/session");
+        session.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using JsonDocument sessionPayload = JsonDocument.Parse(await session.Content.ReadAsStringAsync());
+        sessionPayload.RootElement.GetProperty("displayName").GetString().ShouldBe("Workspace Owner");
         (await client.GetAsync("/api/v1/access")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        string invitedEmail = $"new-member-{Guid.NewGuid():N}@flatpack.test";
+        antiforgery = await GetAntiforgeryTokenAsync(client);
+        HttpResponseMessage invitation = await PostWithAntiforgeryAsync(client, "/api/v1/invitations", antiforgery, new
+        {
+            email = invitedEmail,
+            expiresInDays = 7
+        });
+        invitation.StatusCode.ShouldBe(HttpStatusCode.OK, await invitation.Content.ReadAsStringAsync());
+        using JsonDocument invitationPayload = JsonDocument.Parse(await invitation.Content.ReadAsStringAsync());
+        invitationPayload.RootElement.GetProperty("invitationUrl").GetString()
+            .ShouldStartWith("https://localhost/invite/");
+        invitationPayload.RootElement.GetProperty("emailDelivered").GetBoolean().ShouldBeFalse();
+        invitationPayload.RootElement.TryGetProperty("token", out _).ShouldBeFalse();
     }
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) => factory.CreateClient(new WebApplicationFactoryClientOptions
