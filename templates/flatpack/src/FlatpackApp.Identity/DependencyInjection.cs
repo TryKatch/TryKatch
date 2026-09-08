@@ -53,11 +53,11 @@ public static class DependencyInjection
             options.Cookie.SameSite = SameSiteMode.Strict;
             options.SlidingExpiration = true;
             options.ExpireTimeSpan = TimeSpan.FromHours(8);
-            options.Events = new CookieAuthenticationEvents
-            {
-                OnRedirectToLogin = context => RejectRedirect(context, StatusCodes.Status401Unauthorized),
-                OnRedirectToAccessDenied = context => RejectRedirect(context, StatusCodes.Status403Forbidden)
-            };
+            // AddIdentity wires its security-stamp validator into this event instance.
+            // Mutate only the redirect handlers so role, password, and MFA changes
+            // continue to invalidate existing application cookies.
+            options.Events.OnRedirectToLogin = context => RejectRedirect(context, StatusCodes.Status401Unauthorized);
+            options.Events.OnRedirectToAccessDenied = context => RejectRedirect(context, StatusCodes.Status403Forbidden);
         });
         services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(5));
 
