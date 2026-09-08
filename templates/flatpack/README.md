@@ -23,7 +23,7 @@ AppHost runs the one-shot `Migrator` project before the API. Production Compose 
 - `Application` contains focused use cases, validation, permissions, and outbound interfaces.
 - `Infrastructure` owns EF Core, PostgreSQL RLS, auditing, the transactional outbox, and selected adapters.
 - `Identity` owns ASP.NET Core Identity, OpenIddict, MFA primitives, session cookies, and data-protection keys.
-- `Migrator` applies ordered schema migrations and provisions the non-owner runtime database role.
+- `Migrator` applies ordered schema migrations, verifies the bootstrap-created runtime role, and grants it least-privilege data access.
 - `Api` owns controllers, HTTP contracts, BFF endpoints, middleware, and composition.
 - `ServiceDefaults` owns OpenTelemetry, health, discovery, and resilient HTTP defaults.
 - `AppHost` orchestrates development and tests only.

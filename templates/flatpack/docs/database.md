@@ -5,20 +5,20 @@ Flatpack uses one PostgreSQL database, three schemas, and two operational roles.
 Create the migration owner outside application startup, with its password supplied by your secret manager:
 
 ```sql
-CREATE ROLE flatpack_migrator LOGIN NOINHERIT NOBYPASSRLS PASSWORD '<secret>';
+CREATE ROLE flatpack_migrator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '<migrator-secret>';
+CREATE ROLE flatpack_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '<runtime-secret>';
 CREATE DATABASE flatpack OWNER flatpack_migrator;
 ```
 
-The bundled Compose stack uses the official PostgreSQL bootstrap administrator only on first initialization. Its init script creates `flatpack_migrator` as a non-superuser and transfers database ownership. Keep `FLATPACK_POSTGRES_ADMIN_PASSWORD`, `FLATPACK_MIGRATOR_PASSWORD`, and `FLATPACK_RUNTIME_PASSWORD` distinct. Managed production databases should provision the migration owner through their normal infrastructure workflow instead.
+The bundled Compose stack uses the official PostgreSQL bootstrap administrator only on first initialization. Its init script creates both operational roles as non-superusers, transfers database ownership to `flatpack_migrator`, and then leaves password rotation to the platform's secret-management workflow. Keep `FLATPACK_POSTGRES_ADMIN_PASSWORD`, `FLATPACK_MIGRATOR_PASSWORD`, and `FLATPACK_RUNTIME_PASSWORD` distinct. Managed production databases should provision both roles through their normal infrastructure workflow instead.
 
 PostgreSQL 18 stores data under a major-version-specific `PGDATA` directory and the official image exposes `/var/lib/postgresql` as its persistent volume root. Flatpack mounts the named volume at that root; do not change it back to the pre-18 `/var/lib/postgresql/data` target. Treat major-version upgrades as planned database migrations using `pg_upgrade` or a managed-provider upgrade workflow, never as an image-tag edit.
 
-Run the dedicated one-shot migrator with the owner connection. It applies all three migration sets, creates or rotates the runtime role, grants only data access, and verifies that the runtime role is neither a superuser nor able to bypass RLS:
+Run the dedicated one-shot migrator with the owner connection. It applies all three migration sets, grants the pre-created runtime role only data access, and verifies that the runtime role is neither a superuser nor able to bypass RLS. The migration role deliberately has no `CREATEROLE` authority:
 
 ```bash
 ConnectionStrings__flatpackdb='<migrator connection>' \
 Database__RuntimeRole='flatpack_runtime' \
-Database__RuntimePassword='<different 24+ character secret>' \
 dotnet run --project src/FlatpackApp.Migrator
 ```
 
