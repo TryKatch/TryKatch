@@ -22,7 +22,7 @@ jobs:
           dotnet-version: 10.0.x
           cache: true
           cache-dependency-path: templates/flatpack/**/packages.lock.json
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.17.1
       - uses: actions/setup-node@v5
@@ -51,6 +51,10 @@ jobs:
       - run: docker build -f templates/flatpack/src/FlatpackApp.Api/Dockerfile templates/flatpack
       - run: docker build -f templates/flatpack/web/apps/web/Dockerfile templates/flatpack
       - run: bash scripts/test-migrator.sh
+      - name: Reclaim ephemeral runner disk
+        run: |
+          docker system prune --all --force --volumes
+          find templates/flatpack -type d \( -name bin -o -name obj -o -name node_modules -o -name dist \) -prune -exec rm -rf {} +
       - run: bash scripts/test-template.sh
       - uses: anchore/sbom-action@v0.24.0
         with:
