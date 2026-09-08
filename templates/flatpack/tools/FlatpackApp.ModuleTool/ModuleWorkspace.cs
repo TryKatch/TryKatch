@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 
 namespace FlatpackApp.ModuleTool;
 
@@ -26,12 +27,20 @@ public sealed partial class ModuleWorkspace
 
     private readonly string _root;
     private readonly string _catalogPath;
+    private readonly IWorkspaceCommandRunner _commandRunner;
 
     public ModuleWorkspace(string root)
+        : this(root, new ProcessWorkspaceCommandRunner())
+    {
+    }
+
+    internal ModuleWorkspace(string root, IWorkspaceCommandRunner commandRunner)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
+        ArgumentNullException.ThrowIfNull(commandRunner);
         _root = Path.GetFullPath(root);
         _catalogPath = ResolveInsideRoot("flatpack.modules.json");
+        _commandRunner = commandRunner;
     }
 
     public ModuleDoctorReport Inspect()
@@ -46,7 +55,10 @@ public sealed partial class ModuleWorkspace
         ValidateModules(catalog, modules, errors);
 
         if (errors.Count == 0)
+        {
             ValidateGeneratedRegistries(catalog, modules, errors);
+            ValidateGeneratedLock(catalog, modules, errors);
+        }
 
         return new(
             modules.Select(module => new ModuleStatus(
@@ -137,8 +149,12 @@ public sealed partial class ModuleWorkspace
         ValidateOutputPath(catalog.Outputs.Backend, "backend registry", errors);
         if (!DotnetNamespaceRegex().IsMatch(catalog.Outputs.BackendNamespace))
             errors.Add($"Invalid backend registry namespace '{catalog.Outputs.BackendNamespace}'.");
+        ValidateOutputPath(catalog.Outputs.Migrator, "migrator registry", errors);
+        if (!DotnetNamespaceRegex().IsMatch(catalog.Outputs.MigratorNamespace))
+            errors.Add($"Invalid migrator registry namespace '{catalog.Outputs.MigratorNamespace}'.");
         if (HasWebSurface())
             ValidateOutputPath(catalog.Outputs.Web, "web registry", errors);
+        ValidateOutputPath(catalog.LockFile, "module lock file", errors);
 
         foreach (ModuleRegistration module in catalog.Modules)
         {
@@ -166,7 +182,14 @@ public sealed partial class ModuleWorkspace
 
             ModuleManifest? manifest = ReadJson<ModuleManifest>(path, errors, $"manifest for '{registration.Id}'");
             if (manifest is not null)
-                loaded.Add(new(registration, manifest));
+            {
+                bool isWorkspace = string.Equals(manifest.Distribution.Kind, "workspace", StringComparison.Ordinal);
+                loaded.Add(new(
+                    registration,
+                    manifest,
+                    isWorkspace ? ComputeWorkspaceManifestSha256(path, catalog, manifest) : ComputeFileSha256(path),
+                    isWorkspace ? "template-normalized-sha256" : "sha256"));
+            }
         }
 
         return loaded;
@@ -191,6 +214,7 @@ public sealed partial class ModuleWorkspace
                 errors.Add($"Module '{manifest.Id}' requires a name and description.");
             if (!TryParseVersion(manifest.Version, out Version? moduleVersion))
                 errors.Add($"Module '{manifest.Id}' has invalid semantic version '{manifest.Version}'.");
+            ValidateDistribution(manifest, errors);
             ValidateCompatibility(manifest, hostVersion, errors);
             EnsureUnique(manifest.Requires, $"required dependency in '{manifest.Id}'", errors);
             EnsureUnique(manifest.OptionalDependencies, $"optional dependency in '{manifest.Id}'", errors);
@@ -234,7 +258,8 @@ public sealed partial class ModuleWorkspace
         if (string.IsNullOrWhiteSpace(manifest.Entrypoints.Dotnet.Type)
             || !DotnetTypeRegex().IsMatch(manifest.Entrypoints.Dotnet.Type))
             errors.Add($"Module '{manifest.Id}' requires a fully qualified .NET registration type.");
-        ValidateArtifact(manifest.Id, manifest.Artifacts.DotnetProject, "dotnet project", errors);
+        if (string.Equals(manifest.Distribution.Kind, "workspace", StringComparison.Ordinal))
+            ValidateArtifact(manifest.Id, manifest.Artifacts.DotnetProject, "dotnet project", errors);
 
         if (!manifest.Capabilities.Contains("web", StringComparer.Ordinal))
             return;
@@ -242,8 +267,57 @@ public sealed partial class ModuleWorkspace
             || string.IsNullOrWhiteSpace(manifest.Entrypoints.Web.Export)
             || !JavaScriptIdentifierRegex().IsMatch(manifest.Entrypoints.Web.Export))
             errors.Add($"Web module '{manifest.Id}' requires a valid import specifier and export.");
-        if (webEnabled)
+        if (webEnabled && string.Equals(manifest.Distribution.Kind, "workspace", StringComparison.Ordinal))
             ValidateArtifact(manifest.Id, manifest.Artifacts.WebPackage, "web package", errors);
+    }
+
+    private void ValidateDistribution(ModuleManifest manifest, List<string> errors)
+    {
+        ModuleDistribution distribution = manifest.Distribution;
+        if (!string.Equals(distribution.Kind, "workspace", StringComparison.Ordinal)
+            && !string.Equals(distribution.Kind, "package", StringComparison.Ordinal))
+            errors.Add($"Module '{manifest.Id}' has unsupported distribution kind '{distribution.Kind}'.");
+        if (string.IsNullOrWhiteSpace(distribution.License))
+            errors.Add($"Module '{manifest.Id}' must declare its SPDX license expression.");
+
+        if (string.Equals(distribution.Kind, "workspace", StringComparison.Ordinal))
+        {
+            if (distribution.Dotnet is not null || distribution.Web is not null)
+                errors.Add($"Workspace module '{manifest.Id}' must not declare package identities.");
+            return;
+        }
+
+        if (distribution.Dotnet is null)
+            errors.Add($"Package module '{manifest.Id}' must declare its .NET package identity.");
+        else
+            ValidatePackageIdentity(manifest, distribution.Dotnet, ".NET", errors);
+
+        bool hasWeb = manifest.Capabilities.Contains("web", StringComparer.Ordinal);
+        if (hasWeb && distribution.Web is null)
+            errors.Add($"Package web module '{manifest.Id}' must declare its web package identity.");
+        if (!hasWeb && distribution.Web is not null)
+            errors.Add($"Package module '{manifest.Id}' declares a web package without the web capability.");
+        if (distribution.Web is not null)
+            ValidatePackageIdentity(manifest, distribution.Web, "web", errors);
+
+        if (distribution.Dotnet is not null)
+            ValidateInstalledDotnetPackage(manifest, distribution.Dotnet, errors);
+        if (distribution.Web is not null && HasWebSurface())
+            ValidateInstalledWebPackage(manifest, distribution.Web, errors);
+    }
+
+    private static void ValidatePackageIdentity(
+        ModuleManifest manifest,
+        ModulePackageIdentity package,
+        string ecosystem,
+        List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(package.Id))
+            errors.Add($"Module '{manifest.Id}' has an empty {ecosystem} package id.");
+        if (!TryParseVersion(package.Version, out _))
+            errors.Add($"Module '{manifest.Id}' has invalid {ecosystem} package version '{package.Version}'.");
+        else if (!string.Equals(package.Version, manifest.Version, StringComparison.Ordinal))
+            errors.Add($"Module '{manifest.Id}' {ecosystem} package version must match manifest version '{manifest.Version}'.");
     }
 
     private void ValidateArtifact(string moduleId, string path, string subject, List<string> errors)
@@ -372,10 +446,22 @@ public sealed partial class ModuleWorkspace
 
     private void ValidateGeneratedRegistries(ModuleCatalogFile catalog, IReadOnlyCollection<LoadedModule> modules, List<string> errors)
     {
-        ValidateGeneratedFile(catalog.Outputs.Backend, GenerateBackend(catalog, modules), "backend module registry", errors);
+        ValidateGeneratedFile(
+            catalog.Outputs.Backend,
+            GenerateDotnetRegistry(catalog.Outputs.BackendNamespace, modules),
+            "backend module registry",
+            errors);
+        ValidateGeneratedFile(
+            catalog.Outputs.Migrator,
+            GenerateDotnetRegistry(catalog.Outputs.MigratorNamespace, modules),
+            "migrator module registry",
+            errors);
         if (HasWebSurface())
             ValidateGeneratedFile(catalog.Outputs.Web, GenerateWeb(modules), "web module registry", errors);
     }
+
+    private void ValidateGeneratedLock(ModuleCatalogFile catalog, IReadOnlyCollection<LoadedModule> modules, List<string> errors) =>
+        ValidateGeneratedFile(catalog.LockFile, GenerateLock(catalog, modules), "module lock file", errors);
 
     private void ValidateGeneratedFile(string relativePath, string expected, string subject, List<string> errors)
     {
@@ -393,12 +479,40 @@ public sealed partial class ModuleWorkspace
 
     private void WriteGeneratedRegistries(ModuleCatalogFile catalog, IReadOnlyCollection<LoadedModule> modules)
     {
-        WriteAtomic(ResolveInsideRoot(catalog.Outputs.Backend), GenerateBackend(catalog, modules));
+        WriteAtomic(
+            ResolveInsideRoot(catalog.Outputs.Backend),
+            GenerateDotnetRegistry(catalog.Outputs.BackendNamespace, modules));
+        WriteAtomic(
+            ResolveInsideRoot(catalog.Outputs.Migrator),
+            GenerateDotnetRegistry(catalog.Outputs.MigratorNamespace, modules));
         if (HasWebSurface())
             WriteAtomic(ResolveInsideRoot(catalog.Outputs.Web), GenerateWeb(modules));
+        WriteAtomic(ResolveInsideRoot(catalog.LockFile), GenerateLock(catalog, modules));
     }
 
-    private static string GenerateBackend(ModuleCatalogFile catalog, IEnumerable<LoadedModule> modules)
+    private static string GenerateLock(ModuleCatalogFile catalog, IEnumerable<LoadedModule> modules)
+    {
+        ModuleLockFile lockFile = new()
+        {
+            SchemaVersion = SupportedSchemaVersion,
+            HostVersion = catalog.HostVersion,
+            Modules = modules
+                .OrderBy(module => module.Manifest.Id, StringComparer.Ordinal)
+                .Select(module => new ModuleLockEntry
+                {
+                    Id = module.Manifest.Id,
+                    Version = module.Manifest.Version,
+                    Enabled = module.Registration.Enabled,
+                    ManifestSha256 = module.ManifestSha256,
+                    ManifestDigestMode = module.ManifestDigestMode,
+                    Distribution = module.Manifest.Distribution
+                })
+                .ToList()
+        };
+        return JsonSerializer.Serialize(lockFile, JsonOptions) + "\n";
+    }
+
+    private static string GenerateDotnetRegistry(string registryNamespace, IEnumerable<LoadedModule> modules)
     {
         LoadedModule[] enabled = OrderEnabled(modules).ToArray();
         string[] namespaces = enabled
@@ -413,7 +527,7 @@ public sealed partial class ModuleWorkspace
             output.Append("using ").Append(item).AppendLine(";");
         output.AppendLine("using FlatpackApp.Modules;");
         output.AppendLine();
-        output.Append("namespace ").Append(catalog.Outputs.BackendNamespace).AppendLine(";");
+        output.Append("namespace ").Append(registryNamespace).AppendLine(";");
         output.AppendLine();
         output.AppendLine("internal static class EnabledModules");
         output.AppendLine("{");
@@ -478,8 +592,21 @@ public sealed partial class ModuleWorkspace
     private Dictionary<string, byte[]?> CaptureFiles(ModuleCatalogFile catalog)
     {
         string[] paths = HasWebSurface()
-            ? [_catalogPath, ResolveInsideRoot(catalog.Outputs.Backend), ResolveInsideRoot(catalog.Outputs.Web)]
-            : [_catalogPath, ResolveInsideRoot(catalog.Outputs.Backend)];
+            ?
+            [
+                _catalogPath,
+                ResolveInsideRoot(catalog.Outputs.Backend),
+                ResolveInsideRoot(catalog.Outputs.Migrator),
+                ResolveInsideRoot(catalog.Outputs.Web),
+                ResolveInsideRoot(catalog.LockFile)
+            ]
+            :
+            [
+                _catalogPath,
+                ResolveInsideRoot(catalog.Outputs.Backend),
+                ResolveInsideRoot(catalog.Outputs.Migrator),
+                ResolveInsideRoot(catalog.LockFile)
+            ];
         return paths.ToDictionary(path => path, path => File.Exists(path) ? File.ReadAllBytes(path) : null, StringComparer.Ordinal);
     }
 
@@ -593,6 +720,49 @@ public sealed partial class ModuleWorkspace
 
     private static string NormalizeNewlines(string value) => value.Replace("\r\n", "\n", StringComparison.Ordinal);
 
+    private static string ComputeFileSha256(string path) =>
+        Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+
+    private static string ComputeWorkspaceManifestSha256(
+        string path,
+        ModuleCatalogFile catalog,
+        ModuleManifest manifest)
+    {
+        const string backendNamespaceSuffix = ".Api.Modules";
+        // Keep the canonical tokens split so dotnet template source-name replacement
+        // does not rewrite the normalizer inside a generated ModuleTool.
+        const string templateNamespace = "Flatpack" + "App";
+        const string templateNpmScope = "flatpack" + "app";
+        string contents = File.ReadAllText(path);
+        string applicationNamespace = catalog.Outputs.BackendNamespace.EndsWith(
+            backendNamespaceSuffix,
+            StringComparison.Ordinal)
+            ? catalog.Outputs.BackendNamespace[..^backendNamespaceSuffix.Length]
+            : string.Empty;
+        if (!string.IsNullOrWhiteSpace(applicationNamespace))
+        {
+            contents = contents.Replace(applicationNamespace, templateNamespace, StringComparison.Ordinal);
+            contents = contents.Replace(
+                applicationNamespace.ToLowerInvariant(),
+                templateNpmScope,
+                StringComparison.Ordinal);
+
+            string webSpecifier = manifest.Entrypoints.Web.Specifier;
+            int scopeEnd = webSpecifier.IndexOf('/', StringComparison.Ordinal);
+            bool isApplicationOwned = manifest.Entrypoints.Dotnet.Type.StartsWith(
+                applicationNamespace + ".",
+                StringComparison.Ordinal);
+            if (isApplicationOwned && webSpecifier.StartsWith('@') && scopeEnd > 1)
+            {
+                contents = contents.Replace(
+                    webSpecifier[..scopeEnd],
+                    "@" + templateNpmScope,
+                    StringComparison.Ordinal);
+            }
+        }
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contents))).ToLowerInvariant();
+    }
+
     [GeneratedRegex("^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", RegexOptions.CultureInvariant)]
     private static partial Regex StableIdRegex();
 
@@ -617,7 +787,11 @@ public sealed partial class ModuleWorkspace
     [GeneratedRegex("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.CultureInvariant)]
     private static partial Regex OperationIdRegex();
 
-    private sealed record LoadedModule(ModuleRegistration Registration, ModuleManifest Manifest);
+    private sealed record LoadedModule(
+        ModuleRegistration Registration,
+        ModuleManifest Manifest,
+        string ManifestSha256,
+        string ManifestDigestMode);
 }
 
 public sealed record ModuleDoctorReport(IReadOnlyList<ModuleStatus> Modules, IReadOnlyList<string> Errors)
@@ -634,6 +808,7 @@ public sealed class ModuleCatalogFile
     public string Schema { get; init; } = string.Empty;
     public int SchemaVersion { get; init; }
     public string HostVersion { get; init; } = string.Empty;
+    public string LockFile { get; init; } = string.Empty;
     public ModuleCatalogOutputs Outputs { get; init; } = new();
     public List<ModuleRegistration> Modules { get; init; } = [];
 }
@@ -642,13 +817,15 @@ public sealed class ModuleCatalogOutputs
 {
     public string Backend { get; init; } = string.Empty;
     public string BackendNamespace { get; init; } = string.Empty;
+    public string Migrator { get; init; } = string.Empty;
+    public string MigratorNamespace { get; init; } = string.Empty;
     public string Web { get; init; } = string.Empty;
 }
 
 public sealed class ModuleRegistration
 {
     public string Id { get; init; } = string.Empty;
-    public string Manifest { get; init; } = string.Empty;
+    public string Manifest { get; set; } = string.Empty;
     public bool Enabled { get; set; }
 }
 
@@ -662,6 +839,7 @@ public sealed class ModuleManifest
     public string Name { get; init; } = string.Empty;
     public string Version { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
+    public ModuleDistribution Distribution { get; init; } = new();
     public ModuleCompatibility Compatibility { get; init; } = new();
     public List<string> Requires { get; init; } = [];
     public List<string> OptionalDependencies { get; init; } = [];
@@ -681,6 +859,37 @@ public sealed class ModuleArtifacts
 {
     public string DotnetProject { get; init; } = string.Empty;
     public string WebPackage { get; init; } = string.Empty;
+}
+
+public sealed class ModuleDistribution
+{
+    public string Kind { get; init; } = string.Empty;
+    public string License { get; init; } = string.Empty;
+    public ModulePackageIdentity? Dotnet { get; init; }
+    public ModulePackageIdentity? Web { get; init; }
+}
+
+public sealed class ModulePackageIdentity
+{
+    public string Id { get; init; } = string.Empty;
+    public string Version { get; init; } = string.Empty;
+}
+
+public sealed class ModuleLockFile
+{
+    public int SchemaVersion { get; init; }
+    public string HostVersion { get; init; } = string.Empty;
+    public List<ModuleLockEntry> Modules { get; init; } = [];
+}
+
+public sealed class ModuleLockEntry
+{
+    public string Id { get; init; } = string.Empty;
+    public string Version { get; init; } = string.Empty;
+    public bool Enabled { get; init; }
+    public string ManifestSha256 { get; init; } = string.Empty;
+    public string ManifestDigestMode { get; init; } = string.Empty;
+    public ModuleDistribution Distribution { get; init; } = new();
 }
 
 public sealed class ModuleEntrypoints

@@ -9,6 +9,8 @@ static Task<int> RunAsync(string[] arguments)
         return Task.FromResult(ShowUsage());
 
     string root = Directory.GetCurrentDirectory();
+    string? expectedSha256 = null;
+    string? sourceBundle = null;
     List<string> positional = [];
     for (int index = 1; index < arguments.Length; index++)
     {
@@ -17,6 +19,18 @@ static Task<int> RunAsync(string[] arguments)
             if (++index >= arguments.Length)
                 return Task.FromResult(Fail("--root requires a path."));
             root = arguments[index];
+        }
+        else if (string.Equals(arguments[index], "--sha256", StringComparison.Ordinal))
+        {
+            if (++index >= arguments.Length)
+                return Task.FromResult(Fail("--sha256 requires a digest."));
+            expectedSha256 = arguments[index];
+        }
+        else if (string.Equals(arguments[index], "--source-bundle", StringComparison.Ordinal))
+        {
+            if (++index >= arguments.Length)
+                return Task.FromResult(Fail("--source-bundle requires a path."));
+            sourceBundle = arguments[index];
         }
         else
         {
@@ -37,6 +51,15 @@ static Task<int> RunAsync(string[] arguments)
             "generate" when positional.Count == 1 => workspace.Generate(),
             "enable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: true),
             "disable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: false),
+            "register" when positional.Count == 2 => workspace.RegisterWorkspace(positional[1]),
+            "install" when positional.Count == 2 && expectedSha256 is not null =>
+                workspace.InstallPackage(positional[1], expectedSha256),
+            "upgrade" when positional.Count == 2 && expectedSha256 is not null =>
+                workspace.UpgradePackage(positional[1], expectedSha256),
+            "eject" when positional.Count == 2 && sourceBundle is not null && expectedSha256 is not null =>
+                workspace.EjectPackage(positional[1], sourceBundle, expectedSha256),
+            "unregister" when positional.Count == 2 => workspace.Unregister(positional[1]),
+            "remove" when positional.Count == 2 => workspace.Unregister(positional[1]),
             _ => throw new ArgumentException("Unknown or incomplete module command.")
         };
 
@@ -54,6 +77,11 @@ static Task<int> RunAsync(string[] arguments)
             "generate" => "Module registries generated.",
             "enable" => $"Module '{positional[1]}' enabled.",
             "disable" => $"Module '{positional[1]}' disabled.",
+            "register" => $"Workspace module from '{positional[1]}' registered in the disabled state.",
+            "install" => $"Module package from '{positional[1]}' installed in the disabled state.",
+            "upgrade" => $"Module package from '{positional[1]}' upgraded.",
+            "eject" => $"Module '{positional[1]}' ejected to reviewed workspace source.",
+            "unregister" or "remove" => $"Module '{positional[1]}' unregistered; its database history and data were retained.",
             _ => $"{report.Modules.Count} module(s)."
         });
         return Task.FromResult(0);
@@ -80,6 +108,11 @@ static int ShowUsage()
     Console.WriteLine("  flatpack module generate [--root <path>]");
     Console.WriteLine("  flatpack module enable <id> [--root <path>]");
     Console.WriteLine("  flatpack module disable <id> [--root <path>]");
+    Console.WriteLine("  flatpack module register <manifest> [--root <path>]");
+    Console.WriteLine("  flatpack module install <manifest> --sha256 <digest> [--root <path>]");
+    Console.WriteLine("  flatpack module upgrade <manifest> --sha256 <digest> [--root <path>]");
+    Console.WriteLine("  flatpack module eject <id> --source-bundle <path> --sha256 <digest> [--root <path>]");
+    Console.WriteLine("  flatpack module unregister <id> [--root <path>]");
     return 1;
 }
 

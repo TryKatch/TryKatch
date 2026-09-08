@@ -32,10 +32,16 @@ const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login'
 const forgotPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/forgot-password', component: ForgotPasswordPage })
 const resetPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/reset-password', component: ResetPasswordPage })
 const workspaceRoute = createRoute({ getParentRoute: () => rootRoute, id: '_workspace', component: AppShell })
+const platformRoute = createRoute({ getParentRoute: () => rootRoute, path: '/dashboard', component: PlatformShell })
 const overviewRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/overview', component: withSuspense(DashboardPage) })
-const workspaceModuleRoutes = workspaceModules.routes.map((route) => createRoute({
+const workspaceModuleRoutes = workspaceModules.routesFor('workspace').map((route) => createRoute({
   getParentRoute: () => workspaceRoute,
   path: route.path,
+  component: withSuspense(route.component),
+}))
+const platformModuleRoutes = workspaceModules.routesFor('platform').map((route) => createRoute({
+  getParentRoute: () => platformRoute,
+  path: route.path.slice(1),
   component: withSuspense(route.component),
 }))
 const userManagementRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/user-management', component: withSuspense(UserManagementPage) })
@@ -44,7 +50,6 @@ const auditRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/a
 const archiveRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/archive', component: withSuspense(ArchivePage) })
 const profileRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/profile', component: withSuspense(ProfilePage) })
 const legacySettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', beforeLoad: () => { throw redirect({ to: '/profile', replace: true }) } })
-const platformRoute = createRoute({ getParentRoute: () => rootRoute, path: '/dashboard', component: PlatformShell })
 const platformOverviewRoute = createRoute({ getParentRoute: () => platformRoute, path: '/', component: withSuspense(PlatformOverviewPage) })
 const tenantDirectoryRoute = createRoute({ getParentRoute: () => platformRoute, path: 'tenants', component: withSuspense(PlatformOrganizationsPage) })
 const platformUsersRoute = createRoute({ getParentRoute: () => platformRoute, path: 'users', component: withSuspense(PlatformUsersPage) })
@@ -58,7 +63,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   forgotPasswordRoute,
   resetPasswordRoute,
-  platformRoute.addChildren([platformOverviewRoute, tenantDirectoryRoute, platformUsersRoute, platformInvitationsRoute, platformAuthenticationRoute, platformProfileRoute]),
+  platformRoute.addChildren([platformOverviewRoute, tenantDirectoryRoute, platformUsersRoute, platformInvitationsRoute, platformAuthenticationRoute, platformProfileRoute, ...platformModuleRoutes]),
   legacyTeamRoute,
   legacySettingsRoute,
   invitationRoute,

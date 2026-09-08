@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "hostVersion": "0.1.0",
+  "modules": [
+    {
+      "id": "federation",
+      "version": "1.0.0",
+      "enabled": false,
+      "manifestSha256": "21c2ea2c182559c33caebffb8936211df01e6fcb032db9ca17a5b856568cb66b",
+      "manifestDigestMode": "template-normalized-sha256",
+      "distribution": {
+        "kind": "workspace",
+        "license": "Apache-2.0",
+        "dotnet": null,
+        "web": null
+      }
+    },
+    {
+      "id": "getting-started",
+      "version": "1.0.0",
+      "enabled": true,
+      "manifestSha256": "2f6a84083e197e307928d3f3c49e68129caddcf6cc13e2b576e85bfaa5c59bf4",
+      "manifestDigestMode": "template-normalized-sha256",
+      "distribution": {
+        "kind": "workspace",
+        "license": "Apache-2.0",
+        "dotnet": null,
+        "web": null
+      }
+    },
+    {
+      "id": "projects",
+      "version": "1.0.0",
+      "enabled": true,
+      "manifestSha256": "cc8b93d6a3a74f1d6bff5b1ef2fdcecbf4bd2fc1fa1ab5287ed43a9c3d3343be",
+      "manifestDigestMode": "template-normalized-sha256",
+      "distribution": {
+        "kind": "workspace",
+        "license": "Apache-2.0",
+        "dotnet": null,
+        "web": null
+      }
+    }
+  ]
+}

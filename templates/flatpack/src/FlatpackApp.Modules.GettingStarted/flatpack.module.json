@@ -5,6 +5,10 @@
   "name": "Getting Started",
   "version": "1.0.0",
   "description": "A reference module that proves Flatpack's backend and frontend composition seams.",
+  "distribution": {
+    "kind": "workspace",
+    "license": "Apache-2.0"
+  },
   "compatibility": {
     "minimumHostVersion": "0.1.0",
     "maximumHostVersionExclusive": "1.0.0"

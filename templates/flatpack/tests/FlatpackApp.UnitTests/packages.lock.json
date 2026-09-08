@@ -338,6 +338,14 @@
       "Flatpack.Cli": {
         "type": "Project"
       },
+      "Flatpack.Modules.Federation": {
+        "type": "Project",
+        "dependencies": {
+          "FlatpackApp.Modules.Abstractions": "[1.0.0, )",
+          "FlatpackApp.Modules.AspNetCore": "[1.0.0, )",
+          "Npgsql": "[10.0.3, )"
+        }
+      },
       "Flatpack.Modules.GettingStarted": {
         "type": "Project",
         "dependencies": {

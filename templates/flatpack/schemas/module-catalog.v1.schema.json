@@ -4,18 +4,24 @@
   "title": "Flatpack module catalog",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "hostVersion", "outputs", "modules"],
+  "required": ["schemaVersion", "hostVersion", "lockFile", "outputs", "modules"],
   "properties": {
     "$schema": { "type": "string", "format": "uri-reference" },
     "schemaVersion": { "const": 1 },
     "hostVersion": { "$ref": "#/$defs/version" },
+    "lockFile": { "$ref": "#/$defs/relativePath" },
     "outputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["backend", "backendNamespace", "web"],
+      "required": ["backend", "backendNamespace", "migrator", "migratorNamespace", "web"],
       "properties": {
         "backend": { "$ref": "#/$defs/relativePath" },
         "backendNamespace": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+        },
+        "migrator": { "$ref": "#/$defs/relativePath" },
+        "migratorNamespace": {
           "type": "string",
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"
         },

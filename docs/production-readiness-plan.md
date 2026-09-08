@@ -17,7 +17,7 @@ Move Flatpack from a production-oriented pre-release template to a stable templa
 
 The first production-hardening slice for modularity is complete:
 
-- `flatpack.modules.json` is now the single full-stack module catalog; generated .NET and React registries cannot drift independently.
+- `flatpack.modules.json` is now the single full-stack module catalog; generated API, migrator, and React registries cannot drift independently. `flatpack.modules.lock.json` pins manifest provenance and paired package identity.
 - `Flatpack.Cli` provides `module list`, `doctor`, `generate`, `enable`, and `disable`. Changes are dependency-checked, deterministic, use atomic file replacement with rollback, and preserve module files and data.
 - Module manifests declare host compatibility, dependencies, capabilities, artifacts, entrypoints, permissions, routes, extension contracts, and explicitly allowlisted assistant tools.
 - CI validates the module graph, backend/web parity, package shape, and generated-template matrix. Release tags package both `Flatpack.Templates` and `Flatpack.Cli` from `main`.

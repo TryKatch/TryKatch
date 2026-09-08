@@ -1,5 +1,6 @@
 using FlatpackApp.ModuleTool;
 using Shouldly;
+using System.Security.Cryptography;
 
 namespace FlatpackApp.UnitTests;
 
@@ -18,7 +19,35 @@ public sealed class ModuleWorkspaceTests
         generated.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, generated.Errors));
         inspected.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, inspected.Errors));
         File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedModules.cs")).ShouldContain("new ProjectsModule()");
+        File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedMigratorModules.cs")).ShouldContain("new ProjectsModule()");
         File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts")).ShouldContain("projectsModule");
+        File.ReadAllText(Path.Combine(temporary.Root, "flatpack.modules.lock.json")).ShouldContain("manifestSha256");
+    }
+
+    [TestMethod]
+    public void WorkspaceManifestDigestSurvivesDotnetTemplateNameReplacement()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        ModuleWorkspace workspace = new(temporary.Root);
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string lockBeforeRename = File.ReadAllText(Path.Combine(temporary.Root, "flatpack.modules.lock.json"));
+
+        string catalogPath = Path.Combine(temporary.Root, "flatpack.modules.json");
+        string manifestPath = Path.Combine(temporary.Root, "manifests/projects.json");
+        File.WriteAllText(
+            catalogPath,
+            File.ReadAllText(catalogPath).Replace("FlatpackApp", "Horizon", StringComparison.Ordinal));
+        File.WriteAllText(
+            manifestPath,
+            File.ReadAllText(manifestPath)
+                .Replace("FlatpackApp", "Horizon", StringComparison.Ordinal)
+                .Replace("flatpackapp", "horizon", StringComparison.Ordinal));
+
+        ModuleDoctorReport renamed = new ModuleWorkspace(temporary.Root).Generate();
+
+        renamed.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, renamed.Errors));
+        File.ReadAllText(Path.Combine(temporary.Root, "flatpack.modules.lock.json")).ShouldBe(lockBeforeRename);
+        lockBeforeRename.ShouldContain("template-normalized-sha256");
     }
 
     [TestMethod]
@@ -105,6 +134,120 @@ public sealed class ModuleWorkspaceTests
         report.Errors.ShouldContain(error => error.Contains("could not be mapped", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void InstallAndUnregisterPackageMutateBothPackageGraphsAndRetainSourceModules()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        RecordingCommandRunner runner = new();
+        ModuleWorkspace workspace = new(temporary.Root, runner);
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string candidatePath = temporary.WritePackageManifest("reporting", "1.0.0");
+        string digest = Sha256(candidatePath);
+
+        ModuleDoctorReport installed = workspace.InstallPackage(candidatePath, digest);
+
+        installed.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, installed.Errors));
+        installed.Modules.Single(module => module.Id == "reporting").Enabled.ShouldBeFalse();
+        File.ReadAllText(Path.Combine(temporary.Root, "Directory.Packages.props"))
+            .ShouldContain("Flatpack.Modules.Reporting");
+        File.ReadAllText(Path.Combine(temporary.Root, "web/apps/web/package.json"))
+            .ShouldContain("@flatpackapp/module-reporting");
+        File.ReadAllText(Path.Combine(temporary.Root, "flatpack.modules.lock.json"))
+            .ShouldContain(digest);
+        runner.Commands.Count.ShouldBe(2);
+
+        ModuleDoctorReport removed = workspace.Unregister("reporting");
+
+        removed.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, removed.Errors));
+        removed.Modules.ShouldNotContain(module => module.Id == "reporting");
+        File.ReadAllText(Path.Combine(temporary.Root, "Directory.Packages.props"))
+            .ShouldNotContain("Flatpack.Modules.Reporting");
+        File.Exists(Path.Combine(temporary.Root, "manifests/projects.json")).ShouldBeTrue();
+        runner.Commands.Count.ShouldBe(4);
+    }
+
+    [TestMethod]
+    public void InstallRollsBackEveryWorkspaceFileWhenPackageRestoreFails()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        ModuleWorkspace baseline = new(temporary.Root);
+        baseline.Generate().IsHealthy.ShouldBeTrue();
+        string catalogBefore = File.ReadAllText(Path.Combine(temporary.Root, "flatpack.modules.json"));
+        string packagesBefore = File.ReadAllText(Path.Combine(temporary.Root, "Directory.Packages.props"));
+        string candidatePath = temporary.WritePackageManifest("reporting", "1.0.0");
+        RecordingCommandRunner runner = new(failFirstCommand: true);
+
+        Should.Throw<InvalidOperationException>(() =>
+            new ModuleWorkspace(temporary.Root, runner).InstallPackage(candidatePath, Sha256(candidatePath)));
+
+        File.ReadAllText(Path.Combine(temporary.Root, "flatpack.modules.json")).ShouldBe(catalogBefore);
+        File.ReadAllText(Path.Combine(temporary.Root, "Directory.Packages.props")).ShouldBe(packagesBefore);
+        Directory.Exists(Path.Combine(temporary.Root, ".flatpack/modules/reporting")).ShouldBeTrue();
+        Directory.EnumerateFiles(Path.Combine(temporary.Root, ".flatpack/modules/reporting"), "*", SearchOption.AllDirectories)
+            .ShouldBeEmpty();
+        new ModuleWorkspace(temporary.Root).Inspect().IsHealthy.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public void UpgradeRequiresAForwardVersionAndKeepsPackageIdentityStable()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        RecordingCommandRunner runner = new();
+        ModuleWorkspace workspace = new(temporary.Root, runner);
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string versionOne = temporary.WritePackageManifest("reporting", "1.0.0");
+        workspace.InstallPackage(versionOne, Sha256(versionOne)).IsHealthy.ShouldBeTrue();
+        string versionTwo = temporary.WritePackageManifest("reporting", "1.1.0");
+
+        ModuleDoctorReport upgraded = workspace.UpgradePackage(versionTwo, Sha256(versionTwo));
+
+        upgraded.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, upgraded.Errors));
+        upgraded.Modules.Single(module => module.Id == "reporting").Version.ShouldBe("1.1.0");
+        File.ReadAllText(Path.Combine(temporary.Root, "Directory.Packages.props"))
+            .ShouldContain("Version=\"1.1.0\"");
+        File.ReadAllText(Path.Combine(temporary.Root, "flatpack.modules.lock.json"))
+            .ShouldContain("\"version\": \"1.1.0\"");
+    }
+
+    [TestMethod]
+    public void InstallRejectsManifestWhenExpectedDigestDoesNotMatch()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        string candidate = temporary.WritePackageManifest("reporting", "1.0.0");
+
+        Should.Throw<InvalidOperationException>(() =>
+                new ModuleWorkspace(temporary.Root).InstallPackage(candidate, new string('0', 64)))
+            .Message.ShouldContain("integrity check failed");
+    }
+
+    [TestMethod]
+    public void EjectRequiresDisabledPackageAndSwitchesBothSurfacesToReviewedSource()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        RecordingCommandRunner runner = new();
+        ModuleWorkspace workspace = new(temporary.Root, runner);
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string packageManifest = temporary.WritePackageManifest("reporting", "1.0.0");
+        workspace.InstallPackage(packageManifest, Sha256(packageManifest)).IsHealthy.ShouldBeTrue();
+        string bundle = temporary.WriteSourceBundle("reporting", "1.0.0");
+        string bundleManifest = Path.Combine(bundle, "flatpack.module.json");
+
+        ModuleDoctorReport ejected = workspace.EjectPackage("reporting", bundle, Sha256(bundleManifest));
+
+        ejected.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, ejected.Errors));
+        string dotnetProject = Path.Combine(temporary.Root, "src/FlatpackApp.Modules.Reporting/Reporting.csproj");
+        File.Exists(dotnetProject).ShouldBeTrue();
+        File.ReadAllText(Path.Combine(temporary.Root, "src/FlatpackApp.Api/FlatpackApp.Api.csproj"))
+            .ShouldContain("ProjectReference");
+        File.ReadAllText(Path.Combine(temporary.Root, "web/apps/web/package.json"))
+            .ShouldContain("workspace:*");
+        File.ReadAllText(Path.Combine(temporary.Root, "flatpack.modules.lock.json"))
+            .ShouldContain("\"kind\": \"workspace\"");
+    }
+
+    private static string Sha256(string path) =>
+        Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+
     private sealed class TemporaryModuleWorkspace : IDisposable
     {
         private TemporaryModuleWorkspace(string root) => Root = root;
@@ -122,10 +265,22 @@ public sealed class ModuleWorkspaceTests
             Directory.CreateDirectory(Path.Combine(root, "web/src"));
             Directory.CreateDirectory(Path.Combine(root, "web/packages/projects"));
             Directory.CreateDirectory(Path.Combine(root, "web/packages/getting-started"));
+            Directory.CreateDirectory(Path.Combine(root, "src/FlatpackApp.Api"));
+            Directory.CreateDirectory(Path.Combine(root, "src/FlatpackApp.Migrator"));
+            Directory.CreateDirectory(Path.Combine(root, "web/apps/web"));
             File.WriteAllText(Path.Combine(root, "src/Projects.csproj"), "<Project />");
             File.WriteAllText(Path.Combine(root, "src/GettingStarted.csproj"), "<Project />");
             File.WriteAllText(Path.Combine(root, "web/packages/projects/package.json"), "{}");
             File.WriteAllText(Path.Combine(root, "web/packages/getting-started/package.json"), "{}");
+            File.WriteAllText(Path.Combine(root, "Directory.Packages.props"),
+                "<Project><ItemGroup><PackageVersion Include=\"Existing.Package\" Version=\"1.0.0\" /></ItemGroup></Project>");
+            File.WriteAllText(Path.Combine(root, "src/FlatpackApp.Api/FlatpackApp.Api.csproj"),
+                "<Project><ItemGroup><PackageReference Include=\"Existing.Package\" /></ItemGroup></Project>");
+            File.WriteAllText(Path.Combine(root, "src/FlatpackApp.Migrator/FlatpackApp.Migrator.csproj"),
+                "<Project><ItemGroup><PackageReference Include=\"Existing.Package\" /></ItemGroup></Project>");
+            File.WriteAllText(Path.Combine(root, "web/apps/web/package.json"),
+                "{\n  \"dependencies\": {}\n}\n");
+            File.WriteAllText(Path.Combine(root, "web/pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
 
             File.WriteAllText(Path.Combine(root, "manifests/projects.json"), Manifest(
                 "projects",
@@ -160,9 +315,12 @@ public sealed class ModuleWorkspaceTests
                 {
                   "schemaVersion": 1,
                   "hostVersion": "0.1.0",
+                  "lockFile": "flatpack.modules.lock.json",
                   "outputs": {
                     "backend": "src/GeneratedModules.cs",
                     "backendNamespace": "FlatpackApp.Api.Modules",
+                    "migrator": "src/GeneratedMigratorModules.cs",
+                    "migratorNamespace": "FlatpackApp.Migrator.Modules",
                     "web": "web/src/modules.ts"
                   },
                   "modules": [
@@ -171,6 +329,92 @@ public sealed class ModuleWorkspaceTests
                 }
                 """);
             return new(root);
+        }
+
+        public string WritePackageManifest(string id, string version)
+        {
+            string path = Path.Combine(Root, $"{id}-{version}.package.json");
+            File.WriteAllText(path, $$"""
+                {
+                  "schemaVersion": 1,
+                  "id": "{{id}}",
+                  "name": "Reporting",
+                  "version": "{{version}}",
+                  "description": "Packaged reporting module.",
+                  "distribution": {
+                    "kind": "package",
+                    "license": "Apache-2.0",
+                    "dotnet": { "id": "Flatpack.Modules.Reporting", "version": "{{version}}" },
+                    "web": { "id": "@flatpackapp/module-reporting", "version": "{{version}}" }
+                  },
+                  "compatibility": {
+                    "minimumHostVersion": "0.1.0",
+                    "maximumHostVersionExclusive": "1.0.0"
+                  },
+                  "requires": ["projects"],
+                  "optionalDependencies": [],
+                  "capabilities": ["api", "web"],
+                  "artifacts": { "dotnetProject": "", "webPackage": "" },
+                  "entrypoints": {
+                    "dotnet": { "type": "Flatpack.Modules.Reporting.ReportingModule" },
+                    "web": { "specifier": "@flatpackapp/module-reporting", "export": "reportingModule" }
+                  },
+                  "contributions": {
+                    "permissions": ["reporting.read"],
+                    "routes": [{ "id": "reporting.home", "path": "/reporting" }],
+                    "extensionPoints": [],
+                    "extensions": [],
+                    "assistantTools": []
+                  }
+                }
+                """);
+            return path;
+        }
+
+        public string WriteSourceBundle(string id, string version)
+        {
+            string bundle = Path.Combine(Root, $"bundle-{id}-{version}");
+            string dotnetDirectory = Path.Combine(bundle, "src/FlatpackApp.Modules.Reporting");
+            string webDirectory = Path.Combine(bundle, "web/packages/module-reporting");
+            Directory.CreateDirectory(dotnetDirectory);
+            Directory.CreateDirectory(webDirectory);
+            File.WriteAllText(Path.Combine(dotnetDirectory, "Reporting.csproj"), "<Project />");
+            File.WriteAllText(Path.Combine(dotnetDirectory, "ReportingModule.cs"), "namespace Flatpack.Modules.Reporting; public sealed class Marker;");
+            File.WriteAllText(Path.Combine(webDirectory, "package.json"), "{ \"name\": \"@flatpackapp/module-reporting\" }");
+            File.WriteAllText(Path.Combine(webDirectory, "index.ts"), "export const reportingModule = {}\n");
+            File.WriteAllText(Path.Combine(bundle, "flatpack.module.json"), $$"""
+                {
+                  "schemaVersion": 1,
+                  "id": "{{id}}",
+                  "name": "Reporting",
+                  "version": "{{version}}",
+                  "description": "Ejected reporting module.",
+                  "distribution": { "kind": "workspace", "license": "Apache-2.0" },
+                  "compatibility": {
+                    "minimumHostVersion": "0.1.0",
+                    "maximumHostVersionExclusive": "1.0.0"
+                  },
+                  "requires": ["projects"],
+                  "optionalDependencies": [],
+                  "capabilities": ["api", "web"],
+                  "artifacts": {
+                    "dotnetProject": "src/FlatpackApp.Modules.Reporting/Reporting.csproj",
+                    "webPackage": "web/packages/module-reporting/package.json"
+                  },
+                  "entrypoints": {
+                    "dotnet": { "type": "Flatpack.Modules.Reporting.ReportingModule" },
+                    "web": { "specifier": "@flatpackapp/module-reporting", "export": "reportingModule" }
+                  },
+                  "contributions": {
+                    "permissions": ["reporting.read"],
+                    "routes": [{ "id": "reporting.home", "path": "/reporting" }],
+                    "extensionPoints": [],
+                    "extensions": [],
+                    "assistantTools": []
+                  }
+                }
+                """);
+            return bundle;
         }
 
         public void Dispose()
@@ -192,6 +436,10 @@ public sealed class ModuleWorkspaceTests
                   "name": "{{id}}",
                   "version": "1.0.0",
                   "description": "Test module.",
+                  "distribution": {
+                    "kind": "workspace",
+                    "license": "Apache-2.0"
+                  },
                   "compatibility": {
                     "minimumHostVersion": "0.1.0",
                     "maximumHostVersionExclusive": "1.0.0"
@@ -216,5 +464,18 @@ public sealed class ModuleWorkspaceTests
                   }
                 }
                 """;
+    }
+
+    private sealed class RecordingCommandRunner(bool failFirstCommand = false) : IWorkspaceCommandRunner
+    {
+        public List<string> Commands { get; } = [];
+
+        public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
+        {
+            Commands.Add($"{fileName} {string.Join(' ', arguments)}");
+            return failFirstCommand && Commands.Count == 1
+                ? new(1, "simulated restore failure")
+                : new(0, "ok");
+        }
     }
 }

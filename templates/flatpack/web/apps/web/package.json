@@ -13,6 +13,7 @@
   "dependencies": {
     "@flatpackapp/api-client": "workspace:*",
     "@flatpackapp/module-getting-started": "workspace:*",
+    "@flatpackapp/module-federation": "workspace:*",
     "@flatpackapp/module-sdk": "workspace:*",
     "@flatpackapp/ui": "workspace:*",
     "@tanstack/react-query": "5.102.8",

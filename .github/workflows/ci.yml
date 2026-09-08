@@ -42,6 +42,8 @@ jobs:
       - run: dotnet test templates/flatpack/tests/FlatpackApp.UnitTests -c Release --no-build
       - run: dotnet test templates/flatpack/tests/FlatpackApp.IntegrationTests -c Release --no-build
       - run: pnpm --dir templates/flatpack/web install --frozen-lockfile
+      - name: Verify disabled and enabled Federation composition
+        run: bash scripts/test-federation-module.sh
       - run: pnpm --dir templates/flatpack/web generate
       - run: git diff --exit-code -- templates/flatpack/web/packages/api-client/openapi templates/flatpack/web/packages/api-client/src/generated templates/flatpack/docs/generated/assistant-contract.json
       - run: pnpm --dir templates/flatpack/web typecheck

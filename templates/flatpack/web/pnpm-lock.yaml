@@ -13,6 +13,9 @@ importers:
       '@flatpackapp/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@flatpackapp/module-federation':
+        specifier: workspace:*
+        version: link:../../packages/module-federation
       '@flatpackapp/module-getting-started':
         specifier: workspace:*
         version: link:../../packages/module-getting-started
@@ -102,6 +105,31 @@ importers:
       vitest:
         specifier: 5.0.0
         version: 5.0.0(@types/node@26.5.0)(jsdom@27.0.0)(msw@2.15.0(@types/node@26.5.0)(typescript@6.0.3))(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/module-federation:
+    dependencies:
+      '@flatpackapp/api-client':
+        specifier: workspace:*
+        version: link:../api-client
+      '@flatpackapp/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
+      '@flatpackapp/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@tanstack/react-query':
+        specifier: 5.102.8
+        version: 5.102.8(react@19.2.8)
+      lucide-react:
+        specifier: 1.42.0
+        version: 1.42.0(react@19.2.8)
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
 
   packages/module-getting-started:
     dependencies:

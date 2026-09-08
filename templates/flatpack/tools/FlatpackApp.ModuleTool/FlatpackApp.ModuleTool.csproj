@@ -13,4 +13,7 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlatpackApp.UnitTests" />
+  </ItemGroup>
 </Project>

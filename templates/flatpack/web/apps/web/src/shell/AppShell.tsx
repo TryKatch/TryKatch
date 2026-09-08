@@ -34,7 +34,7 @@ const coreNavigation: readonly FlatpackNavigationContribution[] = [
   { id: 'core.audit', section: 'Administration', order: 20, to: '/audit', label: 'Audit', icon: Activity },
   { id: 'core.archive', section: 'Recovery', order: 10, to: '/archive', label: 'Archive', icon: ArchiveRestore },
 ]
-const allNavigation = [...coreNavigation, ...workspaceModules.navigation]
+const allNavigation = [...coreNavigation, ...workspaceModules.navigationFor('workspace')]
   .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
 const sectionOrder = ['Workspace', 'Administration', 'Recovery']
 

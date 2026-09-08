@@ -1,9 +1,12 @@
 using System.Text.RegularExpressions;
 using FlatpackApp.Identity;
 using FlatpackApp.Infrastructure.Persistence;
-using FlatpackApp.Infrastructure.Projects;
+using FlatpackApp.Migrator;
+using FlatpackApp.Migrator.Modules;
+using FlatpackApp.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 
@@ -21,6 +24,13 @@ DbContextOptions<IdentityDbContext> identityOptions = new DbContextOptionsBuilde
     .UseNpgsql(connectionString)
     .Options;
 
+ServiceCollection moduleServices = new();
+FlatpackModuleCatalog moduleCatalog = moduleServices.AddFlatpackModules(builder.Configuration, EnabledModules.All);
+await using ServiceProvider moduleProvider = moduleServices.BuildServiceProvider(validateScopes: true);
+IApplicationModelContributor[] modelContributors = moduleProvider
+    .GetServices<IApplicationModelContributor>()
+    .ToArray();
+
 // Identity must exist before application migrations enrich audit data with actor names.
 await using (IdentityDbContext identity = new(identityOptions))
 {
@@ -32,13 +42,16 @@ await using (PlatformDbContext platform = new(platformOptions))
     await platform.Database.MigrateAsync();
 }
 
-// The migrator composes the same data-owning modules as the runtime host. A
-// module that contributes an EF model must be listed explicitly here and owns
-// its migration history; no runtime assembly scanning is used.
-await using (ApplicationDbContext application = new(applicationOptions, [new ProjectsModelContributor()]))
+// The generated registry gives the API and migrator the same ordered module
+// graph. No assembly scanning or second hand-maintained module list is allowed.
+await using (ApplicationDbContext application = new(applicationOptions, modelContributors))
 {
     await application.Database.MigrateAsync();
 }
+
+// Optional module-owned SQL migrations are forward-only, serialized with a
+// PostgreSQL advisory lock, and checksum-verified against durable history.
+await ModuleMigrationExecutor.ApplyAsync(connectionString, moduleCatalog.Modules);
 
 string? runtimeRole = builder.Configuration["Database:RuntimeRole"];
 if (!string.IsNullOrWhiteSpace(runtimeRole))

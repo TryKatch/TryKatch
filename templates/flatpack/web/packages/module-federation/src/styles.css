@@ -1,0 +1,10 @@
+.federation-surface { padding: 0; overflow: hidden; }
+.federation-list article { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 16px; border-bottom: 1px solid var(--border); }
+.federation-list article:last-child { border-bottom: 0; }
+.federation-list article > div:nth-child(2) { display: grid; gap: 3px; min-width: 0; }
+.federation-list small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.federation-icon { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 4px; }
+.federation-actions { display: flex; gap: 8px; }
+.federation-form { display: grid; gap: 14px; }
+.federation-form > label { display: grid; gap: 7px; font-weight: 600; }
+@media (max-width: 720px) { .federation-list article { grid-template-columns: auto 1fr; } .federation-list article > .badge, .federation-actions { grid-column: 2; } }

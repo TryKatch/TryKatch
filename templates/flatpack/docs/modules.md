@@ -13,13 +13,29 @@ Backend modules implement `IFlatpackModule` from `FlatpackApp.Modules.Abstractio
 - Installed dependency graphs contain no cycles.
 - Registration follows deterministic dependency order, including optional dependencies when they are installed.
 
-`flatpack.modules.json` is the single application-owned source of truth. The generated backend registry is `src/FlatpackApp.Api/Modules/EnabledModules.cs`; never edit it or add assembly scanning. Existing module controllers carry `[FlatpackModule("module-id")]`; a catalog-aware MVC feature provider removes their HTTP surface when the module is disabled. New packages should implement `IFlatpackOrganizationEndpointContributor` from `FlatpackApp.Modules.AspNetCore`. The host gives contributors only a pre-authenticated `/api/v1` route group marked for organization resolution and RLS transaction setup, so module endpoints cannot opt out of the security kernel. The authenticated `GET /api/v1/modules` endpoint exposes the effective catalog and named extension points for diagnostics.
+`flatpack.modules.json` is the single application-owned source of truth. The tool generates matching API, migrator, and React registries plus `flatpack.modules.lock.json`; never edit generated artifacts or add assembly scanning. Package entries retain an exact manifest SHA-256; workspace entries use a template-name-normalized SHA-256 so namespace replacement during `dotnet new -n` cannot invalidate an otherwise identical generated graph. Existing module controllers carry `[FlatpackModule("module-id")]`; a catalog-aware MVC feature provider removes their HTTP surface when the module is disabled. Organization packages implement `IFlatpackOrganizationEndpointContributor`; platform-administration packages implement `IFlatpackPlatformEndpointContributor` and must name a platform permission boundary. The host supplies the authenticated route group, so module endpoints cannot opt out of the security kernel. The authenticated `GET /api/v1/modules` endpoint exposes the effective catalog and named extension points for diagnostics.
 
 Modules may explicitly allowlist read-only or confirmed state-changing operations through `FlatpackAssistantToolDescriptor`. The OpenAPI pipeline marks module ownership and generates a provider-neutral strict tool contract. No endpoint becomes an AI tool merely because it exists. See [AI-assisted development](ai-assisted-development.md).
 
 Web modules use `@flatpackapp/module-sdk`. Each definition owns lazy-loadable typed routes, navigation, named extension-point hosts, and extension contributions. Contributions have stable IDs, deterministic order, and optional permission gates. The catalog rejects duplicate contracts, unknown hosts, invalid overrides, missing dependencies, and cycles. `web/apps/web/src/modules.ts` is generated from the same catalog as the backend; application-owned visual overrides remain in `web/apps/web/src/module-overrides.ts` and are never overwritten. `null` disables a keyed contribution without editing its provider module.
 
-Data-capable modules explicitly register `IApplicationModelContributor`. This keeps EF Core mapping behind the module seam: when a module is not enabled, its runtime entity model is not composed. Existing migrations and tables are retained; disabling a module is never a data-deletion operation.
+Data-capable modules explicitly register `IApplicationModelContributor`. This keeps EF Core mapping behind the module seam: when a module is not enabled, its runtime entity model is not composed. The migrator consumes the same generated ordered catalog as the API. A package may also implement `IFlatpackModuleMigrationContributor` for immutable forward-only SQL changes. PostgreSQL serializes those changes with an advisory transaction lock and records module, version, migration ID, checksum, and application time in `platform.module_migrations`. Editing or removing an applied migration fails closed. Existing migrations and tables are retained; disabling or unregistering a module is never a data-deletion operation.
+
+## Package lifecycle
+
+- `register` adds reviewed workspace source and leaves it disabled.
+- `install` requires a separately published SHA-256, exact paired NuGet/npm versions, compatible host range, collision-free contributions, and successful locked-graph regeneration.
+- `upgrade` only moves forward and refuses a package identity change.
+- `disable` removes runtime/API/web composition while retaining code and data.
+- `unregister` requires disablement, refuses dependents, removes unused package references, and keeps migration history/data.
+- `eject` requires a matching checksum-verified source bundle and refuses every overwrite.
+- There is deliberately no automatic `purge-data`; destructive data retirement needs a module-specific, reviewed runbook and separate authorization.
+
+All package mutations are transactional at the workspace level: on validation or restore failure, the catalog, generated registries, manifests, project/package files, NuGet lockfiles, and pnpm lockfile are restored.
+
+## Federation reference module
+
+`FlatpackApp.Modules.Federation` and `@flatpackapp/module-federation` are registered but disabled by default. Enabling the module proves platform API and React contributions plus the module migration ledger. Its administration slice stores write-only client secrets through ASP.NET Core Data Protection, blocks unsafe issuer URLs, binds discovery metadata to the exact issuer, requires a successful current-configuration test before enablement, and requires disablement before retirement. It does not weaken or replace Flatpack cookie issuance, organization resolution, RLS, or permission enforcement.
 
 Permission definitions may declare default grants for the standard organization role keys. Organization setup asks the aggregated catalog for those grants, so a new module can add a permission and its safe defaults without editing the organization directory. Owner remains the deliberate exception and receives every installed permission.
 
@@ -92,4 +108,4 @@ dotnet run --project tools/FlatpackApp.ModuleTool -- module enable getting-start
 
 Development builds expose the raw OpenAPI 3.1 document at `/openapi/v1.json` and an interactive Scalar reference at `/docs`. `pnpm --dir web generate` also regenerates `docs/generated/assistant-contract.json`; CI rejects client or assistant-contract drift.
 
-The first Flatpack CLI slice now owns list, doctor, deterministic generation, and dependency-safe enable/disable. Package acquisition, lockfile updates, safe upgrade, eject-to-source, unregister, and explicit purge-data workflows remain release work; external third-party module installation is not yet a production support promise.
+The Flatpack CLI owns list, doctor, deterministic generation, dependency-safe enable/disable, checksum-gated package install and upgrade, unregister, and eject-to-reviewed-source. Permanent module-data purge and an external public module marketplace remain outside the support promise.

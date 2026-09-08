@@ -10,6 +10,7 @@
     <Project Path="src/FlatpackApp.Modules.Abstractions/FlatpackApp.Modules.Abstractions.csproj" />
     <Project Path="src/FlatpackApp.Modules.AspNetCore/FlatpackApp.Modules.AspNetCore.csproj" />
     <Project Path="src/FlatpackApp.Modules.GettingStarted/FlatpackApp.Modules.GettingStarted.csproj" />
+    <Project Path="src/FlatpackApp.Modules.Federation/FlatpackApp.Modules.Federation.csproj" />
     <Project Path="src/FlatpackApp.ServiceDefaults/FlatpackApp.ServiceDefaults.csproj" />
   </Folder>
   <Folder Name="/tests/">

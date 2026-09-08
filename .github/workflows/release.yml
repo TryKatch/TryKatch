@@ -22,6 +22,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: bash scripts/test-template.sh
+      - run: bash scripts/test-federation-module.sh
       - run: dotnet pack Flatpack.Templates.csproj -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
       - run: dotnet pack templates/flatpack/tools/FlatpackApp.ModuleTool -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
       - uses: anchore/sbom-action@v0.24.0

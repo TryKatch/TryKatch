@@ -154,6 +154,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 app.MapFlatpackOrganizationModuleEndpoints();
+app.MapFlatpackPlatformModuleEndpoints();
 app.MapDefaultEndpoints();
 app.Run();
 

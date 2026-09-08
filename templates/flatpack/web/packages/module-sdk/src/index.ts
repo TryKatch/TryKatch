@@ -7,6 +7,7 @@ export interface FlatpackModuleIconProps {
 export interface FlatpackWebRoute {
   id: string
   path: `/${string}`
+  surface?: 'workspace' | 'platform'
   component: ComponentType | LazyExoticComponent<ComponentType>
 }
 
@@ -19,6 +20,7 @@ export interface FlatpackNavigationContribution {
   icon: ComponentType<FlatpackModuleIconProps>
   requiredPermission?: string
   exact?: boolean
+  surface?: 'workspace' | 'platform'
 }
 
 export type FlatpackExtensionPointKind = 'ui-slot' | 'data-table' | 'form' | 'component'
@@ -89,6 +91,14 @@ export class FlatpackWebModuleCatalog {
 
   extensionsFor(point: string) {
     return this.extensions.filter((extension) => extension.point === point)
+  }
+
+  routesFor(surface: 'workspace' | 'platform') {
+    return this.routes.filter((route) => (route.surface ?? 'workspace') === surface)
+  }
+
+  navigationFor(surface: 'workspace' | 'platform') {
+    return this.navigation.filter((item) => (item.surface ?? 'workspace') === surface)
   }
 }
 

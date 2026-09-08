@@ -1,21 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { customFetch } from '@flatpackapp/api-client'
+import type { FlatpackNavigationContribution } from '@flatpackapp/module-sdk'
 import { Button, Skeleton } from '@flatpackapp/ui'
 import { Bell, Building2, ChevronDown, LayoutDashboard, LogOut, Menu, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen, ShieldCheck, Sun, UserRound, Users, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { FlatpackLogo } from '../components/FlatpackLogo'
 import { SignOutDialog } from '../components/SignOutDialog'
+import { workspaceModules } from '../modules'
 import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 
 interface Session { displayName: string; email: string; hasPlatformAccess?: boolean; isPlatformAdministrator?: boolean; platformPermissions?: string[] }
 
-const platformNavigation = [
-  { to: '/dashboard', label: 'Platform overview', icon: LayoutDashboard, permission: 'platform.dashboard.read', exact: true },
-  { to: '/dashboard/tenants', label: 'Tenant management', icon: Building2, permission: 'platform.tenants.read' },
-  { to: '/dashboard/users', label: 'User management', icon: Users, permission: 'platform.users.read' },
-  { to: '/dashboard/authentication', label: 'Authentication', icon: ShieldCheck, permission: 'platform.authentication.read' },
-] as const
+const corePlatformNavigation: readonly FlatpackNavigationContribution[] = [
+  { id: 'platform.overview', surface: 'platform', section: 'Administration', order: 10, to: '/dashboard', label: 'Platform overview', icon: LayoutDashboard, requiredPermission: 'platform.dashboard.read', exact: true },
+  { id: 'platform.tenants', surface: 'platform', section: 'Administration', order: 20, to: '/dashboard/tenants', label: 'Tenant management', icon: Building2, requiredPermission: 'platform.tenants.read' },
+  { id: 'platform.users', surface: 'platform', section: 'Administration', order: 30, to: '/dashboard/users', label: 'User management', icon: Users, requiredPermission: 'platform.users.read' },
+  { id: 'platform.authentication', surface: 'platform', section: 'Administration', order: 40, to: '/dashboard/authentication', label: 'Authentication', icon: ShieldCheck, requiredPermission: 'platform.authentication.read' },
+]
+const platformNavigation = [...corePlatformNavigation, ...workspaceModules.navigationFor('platform')]
+  .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
 
 function initials(value: string) {
   return value.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'U'
@@ -65,8 +69,8 @@ export function PlatformShell() {
   }, [])
 
   const identity = session.data?.displayName || session.data?.email || 'Account'
-  const visibleNavigation = platformNavigation.filter((item) => session.data?.isPlatformAdministrator || session.data?.platformPermissions?.includes(item.permission))
-  const currentLabel = platformNavigation.find((item) => 'exact' in item && item.exact ? pathname === item.to : pathname.startsWith(item.to))?.label ?? 'Administration'
+  const visibleNavigation = platformNavigation.filter((item) => session.data?.isPlatformAdministrator || !item.requiredPermission || session.data?.platformPermissions?.includes(item.requiredPermission))
+  const currentLabel = platformNavigation.find((item) => item.exact ? pathname === item.to : pathname.startsWith(item.to))?.label ?? 'Administration'
 
   return <div className={`app-shell platform-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
     <aside className="sidebar" id="platform-navigation">
@@ -77,7 +81,7 @@ export function PlatformShell() {
       <nav aria-label="Platform administration">
         <section className="sidebar-nav-section" aria-labelledby="platform-navigation-label">
           <span className="sidebar-label sidebar-section-label" id="platform-navigation-label">Administration</span>
-          <div>{visibleNavigation.map(({ to, label, icon: Icon, ...item }) => <Link key={label} to={to} aria-label={label} title={label} activeOptions={{ exact: 'exact' in item && item.exact }} activeProps={{ className: 'active' }} onClick={() => setMobileNavOpen(false)}><Icon size={16} /><span className="sidebar-label">{label}</span></Link>)}</div>
+          <div>{visibleNavigation.map(({ id, to, label, icon: Icon, exact }) => <Link key={id} to={to} aria-label={label} title={label} activeOptions={{ exact }} activeProps={{ className: 'active' }} onClick={() => setMobileNavOpen(false)}><Icon size={16} /><span className="sidebar-label">{label}</span></Link>)}</div>
         </section>
       </nav>
       <div className="sidebar-bottom" ref={accountMenu}>

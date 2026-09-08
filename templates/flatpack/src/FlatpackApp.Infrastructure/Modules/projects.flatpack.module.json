@@ -5,6 +5,10 @@
   "name": "Projects",
   "version": "1.0.0",
   "description": "Organization-scoped project management and lifecycle reference feature.",
+  "distribution": {
+    "kind": "workspace",
+    "license": "Apache-2.0"
+  },
   "compatibility": {
     "minimumHostVersion": "0.1.0",
     "maximumHostVersionExclusive": "1.0.0"

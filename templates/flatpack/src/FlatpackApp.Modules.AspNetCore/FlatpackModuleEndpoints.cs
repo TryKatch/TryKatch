@@ -27,6 +27,17 @@ public interface IFlatpackOrganizationEndpointContributor
     void MapEndpoints(RouteGroupBuilder organizationApi);
 }
 
+/// <summary>
+/// Narrow platform-administration seam. The host owns authentication and the
+/// platform permission boundary; modules can only add routes beneath it.
+/// </summary>
+public interface IFlatpackPlatformEndpointContributor
+{
+    string ModuleId { get; }
+    string RequiredPlatformPermission { get; }
+    void MapEndpoints(RouteGroupBuilder platformApi);
+}
+
 public static class FlatpackModuleEndpointExtensions
 {
     /// <summary>
@@ -57,6 +68,27 @@ public static class FlatpackModuleEndpointExtensions
             contributor.MapEndpoints(moduleApi);
         }
 
+        return endpoints;
+    }
+
+    public static IEndpointRouteBuilder MapFlatpackPlatformModuleEndpoints(this IEndpointRouteBuilder endpoints)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        FlatpackModuleCatalog catalog = endpoints.ServiceProvider.GetRequiredService<FlatpackModuleCatalog>();
+        foreach (IFlatpackPlatformEndpointContributor contributor in endpoints.ServiceProvider
+                     .GetServices<IFlatpackPlatformEndpointContributor>())
+        {
+            if (!catalog.Contains(contributor.ModuleId))
+                throw new InvalidOperationException($"Platform endpoint contributor belongs to disabled Flatpack module '{contributor.ModuleId}'.");
+            if (string.IsNullOrWhiteSpace(contributor.RequiredPlatformPermission))
+                throw new InvalidOperationException($"Platform endpoint contributor '{contributor.ModuleId}' requires a platform permission boundary.");
+
+            RouteGroupBuilder moduleApi = endpoints
+                .MapGroup("/api/v1/platform")
+                .RequireAuthorization($"platform-permission:{contributor.RequiredPlatformPermission}")
+                .WithMetadata(new FlatpackModuleEndpointMetadata(contributor.ModuleId));
+            contributor.MapEndpoints(moduleApi);
+        }
         return endpoints;
     }
 }

@@ -22,6 +22,7 @@
     <ProjectReference Include="../FlatpackApp.Modules.Abstractions/FlatpackApp.Modules.Abstractions.csproj" />
     <ProjectReference Include="../FlatpackApp.Modules.AspNetCore/FlatpackApp.Modules.AspNetCore.csproj" />
     <ProjectReference Include="../FlatpackApp.Modules.GettingStarted/FlatpackApp.Modules.GettingStarted.csproj" />
+    <ProjectReference Include="../FlatpackApp.Modules.Federation/FlatpackApp.Modules.Federation.csproj" />
     <ProjectReference Include="../FlatpackApp.ServiceDefaults/FlatpackApp.ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>

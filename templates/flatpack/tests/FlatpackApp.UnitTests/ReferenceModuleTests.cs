@@ -3,6 +3,7 @@ using FlatpackApp.Infrastructure.Modules;
 using FlatpackApp.Modules;
 using FlatpackApp.Modules.AspNetCore;
 using FlatpackApp.Modules.GettingStarted;
+using FlatpackApp.Modules.Federation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -24,6 +25,19 @@ public sealed class ReferenceModuleTests
     public void ProjectsManifestMatchesRuntimeDescriptor()
     {
         AssertManifestMatches("projects.module.json", new ProjectsModule().Descriptor);
+    }
+
+    [TestMethod]
+    public void FederationManifestAndMigrationMatchRuntimeDescriptor()
+    {
+        FederationModule module = new();
+        AssertManifestMatches("federation.module.json", module.Descriptor);
+
+        IReadOnlyList<PendingFlatpackModuleMigration> plan = FlatpackModuleMigrationPlan.Build([module], []);
+
+        plan.Count.ShouldBe(1);
+        plan[0].ModuleId.ShouldBe("federation");
+        plan[0].Sql.ShouldContain("identity.federation_connections");
     }
 
     [TestMethod]
@@ -60,6 +74,29 @@ public sealed class ReferenceModuleTests
         ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
             .ShouldNotContain(value => value.RoutePattern.RawText == "/api/v1/getting-started");
+    }
+
+    [TestMethod]
+    public void HostMapsFederationInsidePlatformPermissionBoundary()
+    {
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
+        builder.Configuration["ConnectionStrings:flatpackdb"] = "Host=localhost;Database=test;Username=test;Password=test";
+        builder.Services.AddAuthorization();
+        builder.Services.AddDataProtection();
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddFlatpackModules(builder.Configuration, [new FederationModule()]);
+        WebApplication app = builder.Build();
+
+        app.MapFlatpackPlatformModuleEndpoints();
+
+        RouteEndpoint endpoint = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(value => value.RoutePattern.RawText == "/api/v1/platform/federation/connections/"
+                && value.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()?.HttpMethods.Contains("GET") == true);
+        endpoint.Metadata.GetMetadata<FlatpackModuleEndpointMetadata>()?.ModuleId.ShouldBe("federation");
+        endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>()
+            .ShouldContain(value => value.Policy == "platform-permission:platform.authentication.read");
     }
 
     private static void AssertManifestMatches(string fixture, FlatpackModuleDescriptor descriptor)
