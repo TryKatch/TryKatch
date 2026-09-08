@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
@@ -25,12 +26,15 @@ public static class Extensions
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
-                .AddRuntimeInstrumentation())
+                .AddRuntimeInstrumentation()
+                .AddNpgsqlInstrumentation()
+                .AddMeter("FlatpackApp.Outbox"))
             .WithTracing(traces => traces
-                .AddSource(builder.Environment.ApplicationName)
+                .AddSource(builder.Environment.ApplicationName, "FlatpackApp.Outbox")
                 .AddAspNetCoreInstrumentation(options => options.Filter = context =>
                     !context.Request.Path.StartsWithSegments("/health") && !context.Request.Path.StartsWithSegments("/metrics"))
-                .AddHttpClientInstrumentation());
+                .AddHttpClientInstrumentation()
+                .AddNpgsql());
 
         if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
         {
