@@ -1,6 +1,6 @@
 export type Theme = 'light' | 'system' | 'dark' | 'custom'
 
-export const defaultShellColor = '#0f766e'
+export const defaultShellColor = '#315fba'
 
 export function readableForeground(hex: string) {
   const channels = [hex.slice(1, 3), hex.slice(3, 5), hex.slice(5, 7)].map((value) => Number.parseInt(value, 16) / 255)

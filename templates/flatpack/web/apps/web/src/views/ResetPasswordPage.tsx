@@ -1,6 +1,5 @@
 import { customFetch } from '@flatpackapp/api-client'
-import { Button, Surface } from '@flatpackapp/ui'
-import { CheckCircle2 } from 'lucide-react'
+import { Button } from '@flatpackapp/ui'
 import { useState, type FormEvent } from 'react'
 import { FlatpackLogo } from '../components/FlatpackLogo'
 
@@ -37,16 +36,13 @@ export function ResetPasswordPage() {
   }
 
   return <main className="auth-page">
-    <div className="auth-brand"><span className="brand-mark"><FlatpackLogo size={17} /></span><strong>Flatpack</strong></div>
-    <Surface className="auth-card">
+    <a className="auth-brand" href="/login" aria-label="Flatpack sign in"><span className="brand-mark"><FlatpackLogo size={17} /></span><strong>Flatpack</strong></a>
+    <section className="auth-card">
       {complete ? <div className="recovery-complete" role="status">
-        <span aria-hidden="true"><CheckCircle2 size={22} /></span>
-        <div className="eyebrow">Password updated</div>
-        <h1>Your account is secure</h1>
+        <h1>Password updated</h1>
         <p>Your previous password and active sessions are no longer valid.</p>
         <Button type="button" variant="primary" onClick={() => window.location.assign('/login')}>Return to sign in</Button>
       </div> : <>
-        <div className="eyebrow">Account recovery</div>
         <h1>Choose a new password</h1>
         <p>Use at least 12 characters and avoid a password used elsewhere.</p>
         {!email || !token ? <div className="form-error" role="alert">This password reset link is incomplete. Request a new link from the sign-in page.</div> : <form onSubmit={submit}>
@@ -56,9 +52,8 @@ export function ResetPasswordPage() {
           {error && <div className="form-error" role="alert">{error}</div>}
           <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Updating…' : 'Update password'}</Button>
         </form>}
-        <Button className="auth-secondary-action" type="button" variant="ghost" onClick={() => window.location.assign('/login')}>Back to sign in</Button>
+        <a className="auth-link" href="/login">Back to sign in</a>
       </>}
-    </Surface>
-    <small className="auth-note">Reset links are single-use and expire automatically.</small>
+    </section>
   </main>
 }

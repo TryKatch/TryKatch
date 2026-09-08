@@ -2,12 +2,14 @@ import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@t
 import { AppShell } from './shell/AppShell'
 import { PlatformShell } from './shell/PlatformShell'
 import { LoginPage } from './views/LoginPage'
+import { ForgotPasswordPage } from './views/ForgotPasswordPage'
 import { ResetPasswordPage } from './views/ResetPasswordPage'
 import { AcceptInvitationPage, AuditPage, DashboardPage, PlatformAccessActivationPage, PlatformAuthenticationPage, PlatformOrganizationsPage, PlatformOverviewPage, PlatformUsersPage, ProfilePage, ProjectsPage, UserManagementPage } from './views/Pages'
 import { ArchivePage } from './features/archive/ArchivePage'
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> })
 const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login', component: LoginPage })
+const forgotPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/forgot-password', component: ForgotPasswordPage })
 const resetPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/reset-password', component: ResetPasswordPage })
 const workspaceRoute = createRoute({ getParentRoute: () => rootRoute, id: '_workspace', component: AppShell })
 const overviewRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/overview', component: DashboardPage })
@@ -30,6 +32,7 @@ const platformActivationRoute = createRoute({ getParentRoute: () => rootRoute, p
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  forgotPasswordRoute,
   resetPasswordRoute,
   platformRoute.addChildren([platformOverviewRoute, tenantDirectoryRoute, platformUsersRoute, platformInvitationsRoute, platformAuthenticationRoute, platformProfileRoute]),
   legacyTeamRoute,
