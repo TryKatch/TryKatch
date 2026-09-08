@@ -242,11 +242,11 @@ public sealed class AuthenticationSecurityTests
 
     private static async Task ApplyMigrationsAsync(string connectionString)
     {
+        await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(connectionString).Options);
+        await identity.Database.MigrateAsync();
         await using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(connectionString).Options);
         await platform.Database.MigrateAsync();
         await using ApplicationDbContext application = new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options);
         await application.Database.MigrateAsync();
-        await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(connectionString).Options);
-        await identity.Database.MigrateAsync();
     }
 }

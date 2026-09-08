@@ -20,6 +20,12 @@ DbContextOptions<IdentityDbContext> identityOptions = new DbContextOptionsBuilde
     .UseNpgsql(connectionString)
     .Options;
 
+// Identity must exist before application migrations enrich audit data with actor names.
+await using (IdentityDbContext identity = new(identityOptions))
+{
+    await identity.Database.MigrateAsync();
+}
+
 await using (PlatformDbContext platform = new(platformOptions))
 {
     await platform.Database.MigrateAsync();
@@ -28,11 +34,6 @@ await using (PlatformDbContext platform = new(platformOptions))
 await using (ApplicationDbContext application = new(applicationOptions))
 {
     await application.Database.MigrateAsync();
-}
-
-await using (IdentityDbContext identity = new(identityOptions))
-{
-    await identity.Database.MigrateAsync();
 }
 
 string? runtimeRole = builder.Configuration["Database:RuntimeRole"];
