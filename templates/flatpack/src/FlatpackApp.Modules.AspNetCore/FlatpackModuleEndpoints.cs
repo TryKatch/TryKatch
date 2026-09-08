@@ -1,3 +1,4 @@
+using FlatpackApp.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,12 +14,16 @@ public interface IFlatpackOrganizationScopedMetadata;
 
 public sealed class FlatpackOrganizationScopedMetadata : IFlatpackOrganizationScopedMetadata;
 
+/// <summary>Identifies the module that owns a contributed endpoint.</summary>
+public sealed record FlatpackModuleEndpointMetadata(string ModuleId);
+
 /// <summary>
 /// The narrow HTTP seam for a module. The host supplies an authenticated,
 /// organization-scoped route group; contributors can only add routes beneath it.
 /// </summary>
 public interface IFlatpackOrganizationEndpointContributor
 {
+    string ModuleId { get; }
     void MapEndpoints(RouteGroupBuilder organizationApi);
 }
 
@@ -40,8 +45,17 @@ public static class FlatpackModuleEndpointExtensions
         IEnumerable<IFlatpackOrganizationEndpointContributor> contributors = endpoints
             .ServiceProvider
             .GetServices<IFlatpackOrganizationEndpointContributor>();
+        FlatpackModuleCatalog catalog = endpoints.ServiceProvider.GetRequiredService<FlatpackModuleCatalog>();
         foreach (IFlatpackOrganizationEndpointContributor contributor in contributors)
-            contributor.MapEndpoints(organizationApi);
+        {
+            if (!catalog.Contains(contributor.ModuleId))
+                throw new InvalidOperationException($"Endpoint contributor belongs to disabled Flatpack module '{contributor.ModuleId}'.");
+
+            RouteGroupBuilder moduleApi = organizationApi
+                .MapGroup(string.Empty)
+                .WithMetadata(new FlatpackModuleEndpointMetadata(contributor.ModuleId));
+            contributor.MapEndpoints(moduleApi);
+        }
 
         return endpoints;
     }

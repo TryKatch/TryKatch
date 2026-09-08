@@ -96,6 +96,46 @@ public sealed class FlatpackModuleCatalogTests
         services.ShouldContain(descriptor => descriptor.ServiceType == typeof(FlatpackApp.Application.Authorization.IPermissionDefinitionProvider));
     }
 
+    [TestMethod]
+    public void CatalogRejectsUnsafeStateChangingAssistantTools()
+    {
+        FlatpackModuleDescriptor descriptor = Module("reporting").Descriptor with
+        {
+            Capabilities = FlatpackModuleCapabilities.Api | FlatpackModuleCapabilities.Assistant,
+            AssistantTools =
+            [
+                new("reporting_delete", "Reporting_Delete", "Delete a report.", FlatpackAssistantToolRisk.Destructive, false)
+            ]
+        };
+
+        Should.Throw<InvalidOperationException>(() => new FlatpackModuleCatalog([new StubModule(descriptor)]))
+            .Message.ShouldContain("must require human confirmation");
+    }
+
+    [TestMethod]
+    public void CatalogRejectsDuplicateAssistantToolNamesAcrossModules()
+    {
+        FlatpackModuleDescriptor first = Module("projects").Descriptor with
+        {
+            Capabilities = FlatpackModuleCapabilities.Api | FlatpackModuleCapabilities.Assistant,
+            AssistantTools =
+            [
+                new("flatpack_list_records", "Projects_List", "List projects.", FlatpackAssistantToolRisk.ReadOnly, false)
+            ]
+        };
+        FlatpackModuleDescriptor second = Module("reporting").Descriptor with
+        {
+            Capabilities = FlatpackModuleCapabilities.Api | FlatpackModuleCapabilities.Assistant,
+            AssistantTools =
+            [
+                new("flatpack_list_records", "Reporting_List", "List reports.", FlatpackAssistantToolRisk.ReadOnly, false)
+            ]
+        };
+
+        Should.Throw<InvalidOperationException>(() => new FlatpackModuleCatalog([new StubModule(first), new StubModule(second)]))
+            .Message.ShouldContain("Duplicate Flatpack assistant tool name");
+    }
+
     private static StubModule Module(
         string id,
         IReadOnlyList<string>? requires = null,

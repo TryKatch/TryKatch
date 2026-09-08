@@ -25,6 +25,8 @@ public sealed class ReferenceModuleTests
         root.GetProperty("id").GetString().ShouldBe(descriptor.Id);
         root.GetProperty("version").GetString().ShouldBe(descriptor.Version);
         root.GetProperty("requires").EnumerateArray().Select(value => value.GetString()).ShouldBe(descriptor.Requires);
+        root.GetProperty("assistantTools")[0].GetProperty("name").GetString()
+            .ShouldBe(descriptor.AssistantTools[0].Name);
     }
 
     [TestMethod]
@@ -43,6 +45,7 @@ public sealed class ReferenceModuleTests
             .OfType<RouteEndpoint>()
             .Single(value => value.RoutePattern.RawText == "/api/v1/getting-started");
         endpoint.Metadata.GetMetadata<FlatpackOrganizationScopedMetadata>().ShouldNotBeNull();
+        endpoint.Metadata.GetMetadata<FlatpackModuleEndpointMetadata>()?.ModuleId.ShouldBe("getting-started");
         endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>()
             .ShouldContain(value => value.Policy == $"permission:{GettingStartedPermissions.Read}");
     }

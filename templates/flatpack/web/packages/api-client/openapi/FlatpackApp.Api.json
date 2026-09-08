@@ -1,8 +1,9 @@
 {
   "openapi": "3.1.1",
   "info": {
-    "title": "FlatpackApp.Api | v1",
-    "version": "1.0.0"
+    "title": "Flatpack API",
+    "description": "The versioned HTTP contract for Flatpack's platform and organization workspaces. Organization-scoped operations infer their organization from the authenticated workspace context.",
+    "version": "v1"
   },
   "paths": {
     "/api/v1/getting-started": {
@@ -10,11 +11,20 @@
         "tags": [
           "Getting Started"
         ],
+        "summary": "Get getting started",
+        "description": "Check whether the current organization request crossed the identity, organization, permission, and frontend module seams.",
         "operationId": "GettingStarted_Get",
         "responses": {
           "200": {
             "description": "OK"
           }
+        },
+        "x-flatpack-module": "getting-started",
+        "x-flatpack-assistant-tool": {
+          "name": "flatpack_get_module_readiness",
+          "description": "Check whether the current organization request crossed the identity, organization, permission, and frontend module seams.",
+          "risk": "read-only",
+          "requiresHumanConfirmation": false
         }
       }
     },
@@ -23,6 +33,7 @@
         "tags": [
           "AccountProfile"
         ],
+        "summary": "Get account profile",
         "operationId": "AccountProfile_Get",
         "responses": {
           "200": {
@@ -51,6 +62,7 @@
         "tags": [
           "AccountProfile"
         ],
+        "summary": "Update account profile",
         "operationId": "AccountProfile_Update",
         "requestBody": {
           "content": {
@@ -101,6 +113,7 @@
         "tags": [
           "AccountProfile"
         ],
+        "summary": "Change password account profile",
         "operationId": "AccountProfile_ChangePassword",
         "requestBody": {
           "content": {
@@ -134,6 +147,7 @@
         "tags": [
           "AccountSecurity"
         ],
+        "summary": "Setup mfa account security",
         "operationId": "AccountSecurity_SetupMfa",
         "responses": {
           "200": {
@@ -164,6 +178,7 @@
         "tags": [
           "AccountSecurity"
         ],
+        "summary": "Enable mfa account security",
         "operationId": "AccountSecurity_EnableMfa",
         "requestBody": {
           "content": {
@@ -214,6 +229,7 @@
         "tags": [
           "AccountSecurity"
         ],
+        "summary": "Regenerate recovery codes account security",
         "operationId": "AccountSecurity_RegenerateRecoveryCodes",
         "responses": {
           "200": {
@@ -244,6 +260,7 @@
         "tags": [
           "Authentication"
         ],
+        "summary": "Antiforgery authentication",
         "operationId": "Authentication_Antiforgery",
         "responses": {
           "200": {
@@ -274,6 +291,7 @@
         "tags": [
           "Authentication"
         ],
+        "summary": "Login authentication",
         "operationId": "Authentication_Login",
         "requestBody": {
           "content": {
@@ -324,6 +342,7 @@
         "tags": [
           "Authentication"
         ],
+        "summary": "Login mfa authentication",
         "operationId": "Authentication_LoginMfa",
         "requestBody": {
           "content": {
@@ -374,6 +393,7 @@
         "tags": [
           "Authentication"
         ],
+        "summary": "Session authentication",
         "operationId": "Authentication_Session",
         "responses": {
           "200": {
@@ -404,6 +424,7 @@
         "tags": [
           "Authentication"
         ],
+        "summary": "Logout authentication",
         "operationId": "Authentication_Logout",
         "responses": {
           "200": {
@@ -417,6 +438,7 @@
         "tags": [
           "Authentication"
         ],
+        "summary": "Forgot password authentication",
         "operationId": "Authentication_ForgotPassword",
         "requestBody": {
           "content": {
@@ -467,6 +489,7 @@
         "tags": [
           "Authentication"
         ],
+        "summary": "Reset password authentication",
         "operationId": "Authentication_ResetPassword",
         "requestBody": {
           "content": {
@@ -500,6 +523,7 @@
         "tags": [
           "Invitations"
         ],
+        "summary": "Preview invitations",
         "operationId": "Invitations_Preview",
         "parameters": [
           {
@@ -540,6 +564,7 @@
         "tags": [
           "Invitations"
         ],
+        "summary": "Activate invitations",
         "operationId": "Invitations_Activate",
         "requestBody": {
           "content": {
@@ -590,6 +615,7 @@
         "tags": [
           "Invitations"
         ],
+        "summary": "Accept invitations",
         "operationId": "Invitations_Accept",
         "requestBody": {
           "content": {
@@ -640,6 +666,7 @@
         "tags": [
           "Me"
         ],
+        "summary": "List organizations me",
         "operationId": "Me_ListOrganizations",
         "responses": {
           "200": {
@@ -679,6 +706,7 @@
         "tags": [
           "Modules"
         ],
+        "summary": "List modules",
         "operationId": "Modules_List",
         "responses": {
           "200": {
@@ -718,6 +746,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Get organization access",
         "operationId": "OrganizationAccess_Get",
         "responses": {
           "200": {
@@ -748,6 +777,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "List roles",
         "operationId": "Roles_List",
         "parameters": [
           {
@@ -795,6 +825,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Create roles",
         "operationId": "Roles_Create",
         "requestBody": {
           "content": {
@@ -845,6 +876,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Get roles",
         "operationId": "Roles_Get",
         "parameters": [
           {
@@ -884,6 +916,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Update roles",
         "operationId": "Roles_Update",
         "parameters": [
           {
@@ -943,6 +976,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Delete roles",
         "operationId": "Roles_Delete",
         "parameters": [
           {
@@ -987,6 +1021,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "List permissions",
         "operationId": "Permissions_List",
         "responses": {
           "200": {
@@ -1026,6 +1061,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Archive roles",
         "operationId": "Roles_Archive",
         "parameters": [
           {
@@ -1050,6 +1086,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Restore roles",
         "operationId": "Roles_Restore",
         "parameters": [
           {
@@ -1074,6 +1111,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "List members",
         "operationId": "Members_List",
         "parameters": [
           {
@@ -1123,6 +1161,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Get members",
         "operationId": "Members_Get",
         "parameters": [
           {
@@ -1162,6 +1201,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Update members",
         "operationId": "Members_Update",
         "parameters": [
           {
@@ -1221,6 +1261,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Delete members",
         "operationId": "Members_Delete",
         "parameters": [
           {
@@ -1265,6 +1306,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Archive members",
         "operationId": "Members_Archive",
         "parameters": [
           {
@@ -1289,6 +1331,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Restore members",
         "operationId": "Members_Restore",
         "parameters": [
           {
@@ -1313,6 +1356,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "List invitations",
         "operationId": "Invitations_List",
         "parameters": [
           {
@@ -1360,6 +1404,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Create invitations",
         "operationId": "Invitations_Create",
         "requestBody": {
           "content": {
@@ -1410,6 +1455,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Get invitations",
         "operationId": "Invitations_Get",
         "parameters": [
           {
@@ -1449,6 +1495,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Update invitations",
         "operationId": "Invitations_Update",
         "parameters": [
           {
@@ -1508,6 +1555,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Delete invitations",
         "operationId": "Invitations_Delete",
         "parameters": [
           {
@@ -1552,6 +1600,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Revoke invitations",
         "operationId": "Invitations_Revoke",
         "parameters": [
           {
@@ -1576,6 +1625,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "Restore invitations",
         "operationId": "Invitations_Restore",
         "parameters": [
           {
@@ -1600,6 +1650,7 @@
         "tags": [
           "OrganizationAdministration"
         ],
+        "summary": "List audit",
         "operationId": "Audit_List",
         "parameters": [
           {
@@ -1719,6 +1770,7 @@
         "tags": [
           "Organizations"
         ],
+        "summary": "List organizations",
         "operationId": "Organizations_List",
         "parameters": [
           {
@@ -1782,6 +1834,7 @@
         "tags": [
           "Organizations"
         ],
+        "summary": "Create organizations",
         "operationId": "Organizations_Create",
         "requestBody": {
           "content": {
@@ -1832,6 +1885,7 @@
         "tags": [
           "Organizations"
         ],
+        "summary": "Get organizations",
         "operationId": "Organizations_Get",
         "parameters": [
           {
@@ -1871,6 +1925,7 @@
         "tags": [
           "Organizations"
         ],
+        "summary": "Update organizations",
         "operationId": "Organizations_Update",
         "parameters": [
           {
@@ -1932,6 +1987,7 @@
         "tags": [
           "Organizations"
         ],
+        "summary": "Deactivate organizations",
         "operationId": "Organizations_Deactivate",
         "parameters": [
           {
@@ -1973,6 +2029,7 @@
         "tags": [
           "Organizations"
         ],
+        "summary": "Reactivate organizations",
         "operationId": "Organizations_Reactivate",
         "parameters": [
           {
@@ -2014,6 +2071,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "List platform users",
         "operationId": "PlatformUsers_List",
         "parameters": [
           {
@@ -2077,6 +2135,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Grant platform users",
         "operationId": "PlatformUsers_Grant",
         "requestBody": {
           "content": {
@@ -2127,6 +2186,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "List roles platform users",
         "operationId": "PlatformUsers_ListRoles",
         "responses": {
           "200": {
@@ -2164,6 +2224,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Create role platform users",
         "operationId": "PlatformUsers_CreateRole",
         "requestBody": {
           "content": {
@@ -2214,6 +2275,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "List permissions platform users",
         "operationId": "PlatformUsers_ListPermissions",
         "responses": {
           "200": {
@@ -2253,6 +2315,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Update role platform users",
         "operationId": "PlatformUsers_UpdateRole",
         "parameters": [
           {
@@ -2311,6 +2374,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Delete role platform users",
         "operationId": "PlatformUsers_DeleteRole",
         "parameters": [
           {
@@ -2334,6 +2398,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Get platform users",
         "operationId": "PlatformUsers_Get",
         "parameters": [
           {
@@ -2373,6 +2438,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Revoke platform users",
         "operationId": "PlatformUsers_Revoke",
         "parameters": [
           {
@@ -2397,6 +2463,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Change role platform users",
         "operationId": "PlatformUsers_ChangeRole",
         "parameters": [
           {
@@ -2458,6 +2525,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Suspend platform users",
         "operationId": "PlatformUsers_Suspend",
         "parameters": [
           {
@@ -2499,6 +2567,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Reactivate platform users",
         "operationId": "PlatformUsers_Reactivate",
         "parameters": [
           {
@@ -2540,6 +2609,7 @@
         "tags": [
           "PlatformUsers"
         ],
+        "summary": "Create activation token platform users",
         "operationId": "PlatformUsers_CreateActivationToken",
         "parameters": [
           {
@@ -2581,6 +2651,7 @@
         "tags": [
           "PlatformAccessActivation"
         ],
+        "summary": "Activate platform access",
         "operationId": "PlatformAccess_Activate",
         "requestBody": {
           "content": {
@@ -2614,6 +2685,8 @@
         "tags": [
           "Projects"
         ],
+        "summary": "List projects",
+        "description": "List the projects visible in the current organization workspace.",
         "operationId": "Projects_List",
         "parameters": [
           {
@@ -2679,12 +2752,20 @@
               }
             }
           }
+        },
+        "x-flatpack-module": "projects",
+        "x-flatpack-assistant-tool": {
+          "name": "flatpack_list_projects",
+          "description": "List the projects visible in the current organization workspace.",
+          "risk": "read-only",
+          "requiresHumanConfirmation": false
         }
       },
       "post": {
         "tags": [
           "Projects"
         ],
+        "summary": "Create projects",
         "operationId": "Projects_Create",
         "requestBody": {
           "content": {
@@ -2727,7 +2808,8 @@
               }
             }
           }
-        }
+        },
+        "x-flatpack-module": "projects"
       }
     },
     "/api/v1/projects/{id}": {
@@ -2735,6 +2817,8 @@
         "tags": [
           "Projects"
         ],
+        "summary": "Get projects",
+        "description": "Get one project by its identifier in the current organization workspace.",
         "operationId": "Projects_Get",
         "parameters": [
           {
@@ -2768,12 +2852,20 @@
               }
             }
           }
+        },
+        "x-flatpack-module": "projects",
+        "x-flatpack-assistant-tool": {
+          "name": "flatpack_get_project",
+          "description": "Get one project by its identifier in the current organization workspace.",
+          "risk": "read-only",
+          "requiresHumanConfirmation": false
         }
       },
       "put": {
         "tags": [
           "Projects"
         ],
+        "summary": "Update projects",
         "operationId": "Projects_Update",
         "parameters": [
           {
@@ -2827,12 +2919,14 @@
               }
             }
           }
-        }
+        },
+        "x-flatpack-module": "projects"
       },
       "delete": {
         "tags": [
           "Projects"
         ],
+        "summary": "Delete projects",
         "operationId": "Projects_Delete",
         "parameters": [
           {
@@ -2869,7 +2963,8 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "x-flatpack-module": "projects"
       }
     },
     "/api/v1/projects/{id}/archive": {
@@ -2877,6 +2972,7 @@
         "tags": [
           "Projects"
         ],
+        "summary": "Archive projects",
         "operationId": "Projects_Archive",
         "parameters": [
           {
@@ -2893,7 +2989,8 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "x-flatpack-module": "projects"
       }
     },
     "/api/v1/projects/{id}/restore": {
@@ -2901,6 +2998,7 @@
         "tags": [
           "Projects"
         ],
+        "summary": "Restore projects",
         "operationId": "Projects_Restore",
         "parameters": [
           {
@@ -2917,7 +3015,8 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "x-flatpack-module": "projects"
       }
     },
     "/api/v1/workspace/select": {
@@ -2925,6 +3024,7 @@
         "tags": [
           "WorkspaceContext"
         ],
+        "summary": "Select workspace",
         "operationId": "Workspace_Select",
         "requestBody": {
           "content": {
@@ -2958,6 +3058,7 @@
         "tags": [
           "WorkspaceContext"
         ],
+        "summary": "Current workspace",
         "operationId": "Workspace_Current",
         "responses": {
           "200": {
@@ -2986,6 +3087,7 @@
         "tags": [
           "WorkspaceContext"
         ],
+        "summary": "Clear workspace",
         "operationId": "Workspace_Clear",
         "responses": {
           "200": {
@@ -2999,6 +3101,7 @@
         "tags": [
           "WorkspaceOverview"
         ],
+        "summary": "Get workspace overview",
         "operationId": "WorkspaceOverview_Get",
         "responses": {
           "200": {
@@ -3723,6 +3826,33 @@
           }
         }
       },
+      "ModuleAssistantToolDto": {
+        "required": [
+          "name",
+          "operationId",
+          "description",
+          "risk",
+          "requiresHumanConfirmation"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "risk": {
+            "type": "string"
+          },
+          "requiresHumanConfirmation": {
+            "type": "boolean"
+          }
+        }
+      },
       "ModuleDto": {
         "required": [
           "id",
@@ -3732,7 +3862,8 @@
           "requires",
           "optionalDependencies",
           "capabilities",
-          "extensionPoints"
+          "extensionPoints",
+          "assistantTools"
         ],
         "type": "object",
         "properties": {
@@ -3770,6 +3901,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ModuleExtensionPointDto"
+            }
+          },
+          "assistantTools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleAssistantToolDto"
             }
           }
         }
@@ -4710,6 +4847,30 @@
     },
     {
       "name": "WorkspaceOverview"
+    }
+  ],
+  "x-flatpack-modules": [
+    {
+      "id": "projects",
+      "name": "Projects",
+      "version": "1.0.0",
+      "capabilities": [
+        "Api",
+        "Web",
+        "Data",
+        "BackgroundWork",
+        "Assistant"
+      ]
+    },
+    {
+      "id": "getting-started",
+      "name": "Getting Started",
+      "version": "1.0.0",
+      "capabilities": [
+        "Api",
+        "Web",
+        "Assistant"
+      ]
     }
   ]
 }

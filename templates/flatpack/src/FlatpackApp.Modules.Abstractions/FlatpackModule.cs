@@ -32,6 +32,24 @@ public sealed record FlatpackExtensionPointDescriptor(
     FlatpackExtensionPointKind Kind,
     FlatpackModuleCapabilities Surface);
 
+public enum FlatpackAssistantToolRisk
+{
+    ReadOnly,
+    Mutating,
+    Destructive
+}
+
+/// <summary>
+/// An explicit, provider-neutral allowlist entry for exposing one API operation
+/// to an AI assistant. Authorization remains enforced by the API operation.
+/// </summary>
+public sealed record FlatpackAssistantToolDescriptor(
+    string Name,
+    string OperationId,
+    string Description,
+    FlatpackAssistantToolRisk Risk,
+    bool RequiresHumanConfirmation);
+
 public sealed record FlatpackModuleDescriptor(
     string Id,
     string Name,
@@ -40,7 +58,10 @@ public sealed record FlatpackModuleDescriptor(
     IReadOnlyList<string> Requires,
     IReadOnlyList<string> OptionalDependencies,
     FlatpackModuleCapabilities Capabilities,
-    IReadOnlyList<FlatpackExtensionPointDescriptor> ExtensionPoints);
+    IReadOnlyList<FlatpackExtensionPointDescriptor> ExtensionPoints)
+{
+    public IReadOnlyList<FlatpackAssistantToolDescriptor> AssistantTools { get; init; } = [];
+}
 
 /// <summary>
 /// The stable install-time seam for a Flatpack module. Implementations own their
@@ -71,6 +92,14 @@ public sealed class FlatpackModuleCatalog
 
     private static readonly Regex StableContractId = new(
         "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
+    private static readonly Regex StableToolName = new(
+        "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
+    private static readonly Regex StableOperationId = new(
+        "^[A-Za-z][A-Za-z0-9_]*$",
         RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
 
     public FlatpackModuleCatalog(IEnumerable<IFlatpackModule> modules)
@@ -138,6 +167,23 @@ public sealed class FlatpackModuleCatalog
                     || (descriptor.Capabilities & point.Surface) != point.Surface)
                     throw new InvalidOperationException($"Flatpack extension point '{point.Id}' uses a surface not provided by module '{descriptor.Id}'.");
             }
+
+            EnsureUnique(descriptor.AssistantTools.Select(tool => tool.Name), descriptor.Id, "assistant tool name");
+            EnsureUnique(descriptor.AssistantTools.Select(tool => tool.OperationId), descriptor.Id, "assistant tool operation");
+            if (descriptor.AssistantTools.Count > 0
+                && !descriptor.Capabilities.HasFlag(FlatpackModuleCapabilities.Assistant))
+                throw new InvalidOperationException($"Flatpack module '{descriptor.Id}' declares assistant tools without the Assistant capability.");
+            foreach (FlatpackAssistantToolDescriptor tool in descriptor.AssistantTools)
+            {
+                if (tool.Name.Length > 64 || !StableToolName.IsMatch(tool.Name))
+                    throw new InvalidOperationException($"Flatpack assistant tool '{tool.Name}' must be lower-case snake_case and no longer than 64 characters.");
+                if (!StableOperationId.IsMatch(tool.OperationId))
+                    throw new InvalidOperationException($"Flatpack assistant tool '{tool.Name}' has invalid operation id '{tool.OperationId}'.");
+                if (string.IsNullOrWhiteSpace(tool.Description))
+                    throw new InvalidOperationException($"Flatpack assistant tool '{tool.Name}' requires a description.");
+                if (tool.Risk != FlatpackAssistantToolRisk.ReadOnly && !tool.RequiresHumanConfirmation)
+                    throw new InvalidOperationException($"Flatpack assistant tool '{tool.Name}' must require human confirmation because it can change state.");
+            }
         }
 
         string? duplicatePoint = modules
@@ -146,6 +192,20 @@ public sealed class FlatpackModuleCatalog
             .FirstOrDefault(group => group.Count() > 1)?.Key;
         if (duplicatePoint is not null)
             throw new InvalidOperationException($"Duplicate Flatpack extension point id '{duplicatePoint}'.");
+
+        string? duplicateTool = modules
+            .SelectMany(module => module.Descriptor.AssistantTools)
+            .GroupBy(tool => tool.Name, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicateTool is not null)
+            throw new InvalidOperationException($"Duplicate Flatpack assistant tool name '{duplicateTool}'.");
+
+        string? duplicateOperation = modules
+            .SelectMany(module => module.Descriptor.AssistantTools)
+            .GroupBy(tool => tool.OperationId, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicateOperation is not null)
+            throw new InvalidOperationException($"Multiple Flatpack assistant tools target operation '{duplicateOperation}'.");
     }
 
     private static void ValidateDependencies(IReadOnlyDictionary<string, IFlatpackModule> modules)

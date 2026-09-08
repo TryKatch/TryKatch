@@ -21,6 +21,8 @@ public static class GettingStartedPermissions
 /// </summary>
 public sealed class GettingStartedModule : IFlatpackModule, IFlatpackOrganizationEndpointContributor
 {
+    public string ModuleId => Descriptor.Id;
+
     public FlatpackModuleDescriptor Descriptor { get; } = new(
         Id: "getting-started",
         Name: "Getting Started",
@@ -28,8 +30,21 @@ public sealed class GettingStartedModule : IFlatpackModule, IFlatpackOrganizatio
         Description: "A reference module that proves Flatpack's backend and frontend composition seams.",
         Requires: ["projects"],
         OptionalDependencies: [],
-        Capabilities: FlatpackModuleCapabilities.Api | FlatpackModuleCapabilities.Web,
-        ExtensionPoints: []);
+        Capabilities: FlatpackModuleCapabilities.Api
+            | FlatpackModuleCapabilities.Web
+            | FlatpackModuleCapabilities.Assistant,
+        ExtensionPoints: [])
+    {
+        AssistantTools =
+        [
+            new(
+                "flatpack_get_module_readiness",
+                "GettingStarted_Get",
+                "Check whether the current organization request crossed the identity, organization, permission, and frontend module seams.",
+                FlatpackAssistantToolRisk.ReadOnly,
+                RequiresHumanConfirmation: false)
+        ]
+    };
 
     public void Register(IServiceCollection services, IConfiguration configuration)
     {

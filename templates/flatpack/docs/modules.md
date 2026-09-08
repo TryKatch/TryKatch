@@ -15,6 +15,8 @@ Backend modules implement `IFlatpackModule` from `FlatpackApp.Modules.Abstractio
 
 The explicit registry is `src/FlatpackApp.Api/Modules/EnabledModules.cs`. Do not add assembly scanning. Existing module controllers carry `[FlatpackModule("module-id")]`; a catalog-aware MVC feature provider removes their HTTP surface when the module is disabled. New packages should implement `IFlatpackOrganizationEndpointContributor` from `FlatpackApp.Modules.AspNetCore`. The host gives contributors only a pre-authenticated `/api/v1` route group marked for organization resolution and RLS transaction setup, so module endpoints cannot opt out of the security kernel. The authenticated `GET /api/v1/modules` endpoint exposes the effective catalog and named extension points for diagnostics.
 
+Modules may explicitly allowlist read-only or confirmed state-changing operations through `FlatpackAssistantToolDescriptor`. The OpenAPI pipeline marks module ownership and generates a provider-neutral strict tool contract. No endpoint becomes an AI tool merely because it exists. See [AI-assisted development](ai-assisted-development.md).
+
 Web modules use `@flatpackapp/module-sdk`. Each definition owns lazy-loadable typed routes, navigation, named extension-point hosts, and extension contributions. Contributions have stable IDs, deterministic order, and optional permission gates. The catalog rejects duplicate contracts, unknown hosts, invalid overrides, missing dependencies, and cycles. The explicit registry and application-owned override map are in `web/apps/web/src/modules.ts`; `null` disables a keyed contribution without editing its provider module.
 
 Data-capable modules explicitly register `IApplicationModelContributor`. This keeps EF Core mapping behind the module seam: when a module is not enabled, its runtime entity model is not composed. Existing migrations and tables are retained; disabling a module is never a data-deletion operation.
@@ -73,5 +75,7 @@ To see disablement in action, remove `new GettingStartedModule()` from `EnabledM
 6. Add a `FlatpackWebModule` definition and register it in `web/apps/web/src/modules.ts`. Publish stable extension points for intended customization and permission-gate sensitive contributions.
 7. Add dependency-graph, manifest-parity, permission, RLS, API, web, and disabled-module tests.
 8. Build OpenAPI and regenerate the TypeScript client.
+
+Development builds expose the raw OpenAPI 3.1 document at `/openapi/v1.json` and an interactive Scalar reference at `/docs`. `pnpm --dir web generate` also regenerates `docs/generated/assistant-contract.json`; CI rejects client or assistant-contract drift.
 
 The planned Flatpack CLI will automate these edits for packaged NuGet and npm module pairs, including compatibility checks, lockfile updates, diagnostics, safe upgrades, and eject-to-source ownership.

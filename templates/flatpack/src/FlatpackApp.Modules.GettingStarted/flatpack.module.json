@@ -6,7 +6,15 @@
   "version": "1.0.0",
   "description": "A small reference module that proves Flatpack's backend and frontend composition seams.",
   "requires": ["projects"],
-  "capabilities": ["api", "web"],
+  "capabilities": ["api", "web", "assistant"],
+  "assistantTools": [
+    {
+      "name": "flatpack_get_module_readiness",
+      "operationId": "GettingStarted_Get",
+      "risk": "read-only",
+      "requiresHumanConfirmation": false
+    }
+  ],
   "packages": {
     "dotnet": "Flatpack.Modules.GettingStarted",
     "web": "@flatpackapp/module-getting-started"

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Threading.RateLimiting;
 using FlatpackApp.Api.Development;
 using FlatpackApp.Api.Modules;
+using FlatpackApp.Api.OpenApi;
 using FlatpackApp.Api.Security;
 using FlatpackApp.Application;
 using FlatpackApp.Identity;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.Identity;
 using OpenIddict.Validation.AspNetCore;
 using Serilog;
 using Serilog.Formatting.Compact;
+using Scalar.AspNetCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 bool isOpenApiGeneration = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
@@ -48,7 +50,11 @@ builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>()
 builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();
 builder.Services.AddControllers().ConfigureApplicationPartManager(parts =>
     parts.FeatureProviders.Add(new FlatpackModuleControllerFeatureProvider(moduleCatalog.ModuleIds)));
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<FlatpackOpenApiDocumentTransformer>();
+    options.AddOperationTransformer<FlatpackOpenApiOperationTransformer>();
+});
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
@@ -134,6 +140,10 @@ app.UseAntiforgery();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference("/docs", options => options
+        .WithTitle("Flatpack API")
+        .ShowOperationId()
+        .SortTagsAlphabetically());
 }
 
 app.MapControllers();

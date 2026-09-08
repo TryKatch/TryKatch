@@ -39,7 +39,7 @@ jobs:
       - run: dotnet test templates/flatpack/tests/FlatpackApp.IntegrationTests -c Release --no-build
       - run: pnpm --dir templates/flatpack/web install --frozen-lockfile
       - run: pnpm --dir templates/flatpack/web generate
-      - run: git diff --exit-code -- templates/flatpack/web/packages/api-client/src/generated
+      - run: git diff --exit-code -- templates/flatpack/web/packages/api-client/openapi templates/flatpack/web/packages/api-client/src/generated templates/flatpack/docs/generated/assistant-contract.json
       - run: pnpm --dir templates/flatpack/web typecheck
       - run: pnpm --dir templates/flatpack/web test
       - run: pnpm --dir templates/flatpack/web build

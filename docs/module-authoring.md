@@ -10,6 +10,6 @@ The delivery order is:
 4. Module-owned permissions, RLS, audit/outbox behavior, routes, and navigation. **Implemented for Projects; the reference package proves the non-data path.**
 5. Named web extension slots beyond routes and navigation. **Implemented for UI slots; typed table/form/command contracts remain.**
 6. A CLI-managed NuGet + npm package pair with add, disable, doctor, upgrade, eject, remove, and separate purge-data workflows.
-7. An optional provider-neutral assistant module with permission-filtered tools and approval-gated mutations.
+7. A provider-neutral assistant contract generated from explicitly allowlisted module operations. **Implemented for strict read-only tools; a runtime provider adapter, permission-filtered discovery, approval UI, and mutation execution remain.**
 
 Until lifecycle tooling and its release gates exist, external module installation is an architectural capability under development rather than a production support promise.

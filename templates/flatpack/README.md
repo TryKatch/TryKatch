@@ -70,4 +70,6 @@ pnpm --dir web build
 
 Generated files under `web/packages/api-client/src/generated` are machine-owned. Change API contracts, rebuild the API, and run `pnpm --dir web generate`; never hand-edit those files.
 
+Development API documentation is available at `/docs`, backed by the generated OpenAPI 3.1 contract at `/openapi/v1.json`. The same generation step produces the deny-by-default, provider-neutral AI tool contract in `docs/generated/assistant-contract.json`. See [AI-assisted development](docs/ai-assisted-development.md).
+
 See [database operations](docs/database.md), [deployment/observability](docs/operations.md), and the [threat model](docs/threat-model.md) before shipping.

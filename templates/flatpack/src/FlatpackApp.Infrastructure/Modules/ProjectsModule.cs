@@ -26,7 +26,8 @@ public sealed class ProjectsModule : IFlatpackModule
         Capabilities: FlatpackModuleCapabilities.Api
             | FlatpackModuleCapabilities.Web
             | FlatpackModuleCapabilities.Data
-            | FlatpackModuleCapabilities.BackgroundWork,
+            | FlatpackModuleCapabilities.BackgroundWork
+            | FlatpackModuleCapabilities.Assistant,
         ExtensionPoints:
         [
             new(
@@ -34,7 +35,24 @@ public sealed class ProjectsModule : IFlatpackModule
                 "Renders module-owned workspace content after the projects table.",
                 FlatpackExtensionPointKind.UiSlot,
                 FlatpackModuleCapabilities.Web)
-        ]);
+        ])
+    {
+        AssistantTools =
+        [
+            new(
+                "flatpack_list_projects",
+                "Projects_List",
+                "List the projects visible in the current organization workspace.",
+                FlatpackAssistantToolRisk.ReadOnly,
+                RequiresHumanConfirmation: false),
+            new(
+                "flatpack_get_project",
+                "Projects_Get",
+                "Get one project by its identifier in the current organization workspace.",
+                FlatpackAssistantToolRisk.ReadOnly,
+                RequiresHumanConfirmation: false)
+        ]
+    };
 
     public void Register(IServiceCollection services, IConfiguration configuration)
     {

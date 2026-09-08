@@ -27,7 +27,13 @@ public sealed class ModulesController(FlatpackModuleCatalog catalog) : Controlle
                 point.Id,
                 point.Description,
                 point.Kind.ToString(),
-                point.Surface.ToString())).ToArray())).ToArray();
+                point.Surface.ToString())).ToArray(),
+            descriptor.AssistantTools.Select(tool => new ModuleAssistantToolDto(
+                tool.Name,
+                tool.OperationId,
+                tool.Description,
+                tool.Risk.ToString(),
+                tool.RequiresHumanConfirmation)).ToArray())).ToArray();
 
         return Ok(modules);
     }
@@ -41,10 +47,18 @@ public sealed record ModuleDto(
     IReadOnlyList<string> Requires,
     IReadOnlyList<string> OptionalDependencies,
     IReadOnlyList<string> Capabilities,
-    IReadOnlyList<ModuleExtensionPointDto> ExtensionPoints);
+    IReadOnlyList<ModuleExtensionPointDto> ExtensionPoints,
+    IReadOnlyList<ModuleAssistantToolDto> AssistantTools);
 
 public sealed record ModuleExtensionPointDto(
     string Id,
     string Description,
     string Kind,
     string Surface);
+
+public sealed record ModuleAssistantToolDto(
+    string Name,
+    string OperationId,
+    string Description,
+    string Risk,
+    bool RequiresHumanConfirmation);

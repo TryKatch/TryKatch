@@ -11,6 +11,7 @@ Move Flatpack from a production-oriented pre-release template to a stable templa
 - PostgreSQL row-level security blocks cross-organization access for the runtime role.
 - Tenant provisioning, first-owner invitations, neutral workspace URLs, platform separation, platform roles, organization roles, and template generation have passed focused UAT.
 - `Flatpack.Templates` can be packed, installed with `dotnet new install`, generated with renamed solutions, and discovered by Rider and Visual Studio through the .NET template engine.
+- OpenAPI 3.1 now drives the generated React client, development-only Scalar reference, module ownership metadata, and a deny-by-default assistant tool contract with drift checks.
 
 ## Delivery plan
 
@@ -40,7 +41,7 @@ Exit criteria: no production surface presents fabricated operational data; a fre
 - Pack the template, install it into an isolated template hive, and generate a new application using a dotted and hyphenated name.
 - Restore, build, test, migrate, start, and exercise that generated application independently from the canonical source tree.
 - Verify default React output, `--ui none`, every optional module, and all modules together.
-- Confirm OpenAPI and the generated TypeScript client have no drift.
+- Confirm OpenAPI, the generated TypeScript client, and the generated assistant contract have no drift.
 
 Exit criteria: the generated application—not only the template source—passes the complete automated and browser UAT suite with zero warnings.
 

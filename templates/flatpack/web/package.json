@@ -5,8 +5,9 @@
   "scripts": {
     "build": "pnpm --recursive build",
     "dev": "pnpm --filter @flatpackapp/web dev",
-    "generate": "pnpm --filter @flatpackapp/api-client generate",
-    "test": "pnpm --recursive test",
+    "generate": "pnpm --filter @flatpackapp/api-client generate && node ../tools/generate-assistant-contract.mjs",
+    "generate:check": "node ../tools/generate-assistant-contract.mjs --check",
+    "test": "node --test ../tools/*.test.mjs && pnpm --recursive test",
     "typecheck": "pnpm --recursive typecheck",
     "storybook": "pnpm --filter @flatpackapp/ui storybook"
   }
