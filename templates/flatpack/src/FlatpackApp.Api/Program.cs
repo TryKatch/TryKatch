@@ -140,10 +140,16 @@ app.UseAntiforgery();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapScalarApiReference("/docs", options => options
-        .WithTitle("Flatpack API")
-        .ShowOperationId()
-        .SortTagsAlphabetically());
+    app.MapScalarApiReference("/docs", options =>
+    {
+        options
+            .WithTitle("Flatpack API")
+            .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient)
+            .ShowOperationId()
+            .SortTagsAlphabetically();
+        options.EnabledTargets = [ScalarTarget.CSharp, ScalarTarget.JavaScript];
+        options.EnabledClients = [ScalarClient.HttpClient, ScalarClient.Fetch];
+    });
 }
 
 app.MapControllers();

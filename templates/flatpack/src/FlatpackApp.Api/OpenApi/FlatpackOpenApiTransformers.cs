@@ -50,6 +50,7 @@ public sealed partial class FlatpackOpenApiOperationTransformer(FlatpackModuleCa
         CancellationToken cancellationToken)
     {
         operation.Summary ??= HumanizeOperationId(operation.OperationId);
+        AddTypeScriptCodeSample(operation, context);
 
         string? moduleId = context.Description.ActionDescriptor.EndpointMetadata
             .OfType<FlatpackModuleEndpointMetadata>()
@@ -89,6 +90,55 @@ public sealed partial class FlatpackOpenApiOperationTransformer(FlatpackModuleCa
             })!));
 
         return Task.CompletedTask;
+    }
+
+    private static void AddTypeScriptCodeSample(
+        OpenApiOperation operation,
+        OpenApiOperationTransformerContext context)
+    {
+        string method = context.Description.HttpMethod?.ToUpperInvariant() ?? "GET";
+        string path = "/" + (context.Description.RelativePath ?? string.Empty).Split('?', 2)[0];
+        bool hasRequestBody = operation.RequestBody is not null;
+        bool requiresAntiforgery = method is not ("GET" or "HEAD" or "OPTIONS");
+
+        List<string> lines = [];
+        if (requiresAntiforgery)
+        {
+            lines.Add("const { token } = await fetch('/api/v1/auth/antiforgery', {");
+            lines.Add("  credentials: 'include',");
+            lines.Add("}).then((response) => response.json() as Promise<{ token: string }>);");
+            lines.Add(string.Empty);
+        }
+
+        lines.Add($"const response = await fetch('{path}', {{");
+        lines.Add($"  method: '{method}',");
+        lines.Add("  credentials: 'include',");
+        lines.Add("  headers: {");
+        lines.Add("    Accept: 'application/json',");
+        if (hasRequestBody)
+            lines.Add("    'Content-Type': 'application/json',");
+        if (requiresAntiforgery)
+            lines.Add("    'X-CSRF-TOKEN': token,");
+        lines.Add("  },");
+        if (hasRequestBody)
+            lines.Add("  body: JSON.stringify({ /* fields from the request schema */ }),");
+        lines.Add("});");
+        lines.Add(string.Empty);
+        lines.Add("if (!response.ok) throw new Error(`Request failed: ${response.status}`);");
+        lines.Add("const result: unknown = response.status === 204 ? undefined : await response.json();");
+        lines.Add("console.log(result);");
+
+        operation.AddExtension(
+            "x-codeSamples",
+            new JsonNodeExtension(JsonSerializer.SerializeToNode(new[]
+            {
+                new
+                {
+                    lang = "TypeScript",
+                    label = "TypeScript · fetch",
+                    source = string.Join('\n', lines)
+                }
+            })!));
     }
 
     private static string? HumanizeOperationId(string? operationId)
