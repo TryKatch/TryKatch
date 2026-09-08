@@ -13,4 +13,5 @@ export interface PlatformRoleDefinition {
   order: number | string;
   permissions: string[];
   isSystem?: boolean;
+  canAssign?: boolean;
 }

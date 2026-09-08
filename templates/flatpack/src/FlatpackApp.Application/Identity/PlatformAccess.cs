@@ -58,7 +58,8 @@ public sealed record PlatformRoleDefinition(
     string Description,
     int Order,
     IReadOnlySet<string> Permissions,
-    bool IsSystem = true);
+    bool IsSystem = true,
+    bool CanAssign = true);
 
 public static class PlatformRoles
 {
@@ -95,6 +96,15 @@ public static class PlatformRoles
     public static bool Contains(string key) => Find(key) is not null;
 }
 
+public static class PlatformAccessRules
+{
+    public static bool CanGrant(IEnumerable<string> permissions, IReadOnlySet<string> grantBoundary) =>
+        permissions.All(grantBoundary.Contains);
+
+    public static bool CanAssign(PlatformRoleDefinition role, IReadOnlySet<string> grantBoundary) =>
+        CanGrant(role.Permissions, grantBoundary);
+}
+
 public sealed record PlatformAccessUser(
     Guid Id,
     string Email,
@@ -115,13 +125,13 @@ public interface IPlatformAccessDirectory
 {
     Task<IReadOnlyList<PlatformRoleDefinition>> ListRolesAsync(CancellationToken cancellationToken = default);
     Task<PlatformRoleDefinition?> FindRoleAsync(string roleKey, CancellationToken cancellationToken = default);
-    Task<Result<PlatformRoleDefinition>> CreateRoleAsync(SavePlatformRoleCommand command, CancellationToken cancellationToken = default);
-    Task<Result<PlatformRoleDefinition>> UpdateRoleAsync(string roleKey, SavePlatformRoleCommand command, CancellationToken cancellationToken = default);
-    Task<Result<bool>> DeleteRoleAsync(string roleKey, CancellationToken cancellationToken = default);
+    Task<Result<PlatformRoleDefinition>> CreateRoleAsync(SavePlatformRoleCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
+    Task<Result<PlatformRoleDefinition>> UpdateRoleAsync(string roleKey, SavePlatformRoleCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
+    Task<Result<bool>> DeleteRoleAsync(string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
     Task<PagedResult<PlatformAccessUser>> ListAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<Result<PlatformAccessUser>> GetAsync(Guid userId, CancellationToken cancellationToken = default);
-    Task<Result<PlatformAccessGrant>> GrantAsync(GrantPlatformAccessCommand command, CancellationToken cancellationToken = default);
-    Task<Result<PlatformAccessUser>> ChangeRoleAsync(Guid actorId, Guid userId, string roleKey, CancellationToken cancellationToken = default);
+    Task<Result<PlatformAccessGrant>> GrantAsync(GrantPlatformAccessCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
+    Task<Result<PlatformAccessUser>> ChangeRoleAsync(Guid actorId, Guid userId, string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
     Task<Result<PlatformAccessUser>> SetStatusAsync(Guid actorId, Guid userId, bool isActive, CancellationToken cancellationToken = default);
     Task<Result<string>> CreateActivationTokenAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<Result<bool>> RevokeAsync(Guid actorId, Guid userId, CancellationToken cancellationToken = default);

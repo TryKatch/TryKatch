@@ -4075,6 +4075,10 @@
           "isSystem": {
             "type": "boolean",
             "default": true
+          },
+          "canAssign": {
+            "type": "boolean",
+            "default": true
           }
         }
       },
@@ -4190,6 +4194,7 @@
         "required": [
           "id",
           "name",
+          "description",
           "isSystem",
           "canAssign",
           "permissions",
@@ -4202,6 +4207,9 @@
             "format": "uuid"
           },
           "name": {
+            "type": "string"
+          },
+          "description": {
             "type": "string"
           },
           "isSystem": {
@@ -4247,6 +4255,7 @@
         "required": [
           "id",
           "name",
+          "description",
           "permissions"
         ],
         "type": "object",
@@ -4259,6 +4268,9 @@
             "format": "uuid"
           },
           "name": {
+            "type": "string"
+          },
+          "description": {
             "type": "string"
           },
           "permissions": {

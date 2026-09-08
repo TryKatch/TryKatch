@@ -465,8 +465,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .role-editor-dialog > p { margin: 3px 48px 17px 24px; font-size: 12px; }
 .role-editor-dialog .dialog-close { top: 15px; right: 17px; }
 .role-editor { min-height: 0; display: flex; flex: 1; flex-direction: column; }
-.role-name-field { display: grid; gap: 6px; padding: 0 24px 18px; font-weight: 650; }
-.role-name-field input { height: 38px; padding: 0 11px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.role-identity-fields { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 12px; padding: 0 24px 18px; }
+.role-identity-fields label { display: grid; gap: 6px; font-weight: 650; }
+.role-identity-fields input, .role-identity-fields textarea { width: 100%; padding: 0 11px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.role-identity-fields input { height: 38px; }
+.role-identity-fields textarea { min-height: 38px; padding-block: 9px; resize: vertical; }
 .permission-editor { min-height: 0; display: flex; flex: 1; flex-direction: column; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .permission-editor-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 24px 11px; }
 .permission-editor-header h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
@@ -540,6 +543,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .platform-role-permissions { display: grid; gap: 10px; padding: 14px 18px; }
 .platform-role-permissions ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 0; padding: 0; list-style: none; }
 .platform-role-permissions li { min-width: 0; min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.platform-role-picker label.is-disabled { opacity: .5; cursor: not-allowed; }
 .form-guidance { margin: 0; padding: 10px 11px; color: var(--muted); background: var(--panel-raised); border-left: 2px solid var(--accent); font-size: 11px; }
 .standalone-page { max-width: 1180px; margin: 0 auto; padding: 36px 28px; }
 .tenant-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
@@ -608,7 +612,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .platform-identity-fields { grid-template-columns: 1fr; }
   .platform-role-picker-copy small { overflow: visible; white-space: normal; }
   .button { min-height: 40px; }.user-management-tabs > button { min-width: 0; height: 40px; justify-content: center; gap: 5px; padding-inline: 5px; font-size: 11px; }.user-management-tabs > button > svg { display: none; }
-  .permission-editor-header, .permission-module > header, .role-editor-footer { align-items: flex-start; flex-direction: column; }.permission-editor-header, .role-name-field, .permission-module > header, .role-editor-footer { padding-inline: 16px; }.permission-module-actions { width: 100%; justify-content: space-between; }.permission-toolbar { padding-inline: 14px; }.permission-option { padding-inline: 16px; }.permission-copy small { white-space: normal; }.role-editor-footer > div { width: 100%; justify-content: flex-end; }
+  .role-identity-fields { grid-template-columns: 1fr; padding-inline: 16px; }.permission-editor-header, .permission-module > header, .role-editor-footer { align-items: flex-start; flex-direction: column; }.permission-editor-header, .permission-module > header, .role-editor-footer { padding-inline: 16px; }.permission-module-actions { width: 100%; justify-content: space-between; }.permission-toolbar { padding-inline: 14px; }.permission-option { padding-inline: 16px; }.permission-copy small { white-space: normal; }.role-editor-footer > div { width: 100%; justify-content: flex-end; }
   .data-table-search { width: 100%; }.data-table-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; }.data-table-search, .data-table-filters { grid-column: 1 / -1; }.data-table-filters { grid-template-columns: 1fr; }.data-table-count { align-self: center; }.data-table-menu { justify-self: end; }.data-table-menu-panel { position: fixed; top: auto; right: 12px; bottom: 12px; left: 12px; width: auto; max-height: calc(100dvh - 24px); }.table-pagination { align-items: flex-start; flex-direction: column; }.table-pagination > div { width: 100%; justify-content: space-between; }.audit-event { min-width: 250px; }
   .filter-bar { align-items: stretch; flex-direction: column; }.filter-bar input { width: 100%; }.filter-actions { width: 100%; flex-wrap: wrap; margin-left: 0; }.dialog-actions { flex-wrap: wrap; }.dialog-actions .button { flex: 1; }.dialog-actions .button-danger { flex-basis: 100%; margin-right: 0; }
   .archive-summary-grid { grid-template-columns: 1fr; }

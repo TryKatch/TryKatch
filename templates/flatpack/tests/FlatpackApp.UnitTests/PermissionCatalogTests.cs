@@ -45,7 +45,7 @@ public sealed class PermissionCatalogTests
             null!);
 
         var result = await administration.SaveRoleAsync(
-            new SaveRoleCommand(null, "Escalated", [Permissions.OrganizationsManage]),
+            new SaveRoleCommand(null, "Escalated", "Attempts privilege escalation.", [Permissions.OrganizationsManage]),
             CancellationToken.None);
 
         result.IsSuccess.ShouldBeFalse();

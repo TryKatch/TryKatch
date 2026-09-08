@@ -22,7 +22,7 @@ interface OrganizationPage { items: Organization[]; page: number; pageSize: numb
 interface TenantProvisioning { organization: Organization; administratorEmail: string; invitationToken: string }
 interface PlatformUser { id: string; email: string; displayName: string; roleKey: string; roleName: string; isActive: boolean; isPendingActivation: boolean; createdAt: string; lastSignedInAt?: string }
 interface PlatformUserPage { items: PlatformUser[]; page: number; pageSize: number; totalCount: number }
-interface PlatformRole { key: string; name: string; description: string; order: number; permissions: string[]; isSystem: boolean }
+interface PlatformRole { key: string; name: string; description: string; order: number; permissions: string[]; isSystem: boolean; canAssign: boolean }
 interface PlatformAccessGrant { user: PlatformUser; activationToken?: string }
 interface PlatformSession { userId: string; email?: string; isPlatformAdministrator?: boolean; platformPermissions?: string[] }
 interface WorkspaceActivity { action: string; title: string; targetDisplayName: string; actorDisplayName: string; occurredAt: string }
@@ -60,8 +60,8 @@ function PlatformRolePicker({ roles, defaultValue }: { roles: readonly PlatformR
   return <fieldset className="platform-role-picker">
     <legend>Platform role</legend>
     <p>Choose the access this person needs.</p>
-    <div>{roles.map((role) => <label key={role.key}>
-      <input type="radio" name="roleKey" value={role.key} defaultChecked={role.key === defaultValue} required />
+    <div>{roles.map((role) => <label className={!role.canAssign ? 'is-disabled' : undefined} key={role.key}>
+      <input type="radio" name="roleKey" value={role.key} defaultChecked={role.key === defaultValue} disabled={!role.canAssign} required />
       <span className="platform-role-picker-radio" aria-hidden="true" />
       <span className="platform-role-picker-copy"><strong>{role.name}{role.key === 'platform-operator' && <span className="role-recommendation">Recommended</span>}</strong><small>{summaries[role.key] ?? role.description}</small></span>
     </label>)}</div>
@@ -196,7 +196,7 @@ function detailsForManagedRecord(selection: { kind: 'member' | 'invitation' | 'r
   }
   const role = selection.record as Role
   return [
-    { label: 'Role name', value: role.name }, { label: 'Type', value: role.isSystem ? 'System role' : 'Custom role' },
+    { label: 'Role name', value: role.name }, { label: 'Purpose', value: role.description || 'No description' }, { label: 'Type', value: role.isSystem ? 'System role' : 'Custom role' },
     { label: 'Record status', value: <LifecycleBadge lifecycle={role.lifecycle} /> }, { label: 'Permission grants', value: role.permissions.length },
     { label: 'Permissions', value: role.permissions.join(', ') || 'No permissions' },
     ...(role.lifecycle.deletionReason ? [{ label: 'Deletion reason', value: role.lifecycle.deletionReason }] : []),
@@ -237,9 +237,9 @@ export function UserManagementPage() {
     onSuccess: async () => { setEditingInvitation(undefined); await client.invalidateQueries({ queryKey: ['invitations'] }) },
   })
   const saveRole = useMutation({
-    mutationFn: (input: { id?: string; name: string; permissions: string[] }) => customFetch<Role>(
+    mutationFn: (input: { id?: string; name: string; description: string; permissions: string[] }) => customFetch<Role>(
       input.id ? `/api/v1/roles/${input.id}` : '/api/v1/roles',
-      { method: input.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: input.id ?? null, name: input.name, permissions: input.permissions }) },
+      { method: input.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: input.id ?? null, name: input.name, description: input.description, permissions: input.permissions }) },
     ),
     onSuccess: async () => { setEditingRole(undefined); await client.invalidateQueries({ queryKey: ['access-levels'] }) },
   })
@@ -309,7 +309,7 @@ export function UserManagementPage() {
     { id: 'actions', header: '', hideable: false, align: 'right', width: 54, cell: (invitation) => <RowActions label={`Actions for invitation to ${invitation.email}`} actions={invitationActions(invitation)} /> },
   ]
   const roleColumns: DataTableColumn<Role>[] = [
-    { id: 'name', header: 'Role', hideable: false, cell: (role) => <div className="role-name-cell"><strong>{role.name}</strong><small>{role.isSystem ? 'Managed by Flatpack' : 'Managed by this organization'}</small></div>, sortValue: (role) => role.name, searchValue: (role) => `${role.name} ${role.permissions.join(' ')} ${rolePermissionMetadata(role, permissionCatalog.data ?? []).searchText}` },
+    { id: 'name', header: 'Role', hideable: false, cell: (role) => <div className="role-name-cell"><strong>{role.name}</strong><small>{role.description || (role.isSystem ? 'Managed by Flatpack' : 'Custom workspace access')}</small></div>, sortValue: (role) => role.name, searchValue: (role) => `${role.name} ${role.description} ${role.permissions.join(' ')} ${rolePermissionMetadata(role, permissionCatalog.data ?? []).searchText}` },
     { id: 'type', header: 'Type', cell: (role) => role.lifecycle.status === 'Active' ? <Badge tone={role.isSystem ? 'neutral' : 'info'}>{role.isSystem ? 'System' : 'Custom'}</Badge> : <LifecycleBadge lifecycle={role.lifecycle} />, sortValue: (role) => `${role.lifecycle.status}-${role.isSystem ? 'System' : 'Custom'}` },
     { id: 'permissions', header: 'Permissions', cell: (role) => { const metadata = rolePermissionMetadata(role, permissionCatalog.data ?? []); return <div className="role-grant-summary"><strong>{role.permissions.length}</strong><small>{role.permissions.length === 1 ? 'grant' : 'grants'} · {metadata.moduleCount} {metadata.moduleCount === 1 ? 'module' : 'modules'}</small></div> }, sortValue: (role) => role.permissions.length },
     { id: 'actions', header: '', hideable: false, align: 'right', width: 54, cell: (role) => <RowActions label={`Actions for ${role.name}`} actions={roleActions(role)} /> },
@@ -576,9 +576,9 @@ export function PlatformUsersPage() {
     onSuccess: (result) => setActivation(result),
   })
   const savePlatformRole = useMutation({
-    mutationFn: (input: { role?: PlatformRole | null; name: string; permissions: string[] }) => customFetch<PlatformRole>(input.role
+    mutationFn: (input: { role?: PlatformRole | null; name: string; description: string; permissions: string[] }) => customFetch<PlatformRole>(input.role
       ? `/api/v1/platform-users/roles/${encodeURIComponent(input.role.key)}`
-      : '/api/v1/platform-users/roles', { method: input.role ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: input.name, description: input.role?.description ?? 'Custom platform role.', permissions: input.permissions }) }),
+      : '/api/v1/platform-users/roles', { method: input.role ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: input.name, description: input.description, permissions: input.permissions }) }),
     onSuccess: async () => { setEditingPlatformRole(undefined); await client.invalidateQueries({ queryKey: ['platform-roles'] }) },
   })
   const deletePlatformRole = useMutation({
@@ -617,7 +617,7 @@ export function PlatformUsersPage() {
     return actions
   }
   function roleActions(role: PlatformRole): RowAction[] {
-    if (!canManage || role.isSystem) return []
+    if (!canManage || role.isSystem || !role.canAssign) return []
     return [
       { label: 'Edit', icon: 'edit', onSelect: () => setEditingPlatformRole(role) },
       { label: 'Delete', icon: 'delete', danger: true, onSelect: () => setDeletingPlatformRole(role) },
@@ -665,7 +665,7 @@ export function PlatformUsersPage() {
     <Dialog open={changingStatus !== undefined} onOpenChange={(open) => !open && setChangingStatus(undefined)} title={`${changingStatus?.isActive ? 'Suspend' : 'Reactivate'} platform access`} description={changingStatus?.isActive ? 'The user will be signed out and unable to use platform administration.' : 'Restore this user’s assigned platform role.'}><div className="status-confirmation"><div><span>Platform user</span><strong>{changingStatus?.displayName}</strong><small>{changingStatus?.roleName} · {changingStatus?.email}</small></div>{changeStatus.error && <div className="form-error" role="alert">{changeStatus.error.message}</div>}<div className="dialog-actions"><Button variant="ghost" onClick={() => setChangingStatus(undefined)}>Cancel</Button><Button variant={changingStatus?.isActive ? 'danger' : 'primary'} disabled={changeStatus.isPending} onClick={() => changingStatus && changeStatus.mutate(changingStatus)}>{changeStatus.isPending ? 'Updating…' : changingStatus?.isActive ? 'Suspend access' : 'Reactivate access'}</Button></div></div></Dialog>
     <Dialog open={revoking !== undefined} onOpenChange={(open) => !open && setRevoking(undefined)} title="Remove platform access" description="Remove platform authorization without deleting the person’s global identity or tenant memberships."><div className="status-confirmation"><div><span>Platform user</span><strong>{revoking?.displayName}</strong><small>{revoking?.roleName} · {revoking?.email}</small></div><p className="delete-accountability">This person will be signed out of platform administration. Their account and tenant access remain unchanged.</p>{revoke.error && <div className="form-error" role="alert">{revoke.error.message}</div>}<div className="dialog-actions"><Button variant="ghost" onClick={() => setRevoking(undefined)}>Cancel</Button><Button variant="danger" disabled={revoke.isPending} onClick={() => revoking && revoke.mutate(revoking)}>{revoke.isPending ? 'Removing…' : 'Remove access'}</Button></div></div></Dialog>
     <Dialog open={activation !== undefined} onOpenChange={(open) => !open && setActivation(undefined)} title="Platform activation link" description="Share this link securely with the invited person.">{activation && <div className="token-result"><div className="delete-record-summary"><span>Recipient</span><strong>{activation.user.displayName}</strong><small>{activation.user.email}</small></div><code>{activationLink(activation.user.id, activation.token)}</code><Button onClick={() => navigator.clipboard.writeText(activationLink(activation.user.id, activation.token))}><Copy size={14} /> Copy activation link</Button></div>}</Dialog>
-    <RoleEditorDialog open={editingPlatformRole !== undefined} role={editingPlatformRole ? { name: editingPlatformRole.name, permissions: editingPlatformRole.permissions } : editingPlatformRole} modules={permissionModules.data ?? []} isLoading={permissionModules.isLoading} isSaving={savePlatformRole.isPending} error={savePlatformRole.error?.message} onOpenChange={(open) => { if (!open) { setEditingPlatformRole(undefined); savePlatformRole.reset() } }} onSave={(value) => savePlatformRole.mutate({ role: editingPlatformRole, ...value })} />
+    <RoleEditorDialog open={editingPlatformRole !== undefined} role={editingPlatformRole ? { name: editingPlatformRole.name, description: editingPlatformRole.description, permissions: editingPlatformRole.permissions } : editingPlatformRole} modules={permissionModules.data ?? []} isLoading={permissionModules.isLoading} isSaving={savePlatformRole.isPending} error={savePlatformRole.error?.message} onOpenChange={(open) => { if (!open) { setEditingPlatformRole(undefined); savePlatformRole.reset() } }} onSave={(value) => savePlatformRole.mutate({ role: editingPlatformRole, ...value })} />
     <Dialog open={deletingPlatformRole !== undefined} onOpenChange={(open) => !open && setDeletingPlatformRole(undefined)} title="Delete custom role" description="Remove this unassigned platform role permanently."><div className="status-confirmation"><div><span>Custom platform role</span><strong>{deletingPlatformRole?.name}</strong><small>Built-in roles remain protected.</small></div><p className="delete-accountability">This action cannot be undone. Assignments must be moved to another role before deletion.</p>{deletePlatformRole.error && <div className="form-error" role="alert">{deletePlatformRole.error.message}</div>}<div className="dialog-actions"><Button variant="ghost" onClick={() => setDeletingPlatformRole(undefined)}>Cancel</Button><Button variant="danger" disabled={deletePlatformRole.isPending} onClick={() => deletingPlatformRole && deletePlatformRole.mutate(deletingPlatformRole)}>{deletePlatformRole.isPending ? 'Deleting…' : 'Delete role'}</Button></div></div></Dialog>
     <RecordDetailsDialog open={viewing !== undefined} onOpenChange={(open) => !open && setViewing(undefined)} title={viewing?.displayName ?? 'Platform user'} description="Global identity and platform authorization details." recordType="Platform user" status={viewing ? <Badge tone={viewing.isPendingActivation ? 'warning' : viewing.isActive ? 'success' : 'warning'}>{viewing.isPendingActivation ? 'Pending activation' : viewing.isActive ? 'Active' : 'Suspended'}</Badge> : undefined} details={viewing ? [{ label: 'Display name', value: viewing.displayName }, { label: 'Email', value: viewing.email }, { label: 'Platform role', value: viewing.roleName }, { label: 'Created', value: formatRecordDate(viewing.createdAt) }, { label: 'Last sign-in', value: viewing.lastSignedInAt ? formatRecordDate(viewing.lastSignedInAt) : 'Never' }, { label: 'Identity ID', value: <code className="event-key">{viewing.id}</code> }] : []} />
   </>

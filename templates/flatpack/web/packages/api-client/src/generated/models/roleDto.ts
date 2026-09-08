@@ -9,6 +9,7 @@ import type { RecordLifecycleDto } from './recordLifecycleDto';
 export interface RoleDto {
   id: string;
   name: string;
+  description: string;
   isSystem: boolean;
   canAssign: boolean;
   permissions: string[];

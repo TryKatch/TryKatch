@@ -7,6 +7,7 @@ export type PermissionModule = PermissionModuleDto
 
 export interface EditableRole {
   name: string
+  description: string
   permissions: string[]
 }
 
@@ -18,17 +19,19 @@ interface RoleEditorDialogProps {
   isSaving: boolean
   error?: string
   onOpenChange(open: boolean): void
-  onSave(value: { name: string; permissions: string[] }): void
+  onSave(value: { name: string; description: string; permissions: string[] }): void
 }
 
 export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, error, onOpenChange, onSave }: RoleEditorDialogProps) {
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!open) return
     setName(role?.name ?? '')
+    setDescription(role?.description ?? '')
     setQuery('')
     setSelected(new Set(role?.permissions ?? []))
   }, [open, role])
@@ -67,7 +70,7 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    onSave({ name: name.trim(), permissions: [...selected].sort() })
+    onSave({ name: name.trim(), description: description.trim(), permissions: [...selected].sort() })
   }
 
   return <Dialog
@@ -78,7 +81,10 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
     className="role-editor-dialog"
   >
     <form className="role-editor" onSubmit={submit}>
-      <label className="role-name-field">Role name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="For example, Project operator" required autoFocus /></label>
+      <div className="role-identity-fields">
+        <label className="role-name-field">Role name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="For example, Project operator" required autoFocus /></label>
+        <label>Purpose<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={240} rows={2} placeholder="Describe when this role should be assigned." /></label>
+      </div>
 
       <section className="permission-editor" aria-labelledby="permission-editor-title">
         <header className="permission-editor-header">

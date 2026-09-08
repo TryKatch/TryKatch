@@ -46,16 +46,16 @@ internal sealed class OrganizationDirectory(PlatformDbContext dbContext, IPermis
 
     public async Task<OrganizationRoleSeeds> SeedRolesAsync(Guid organizationId, CancellationToken cancellationToken)
     {
-        Role owner = Role.Create(organizationId, "Owner", true);
+        Role owner = Role.Create(organizationId, "Owner", "Full control of this workspace, including access management.", isSystem: true);
         owner.SetPermissions(permissionCatalog.Keys);
 
-        Role admin = Role.Create(organizationId, "Admin", true);
+        Role admin = Role.Create(organizationId, "Admin", "Manage workspace operations, people, roles, and projects.", isSystem: true);
         admin.SetPermissions(permissionCatalog.Keys.Where(x => x != Permissions.OrganizationsManage));
 
-        Role member = Role.Create(organizationId, "Member", true);
+        Role member = Role.Create(organizationId, "Member", "Create and manage workspace projects.", isSystem: true);
         member.SetPermissions([Permissions.MembersRead, Permissions.RolesRead, Permissions.ProjectsRead, Permissions.ProjectsManage]);
 
-        Role viewer = Role.Create(organizationId, "Viewer", true);
+        Role viewer = Role.Create(organizationId, "Viewer", "Read-only access to workspace projects.", isSystem: true);
         viewer.SetPermissions([Permissions.MembersRead, Permissions.RolesRead, Permissions.ProjectsRead]);
 
         await dbContext.Roles.AddRangeAsync([owner, admin, member, viewer], cancellationToken);

@@ -33,8 +33,9 @@ describe('RoleEditorDialog', () => {
     expect(screen.getByText('1 sensitive permission selected')).toBeInTheDocument()
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Role name' }), { target: { value: 'Project operator' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Purpose' }), { target: { value: 'Operates project records.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save role' }))
-    expect(onSave).toHaveBeenCalledWith({ name: 'Project operator', permissions: ['projects.manage', 'projects.read'] })
+    expect(onSave).toHaveBeenCalledWith({ name: 'Project operator', description: 'Operates project records.', permissions: ['projects.manage', 'projects.read'] })
 
     const result = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } })
     expect(result.violations).toEqual([])

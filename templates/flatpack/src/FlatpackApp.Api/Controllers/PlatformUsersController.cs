@@ -21,19 +21,35 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
         Ok(await directory.ListAsync(Math.Max(1, page), Math.Clamp(pageSize, 1, 100), search, cancellationToken));
 
     [HttpGet("roles", Name = "PlatformUsers_ListRoles")]
-    public async Task<ActionResult<IReadOnlyList<PlatformRoleDefinition>>> ListRoles(CancellationToken cancellationToken) =>
-        Ok(await directory.ListRolesAsync(cancellationToken));
+    public async Task<ActionResult<IReadOnlyList<PlatformRoleDefinition>>> ListRoles(CancellationToken cancellationToken)
+    {
+        IReadOnlySet<string> grantBoundary = GetGrantBoundary();
+        PlatformRoleDefinition[] roleOptions = (await directory.ListRolesAsync(cancellationToken)).Select(role => role with
+        {
+            CanAssign = PlatformAccessRules.CanAssign(role, grantBoundary)
+        }).ToArray();
+        return Ok(roleOptions);
+    }
 
     [HttpGet("permissions", Name = "PlatformUsers_ListPermissions")]
-    public ActionResult<IReadOnlyList<PlatformPermissionModuleDefinition>> ListPermissions() =>
-        Ok(PlatformPermissions.Modules);
+    public ActionResult<IReadOnlyList<PlatformPermissionModuleDefinition>> ListPermissions()
+    {
+        IReadOnlySet<string> grantBoundary = GetGrantBoundary();
+        return Ok(PlatformPermissions.Modules.Select(module => module with
+        {
+            Permissions = module.Permissions.Select(permission => permission with
+            {
+                CanGrant = grantBoundary.Contains(permission.Key)
+            }).ToArray()
+        }).ToArray());
+    }
 
     [HttpPost("roles", Name = "PlatformUsers_CreateRole")]
     [CookieAntiforgery]
     [RequirePlatformPermission(PlatformPermissions.UsersManage)]
     public async Task<ActionResult<PlatformRoleDefinition>> CreateRole(SavePlatformRoleRequest request, CancellationToken cancellationToken)
     {
-        Result<PlatformRoleDefinition> result = await directory.CreateRoleAsync(new(request.Name, request.Description, request.Permissions), cancellationToken);
+        Result<PlatformRoleDefinition> result = await directory.CreateRoleAsync(new(request.Name, request.Description, request.Permissions), GetGrantBoundary(), cancellationToken);
         return result.IsSuccess && result.Value is not null
             ? CreatedAtAction(nameof(ListRoles), result.Value)
             : ToProblem(result);
@@ -43,14 +59,14 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
     [CookieAntiforgery]
     [RequirePlatformPermission(PlatformPermissions.UsersManage)]
     public async Task<ActionResult<PlatformRoleDefinition>> UpdateRole(string roleKey, SavePlatformRoleRequest request, CancellationToken cancellationToken) =>
-        ToRoleActionResult(await directory.UpdateRoleAsync(roleKey, new(request.Name, request.Description, request.Permissions), cancellationToken));
+        ToRoleActionResult(await directory.UpdateRoleAsync(roleKey, new(request.Name, request.Description, request.Permissions), GetGrantBoundary(), cancellationToken));
 
     [HttpDelete("roles/{roleKey}", Name = "PlatformUsers_DeleteRole")]
     [CookieAntiforgery]
     [RequirePlatformPermission(PlatformPermissions.UsersManage)]
     public async Task<IActionResult> DeleteRole(string roleKey, CancellationToken cancellationToken)
     {
-        Result<bool> result = await directory.DeleteRoleAsync(roleKey, cancellationToken);
+        Result<bool> result = await directory.DeleteRoleAsync(roleKey, GetGrantBoundary(), cancellationToken);
         return result.IsSuccess ? NoContent() : ToProblem(result);
     }
 
@@ -65,6 +81,7 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
     {
         Result<PlatformAccessGrant> result = await directory.GrantAsync(
             new GrantPlatformAccessCommand(request.Email, request.DisplayName, request.RoleKey),
+            GetGrantBoundary(),
             cancellationToken);
         return result.IsSuccess && result.Value is not null
             ? CreatedAtAction(nameof(Get), new { userId = result.Value.User.Id }, result.Value)
@@ -75,7 +92,7 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
     [CookieAntiforgery]
     [RequirePlatformPermission(PlatformPermissions.UsersManage)]
     public async Task<ActionResult<PlatformAccessUser>> ChangeRole(Guid userId, ChangePlatformRoleRequest request, CancellationToken cancellationToken) =>
-        ToActionResult(await directory.ChangeRoleAsync(GetActorId(), userId, request.RoleKey, cancellationToken));
+        ToActionResult(await directory.ChangeRoleAsync(GetActorId(), userId, request.RoleKey, GetGrantBoundary(), cancellationToken));
 
     [HttpPost("{userId:guid}/suspend", Name = "PlatformUsers_Suspend")]
     [CookieAntiforgery]
@@ -114,6 +131,14 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
             ? actorId
             : throw new InvalidOperationException("Authenticated platform actor does not have a valid identifier.");
 
+    private IReadOnlySet<string> GetGrantBoundary() =>
+        User.HasClaim("platform_admin", "true")
+            ? PlatformPermissions.All
+            : User.FindAll("platform_permission")
+                .Select(claim => claim.Value)
+                .Where(PlatformPermissions.All.Contains)
+                .ToHashSet(StringComparer.Ordinal);
+
     private ActionResult<PlatformAccessUser> ToActionResult(Result<PlatformAccessUser> result) =>
         result.IsSuccess && result.Value is not null ? Ok(result.Value) : ToProblem(result);
 
@@ -126,6 +151,7 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
             "not_found" => StatusCodes.Status404NotFound,
             "access_exists" or "duplicate_role" => StatusCodes.Status409Conflict,
             "self_change" or "last_administrator" or "role_in_use" or "system_role" => StatusCodes.Status409Conflict,
+            "grant_boundary" => StatusCodes.Status403Forbidden,
             _ => StatusCodes.Status400BadRequest
         },
         title: result.ErrorCode,

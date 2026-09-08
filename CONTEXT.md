@@ -12,9 +12,17 @@ A globally unique human identity. A user may belong to multiple organizations.
 
 The association granting a user access to one organization.
 
-## Role
+## Organization role
 
-An organization-owned named bundle of permissions. Owner, Admin, Member, and Viewer are seeded roles, not hard-coded authorization branches.
+An organization-owned named bundle of organization permissions. Owner, Admin, Member, and Viewer are protected seeded roles, not hard-coded authorization branches. Custom organization roles can be created, described, edited, archived, restored, and disposed under the recoverable lifecycle policy.
+
+## Platform role
+
+A global bundle of platform permissions for operators who manage the product itself. Administrator, Operator, and Auditor are protected built-in roles; custom platform roles support CRUD. A platform role never grants organization membership or access to organization-owned data.
+
+## Role assignment
+
+The association between a person and a role. An organization membership can hold multiple organization roles and receives the union of their permissions. A platform operator has one platform role so the global administrative boundary remains explicit and reviewable.
 
 ## Permission
 
@@ -22,7 +30,7 @@ A stable, code-defined capability that can be assigned to a role.
 
 ## Platform administrator
 
-A global operator who can create and manage organizations. Platform administration is not an organization role.
+A global operator with the protected Administrator platform role. Platform administration is not an organization role, and role managers cannot create, edit, delete, or assign grants beyond their own effective platform permissions.
 
 ## Project
 

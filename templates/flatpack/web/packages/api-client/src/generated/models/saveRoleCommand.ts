@@ -9,5 +9,6 @@ export interface SaveRoleCommand {
   /** @nullable */
   id: string | null;
   name: string;
+  description: string;
   permissions: string[];
 }

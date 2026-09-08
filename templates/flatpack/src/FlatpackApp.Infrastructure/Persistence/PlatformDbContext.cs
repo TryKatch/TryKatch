@@ -43,6 +43,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             entity.ToTable("roles");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).HasMaxLength(80);
+            entity.Property(x => x.Description).HasMaxLength(240);
             entity.HasIndex(x => new { x.OrganizationId, x.Name }).IsUnique();
             entity.HasMany(x => x.Permissions).WithOne().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
             entity.Property(x => x.DeletionReason).HasMaxLength(500);

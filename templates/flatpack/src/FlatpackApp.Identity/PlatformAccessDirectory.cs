@@ -43,9 +43,9 @@ internal sealed class PlatformAccessDirectory(
         return role is null ? null : await ToCustomDefinitionAsync(role);
     }
 
-    public async Task<Result<PlatformRoleDefinition>> CreateRoleAsync(SavePlatformRoleCommand command, CancellationToken cancellationToken = default)
+    public async Task<Result<PlatformRoleDefinition>> CreateRoleAsync(SavePlatformRoleCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default)
     {
-        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, null, cancellationToken);
+        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, null, grantBoundary, cancellationToken);
         if (!normalized.IsSuccess) return Result.Failure<PlatformRoleDefinition>(normalized.ErrorCode!, normalized.ErrorMessage!);
 
         return await database.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
@@ -61,12 +61,15 @@ internal sealed class PlatformAccessDirectory(
         });
     }
 
-    public async Task<Result<PlatformRoleDefinition>> UpdateRoleAsync(string roleKey, SavePlatformRoleCommand command, CancellationToken cancellationToken = default)
+    public async Task<Result<PlatformRoleDefinition>> UpdateRoleAsync(string roleKey, SavePlatformRoleCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default)
     {
         if (!IsCustomRole(roleKey)) return Result.Failure<PlatformRoleDefinition>("system_role", "Built-in platform roles cannot be changed.");
         IdentityRole<Guid>? role = await roles.FindByNameAsync(roleKey);
         if (role is null) return Result.Failure<PlatformRoleDefinition>("not_found", "Platform role was not found.");
-        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, roleKey, cancellationToken);
+        PlatformRoleDefinition current = await ToCustomDefinitionAsync(role);
+        if (!PlatformAccessRules.CanAssign(current, grantBoundary))
+            return Result.Failure<PlatformRoleDefinition>("grant_boundary", "You cannot change a role containing permissions that you do not hold.");
+        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, roleKey, grantBoundary, cancellationToken);
         if (!normalized.IsSuccess) return Result.Failure<PlatformRoleDefinition>(normalized.ErrorCode!, normalized.ErrorMessage!);
 
         return await database.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
@@ -80,11 +83,13 @@ internal sealed class PlatformAccessDirectory(
         });
     }
 
-    public async Task<Result<bool>> DeleteRoleAsync(string roleKey, CancellationToken cancellationToken = default)
+    public async Task<Result<bool>> DeleteRoleAsync(string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default)
     {
         if (!IsCustomRole(roleKey)) return Result.Failure<bool>("system_role", "Built-in platform roles cannot be deleted.");
         IdentityRole<Guid>? role = await roles.FindByNameAsync(roleKey);
         if (role is null) return Result.Failure<bool>("not_found", "Platform role was not found.");
+        if (!PlatformAccessRules.CanAssign(await ToCustomDefinitionAsync(role), grantBoundary))
+            return Result.Failure<bool>("grant_boundary", "You cannot delete a role containing permissions that you do not hold.");
         if (await database.UserRoles.AnyAsync(item => item.RoleId == role.Id, cancellationToken))
             return Result.Failure<bool>("role_in_use", "Move people to another role before deleting this role.");
         IdentityResult deleted = await roles.DeleteAsync(role);
@@ -126,10 +131,12 @@ internal sealed class PlatformAccessDirectory(
             : Result.Success(ToUser(row, roleMap));
     }
 
-    public async Task<Result<PlatformAccessGrant>> GrantAsync(GrantPlatformAccessCommand command, CancellationToken cancellationToken = default)
+    public async Task<Result<PlatformAccessGrant>> GrantAsync(GrantPlatformAccessCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default)
     {
         PlatformRoleDefinition? role = await FindRoleAsync(command.RoleKey, cancellationToken);
         if (role is null) return Result.Failure<PlatformAccessGrant>("invalid_role", "Choose a supported platform role.");
+        if (!PlatformAccessRules.CanAssign(role, grantBoundary))
+            return Result.Failure<PlatformAccessGrant>("grant_boundary", "You cannot assign a platform role containing permissions that you do not hold.");
 
         string email = command.Email.Trim();
         string displayName = command.DisplayName.Trim();
@@ -185,14 +192,16 @@ internal sealed class PlatformAccessDirectory(
         return Result.Success(new PlatformAccessGrant(platformUser, activationToken));
     }
 
-    public Task<Result<PlatformAccessUser>> ChangeRoleAsync(Guid actorId, Guid userId, string roleKey, CancellationToken cancellationToken = default) =>
-        ExecuteWithAdministrationLockAsync(() => ChangeRoleCoreAsync(actorId, userId, roleKey, cancellationToken));
+    public Task<Result<PlatformAccessUser>> ChangeRoleAsync(Guid actorId, Guid userId, string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default) =>
+        ExecuteWithAdministrationLockAsync(() => ChangeRoleCoreAsync(actorId, userId, roleKey, grantBoundary, cancellationToken));
 
-    private async Task<Result<PlatformAccessUser>> ChangeRoleCoreAsync(Guid actorId, Guid userId, string roleKey, CancellationToken cancellationToken)
+    private async Task<Result<PlatformAccessUser>> ChangeRoleCoreAsync(Guid actorId, Guid userId, string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken)
     {
         await using IDbContextTransaction transaction = await BeginAdministrationTransactionAsync(cancellationToken);
         PlatformRoleDefinition? nextRole = await FindRoleAsync(roleKey, cancellationToken);
         if (nextRole is null) return Result.Failure<PlatformAccessUser>("invalid_role", "Choose a supported platform role.");
+        if (!PlatformAccessRules.CanAssign(nextRole, grantBoundary))
+            return Result.Failure<PlatformAccessUser>("grant_boundary", "You cannot assign a platform role containing permissions that you do not hold.");
         ApplicationUser? user = await users.FindByIdAsync(userId.ToString());
         if (user is null) return Result.Failure<PlatformAccessUser>("not_found", "Platform user was not found.");
 
@@ -316,7 +325,7 @@ internal sealed class PlatformAccessDirectory(
             LastSignedInAt = user.LastSignedInAt
         };
 
-    private async Task<Result<NormalizedRoleInput>> ValidateRoleAsync(SavePlatformRoleCommand command, string? existingKey, CancellationToken cancellationToken)
+    private async Task<Result<NormalizedRoleInput>> ValidateRoleAsync(SavePlatformRoleCommand command, string? existingKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken)
     {
         string name = command.Name.Trim();
         string description = command.Description.Trim();
@@ -329,12 +338,16 @@ internal sealed class PlatformAccessDirectory(
         string[] unknown = requested.Where(permission => !PlatformPermissions.All.Contains(permission)).ToArray();
         if (unknown.Length > 0)
             return Result.Failure<NormalizedRoleInput>("invalid_permissions", "One or more permissions are not part of the platform catalog.");
+        if (!PlatformAccessRules.CanGrant(requested, grantBoundary))
+            return Result.Failure<NormalizedRoleInput>("grant_boundary", "You cannot grant a platform permission that you do not hold.");
 
         HashSet<string> normalizedPermissions = new(requested, StringComparer.Ordinal) { PlatformPermissions.DashboardRead };
         foreach (string permission in requested.Where(permission => permission.EndsWith(".manage", StringComparison.Ordinal)))
         {
             normalizedPermissions.Add(permission[..^"manage".Length] + "read");
         }
+        if (!PlatformAccessRules.CanGrant(normalizedPermissions, grantBoundary))
+            return Result.Failure<NormalizedRoleInput>("grant_boundary", "The role requires a dependent permission that you do not hold.");
 
         IReadOnlyList<PlatformRoleDefinition> definitions = await ListRolesAsync(cancellationToken);
         if (definitions.Any(role => role.Key != existingKey && string.Equals(role.Name, name, StringComparison.OrdinalIgnoreCase)))

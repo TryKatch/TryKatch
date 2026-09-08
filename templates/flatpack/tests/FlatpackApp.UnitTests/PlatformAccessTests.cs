@@ -35,4 +35,32 @@ public sealed class PlatformAccessTests
 
         role.Permissions.ShouldAllBe(permission => permission.EndsWith(".read", StringComparison.Ordinal));
     }
+
+    [TestMethod]
+    public void PlatformRoleCannotCrossActorsGrantBoundary()
+    {
+        IReadOnlySet<string> boundary = new HashSet<string>(StringComparer.Ordinal)
+        {
+            PlatformPermissions.DashboardRead,
+            PlatformPermissions.UsersRead,
+            PlatformPermissions.UsersManage
+        };
+        PlatformRoleDefinition allowed = new(
+            "platform-custom-support",
+            "Support",
+            "Manage platform users without changing tenant or authentication settings.",
+            100,
+            boundary,
+            false);
+        PlatformRoleDefinition escalated = allowed with
+        {
+            Permissions = new HashSet<string>(boundary, StringComparer.Ordinal)
+            {
+                PlatformPermissions.AuthenticationManage
+            }
+        };
+
+        PlatformAccessRules.CanAssign(allowed, boundary).ShouldBeTrue();
+        PlatformAccessRules.CanAssign(escalated, boundary).ShouldBeFalse();
+    }
 }

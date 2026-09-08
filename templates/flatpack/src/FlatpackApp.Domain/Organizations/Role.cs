@@ -4,10 +4,11 @@ namespace FlatpackApp.Domain.Organizations;
 
 public sealed class Role : RecoverableEntity
 {
-    private Role(Guid id, Guid organizationId, string name, bool isSystem) : base(id)
+    private Role(Guid id, Guid organizationId, string name, string description, bool isSystem) : base(id)
     {
         OrganizationId = organizationId;
         Name = name;
+        Description = description;
         IsSystem = isSystem;
     }
 
@@ -15,17 +16,23 @@ public sealed class Role : RecoverableEntity
 
     public Guid OrganizationId { get; private init; }
     public string Name { get; private set; } = string.Empty;
+    public string Description { get; private set; } = string.Empty;
     public bool IsSystem { get; private init; }
     public ICollection<RolePermissionGrant> Permissions { get; private set; } = [];
 
-    public static Role Create(Guid organizationId, string name, bool isSystem = false)
+    public static Role Create(Guid organizationId, string name, string description = "", bool isSystem = false)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
             throw new DomainException("Role name is required.");
         }
 
-        return new Role(Guid.CreateVersion7(), organizationId, name.Trim(), isSystem);
+        if (description.Trim().Length > 240)
+        {
+            throw new DomainException("Role description cannot exceed 240 characters.");
+        }
+
+        return new Role(Guid.CreateVersion7(), organizationId, name.Trim(), description.Trim(), isSystem);
     }
 
     public void Rename(string name)
@@ -41,6 +48,21 @@ public sealed class Role : RecoverableEntity
         }
 
         Name = name.Trim();
+    }
+
+    public void Describe(string description)
+    {
+        if (IsSystem)
+        {
+            throw new DomainException("System roles cannot be changed.");
+        }
+
+        if (description.Trim().Length > 240)
+        {
+            throw new DomainException("Role description cannot exceed 240 characters.");
+        }
+
+        Description = description.Trim();
     }
 
     public void SetPermissions(IEnumerable<string> permissions)

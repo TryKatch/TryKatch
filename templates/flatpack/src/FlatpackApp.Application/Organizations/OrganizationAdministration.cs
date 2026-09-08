@@ -11,7 +11,7 @@ using FlatpackApp.Domain.Organizations;
 
 namespace FlatpackApp.Application.Organizations;
 
-public sealed record RoleDto(Guid Id, string Name, bool IsSystem, bool CanAssign, IReadOnlyList<string> Permissions, RecordLifecycleDto Lifecycle);
+public sealed record RoleDto(Guid Id, string Name, string Description, bool IsSystem, bool CanAssign, IReadOnlyList<string> Permissions, RecordLifecycleDto Lifecycle);
 public sealed record PermissionOptionDto(string Key, string Name, string Description, bool IsSensitive, bool CanGrant);
 public sealed record PermissionModuleDto(string Key, string Name, string Description, IReadOnlyList<PermissionOptionDto> Permissions);
 public sealed record MemberDto(Guid Id, Guid UserId, string Email, string DisplayName, string Status, DateTimeOffset JoinedAt, IReadOnlyList<RoleDto> Roles, RecordLifecycleDto Lifecycle);
@@ -45,7 +45,7 @@ public sealed record CreateInvitationCommand(string Email, int ExpiresInDays = 7
 public sealed record UpdateInvitationCommand(int ExpiresInDays);
 public sealed record CreateInvitationResult(InvitationDto Invitation, string Token);
 public sealed record InvitationPreviewDto(string Email, string OrganizationName, DateTimeOffset ExpiresAt);
-public sealed record SaveRoleCommand(Guid? Id, string Name, IReadOnlyList<string> Permissions);
+public sealed record SaveRoleCommand(Guid? Id, string Name, string Description, IReadOnlyList<string> Permissions);
 public sealed record UpdateMembershipCommand(Guid MembershipId, IReadOnlyList<Guid> RoleIds, bool IsActive);
 
 public interface IOrganizationAdministrationStore
@@ -127,6 +127,8 @@ public sealed class OrganizationAdministration(
             return Forbidden<RoleDto>("Roles cannot be changed by this membership.");
         if (string.IsNullOrWhiteSpace(command.Name) || command.Name.Trim().Length > 80)
             return Result.Failure<RoleDto>("validation", "Role names must contain 1-80 characters.");
+        if ((command.Description ?? string.Empty).Trim().Length > 240)
+            return Result.Failure<RoleDto>("validation", "Role descriptions cannot exceed 240 characters.");
         IReadOnlyList<string> requestedPermissions = command.Permissions ?? [];
         if (requestedPermissions.Count != requestedPermissions.Distinct(StringComparer.Ordinal).Count())
             return Result.Failure<RoleDto>("validation", "Permission grants must be unique.");
@@ -149,10 +151,11 @@ public sealed class OrganizationAdministration(
             if (role.Permissions.Any(grant => !context.Permissions.Contains(grant.Permission)))
                 return Forbidden<RoleDto>("You cannot change a role containing permissions that you do not hold.");
             role.Rename(command.Name);
+            role.Describe(command.Description ?? string.Empty);
         }
         else
         {
-            role = Role.Create(context.OrganizationId, command.Name);
+            role = Role.Create(context.OrganizationId, command.Name, command.Description ?? string.Empty);
             await store.AddRoleAsync(role, cancellationToken);
         }
 
@@ -498,6 +501,7 @@ public sealed class OrganizationAdministration(
     private RoleDto ToRoleDto(Role role) => new(
         role.Id,
         role.Name,
+        role.Description,
         role.IsSystem,
         role.Permissions.All(grant => context.Permissions.Contains(grant.Permission)),
         role.Permissions.Select(x => x.Permission).Order().ToArray(),
