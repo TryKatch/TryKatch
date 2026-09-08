@@ -69,3 +69,5 @@ export * from './updateAccountProfileRequest';
 export * from './updateInvitationCommand';
 export * from './updateMembershipCommand';
 export * from './updateOrganizationRequest';
+export * from './workspaceActivity';
+export * from './workspaceOverview';

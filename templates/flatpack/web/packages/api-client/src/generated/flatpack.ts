@@ -77,7 +77,8 @@ import type {
   UpdateAccountProfileRequest,
   UpdateInvitationCommand,
   UpdateMembershipCommand,
-  UpdateOrganizationRequest
+  UpdateOrganizationRequest,
+  WorkspaceOverview
 } from './models';
 
 import { customFetch } from '../http';
@@ -7077,3 +7078,113 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getWorkspaceClearMutationOptions(options), queryClient);
     }
 
+export type workspaceOverviewGetResponse200TextPlain = {
+  data: WorkspaceOverview
+  status: 200
+}
+
+export type workspaceOverviewGetResponse200ApplicationJson = {
+  data: WorkspaceOverview
+  status: 200
+}
+
+export type workspaceOverviewGetResponse200TextJson = {
+  data: WorkspaceOverview
+  status: 200
+}
+
+export type workspaceOverviewGetResponseSuccess = (workspaceOverviewGetResponse200TextPlain | workspaceOverviewGetResponse200ApplicationJson | workspaceOverviewGetResponse200TextJson) & {
+  headers: Headers;
+};
+;
+
+export type workspaceOverviewGetResponse = (workspaceOverviewGetResponseSuccess)
+
+export const getWorkspaceOverviewGetUrl = () => {
+
+
+
+
+  return `/api/v1/workspace/overview`
+}
+
+export const workspaceOverviewGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<workspaceOverviewGetResponse> => {
+
+  return customFetch<workspaceOverviewGetResponse>(getWorkspaceOverviewGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getWorkspaceOverviewGetQueryKey = () => {
+    return [
+    `/api/v1/workspace/overview`
+    ] as const;
+    }
+
+
+export const getWorkspaceOverviewGetQueryOptions = <TData = Awaited<ReturnType<typeof workspaceOverviewGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof workspaceOverviewGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getWorkspaceOverviewGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof workspaceOverviewGet>>> = ({ signal }) => workspaceOverviewGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof workspaceOverviewGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type WorkspaceOverviewGetQueryResult = NonNullable<Awaited<ReturnType<typeof workspaceOverviewGet>>>
+export type WorkspaceOverviewGetQueryError = unknown
+
+
+export function useWorkspaceOverviewGet<TData = Awaited<ReturnType<typeof workspaceOverviewGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof workspaceOverviewGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof workspaceOverviewGet>>,
+          TError,
+          Awaited<ReturnType<typeof workspaceOverviewGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useWorkspaceOverviewGet<TData = Awaited<ReturnType<typeof workspaceOverviewGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof workspaceOverviewGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof workspaceOverviewGet>>,
+          TError,
+          Awaited<ReturnType<typeof workspaceOverviewGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useWorkspaceOverviewGet<TData = Awaited<ReturnType<typeof workspaceOverviewGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof workspaceOverviewGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useWorkspaceOverviewGet<TData = Awaited<ReturnType<typeof workspaceOverviewGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof workspaceOverviewGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getWorkspaceOverviewGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

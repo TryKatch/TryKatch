@@ -25,6 +25,8 @@ interface PlatformUserPage { items: PlatformUser[]; page: number; pageSize: numb
 interface PlatformRole { key: string; name: string; description: string; order: number; permissions: string[]; isSystem: boolean }
 interface PlatformAccessGrant { user: PlatformUser; activationToken?: string }
 interface PlatformSession { userId: string; email?: string; isPlatformAdministrator?: boolean; platformPermissions?: string[] }
+interface WorkspaceActivity { action: string; title: string; targetDisplayName: string; actorDisplayName: string; occurredAt: string }
+interface WorkspaceOverview { activeProjects: number; activeMembers: number; pendingInvitations: number; activeRoles: number; membersWithAccess: number; eventsToday: number; recentActivity: WorkspaceActivity[] }
 
 const platformCapabilityLabels: Record<string, string> = {
   dashboard: 'Platform overview',
@@ -67,13 +69,16 @@ function PlatformRolePicker({ roles, defaultValue }: { roles: readonly PlatformR
 }
 
 export function DashboardPage() {
+  const overview = useQuery({ queryKey: ['workspace-overview'], queryFn: () => customFetch<WorkspaceOverview>('/api/v1/workspace/overview', { method: 'GET' }) })
+  const data = overview.data
+  const accessCoverage = data?.activeMembers ? Math.round((data.membersWithAccess / data.activeMembers) * 100) : 100
   const stats = [
-    { label: 'Projects', value: '12', note: '+2 this month', icon: FolderKanban },
-    { label: 'Members', value: '28', note: '3 invitations', icon: Users },
-    { label: 'Access coverage', value: '100%', note: '4 access levels', icon: ShieldCheck },
-    { label: 'Events today', value: '184', note: 'All systems normal', icon: Activity },
+    { label: 'Projects', value: data?.activeProjects ?? 0, note: 'Active records', icon: FolderKanban },
+    { label: 'Members', value: data?.activeMembers ?? 0, note: `${data?.pendingInvitations ?? 0} pending invitation${data?.pendingInvitations === 1 ? '' : 's'}`, icon: Users },
+    { label: 'Access coverage', value: `${accessCoverage}%`, note: `${data?.activeRoles ?? 0} active access level${data?.activeRoles === 1 ? '' : 's'}`, icon: ShieldCheck },
+    { label: 'Events today', value: data?.eventsToday ?? 0, note: 'Recorded audit events', icon: Activity },
   ]
-  return <><PageHeader eyebrow="Workspace" title="Overview" description="A compact view of activity, access, and application health." actions={<Button variant="primary"><Plus size={14} /> New project</Button>} /><div className="stat-grid">{stats.map(({ label, value, note, icon: Icon }) => <Surface className="stat" key={label}><div className="stat-top"><span>{label}</span><Icon size={15} /></div><strong>{value}</strong><small>{note}</small></Surface>)}</div><div className="content-grid"><Surface><div className="panel-title"><div><h2>Recent activity</h2><p>Security and project changes</p></div><Button variant="ghost">View all <ArrowUpRight size={13} /></Button></div><div className="activity-list">{['Project Atlas updated', 'Invitation sent to engineer@company.com', 'Viewer access updated', 'MFA recovery codes regenerated'].map((item, index) => <div className="activity-row" key={item}><span className="activity-dot" /><div><strong>{item}</strong><small>{index + 2} hours ago · Sudi</small></div></div>)}</div></Surface><Surface><div className="panel-title"><div><h2>Environment</h2><p>Runtime dependencies</p></div><Badge tone="success">Healthy</Badge></div><div className="health-list">{['PostgreSQL', 'API', 'Outbox worker', 'Telemetry pipeline'].map((item) => <div key={item}><span>{item}</span><Badge tone="success">Operational</Badge></div>)}</div></Surface></div></>
+  return <><PageHeader eyebrow="Workspace" title="Overview" description="Live activity, access, and application records for this workspace." actions={<Button asChild variant="primary"><Link to="/projects"><Plus size={14} /> New project</Link></Button>} />{overview.isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div> : overview.isError ? <EmptyState title="Workspace overview could not be loaded" description={overview.error.message} action={<Button onClick={() => overview.refetch()}>Try again</Button>} /> : <><div className="stat-grid">{stats.map(({ label, value, note, icon: Icon }) => <Surface className="stat" key={label}><div className="stat-top"><span>{label}</span><Icon size={15} /></div><strong>{value}</strong><small>{note}</small></Surface>)}</div><Surface><div className="panel-title"><div><h2>Recent activity</h2><p>Latest audited changes in this workspace.</p></div><Button asChild variant="ghost"><Link to="/audit">View all <ArrowUpRight size={13} /></Link></Button></div>{data?.recentActivity.length ? <div className="activity-list">{data.recentActivity.map((item) => <div className="activity-row" key={`${item.action}-${item.occurredAt}`}><span className="activity-dot" /><div><strong>{item.title}: {item.targetDisplayName}</strong><small>{relativeTime(item.occurredAt)} · {item.actorDisplayName}</small></div></div>)}</div> : <EmptyState title="No activity yet" description="Audited project and access changes will appear here." />}</Surface></>}</>
 }
 
 export function ProjectsPage() {

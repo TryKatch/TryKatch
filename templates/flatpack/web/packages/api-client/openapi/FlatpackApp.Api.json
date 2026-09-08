@@ -2858,6 +2858,36 @@
           }
         }
       }
+    },
+    "/api/v1/workspace/overview": {
+      "get": {
+        "tags": [
+          "WorkspaceOverview"
+        ],
+        "operationId": "WorkspaceOverview_Get",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceOverview"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceOverview"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceOverview"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4219,6 +4249,102 @@
             "type": "string"
           }
         }
+      },
+      "WorkspaceActivity": {
+        "required": [
+          "action",
+          "title",
+          "targetDisplayName",
+          "actorDisplayName",
+          "occurredAt"
+        ],
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "targetDisplayName": {
+            "type": "string"
+          },
+          "actorDisplayName": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkspaceOverview": {
+        "required": [
+          "activeProjects",
+          "activeMembers",
+          "pendingInvitations",
+          "activeRoles",
+          "membersWithAccess",
+          "eventsToday",
+          "recentActivity"
+        ],
+        "type": "object",
+        "properties": {
+          "activeProjects": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "activeMembers": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pendingInvitations": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "activeRoles": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "membersWithAccess": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "eventsToday": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "recentActivity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceActivity"
+            }
+          }
+        }
       }
     }
   },
@@ -4255,6 +4381,9 @@
     },
     {
       "name": "WorkspaceContext"
+    },
+    {
+      "name": "WorkspaceOverview"
     }
   ]
 }
