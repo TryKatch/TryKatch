@@ -148,7 +148,6 @@ public sealed class AuthenticationSecurityTests
         const string email = "mfa@flatpack.test";
         const string password = "Local-only!Multi-Factor-Password-42";
         ApplicationUser createdUser = await CreateConfirmedUserAsync(factory, email, password);
-        string authenticatorCode;
         string recoveryCode;
         using (IServiceScope scope = factory.Services.CreateScope())
         {
@@ -157,7 +156,6 @@ public sealed class AuthenticationSecurityTests
                 ?? throw new InvalidOperationException("The MFA test identity was not persisted.");
             (await users.ResetAuthenticatorKeyAsync(user)).Succeeded.ShouldBeTrue();
             (await users.SetTwoFactorEnabledAsync(user, true)).Succeeded.ShouldBeTrue();
-            authenticatorCode = await users.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider);
             recoveryCode = (await users.GenerateNewTwoFactorRecoveryCodesAsync(user, 1)).ShouldHaveSingleItem();
         }
 
@@ -170,6 +168,16 @@ public sealed class AuthenticationSecurityTests
             rememberMe = false
         });
         passwordStep.StatusCode.ShouldBe((HttpStatusCode)428);
+
+        string authenticatorCode;
+        using (IServiceScope scope = factory.Services.CreateScope())
+        {
+            UserManager<ApplicationUser> users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser user = await users.FindByIdAsync(createdUser.Id.ToString())
+                ?? throw new InvalidOperationException("The MFA test identity was not persisted.");
+            authenticatorCode = await users.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider);
+        }
+
         HttpResponseMessage mfaStep = await PostWithAntiforgeryAsync(client, "/api/v1/auth/login/mfa", antiforgery, new
         {
             code = authenticatorCode,
@@ -177,7 +185,7 @@ public sealed class AuthenticationSecurityTests
             rememberMe = false,
             rememberClient = false
         });
-        mfaStep.StatusCode.ShouldBe(HttpStatusCode.OK);
+        mfaStep.StatusCode.ShouldBe(HttpStatusCode.OK, await mfaStep.Content.ReadAsStringAsync());
 
         antiforgery = await GetAntiforgeryTokenAsync(client);
         await PostWithAntiforgeryAsync(client, "/api/v1/auth/logout", antiforgery, new { });
