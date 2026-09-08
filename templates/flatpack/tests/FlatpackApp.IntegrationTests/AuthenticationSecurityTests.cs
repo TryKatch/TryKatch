@@ -7,6 +7,7 @@ using FlatpackApp.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,7 +27,7 @@ public sealed class AuthenticationSecurityTests
     [TestMethod]
     public async Task CookieAndOpenIdConnectSecurityControlsWorkTogether()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.0-alpine3.22").Build();
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
         await postgres.StartAsync();
         await ApplyMigrationsAsync(postgres.GetConnectionString());
 
@@ -51,7 +52,7 @@ public sealed class AuthenticationSecurityTests
                     ["OpenIddict:Clients:1:GrantType"] = "authorization_code",
                     ["OpenIddict:Clients:1:RedirectUris:0"] = "https://client.flatpack.test/callback"
                 }));
-                webHost.ConfigureServices(services => services.PostConfigure<SecurityStampValidatorOptions>(options =>
+                webHost.ConfigureTestServices(services => services.PostConfigure<SecurityStampValidatorOptions>(options =>
                     options.ValidationInterval = TimeSpan.Zero));
             });
 

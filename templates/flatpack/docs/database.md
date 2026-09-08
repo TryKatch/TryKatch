@@ -11,6 +11,8 @@ CREATE DATABASE flatpack OWNER flatpack_migrator;
 
 The bundled Compose stack uses the official PostgreSQL bootstrap administrator only on first initialization. Its init script creates `flatpack_migrator` as a non-superuser and transfers database ownership. Keep `FLATPACK_POSTGRES_ADMIN_PASSWORD`, `FLATPACK_MIGRATOR_PASSWORD`, and `FLATPACK_RUNTIME_PASSWORD` distinct. Managed production databases should provision the migration owner through their normal infrastructure workflow instead.
 
+PostgreSQL 18 stores data under a major-version-specific `PGDATA` directory and the official image exposes `/var/lib/postgresql` as its persistent volume root. Flatpack mounts the named volume at that root; do not change it back to the pre-18 `/var/lib/postgresql/data` target. Treat major-version upgrades as planned database migrations using `pg_upgrade` or a managed-provider upgrade workflow, never as an image-tag edit.
+
 Run the dedicated one-shot migrator with the owner connection. It applies all three migration sets, creates or rotates the runtime role, grants only data access, and verifies that the runtime role is neither a superuser nor able to bypass RLS:
 
 ```bash
@@ -21,6 +23,10 @@ dotnet run --project src/FlatpackApp.Migrator
 ```
 
 Production Compose runs this migrator to completion before starting the API. The API receives only `FLATPACK_RUNTIME_CONNECTION`; never expose `FLATPACK_MIGRATOR_CONNECTION` to the API service. Applying migrations during an API replica's startup is deliberately unsupported because concurrent replicas make ownership and rollout ordering ambiguous.
+
+Migration sets run in dependency order: `identity`, then `platform`, then `app`. Use expand-and-contract changes across releases: add compatible schema first, deploy code that can read both shapes, backfill under explicit monitoring, and remove obsolete schema only in a later release. Do not automatically roll back a partially applied production migration; stop the rollout, preserve evidence, and apply a reviewed forward repair unless the migration's documented rollback is proven safe.
+
+Compose volumes are a local deployment convenience, not a backup system. Production owners must enable encrypted backups and point-in-time recovery in the database platform, monitor backup freshness, and perform restores into an isolated environment on a schedule. Record the achieved recovery point and recovery time before declaring the deployment production-ready.
 
 For break-glass manual recovery, the migrator performs the equivalent of:
 

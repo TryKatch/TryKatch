@@ -2,11 +2,12 @@ IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(ar
 
 IResourceBuilder<PostgresServerResource> postgres = builder
     .AddPostgres("postgres")
+    .WithImageTag("18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f")
     .WithDataVolume("flatpack-postgres-data");
 IResourceBuilder<PostgresDatabaseResource> database = postgres.AddDatabase("flatpackdb", "flatpack");
 
 IResourceBuilder<ContainerResource> collector = builder
-    .AddContainer("otel-collector", "otel/opentelemetry-collector-contrib", "0.160.0")
+    .AddContainer("otel-collector", "otel/opentelemetry-collector-contrib", "0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6")
     .WithBindMount("../../deploy/observability/otel-collector.yml", "/etc/otelcol-contrib/config.yaml", isReadOnly: true)
     .WithHttpEndpoint(targetPort: 4318, name: "otlp-http")
     .WithHttpEndpoint(targetPort: 8889, name: "prometheus");
@@ -24,7 +25,7 @@ IResourceBuilder<ProjectResource> api = builder
 
 #if FLATPACK_EMAIL
 IResourceBuilder<ContainerResource> mailpit = builder
-    .AddContainer("mailpit", "axllent/mailpit", "v1.30.4")
+    .AddContainer("mailpit", "axllent/mailpit", "v1.30.4@sha256:5a49a77c5bdbe7c5474450b4f46348d09949df3695257729c93a30369382d4f6")
     .WithEndpoint(targetPort: 1025, name: "smtp")
     .WithHttpEndpoint(targetPort: 8025, name: "inbox")
     .WithExternalHttpEndpoints();
@@ -33,17 +34,17 @@ api.WithEnvironment("Email__Host", "mailpit")
     .WaitFor(mailpit);
 #endif
 
-builder.AddContainer("loki", "grafana/loki", "3.7.2")
+builder.AddContainer("loki", "grafana/loki", "3.7.2@sha256:191d4fdfb7264f16989f0a57f320872620a5a7c2ceeec6229212c4190ec49b86")
     .WithBindMount("../../deploy/observability/loki.yml", "/etc/loki/local-config.yaml", isReadOnly: true)
     .WithHttpEndpoint(targetPort: 3100, name: "http");
-builder.AddContainer("tempo", "grafana/tempo", "3.0.2")
+builder.AddContainer("tempo", "grafana/tempo", "3.0.2@sha256:cda87c212d8c584dc0b89e337e7ed648a5100feb657e5d528480ee4fa03dbbe3")
     .WithBindMount("../../deploy/observability/tempo.yml", "/etc/tempo.yml", isReadOnly: true)
     .WithArgs("-config.file=/etc/tempo.yml")
     .WithHttpEndpoint(targetPort: 3200, name: "http");
-builder.AddContainer("prometheus", "prom/prometheus", "v3.14.0")
+builder.AddContainer("prometheus", "prom/prometheus", "v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0")
     .WithBindMount("../../deploy/observability/prometheus.yml", "/etc/prometheus/prometheus.yml", isReadOnly: true)
     .WithHttpEndpoint(targetPort: 9090, name: "http");
-builder.AddContainer("grafana", "grafana/grafana", "13.2.1")
+builder.AddContainer("grafana", "grafana/grafana", "13.2.1@sha256:f772d434e8fab0049deb2b1b30abd43342bcfca1537614aa8d36080232cf4283")
     .WithBindMount("../../deploy/observability/grafana", "/etc/grafana/provisioning", isReadOnly: true)
     .WithHttpEndpoint(targetPort: 3000, name: "http");
 

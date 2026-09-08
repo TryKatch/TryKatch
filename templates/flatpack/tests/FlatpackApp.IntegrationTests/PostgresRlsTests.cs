@@ -13,7 +13,7 @@ public sealed class PostgresRlsTests
     [TestMethod]
     public async Task RuntimeRoleCannotCrossOrganizationAccessControlBoundary()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.0-alpine3.22").Build();
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
         await postgres.StartAsync();
         await using (PlatformDbContext platform = new(
             new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(postgres.GetConnectionString()).Options))
@@ -102,7 +102,7 @@ public sealed class PostgresRlsTests
     [TestMethod]
     public async Task RuntimeRoleCannotCrossOrganizationBoundary()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.0-alpine3.22").Build();
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
         await postgres.StartAsync();
 
         Guid organizationA = Guid.CreateVersion7();

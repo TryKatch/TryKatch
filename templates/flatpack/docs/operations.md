@@ -4,7 +4,7 @@ Use `dotnet run --project src/FlatpackApp.AppHost` for local orchestration. Aspi
 
 Production runs separate API and web containers. The unprivileged web proxy owns the public origin and forwards `/api` and `/connect` to the API, keeping authentication cookies same-origin. Containers run without root or Linux capabilities, support read-only root filesystems, and expose explicit health checks.
 
-Provide all secrets through environment variables or a mounted secret provider. Never commit `.env`, signing certificates, database passwords, SMTP credentials, or object-storage keys. Replace version tags with reviewed image digests in a production deployment.
+Provide all secrets through environment variables or a mounted secret provider. Never commit `.env`, signing certificates, database passwords, SMTP credentials, or object-storage keys. Container references retain a readable version tag and a reviewed immutable manifest digest; update both together through a reviewed dependency change.
 
 Before starting Production Compose, copy `.env.example` to `.env`, replace every placeholder, and place separate PKCS#12 signing and encryption certificates at `${FLATPACK_SECRETS_PATH}/signing.pfx` and `${FLATPACK_SECRETS_PATH}/encryption.pfx`. The API mounts those files read-only. Keep the certificate passwords in the deployment secret store, rotate certificates through a planned key-overlap window, and back up Data Protection keys with the database. Supply the bootstrap administrator email and password for the first controlled start only, verify the account, and then remove both values.
 

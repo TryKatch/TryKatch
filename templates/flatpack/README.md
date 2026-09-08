@@ -57,4 +57,4 @@ pnpm --dir web build
 
 Generated files under `web/packages/api-client/src/generated` are machine-owned. Change API contracts, rebuild the API, and run `pnpm --dir web generate`; never hand-edit those files.
 
-See [database operations](docs/database.md) and [deployment/observability](docs/operations.md) before shipping.
+See [database operations](docs/database.md), [deployment/observability](docs/operations.md), and the [threat model](docs/threat-model.md) before shipping.
