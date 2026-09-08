@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IPermissionAuthorizer, PermissionAuthorizer>();
         services.AddScoped<IOrganizationDirectory, OrganizationDirectory>();
         services.AddScoped<IOrganizationAdministrationStore, OrganizationAdministrationStore>();
+        services.AddScoped<IOrganizationDataScopeFactory, OrganizationDataScopeFactory>();
         services.AddScoped<IAuditReader, AuditReader>();
         services.AddScoped<IWorkspaceOverviewReader, WorkspaceOverviewReader>();
         services.AddScoped<IProjectStore, ProjectStore>();

@@ -54,7 +54,16 @@ public sealed class InvitationsController(OrganizationAdministration administrat
         if (!created.Succeeded)
             return Problem(statusCode: 400, title: "identity_validation", detail: string.Join(" ", created.Errors.Select(error => error.Description)));
 
-        Result<Guid> accepted = await administration.AcceptInvitationAsync(request.Token, user.Id, preview.Value.Email, cancellationToken);
+        Result<Guid> accepted;
+        try
+        {
+            accepted = await administration.AcceptInvitationAsync(request.Token, user.Id, preview.Value.Email, cancellationToken);
+        }
+        catch
+        {
+            await users.DeleteAsync(user);
+            throw;
+        }
         if (!accepted.IsSuccess)
         {
             await users.DeleteAsync(user);

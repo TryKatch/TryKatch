@@ -38,6 +38,7 @@ public sealed class PermissionCatalogTests
             null!,
             null!,
             null!,
+            null!,
             context,
             new AllowPermissionAuthorizer(),
             catalog,

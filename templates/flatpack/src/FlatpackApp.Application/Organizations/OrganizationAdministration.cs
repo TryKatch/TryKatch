@@ -68,8 +68,19 @@ public interface IOrganizationAdministrationStore
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
+public interface IOrganizationDataScope : IAsyncDisposable
+{
+    Task CommitAsync(CancellationToken cancellationToken);
+}
+
+public interface IOrganizationDataScopeFactory
+{
+    Task<IOrganizationDataScope> BeginAsync(Guid organizationId, Guid actorId, CancellationToken cancellationToken);
+}
+
 public sealed class OrganizationAdministration(
     IOrganizationAdministrationStore store,
+    IOrganizationDataScopeFactory dataScopes,
     IAuditReader auditReader,
     IUserDirectory users,
     IOrganizationContext context,
@@ -350,6 +361,8 @@ public sealed class OrganizationAdministration(
         Invitation? invitation = await store.FindInvitationByHashAsync(HashToken(token), cancellationToken);
         if (invitation is null || !invitation.IsUsable(DateTimeOffset.UtcNow) || !string.Equals(invitation.Email, email.Trim(), StringComparison.OrdinalIgnoreCase))
             return Result.Failure<Guid>("invalid_invitation", "Invitation is invalid, expired, or belongs to another account.");
+
+        await using IOrganizationDataScope dataScope = await dataScopes.BeginAsync(invitation.OrganizationId, userId, cancellationToken);
         if (await store.MembershipExistsAsync(invitation.OrganizationId, userId, cancellationToken))
             return Result.Failure<Guid>("conflict", "The account is already a member.");
         Role? invitedRole = await store.FindRoleAsync(invitation.OrganizationId, invitation.RoleId, cancellationToken);
@@ -361,7 +374,11 @@ public sealed class OrganizationAdministration(
         await store.AddMembershipAsync(membership, cancellationToken);
         await store.SaveChangesAsync(cancellationToken);
         Organization? organization = await store.FindOrganizationAsync(invitation.OrganizationId, cancellationToken);
-        return organization is null ? Result.Failure<Guid>("not_found", "Organization was not found.") : Result.Success(organization.Id);
+        if (organization is null)
+            return Result.Failure<Guid>("not_found", "Organization was not found.");
+
+        await dataScope.CommitAsync(cancellationToken);
+        return Result.Success(organization.Id);
     }
 
     public async Task<Result<InvitationPreviewDto>> PreviewInvitationAsync(string token, CancellationToken cancellationToken)

@@ -75,8 +75,8 @@ public sealed class PostgresRlsTests
         {
             await SetContextAsync(runtime, actorTransaction, actorA, null, false);
             (await ScalarCountAsync(runtime, actorTransaction, "SELECT count(*) FROM platform.memberships")).ShouldBe(1);
-            (await ScalarCountAsync(runtime, actorTransaction, "SELECT count(*) FROM platform.roles")).ShouldBe(1);
-            (await ScalarCountAsync(runtime, actorTransaction, "SELECT count(*) FROM platform.role_permissions")).ShouldBe(1);
+            (await ScalarCountAsync(runtime, actorTransaction, "SELECT count(*) FROM platform.roles")).ShouldBe(0);
+            (await ScalarCountAsync(runtime, actorTransaction, "SELECT count(*) FROM platform.role_permissions")).ShouldBe(0);
         }
 
         await using (NpgsqlTransaction organizationTransaction = await runtime.BeginTransactionAsync())
