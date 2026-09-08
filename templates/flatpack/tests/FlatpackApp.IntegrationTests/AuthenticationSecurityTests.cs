@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 using FlatpackApp.Identity;
 using FlatpackApp.Infrastructure.Persistence;
@@ -175,7 +178,9 @@ public sealed class AuthenticationSecurityTests
             UserManager<ApplicationUser> users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             ApplicationUser user = await users.FindByIdAsync(createdUser.Id.ToString())
                 ?? throw new InvalidOperationException("The MFA test identity was not persisted.");
-            authenticatorCode = await users.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider);
+            string key = await users.GetAuthenticatorKeyAsync(user)
+                ?? throw new InvalidOperationException("The MFA test identity has no authenticator key.");
+            authenticatorCode = GenerateAuthenticatorCode(key);
         }
 
         HttpResponseMessage mfaStep = await PostWithAntiforgeryAsync(client, "/api/v1/auth/login/mfa", antiforgery, new
@@ -267,6 +272,42 @@ public sealed class AuthenticationSecurityTests
         HttpRequestMessage request = new(HttpMethod.Post, url) { Content = JsonContent.Create(body) };
         request.Headers.Add("X-CSRF-TOKEN", token);
         return client.SendAsync(request);
+    }
+
+    private static string GenerateAuthenticatorCode(string base32Key)
+    {
+        byte[] key = DecodeBase32(base32Key);
+        Span<byte> counter = stackalloc byte[sizeof(long)];
+        BinaryPrimitives.WriteInt64BigEndian(counter, DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 30);
+#pragma warning disable CA5350 // ASP.NET Core Identity's RFC 6238 authenticator provider uses HMAC-SHA1 by specification.
+        byte[] hash = HMACSHA1.HashData(key, counter);
+#pragma warning restore CA5350
+        int offset = hash[^1] & 0x0f;
+        int value = ((hash[offset] & 0x7f) << 24)
+            | ((hash[offset + 1] & 0xff) << 16)
+            | ((hash[offset + 2] & 0xff) << 8)
+            | (hash[offset + 3] & 0xff);
+        return (value % 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
+    }
+
+    private static byte[] DecodeBase32(string value)
+    {
+        const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        List<byte> bytes = [];
+        int buffer = 0;
+        int bits = 0;
+        foreach (char character in value.TrimEnd('=').ToUpperInvariant())
+        {
+            int digit = alphabet.IndexOf(character, StringComparison.Ordinal);
+            if (digit < 0) throw new FormatException("Authenticator key is not valid Base32.");
+            buffer = (buffer << 5) | digit;
+            bits += 5;
+            if (bits < 8) continue;
+            bits -= 8;
+            bytes.Add((byte)(buffer >> bits));
+            buffer &= (1 << bits) - 1;
+        }
+        return [.. bytes];
     }
 
     private static async Task<ApplicationUser> CreateConfirmedUserAsync(WebApplicationFactory<Program> factory, string email, string password)
