@@ -34,6 +34,9 @@ public sealed class AuthenticationSecurityTests
             .WithWebHostBuilder(webHost =>
             {
                 webHost.UseEnvironment("Development");
+                // AddInfrastructure reads the connection string while Program is registering
+                // services, before late application-configuration callbacks are applied.
+                webHost.UseSetting("ConnectionStrings:flatpackdb", postgres.GetConnectionString());
                 webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:flatpackdb"] = postgres.GetConnectionString(),
