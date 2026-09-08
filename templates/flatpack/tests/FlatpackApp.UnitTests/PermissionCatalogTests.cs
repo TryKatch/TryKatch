@@ -31,6 +31,29 @@ public sealed class PermissionCatalogTests
     }
 
     [TestMethod]
+    public void ModulePermissionsContributeDefaultRoleGrants()
+    {
+        PermissionCatalog catalog = CreateCatalog();
+
+        catalog.GetDefaultsForRole(DefaultOrganizationRoles.Member)
+            .ShouldBe([Permissions.MembersRead, Permissions.RolesRead, Permissions.ProjectsRead, Permissions.ProjectsManage], ignoreOrder: true);
+        catalog.GetDefaultsForRole(DefaultOrganizationRoles.Viewer)
+            .ShouldBe([Permissions.MembersRead, Permissions.RolesRead, Permissions.ProjectsRead], ignoreOrder: true);
+    }
+
+    [TestMethod]
+    public void CatalogRejectsUnknownDefaultRoleKeys()
+    {
+        IPermissionDefinitionProvider provider = new TestProvider([
+            new("things", "Things", "Things module", 1,
+                [new("things.read", "Read things", "Read things.", DefaultRoles: ["super-admin"])])
+        ]);
+
+        Should.Throw<InvalidOperationException>(() => new PermissionCatalog([provider]))
+            .Message.ShouldContain("unknown default role");
+    }
+
+    [TestMethod]
     public async Task RoleManagerCannotGrantPermissionOutsideOwnBoundary()
     {
         PermissionCatalog catalog = CreateCatalog();

@@ -10,15 +10,19 @@ namespace FlatpackApp.Infrastructure.Overview;
 internal sealed class WorkspaceOverviewReader(
     ApplicationDbContext applicationDbContext,
     PlatformDbContext platformDbContext,
-    IUserDirectory users) : IWorkspaceOverviewReader
+    IUserDirectory users,
+    IEnumerable<IWorkspaceOverviewMetricProvider> metricProviders) : IWorkspaceOverviewReader
 {
     public async Task<WorkspaceOverview> GetAsync(Guid organizationId, CancellationToken cancellationToken = default)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
         DateTimeOffset today = new(now.Year, now.Month, now.Day, 0, 0, 0, TimeSpan.Zero);
 
-        int activeProjects = await applicationDbContext.Projects
-            .CountAsync(project => project.OrganizationId == organizationId, cancellationToken);
+        WorkspaceMetric[] moduleMetrics = (await Task.WhenAll(metricProviders
+                .OrderBy(provider => provider.ModuleId, StringComparer.Ordinal)
+                .Select(provider => provider.GetMetricsAsync(organizationId, cancellationToken))))
+            .SelectMany(metrics => metrics)
+            .ToArray();
         int activeMembers = await platformDbContext.Memberships
             .CountAsync(membership => membership.OrganizationId == organizationId
                 && membership.ArchivedAt == null
@@ -67,7 +71,7 @@ internal sealed class WorkspaceOverviewReader(
         }).ToArray();
 
         return new WorkspaceOverview(
-            activeProjects,
+            moduleMetrics,
             activeMembers,
             pendingInvitations,
             activeRoles,

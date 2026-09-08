@@ -3701,7 +3701,8 @@
           "description",
           "requires",
           "optionalDependencies",
-          "capabilities"
+          "capabilities",
+          "extensionPoints"
         ],
         "type": "object",
         "properties": {
@@ -3734,6 +3735,35 @@
             "items": {
               "type": "string"
             }
+          },
+          "extensionPoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleExtensionPointDto"
+            }
+          }
+        }
+      },
+      "ModuleExtensionPointDto": {
+        "required": [
+          "id",
+          "description",
+          "kind",
+          "surface"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "surface": {
+            "type": "string"
           }
         }
       },
@@ -4512,9 +4542,37 @@
           }
         }
       },
+      "WorkspaceMetric": {
+        "required": [
+          "id",
+          "label",
+          "value",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
       "WorkspaceOverview": {
         "required": [
-          "activeProjects",
+          "moduleMetrics",
           "activeMembers",
           "pendingInvitations",
           "activeRoles",
@@ -4524,13 +4582,11 @@
         ],
         "type": "object",
         "properties": {
-          "activeProjects": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
+          "moduleMetrics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceMetric"
+            }
           },
           "activeMembers": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",

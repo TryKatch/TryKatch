@@ -1,6 +1,8 @@
 using FlatpackApp.Application.Authorization;
 using FlatpackApp.Application.Projects;
+using FlatpackApp.Application.Overview;
 using FlatpackApp.Infrastructure.Projects;
+using FlatpackApp.Infrastructure.Persistence;
 using FlatpackApp.Modules;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
@@ -24,12 +26,22 @@ public sealed class ProjectsModule : IFlatpackModule
         Capabilities: FlatpackModuleCapabilities.Api
             | FlatpackModuleCapabilities.Web
             | FlatpackModuleCapabilities.Data
-            | FlatpackModuleCapabilities.BackgroundWork);
+            | FlatpackModuleCapabilities.BackgroundWork,
+        ExtensionPoints:
+        [
+            new(
+                "projects.list.after-table",
+                "Renders module-owned workspace content after the projects table.",
+                FlatpackExtensionPointKind.UiSlot,
+                FlatpackModuleCapabilities.Web)
+        ]);
 
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<ProjectUseCases>();
         services.AddScoped<IProjectStore, ProjectStore>();
+        services.AddSingleton<IApplicationModelContributor, ProjectsModelContributor>();
+        services.AddScoped<IWorkspaceOverviewMetricProvider, ProjectsOverviewMetricProvider>();
         services.AddSingleton<IValidator<CreateProjectCommand>, CreateProjectValidator>();
         services.AddSingleton<IPermissionDefinitionProvider, ProjectPermissionDefinitionProvider>();
     }

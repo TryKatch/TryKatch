@@ -16,6 +16,22 @@ public enum FlatpackModuleCapabilities
     Assistant = 16
 }
 
+public enum FlatpackExtensionPointKind
+{
+    UiSlot,
+    DataTable,
+    Form,
+    Component,
+    Api,
+    Event
+}
+
+public sealed record FlatpackExtensionPointDescriptor(
+    string Id,
+    string Description,
+    FlatpackExtensionPointKind Kind,
+    FlatpackModuleCapabilities Surface);
+
 public sealed record FlatpackModuleDescriptor(
     string Id,
     string Name,
@@ -23,7 +39,8 @@ public sealed record FlatpackModuleDescriptor(
     string Description,
     IReadOnlyList<string> Requires,
     IReadOnlyList<string> OptionalDependencies,
-    FlatpackModuleCapabilities Capabilities);
+    FlatpackModuleCapabilities Capabilities,
+    IReadOnlyList<FlatpackExtensionPointDescriptor> ExtensionPoints);
 
 /// <summary>
 /// The stable install-time seam for a Flatpack module. Implementations own their
@@ -35,6 +52,13 @@ public interface IFlatpackModule
     void Register(IServiceCollection services, IConfiguration configuration);
 }
 
+/// <summary>Associates a host-discovered type with the module that owns its activation.</summary>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+public sealed class FlatpackModuleAttribute(string moduleId) : Attribute
+{
+    public string ModuleId { get; } = moduleId;
+}
+
 public sealed class FlatpackModuleCatalog
 {
     private static readonly Regex StableId = new(
@@ -43,6 +67,10 @@ public sealed class FlatpackModuleCatalog
 
     private static readonly Regex StableVersion = new(
         "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
+    private static readonly Regex StableContractId = new(
+        "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
         RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
 
     public FlatpackModuleCatalog(IEnumerable<IFlatpackModule> modules)
@@ -98,7 +126,26 @@ public sealed class FlatpackModuleCatalog
             if (descriptor.Requires.Contains(descriptor.Id, StringComparer.Ordinal)
                 || descriptor.OptionalDependencies.Contains(descriptor.Id, StringComparer.Ordinal))
                 throw new InvalidOperationException($"Flatpack module '{descriptor.Id}' cannot depend on itself.");
+
+            EnsureUnique(descriptor.ExtensionPoints.Select(point => point.Id), descriptor.Id, "extension point");
+            foreach (FlatpackExtensionPointDescriptor point in descriptor.ExtensionPoints)
+            {
+                if (point.Id.Length > 120 || !StableContractId.IsMatch(point.Id))
+                    throw new InvalidOperationException($"Flatpack module '{descriptor.Id}' declares invalid extension point id '{point.Id}'.");
+                if (string.IsNullOrWhiteSpace(point.Description))
+                    throw new InvalidOperationException($"Flatpack extension point '{point.Id}' requires a description.");
+                if (point.Surface == FlatpackModuleCapabilities.None
+                    || (descriptor.Capabilities & point.Surface) != point.Surface)
+                    throw new InvalidOperationException($"Flatpack extension point '{point.Id}' uses a surface not provided by module '{descriptor.Id}'.");
+            }
         }
+
+        string? duplicatePoint = modules
+            .SelectMany(module => module.Descriptor.ExtensionPoints)
+            .GroupBy(point => point.Id, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicatePoint is not null)
+            throw new InvalidOperationException($"Duplicate Flatpack extension point id '{duplicatePoint}'.");
     }
 
     private static void ValidateDependencies(IReadOnlyDictionary<string, IFlatpackModule> modules)

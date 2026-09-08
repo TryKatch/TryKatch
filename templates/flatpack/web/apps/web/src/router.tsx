@@ -6,6 +6,7 @@ import { LoginPage } from './views/LoginPage'
 import { ForgotPasswordPage } from './views/ForgotPasswordPage'
 import { ResetPasswordPage } from './views/ResetPasswordPage'
 import { workspaceModules } from './modules'
+import { FlatpackModuleProvider } from './module-system/ModuleExtensionSlot'
 
 const pages = () => import('./views/Pages')
 const DashboardPage = lazy(() => pages().then((module) => ({ default: module.DashboardPage })))
@@ -26,7 +27,7 @@ function withSuspense(Page: ElementType) {
   }
 }
 
-const rootRoute = createRootRoute({ component: () => <Outlet /> })
+const rootRoute = createRootRoute({ component: () => <FlatpackModuleProvider catalog={workspaceModules}><Outlet /></FlatpackModuleProvider> })
 const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login', component: LoginPage })
 const forgotPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/forgot-password', component: ForgotPasswordPage })
 const resetPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/reset-password', component: ResetPasswordPage })

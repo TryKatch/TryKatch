@@ -5,10 +5,10 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { WorkspaceActivity } from './workspaceActivity';
+import type { WorkspaceMetric } from './workspaceMetric';
 
 export interface WorkspaceOverview {
-  /** @pattern ^-?(?:0|[1-9]\d*)$ */
-  activeProjects: number | string;
+  moduleMetrics: WorkspaceMetric[];
   /** @pattern ^-?(?:0|[1-9]\d*)$ */
   activeMembers: number | string;
   /** @pattern ^-?(?:0|[1-9]\d*)$ */

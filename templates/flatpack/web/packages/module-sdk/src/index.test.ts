@@ -13,6 +13,8 @@ function module(id: string, requires: readonly string[] = []): FlatpackWebModule
     optionalDependencies: [],
     routes: [{ id: `${id}.home`, path: `/${id}`, component: Empty }],
     navigation: [],
+    extensionPoints: [],
+    extensions: [],
   })
 }
 
@@ -40,5 +42,39 @@ describe('FlatpackWebModuleCatalog', () => {
     const reporting = { ...module('reporting'), optionalDependencies: ['projects'] }
     expect(new FlatpackWebModuleCatalog([reporting]).modules.map((item) => item.id)).toEqual(['reporting'])
     expect(new FlatpackWebModuleCatalog([reporting, module('projects')]).modules.map((item) => item.id)).toEqual(['projects', 'reporting'])
+  })
+
+  it('rejects an extension targeting an undeclared host', () => {
+    const invalid = {
+      ...module('reporting'),
+      extensions: [{ id: 'reporting.summary', point: 'dashboard.summary.after', order: 10, component: Empty }],
+    }
+    expect(() => new FlatpackWebModuleCatalog([invalid])).toThrow("targets unknown point 'dashboard.summary.after'")
+  })
+
+  it('orders named extension contributions deterministically', () => {
+    const host = {
+      ...module('host'),
+      extensionPoints: [{ id: 'host.page.actions', description: 'Page actions', kind: 'ui-slot' as const }],
+    }
+    const contributor = {
+      ...module('contributor', ['host']),
+      extensions: [
+        { id: 'contributor.secondary-action', point: 'host.page.actions', order: 20, component: Empty },
+        { id: 'contributor.primary-action', point: 'host.page.actions', order: 10, requiredPermission: 'things.manage', component: Empty },
+      ],
+    }
+
+    const catalog = new FlatpackWebModuleCatalog([contributor, host])
+
+    expect(catalog.extensionsFor('host.page.actions').map((extension) => extension.id))
+      .toEqual(['contributor.primary-action', 'contributor.secondary-action'])
+  })
+
+  it('applies explicit overrides and rejects unknown targets', () => {
+    const projects = module('projects')
+    const hidden = new FlatpackWebModuleCatalog([projects], { routes: { 'projects.home': null } })
+    expect(hidden.routes).toEqual([])
+    expect(() => new FlatpackWebModuleCatalog([projects], { routes: { 'unknown.route': null } })).toThrow("unknown Flatpack route 'unknown.route'")
   })
 })

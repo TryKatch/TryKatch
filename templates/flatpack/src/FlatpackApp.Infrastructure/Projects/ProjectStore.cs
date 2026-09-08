@@ -10,7 +10,7 @@ internal sealed class ProjectStore(ApplicationDbContext dbContext) : IProjectSto
 {
     public async Task<PagedResult<Project>> ListAsync(Guid organizationId, int page, int pageSize, string? search, RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
     {
-        IQueryable<Project> query = dbContext.Projects
+        IQueryable<Project> query = dbContext.Set<Project>()
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(x => x.OrganizationId == organizationId)
@@ -36,10 +36,10 @@ internal sealed class ProjectStore(ApplicationDbContext dbContext) : IProjectSto
     }
 
     public Task<Project?> FindAsync(Guid organizationId, Guid projectId, CancellationToken cancellationToken) =>
-        dbContext.Projects.IgnoreQueryFilters().SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == projectId, cancellationToken);
+        dbContext.Set<Project>().IgnoreQueryFilters().SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == projectId, cancellationToken);
 
     public async Task AddAsync(Project project, CancellationToken cancellationToken) =>
-        await dbContext.Projects.AddAsync(project, cancellationToken);
+        await dbContext.Set<Project>().AddAsync(project, cancellationToken);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

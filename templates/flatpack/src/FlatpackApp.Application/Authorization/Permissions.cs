@@ -29,12 +29,33 @@ public static class Permissions
     }.ToFrozenSet(StringComparer.Ordinal);
 }
 
+/// <summary>
+/// Stable role keys used only for module-owned default grants during organization setup.
+/// Runtime authorization continues to evaluate permission keys, never role names.
+/// </summary>
+public static class DefaultOrganizationRoles
+{
+    public const string Owner = "owner";
+    public const string Admin = "admin";
+    public const string Member = "member";
+    public const string Viewer = "viewer";
+
+    public static readonly IReadOnlySet<string> All = new[]
+    {
+        Owner,
+        Admin,
+        Member,
+        Viewer
+    }.ToFrozenSet(StringComparer.Ordinal);
+}
+
 public sealed record PermissionDefinition(
     string Key,
     string Name,
     string Description,
     bool IsSensitive = false,
-    int Order = 0);
+    int Order = 0,
+    IReadOnlyList<string>? DefaultRoles = null);
 
 public sealed record PermissionModuleDefinition(
     string Key,
@@ -58,6 +79,7 @@ public interface IPermissionCatalog
     IReadOnlyList<PermissionModuleDefinition> Modules { get; }
     IReadOnlySet<string> Keys { get; }
     bool Contains(string permission);
+    IReadOnlySet<string> GetDefaultsForRole(string roleKey);
 }
 
 public sealed class PermissionCatalog : IPermissionCatalog
@@ -100,6 +122,10 @@ public sealed class PermissionCatalog : IPermissionCatalog
                 throw new InvalidOperationException($"Permission '{permission.Key}' must use a stable lower-case resource.action key no longer than 120 characters.");
             if (string.IsNullOrWhiteSpace(permission.Name) || string.IsNullOrWhiteSpace(permission.Description))
                 throw new InvalidOperationException($"Permission '{permission.Key}' requires user-facing metadata.");
+
+            string? unknownRole = permission.DefaultRoles?.FirstOrDefault(role => !DefaultOrganizationRoles.All.Contains(role));
+            if (unknownRole is not null)
+                throw new InvalidOperationException($"Permission '{permission.Key}' declares unknown default role '{unknownRole}'.");
         }
 
         Modules = modules;
@@ -109,6 +135,17 @@ public sealed class PermissionCatalog : IPermissionCatalog
     public IReadOnlyList<PermissionModuleDefinition> Modules { get; }
     public IReadOnlySet<string> Keys { get; }
     public bool Contains(string permission) => Keys.Contains(permission);
+    public IReadOnlySet<string> GetDefaultsForRole(string roleKey)
+    {
+        if (!DefaultOrganizationRoles.All.Contains(roleKey))
+            throw new ArgumentOutOfRangeException(nameof(roleKey), roleKey, "Unknown organization role key.");
+
+        return Modules
+            .SelectMany(module => module.Permissions)
+            .Where(permission => permission.DefaultRoles?.Contains(roleKey, StringComparer.Ordinal) == true)
+            .Select(permission => permission.Key)
+            .ToFrozenSet(StringComparer.Ordinal);
+    }
 
     private static void EnsureUnique(IEnumerable<string> values, string subject)
     {
@@ -126,19 +163,25 @@ public sealed class BuiltInPermissionDefinitionProvider : IPermissionDefinitionP
     [
         new("organization", "Organization", "Workspace identity, settings, and lifecycle.", 10,
         [
-            new(Permissions.OrganizationsRead, "View organization", "View organization details and configuration.", Order: 10),
+            new(Permissions.OrganizationsRead, "View organization", "View organization details and configuration.", Order: 10,
+                DefaultRoles: [DefaultOrganizationRoles.Admin]),
             new(Permissions.OrganizationsManage, "Manage organization", "Change organization settings and lifecycle.", IsSensitive: true, Order: 20)
         ]),
         new("people", "People and access", "Memberships, invitations, roles, and access policy.", 20,
         [
-            new(Permissions.MembersRead, "View people", "View members, invitations, and their assigned roles.", Order: 10),
-            new(Permissions.MembersManage, "Manage people", "Invite, edit, suspend, archive, restore, and request deletion of organization access.", IsSensitive: true, Order: 20),
-            new(Permissions.RolesRead, "View roles", "View system and custom role definitions.", Order: 30),
-            new(Permissions.RolesManage, "Manage roles", "Create, change, archive, restore, and request deletion of custom roles and permission grants.", IsSensitive: true, Order: 40)
+            new(Permissions.MembersRead, "View people", "View members, invitations, and their assigned roles.", Order: 10,
+                DefaultRoles: [DefaultOrganizationRoles.Admin, DefaultOrganizationRoles.Member, DefaultOrganizationRoles.Viewer]),
+            new(Permissions.MembersManage, "Manage people", "Invite, edit, suspend, archive, restore, and request deletion of organization access.", IsSensitive: true, Order: 20,
+                DefaultRoles: [DefaultOrganizationRoles.Admin]),
+            new(Permissions.RolesRead, "View roles", "View system and custom role definitions.", Order: 30,
+                DefaultRoles: [DefaultOrganizationRoles.Admin, DefaultOrganizationRoles.Member, DefaultOrganizationRoles.Viewer]),
+            new(Permissions.RolesManage, "Manage roles", "Create, change, archive, restore, and request deletion of custom roles and permission grants.", IsSensitive: true, Order: 40,
+                DefaultRoles: [DefaultOrganizationRoles.Admin])
         ]),
         new("security", "Security and audit", "Security activity and accountability records.", 40,
         [
-            new(Permissions.AuditRead, "View audit activity", "View security-sensitive actions and their actors.", IsSensitive: true, Order: 10)
+            new(Permissions.AuditRead, "View audit activity", "View security-sensitive actions and their actors.", IsSensitive: true, Order: 10,
+                DefaultRoles: [DefaultOrganizationRoles.Admin])
         ])
     ];
 

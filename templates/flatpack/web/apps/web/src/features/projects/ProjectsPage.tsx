@@ -4,6 +4,7 @@ import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Skeleton
 import { Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { formatRecordDate, LifecycleBadge, RecordDetailsDialog, type RecordLifecycle } from '../../components/RecordLifecycle'
+import { ModuleExtensionSlot } from '../../module-system/ModuleExtensionSlot'
 
 interface Project { id: string; name: string; description: string; createdAt: string; updatedAt?: string; lifecycle: RecordLifecycle }
 interface ProjectPage { items: Project[]; page: number; pageSize: number; totalCount: number }
@@ -50,6 +51,7 @@ export function ProjectsPage() {
     <PageHeader eyebrow="Application" title="Projects" description="Create, manage, archive, and recover organization-scoped projects." actions={<Button variant="primary" onClick={openCreate}><Plus size={14} /> New project</Button>} />
     <Surface className="collection">
       {query.isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div> : query.isError ? <EmptyState title="Projects could not be loaded" description={query.error.message} action={<Button onClick={() => query.refetch()}>Try again</Button>} /> : <DataTable ariaLabel="Projects" data={query.data?.items ?? []} columns={columns} getRowId={(project) => project.id} searchPlaceholder="Search projects…" initialSort={{ id: 'created', direction: 'desc' }} empty={<EmptyState title="No projects" description="Create the first project to exercise organization-scoped RLS." action={<Button variant="primary" onClick={openCreate}>Create project</Button>} />} />}
+      <ModuleExtensionSlot point="projects.list.after-table" context={{ resultCount: query.data?.items.length ?? 0 }} />
     </Surface>
     <Dialog open={editing !== undefined} onOpenChange={(open) => !open && setEditing(undefined)} title={editing ? 'Edit project' : 'Create project'} description="Changes are authorized in the application layer and isolated by PostgreSQL RLS.">
       <form className="dialog-form" onSubmit={submit}>

@@ -22,7 +22,12 @@ public sealed class ModulesController(FlatpackModuleCatalog catalog) : Controlle
             Enum.GetValues<FlatpackModuleCapabilities>()
                 .Where(capability => capability != FlatpackModuleCapabilities.None && descriptor.Capabilities.HasFlag(capability))
                 .Select(capability => capability.ToString())
-                .ToArray())).ToArray();
+                .ToArray(),
+            descriptor.ExtensionPoints.Select(point => new ModuleExtensionPointDto(
+                point.Id,
+                point.Description,
+                point.Kind.ToString(),
+                point.Surface.ToString())).ToArray())).ToArray();
 
         return Ok(modules);
     }
@@ -35,4 +40,11 @@ public sealed record ModuleDto(
     string Description,
     IReadOnlyList<string> Requires,
     IReadOnlyList<string> OptionalDependencies,
-    IReadOnlyList<string> Capabilities);
+    IReadOnlyList<string> Capabilities,
+    IReadOnlyList<ModuleExtensionPointDto> ExtensionPoints);
+
+public sealed record ModuleExtensionPointDto(
+    string Id,
+    string Description,
+    string Kind,
+    string Surface);

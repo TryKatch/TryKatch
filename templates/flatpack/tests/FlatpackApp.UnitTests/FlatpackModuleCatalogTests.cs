@@ -53,6 +53,21 @@ public sealed class FlatpackModuleCatalogTests
     }
 
     [TestMethod]
+    public void CatalogRejectsDuplicateExtensionPointHosts()
+    {
+        FlatpackExtensionPointDescriptor point = new(
+            "workspace.summary.after",
+            "Test host.",
+            FlatpackExtensionPointKind.UiSlot,
+            FlatpackModuleCapabilities.Web);
+
+        Should.Throw<InvalidOperationException>(() => new FlatpackModuleCatalog([
+            Module("projects", extensionPoints: [point]),
+            Module("reporting", extensionPoints: [point])
+        ])).Message.ShouldContain("Duplicate Flatpack extension point id");
+    }
+
+    [TestMethod]
     public void ProjectsModuleRegistersItsApplicationAndPermissionContributions()
     {
         ServiceCollection services = new();
@@ -68,7 +83,8 @@ public sealed class FlatpackModuleCatalogTests
     private static StubModule Module(
         string id,
         IReadOnlyList<string>? requires = null,
-        IReadOnlyList<string>? optionalDependencies = null) =>
+        IReadOnlyList<string>? optionalDependencies = null,
+        IReadOnlyList<FlatpackExtensionPointDescriptor>? extensionPoints = null) =>
         new StubModule(new FlatpackModuleDescriptor(
             id,
             id,
@@ -76,7 +92,8 @@ public sealed class FlatpackModuleCatalogTests
             $"{id} test module.",
             requires ?? [],
             optionalDependencies ?? [],
-            FlatpackModuleCapabilities.Api));
+            FlatpackModuleCapabilities.Api | FlatpackModuleCapabilities.Web,
+            extensionPoints ?? []));
 
     private sealed class StubModule(FlatpackModuleDescriptor descriptor) : IFlatpackModule
     {

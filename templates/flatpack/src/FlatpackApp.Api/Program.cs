@@ -39,12 +39,13 @@ builder.Host.UseSerilog((context, services, logging) =>
 builder.AddServiceDefaults();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddFlatpackModules(builder.Configuration, EnabledModules.All);
+FlatpackModuleCatalog moduleCatalog = builder.Services.AddFlatpackModules(builder.Configuration, EnabledModules.All);
 builder.Services.AddFlatpackIdentity(builder.Configuration, builder.Environment.IsDevelopment(), isOpenApiGeneration);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
 builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
-builder.Services.AddControllers();
+builder.Services.AddControllers().ConfigureApplicationPartManager(parts =>
+    parts.FeatureProviders.Add(new FlatpackModuleControllerFeatureProvider(moduleCatalog.ModuleIds)));
 builder.Services.AddOpenApi();
 builder.Services.AddAntiforgery(options =>
 {

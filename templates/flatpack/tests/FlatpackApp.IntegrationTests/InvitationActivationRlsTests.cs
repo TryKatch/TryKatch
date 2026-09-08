@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FlatpackApp.Identity;
 using FlatpackApp.Infrastructure.Persistence;
+using FlatpackApp.Infrastructure.Projects;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -109,7 +110,9 @@ public sealed class InvitationActivationRlsTests
         await identity.Database.MigrateAsync();
         await using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(connectionString).Options);
         await platform.Database.MigrateAsync();
-        await using ApplicationDbContext application = new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options);
+        await using ApplicationDbContext application = new(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options,
+            [new ProjectsModelContributor()]);
         await application.Database.MigrateAsync();
     }
 

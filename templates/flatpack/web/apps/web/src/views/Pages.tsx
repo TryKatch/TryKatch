@@ -24,7 +24,8 @@ interface PlatformRole { key: string; name: string; description: string; order: 
 interface PlatformAccessGrant { user: PlatformUser; activationToken?: string }
 interface PlatformSession { userId: string; email?: string; isPlatformAdministrator?: boolean; platformPermissions?: string[] }
 interface WorkspaceActivity { action: string; title: string; targetDisplayName: string; actorDisplayName: string; occurredAt: string }
-interface WorkspaceOverview { activeProjects: number; activeMembers: number; pendingInvitations: number; activeRoles: number; membersWithAccess: number; eventsToday: number; recentActivity: WorkspaceActivity[] }
+interface WorkspaceMetric { id: string; label: string; value: number; note: string }
+interface WorkspaceOverview { moduleMetrics: WorkspaceMetric[]; activeMembers: number; pendingInvitations: number; activeRoles: number; membersWithAccess: number; eventsToday: number; recentActivity: WorkspaceActivity[] }
 
 const platformCapabilityLabels: Record<string, string> = {
   dashboard: 'Platform overview',
@@ -71,7 +72,7 @@ export function DashboardPage() {
   const data = overview.data
   const accessCoverage = data?.activeMembers ? Math.round((data.membersWithAccess / data.activeMembers) * 100) : 100
   const stats = [
-    { label: 'Projects', value: data?.activeProjects ?? 0, note: 'Active records', icon: FolderKanban },
+    ...(data?.moduleMetrics ?? []).map((metric) => ({ ...metric, icon: FolderKanban })),
     { label: 'Members', value: data?.activeMembers ?? 0, note: `${data?.pendingInvitations ?? 0} pending invitation${data?.pendingInvitations === 1 ? '' : 's'}`, icon: Users },
     { label: 'Access coverage', value: `${accessCoverage}%`, note: `${data?.activeRoles ?? 0} active access level${data?.activeRoles === 1 ? '' : 's'}`, icon: ShieldCheck },
     { label: 'Events today', value: data?.eventsToday ?? 0, note: 'Recorded audit events', icon: Activity },

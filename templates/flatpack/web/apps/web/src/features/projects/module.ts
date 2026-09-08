@@ -17,4 +17,12 @@ export const projectsModule = defineFlatpackWebModule({
   navigation: [
     { id: 'projects.navigation', section: 'Workspace', order: 20, to: '/projects', label: 'Projects', icon: FolderKanban },
   ],
+  extensionPoints: [
+    {
+      id: 'projects.list.after-table',
+      description: 'Renders module-owned workspace content after the projects table.',
+      kind: 'ui-slot',
+    },
+  ],
+  extensions: [],
 })

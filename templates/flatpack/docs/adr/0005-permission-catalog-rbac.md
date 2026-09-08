@@ -16,7 +16,7 @@ Primary guidance supports stable permission identifiers, least-privilege role bu
 
 ## Decision
 
-Permissions are immutable, code-defined capabilities. Each bounded application module explicitly registers an `IPermissionDefinitionProvider` containing stable keys and user-facing metadata. A singleton `IPermissionCatalog` aggregates providers and fails startup on duplicate keys, invalid key grammar, empty modules, or missing metadata.
+Permissions are immutable, code-defined capabilities. Each bounded application module explicitly registers an `IPermissionDefinitionProvider` containing stable keys, user-facing metadata, and optional default grants for the standard organization roles. A singleton `IPermissionCatalog` aggregates providers and fails startup on duplicate keys, invalid key grammar, unknown default-role keys, empty modules, or missing metadata. Organization setup consumes the aggregate defaults, so the directory does not know which permissions belong to optional modules. Authorization still evaluates permissions rather than role names.
 
 Organization-owned custom roles remain database records containing permission keys. The catalog is not copied into a permissions table. The API publishes the catalog with a per-request `canGrant` boundary, and React renders that contract dynamically.
 
@@ -39,4 +39,3 @@ System roles remain immutable. Permission keys are never localized, wildcarded, 
 - Role managers cannot assign Owner-equivalent authority unless they already hold every permission in that role.
 - Roles can evolve without a database schema migration because grants remain stable strings.
 - Removing or changing a permission requires an explicit migration strategy; keys must never be silently reinterpreted.
-

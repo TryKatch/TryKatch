@@ -4,6 +4,7 @@
  * FlatpackApp.Api | v1
  * OpenAPI spec version: 1.0.0
  */
+import type { ModuleExtensionPointDto } from './moduleExtensionPointDto';
 
 export interface ModuleDto {
   id: string;
@@ -13,4 +14,5 @@ export interface ModuleDto {
   requires: string[];
   optionalDependencies: string[];
   capabilities: string[];
+  extensionPoints: ModuleExtensionPointDto[];
 }

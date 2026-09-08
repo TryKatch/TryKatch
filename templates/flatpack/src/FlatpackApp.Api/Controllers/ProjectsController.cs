@@ -2,6 +2,7 @@ using FlatpackApp.Application.Authorization;
 using FlatpackApp.Application.Common;
 using FlatpackApp.Application.Projects;
 using FlatpackApp.Api.Security;
+using FlatpackApp.Modules;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,6 +10,7 @@ namespace FlatpackApp.Api.Controllers;
 
 [ApiController]
 [Authorize]
+[FlatpackModule("projects")]
 [OrganizationScoped]
 [Route("api/v1/projects")]
 public sealed class ProjectsController(ProjectUseCases projects) : ControllerBase

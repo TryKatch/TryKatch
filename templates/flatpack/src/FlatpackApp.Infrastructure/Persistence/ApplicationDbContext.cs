@@ -1,27 +1,40 @@
 using FlatpackApp.Domain.Organizations;
-using FlatpackApp.Domain.Projects;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace FlatpackApp.Infrastructure.Persistence;
 
-public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
+public sealed class ApplicationDbContext(
+    DbContextOptions<ApplicationDbContext> options,
+    IEnumerable<IApplicationModelContributor> modelContributors) : DbContext(options)
 {
-    public DbSet<Project> Projects => Set<Project>();
+    private readonly IApplicationModelContributor[] contributors = modelContributors
+        .OrderBy(contributor => contributor.ModuleId, StringComparer.Ordinal)
+        .ToArray();
+
+    internal string ModelCompositionKey => string.Join('|', contributors.Select(contributor => contributor.ModuleId));
+
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+        : this(options, [])
+    {
+    }
+
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
+        optionsBuilder.ReplaceService<IModelCacheKeyFactory, ApplicationModelCacheKeyFactory>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Project>(entity =>
-        {
-            entity.ToTable("projects", "app");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.Name).HasMaxLength(120);
-            entity.Property(x => x.Description).HasMaxLength(2000);
-            entity.HasIndex(x => new { x.OrganizationId, x.Name });
-            entity.Property(x => x.DeletionReason).HasMaxLength(500);
-            entity.HasQueryFilter(x => x.ArchivedAt == null && x.DeletedAt == null);
-        });
+        string? duplicateModule = contributors
+            .GroupBy(contributor => contributor.ModuleId, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicateModule is not null)
+            throw new InvalidOperationException($"Duplicate application model contributor for module '{duplicateModule}'.");
+
+        foreach (IApplicationModelContributor contributor in contributors)
+            contributor.Configure(modelBuilder);
 
         modelBuilder.Entity<AuditEntry>(entity =>
         {
