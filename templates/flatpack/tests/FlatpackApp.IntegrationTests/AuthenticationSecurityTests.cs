@@ -117,12 +117,14 @@ public sealed class AuthenticationSecurityTests
     {
         const string email = "mfa@flatpack.test";
         const string password = "Local-only!Multi-Factor-Password-42";
-        ApplicationUser user = await CreateConfirmedUserAsync(factory, email, password);
+        ApplicationUser createdUser = await CreateConfirmedUserAsync(factory, email, password);
         string authenticatorCode;
         string recoveryCode;
         using (IServiceScope scope = factory.Services.CreateScope())
         {
             UserManager<ApplicationUser> users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser user = await users.FindByIdAsync(createdUser.Id.ToString())
+                ?? throw new InvalidOperationException("The MFA test identity was not persisted.");
             (await users.ResetAuthenticatorKeyAsync(user)).Succeeded.ShouldBeTrue();
             (await users.SetTwoFactorEnabledAsync(user, true)).Succeeded.ShouldBeTrue();
             authenticatorCode = await users.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider);
