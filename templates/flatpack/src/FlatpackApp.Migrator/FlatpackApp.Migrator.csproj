@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../FlatpackApp.Identity/FlatpackApp.Identity.csproj" />
+    <ProjectReference Include="../FlatpackApp.Infrastructure/FlatpackApp.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

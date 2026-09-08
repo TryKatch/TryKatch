@@ -11,10 +11,15 @@ IResourceBuilder<ContainerResource> collector = builder
     .WithHttpEndpoint(targetPort: 4318, name: "otlp-http")
     .WithHttpEndpoint(targetPort: 8889, name: "prometheus");
 
+IResourceBuilder<ProjectResource> migrator = builder
+    .AddProject<Projects.TemplateProjectIdentifier_Migrator>("migrator")
+    .WithReference(database)
+    .WaitFor(database);
+
 IResourceBuilder<ProjectResource> api = builder
     .AddProject<Projects.TemplateProjectIdentifier_Api>("api")
     .WithReference(database)
-    .WaitFor(database)
+    .WaitForCompletion(migrator)
     .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", collector.GetEndpoint("otlp-http"));
 
 #if FLATPACK_EMAIL

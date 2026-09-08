@@ -1,6 +1,22 @@
 name: flatpack-app-slug
 
 services:
+  migrator:
+    build:
+      context: .
+      dockerfile: src/FlatpackApp.Migrator/Dockerfile
+    environment:
+      ConnectionStrings__flatpackdb: ${FLATPACK_MIGRATOR_CONNECTION}
+      Database__RuntimeRole: flatpack_runtime
+      Database__RuntimePassword: ${FLATPACK_RUNTIME_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
   api:
     build:
       context: .
@@ -11,8 +27,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
       otel-collector:
         condition: service_started
     read_only: true

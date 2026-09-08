@@ -33,7 +33,7 @@ test ! -e "$test_root/Acme.Tools.Portal/compose.backend.yml"
 test ! -e "$test_root/Acme.Tools.Portal/README.backend.md"
 test -f "$test_root/Acme.Tools.Portal/compose.yml"
 test -f "$test_root/Acme.Tools.Portal/README.md"
-rg -q 'ports: \["8080:8080"\]' "$test_root/Acme.Tools.Portal/compose.yml"
+grep -Fq 'ports: ["8080:8080"]' "$test_root/Acme.Tools.Portal/compose.yml"
 generate_and_build Email.Sample --ui none --email
 generate_and_build Storage.Sample --ui none --storage
 generate_and_build Documents.Sample --ui none --documents

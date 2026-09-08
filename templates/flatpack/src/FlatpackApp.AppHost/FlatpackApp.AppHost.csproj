@@ -13,5 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../FlatpackApp.Api/FlatpackApp.Api.csproj" AspireProjectMetadataTypeName="TemplateProjectIdentifier_Api" />
+    <ProjectReference Include="../FlatpackApp.Migrator/FlatpackApp.Migrator.csproj" AspireProjectMetadataTypeName="TemplateProjectIdentifier_Migrator" />
   </ItemGroup>
 </Project>

@@ -15,7 +15,7 @@ pnpm --dir web install --frozen-lockfile
 dotnet run --project src/FlatpackApp.AppHost
 ```
 
-Before the first API run, apply the migrations with the migrator role as described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
+AppHost runs the one-shot `Migrator` project before the API. Production Compose also waits for it and gives the API a separate runtime credential. The role setup and deployment contract are described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 
 ## Architecture
 
@@ -23,6 +23,7 @@ Before the first API run, apply the migrations with the migrator role as describ
 - `Application` contains focused use cases, validation, permissions, and outbound interfaces.
 - `Infrastructure` owns EF Core, PostgreSQL RLS, auditing, the transactional outbox, and selected adapters.
 - `Identity` owns ASP.NET Core Identity, OpenIddict, MFA primitives, session cookies, and data-protection keys.
+- `Migrator` applies ordered schema migrations and provisions the non-owner runtime database role.
 - `Api` owns controllers, HTTP contracts, BFF endpoints, middleware, and composition.
 - `ServiceDefaults` owns OpenTelemetry, health, discovery, and resilient HTTP defaults.
 - `AppHost` orchestrates development and tests only.

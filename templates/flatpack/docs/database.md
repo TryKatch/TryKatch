@@ -2,31 +2,32 @@
 
 Flatpack uses one PostgreSQL database, three schemas, and two operational roles. The migration role owns schema objects. The runtime role can read and write only the required tables and must never receive `BYPASSRLS` or ownership.
 
-Create roles outside application startup, with passwords supplied by your secret manager:
+Create the migration owner outside application startup, with its password supplied by your secret manager:
 
 ```sql
 CREATE ROLE flatpack_migrator LOGIN NOINHERIT NOBYPASSRLS PASSWORD '<secret>';
-CREATE ROLE flatpack_runtime LOGIN NOINHERIT NOBYPASSRLS PASSWORD '<secret>';
 CREATE DATABASE flatpack OWNER flatpack_migrator;
 ```
 
-Apply all three EF Core migration sets using the migrator connection:
+Run the dedicated one-shot migrator with the owner connection. It applies all three migration sets, creates or rotates the runtime role, grants only data access, and verifies that the runtime role is neither a superuser nor able to bypass RLS:
 
 ```bash
-dotnet tool restore
-dotnet ef database update --context PlatformDbContext --project src/FlatpackApp.Infrastructure --startup-project src/FlatpackApp.Api
-dotnet ef database update --context IdentityDbContext --project src/FlatpackApp.Identity --startup-project src/FlatpackApp.Api
-dotnet ef database update --context ApplicationDbContext --project src/FlatpackApp.Infrastructure --startup-project src/FlatpackApp.Api
+ConnectionStrings__flatpackdb='<migrator connection>' \
+Database__RuntimeRole='flatpack_runtime' \
+Database__RuntimePassword='<different 24+ character secret>' \
+dotnet run --project src/FlatpackApp.Migrator
 ```
 
-Then grant runtime access as the migration owner:
+Production Compose runs this migrator to completion before starting the API. The API receives only `FLATPACK_RUNTIME_CONNECTION`; never expose `FLATPACK_MIGRATOR_CONNECTION` to the API service. Applying migrations during an API replica's startup is deliberately unsupported because concurrent replicas make ownership and rollout ordering ambiguous.
+
+For break-glass manual recovery, the migrator performs the equivalent of:
 
 ```sql
 GRANT CONNECT ON DATABASE flatpack TO flatpack_runtime;
 GRANT USAGE ON SCHEMA identity, platform, app TO flatpack_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity, platform, app TO flatpack_runtime;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA identity, platform, app TO flatpack_runtime;
-ALTER DEFAULT PRIVILEGES FOR ROLE flatpack_migrator IN SCHEMA identity, platform, app
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity, platform, app TO flatpack_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA identity, platform, app
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO flatpack_runtime;
 ```
 
