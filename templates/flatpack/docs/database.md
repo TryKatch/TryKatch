@@ -9,6 +9,8 @@ CREATE ROLE flatpack_migrator LOGIN NOINHERIT NOBYPASSRLS PASSWORD '<secret>';
 CREATE DATABASE flatpack OWNER flatpack_migrator;
 ```
 
+The bundled Compose stack uses the official PostgreSQL bootstrap administrator only on first initialization. Its init script creates `flatpack_migrator` as a non-superuser and transfers database ownership. Keep `FLATPACK_POSTGRES_ADMIN_PASSWORD`, `FLATPACK_MIGRATOR_PASSWORD`, and `FLATPACK_RUNTIME_PASSWORD` distinct. Managed production databases should provision the migration owner through their normal infrastructure workflow instead.
+
 Run the dedicated one-shot migrator with the owner connection. It applies all three migration sets, creates or rotates the runtime role, grants only data access, and verifies that the runtime role is neither a superuser nor able to bypass RLS:
 
 ```bash

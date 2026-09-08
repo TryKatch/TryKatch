@@ -46,6 +46,7 @@ jobs:
       - run: docker compose -f templates/flatpack/compose.yml config --quiet
       - run: docker build -f templates/flatpack/src/FlatpackApp.Api/Dockerfile templates/flatpack
       - run: docker build -f templates/flatpack/web/apps/web/Dockerfile templates/flatpack
+      - run: bash scripts/test-migrator.sh
       - run: bash scripts/test-template.sh
       - uses: anchore/sbom-action@v0.24.0
         with:
