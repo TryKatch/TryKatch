@@ -19,8 +19,10 @@ public sealed class OrganizationTransactionMiddleware(RequestDelegate next)
             return;
         }
 
+        if (platformDbContext.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Organization data requires an actor-scoped platform transaction.");
+
         await using IDbContextTransaction applicationTransaction = await applicationDbContext.Database.BeginTransactionAsync(context.RequestAborted);
-        await using IDbContextTransaction platformTransaction = await platformDbContext.Database.BeginTransactionAsync(context.RequestAborted);
         string organizationId = organization.OrganizationId.ToString();
         string actorId = organization.ActorId.ToString();
         await applicationDbContext.Database.ExecuteSqlInterpolatedAsync(
@@ -33,7 +35,6 @@ public sealed class OrganizationTransactionMiddleware(RequestDelegate next)
         if (context.Response.StatusCode < StatusCodes.Status500InternalServerError)
         {
             await applicationTransaction.CommitAsync(context.RequestAborted);
-            await platformTransaction.CommitAsync(context.RequestAborted);
         }
     }
 }

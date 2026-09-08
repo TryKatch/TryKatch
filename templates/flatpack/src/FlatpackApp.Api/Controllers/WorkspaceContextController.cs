@@ -8,6 +8,7 @@ namespace FlatpackApp.Api.Controllers;
 
 [ApiController]
 [Authorize]
+[PlatformDataScoped]
 [Route("api/v1/workspace")]
 public sealed class WorkspaceContextController(
     IOrganizationAccessResolver resolver,

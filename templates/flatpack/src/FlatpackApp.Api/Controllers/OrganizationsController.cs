@@ -10,6 +10,7 @@ namespace FlatpackApp.Api.Controllers;
 
 [ApiController]
 [RequirePlatformPermission(PlatformPermissions.TenantsRead)]
+[PlatformDataScoped]
 [Route("api/v1/tenants")]
 public sealed class OrganizationsController(
     IOrganizationDirectory organizations,

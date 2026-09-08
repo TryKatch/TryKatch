@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FlatpackApp.Api.Security;
 using FlatpackApp.Application.Organizations;
 using FlatpackApp.Domain.Organizations;
 using Microsoft.AspNetCore.Authorization;
@@ -8,6 +9,7 @@ namespace FlatpackApp.Api.Controllers;
 
 [ApiController]
 [Authorize]
+[PlatformDataScoped]
 [Route("api/v1/me")]
 public sealed class MeController(IOrganizationDirectory organizations) : ControllerBase
 {

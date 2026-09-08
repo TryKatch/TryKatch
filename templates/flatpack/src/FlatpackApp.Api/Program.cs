@@ -105,6 +105,7 @@ app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthentication();
 app.UseRateLimiter();
+app.UseMiddleware<PlatformDataTransactionMiddleware>();
 app.UseMiddleware<OrganizationScopeMiddleware>();
 app.UseMiddleware<OrganizationTransactionMiddleware>();
 app.UseAuthorization();
