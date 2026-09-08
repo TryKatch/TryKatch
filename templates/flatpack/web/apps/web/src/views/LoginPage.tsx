@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { customFetch, setAntiforgeryToken } from '@flatpackapp/api-client'
-import { Button } from '@flatpackapp/ui'
+import { Button, PasswordField } from '@flatpackapp/ui'
 import { FlatpackLogo } from '../components/FlatpackLogo'
 
 interface Session { hasPlatformAccess?: boolean; isPlatformAdministrator?: boolean }
@@ -111,7 +111,7 @@ export function LoginPage({ navigate = path => window.location.assign(path) }: L
         <Button type="button" variant="ghost" onClick={() => setMfaRequired(false)}>Use a different account</Button>
       </form> : <form onSubmit={submitPassword}>
         <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
-        <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
+        <PasswordField label="Password" name="password" autoComplete="current-password" visibilityLabel="password" required />
         <div className="auth-form-options"><label className="checkbox"><input name="remember" type="checkbox" /> Keep me signed in</label><a className="text-button" href="/forgot-password">Forgot password?</a></div>
         {error && <div className="form-error" role="alert">{error}</div>}
         <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>

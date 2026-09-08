@@ -339,6 +339,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .profile-form.two-columns, .password-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .profile-form label { display: block; font-weight: 620; }
 .profile-form label input { display: block; margin-top: 5px; }
+.profile-form .password-field { display: grid; gap: 5px; }
 .profile-form label > span[aria-hidden="true"] { display: inline; color: var(--accent-ink); }
 .profile-form input { width: 100%; }
 .profile-form input[readonly] { color: var(--muted); cursor: not-allowed; }
@@ -360,8 +361,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .surface.auth-card { background: transparent; border: 0; }
 .auth-card form { display: grid; gap: 13px; margin-top: 20px; }
 .auth-card label:not(.checkbox), .dialog-form label:not(.checkbox) { display: grid; gap: 5px; font-weight: 600; }
+.auth-card .password-field, .dialog-form .password-field { display: grid; gap: 5px; }
+.auth-card .password-field > label, .dialog-form .password-field > label { display: block; }
 .auth-card input:not([type=checkbox]), .dialog-form input:not([type=checkbox]), .dialog-form textarea, .dialog-form select { width: 100%; padding: 8px 10px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line); border-radius: var(--radius); }
 .auth-card input:not([type=checkbox]) { height: 36px; }
+.password-input { position: relative; display: block; width: 100%; }
+.password-input .password-input-control { padding-right: 40px; }
+.password-visibility { position: absolute; top: 50%; right: 3px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; color: var(--muted); background: transparent; border: 0; border-radius: var(--radius); transform: translateY(-50%); cursor: pointer; }
+.password-visibility:hover { color: var(--text); background: var(--hover); }
+.password-visibility:focus-visible { outline: 2px solid var(--focus); outline-offset: -1px; }
 .auth-form-options { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .text-button, .auth-link { width: fit-content; padding: 2px; color: var(--accent-ink); background: transparent; border: 0; border-radius: var(--radius); font: inherit; font-weight: 650; text-decoration: none; cursor: pointer; }
 .auth-link { display: inline-block; margin-top: 18px; }

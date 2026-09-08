@@ -11,12 +11,20 @@ const api = vi.hoisted(() => ({
 vi.mock('@flatpackapp/api-client', () => api)
 
 describe('LoginPage', () => {
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
 
   it('has an accessible form', async () => {
     const { container } = render(<LoginPage navigate={() => undefined} />)
     expect(screen.getByRole('heading', { name: /^sign in$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /forgot password/i })).toHaveAttribute('href', '/forgot-password')
+    const password = screen.getByLabelText(/^password/i, { selector: 'input' })
+    expect(password).toHaveAttribute('type', 'password')
+    fireEvent.click(screen.getByRole('button', { name: /show password/i }))
+    expect(password).toHaveAttribute('type', 'text')
+    expect(screen.getByRole('button', { name: /hide password/i })).toHaveAttribute('aria-pressed', 'true')
     const result = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } })
     expect(result.violations).toEqual([])
   })
@@ -40,7 +48,7 @@ describe('LoginPage', () => {
     render(<LoginPage navigate={navigate} />)
 
     fireEvent.change(screen.getByRole('textbox', { name: /email address/i }), { target: { value: 'tenant@flatpack.com' } })
-    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'Admin@123' } })
+    fireEvent.change(screen.getByLabelText(/^password/i, { selector: 'input' }), { target: { value: 'Admin@123' } })
     fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/overview'))

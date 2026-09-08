@@ -1,5 +1,5 @@
 import { customFetch } from '@flatpackapp/api-client'
-import { Button } from '@flatpackapp/ui'
+import { Button, PasswordField } from '@flatpackapp/ui'
 import { useState, type FormEvent } from 'react'
 import { FlatpackLogo } from '../components/FlatpackLogo'
 
@@ -47,8 +47,8 @@ export function ResetPasswordPage() {
         <p>Use at least 12 characters and avoid a password used elsewhere.</p>
         {!email || !token ? <div className="form-error" role="alert">This password reset link is incomplete. Request a new link from the sign-in page.</div> : <form onSubmit={submit}>
           <label className="sr-only">Email address<input name="email" type="email" autoComplete="username" value={email} readOnly /></label>
-          <label>New password<input name="password" type="password" autoComplete="new-password" minLength={12} required autoFocus /></label>
-          <label>Confirm new password<input name="confirmPassword" type="password" autoComplete="new-password" minLength={12} required /></label>
+          <PasswordField label="New password" name="password" autoComplete="new-password" minLength={12} visibilityLabel="new password" required autoFocus />
+          <PasswordField label="Confirm new password" name="confirmPassword" autoComplete="new-password" minLength={12} visibilityLabel="confirmed password" required />
           {error && <div className="form-error" role="alert">{error}</div>}
           <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Updating…' : 'Update password'}</Button>
         </form>}
