@@ -10,8 +10,7 @@ internal sealed class OutboxWriter(ApplicationDbContext dbContext) : IOutboxWrit
     public void Enqueue<T>(T message) where T : notnull =>
         dbContext.OutboxMessages.Add(new OutboxMessage
         {
-            Type = typeof(T).AssemblyQualifiedName ?? typeof(T).FullName ?? typeof(T).Name,
+            Type = typeof(T).FullName ?? typeof(T).Name,
             Payload = JsonSerializer.Serialize(message, SerializerOptions)
         });
 }
-

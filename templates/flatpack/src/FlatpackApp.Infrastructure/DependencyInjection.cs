@@ -11,6 +11,7 @@ using FlatpackApp.Infrastructure.Projects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 #if FLATPACK_EMAIL
 using FlatpackApp.Infrastructure.Modules.Email;
 #endif
@@ -46,6 +47,9 @@ public static class DependencyInjection
         services.AddScoped<IProjectStore, ProjectStore>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IOutboxWriter, OutboxWriter>();
+        services.TryAddSingleton<IOutboxTransport, LoggingOutboxTransport>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<OutboxDelivery>();
         services.AddHostedService<OutboxProcessor>();
 #if FLATPACK_EMAIL
         services.AddFlatpackEmail();
