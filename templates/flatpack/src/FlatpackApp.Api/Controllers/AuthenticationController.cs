@@ -1,3 +1,4 @@
+using System.Text;
 using FlatpackApp.Api.Security;
 using FlatpackApp.Application.Identity;
 using FlatpackApp.Identity;
@@ -5,13 +6,30 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace FlatpackApp.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/auth")]
-public sealed class AuthenticationController(IAntiforgery antiforgery, UserManager<ApplicationUser> users, SignInManager<ApplicationUser> signIn, IWorkspaceContextCookie workspaceCookie, IPlatformAccessDirectory platformAccess) : ControllerBase
+public sealed class AuthenticationController(
+    IAntiforgery antiforgery,
+    UserManager<ApplicationUser> users,
+    SignInManager<ApplicationUser> signIn,
+    IWorkspaceContextCookie workspaceCookie,
+    IPlatformAccessDirectory platformAccess,
+    IAccountRecoveryNotifier recoveryNotifier,
+    IWebHostEnvironment environment,
+    IConfiguration configuration,
+    ILogger<AuthenticationController> logger) : ControllerBase
 {
+    private static readonly Action<ILogger, Guid, Exception?> LogPasswordResetDeliveryFailure =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Error,
+            new EventId(1001, nameof(ForgotPassword)),
+            "Password reset delivery failed for account {UserId}");
+
     [AllowAnonymous]
     [HttpGet("antiforgery", Name = "Authentication_Antiforgery")]
     public ActionResult<AntiforgeryResponse> Antiforgery()
@@ -97,6 +115,113 @@ public sealed class AuthenticationController(IAntiforgery antiforgery, UserManag
         return NoContent();
     }
 
+    [AllowAnonymous]
+    [EnableRateLimiting("account-recovery")]
+    [HttpPost("password/forgot", Name = "Authentication_ForgotPassword")]
+    public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        await antiforgery.ValidateRequestAsync(HttpContext);
+        string email = request.Email.Trim();
+        string? developmentResetUrl = null;
+        ApplicationUser? user = string.IsNullOrWhiteSpace(email) ? null : await users.FindByEmailAsync(email);
+        if (user is not null && user.EmailConfirmed)
+        {
+            string token = await users.GeneratePasswordResetTokenAsync(user);
+            string encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+            string resetUrl = $"{ResolveApplicationBaseUrl()}/reset-password?email={Uri.EscapeDataString(user.Email ?? email)}&token={Uri.EscapeDataString(encodedToken)}";
+            if (environment.IsDevelopment())
+            {
+                developmentResetUrl = resetUrl;
+            }
+
+            try
+            {
+                await recoveryNotifier.SendPasswordResetAsync(
+                    user.Email ?? email,
+                    user.DisplayName,
+                    resetUrl,
+                    cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                LogPasswordResetDeliveryFailure(logger, user.Id, exception);
+            }
+        }
+
+        return Accepted(new ForgotPasswordResponse(
+            "If an eligible account exists, password reset instructions are on the way.",
+            recoveryNotifier.IsConfigured,
+            developmentResetUrl));
+    }
+
+    private string ResolveApplicationBaseUrl()
+    {
+        string? configuredUrl = configuration["Application:PublicUrl"]?.TrimEnd('/');
+        if (IsHttpUrl(configuredUrl, allowInsecure: environment.IsDevelopment()))
+        {
+            return configuredUrl!;
+        }
+
+        string? origin = Request.Headers.Origin.FirstOrDefault()?.TrimEnd('/');
+        if (environment.IsDevelopment()
+            && Uri.TryCreate(origin, UriKind.Absolute, out Uri? originUri)
+            && originUri.IsLoopback
+            && IsHttpUrl(origin, allowInsecure: true))
+        {
+            return origin!;
+        }
+
+        return $"{Request.Scheme}://{Request.Host}";
+    }
+
+    private static bool IsHttpUrl(string? value, bool allowInsecure)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
+            && (uri.Scheme == Uri.UriSchemeHttps || (allowInsecure && uri.Scheme == Uri.UriSchemeHttp));
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("account-recovery")]
+    [HttpPost("password/reset", Name = "Authentication_ResetPassword")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request)
+    {
+        await antiforgery.ValidateRequestAsync(HttpContext);
+        if (request.NewPassword != request.ConfirmPassword)
+        {
+            return Problem(statusCode: 400, title: "validation", detail: "The new passwords do not match.");
+        }
+
+        ApplicationUser? user = await users.FindByEmailAsync(request.Email.Trim());
+        string token;
+        try
+        {
+            token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(request.Token));
+        }
+        catch (FormatException)
+        {
+            return InvalidReset();
+        }
+
+        if (user is null)
+        {
+            return InvalidReset();
+        }
+
+        IdentityResult result = await users.ResetPasswordAsync(user, token, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            bool passwordValidationFailed = result.Errors.Any(error => error.Code.StartsWith("Password", StringComparison.Ordinal));
+            return passwordValidationFailed
+                ? Problem(statusCode: 400, title: "password_validation", detail: string.Join(" ", result.Errors.Select(error => error.Description)))
+                : InvalidReset();
+        }
+
+        workspaceCookie.Clear(HttpContext);
+        return NoContent();
+    }
+
     private async Task<SessionResponse> ToResponse(ApplicationUser user)
     {
         IList<string> assignedRoles = await users.GetRolesAsync(user);
@@ -120,6 +245,9 @@ public sealed class AuthenticationController(IAntiforgery antiforgery, UserManag
 
     private static string Normalize(string code) =>
         code.Replace(" ", string.Empty, StringComparison.Ordinal).Replace("-", string.Empty, StringComparison.Ordinal);
+
+    private ObjectResult InvalidReset() =>
+        Problem(statusCode: 400, title: "invalid_reset", detail: "This password reset link is invalid or has expired.");
 }
 
 public sealed record LoginRequest(string Email, string Password, bool RememberMe);
@@ -133,3 +261,6 @@ public sealed record SessionResponse(
     string? PlatformRole,
     IReadOnlyList<string> PlatformPermissions);
 public sealed record AntiforgeryResponse(string Token);
+public sealed record ForgotPasswordRequest(string Email);
+public sealed record ForgotPasswordResponse(string Message, bool DeliveryConfigured, string? DevelopmentResetUrl);
+public sealed record ResetPasswordRequest(string Email, string Token, string NewPassword, string ConfirmPassword);

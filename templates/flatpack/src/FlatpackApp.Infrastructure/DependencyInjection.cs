@@ -1,10 +1,12 @@
 using FlatpackApp.Application.Authorization;
 using FlatpackApp.Application.Auditing;
+using FlatpackApp.Application.Identity;
 using FlatpackApp.Application.Organizations;
 using FlatpackApp.Application.Outbox;
 using FlatpackApp.Application.Overview;
 using FlatpackApp.Application.Projects;
 using FlatpackApp.Infrastructure.Organizations;
+using FlatpackApp.Infrastructure.Identity;
 using FlatpackApp.Infrastructure.Persistence;
 using FlatpackApp.Infrastructure.Overview;
 using FlatpackApp.Infrastructure.Projects;
@@ -54,6 +56,8 @@ public static class DependencyInjection
         services.AddHostedService<OutboxProcessor>();
 #if FLATPACK_EMAIL
         services.AddFlatpackEmail();
+#else
+        services.AddSingleton<IAccountRecoveryNotifier, NoOpAccountRecoveryNotifier>();
 #endif
 #if FLATPACK_STORAGE
         services.AddFlatpackStorage(configuration);

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { FlatpackLogo } from '../components/FlatpackLogo'
+import { SignOutDialog } from '../components/SignOutDialog'
 import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 
 const navSections = [
@@ -65,6 +66,7 @@ export function AppShell() {
   const accountMenu = useRef<HTMLDivElement>(null)
   const [commandOpen, setCommandOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [signOutOpen, setSignOutOpen] = useState(false)
   const [appearanceOpen, setAppearanceOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
@@ -171,8 +173,7 @@ export function AppShell() {
             </div>
           </div></div>
           <div className="account-menu-separator" />
-          <button className="account-menu-item danger-text" type="button" disabled={logout.isPending} onClick={() => logout.mutate()}><LogOut size={17} /> {logout.isPending ? 'Logging out…' : 'Log out'}</button>
-          {logout.error && <div className="menu-error" role="alert">{logout.error.message}</div>}
+          <button className="account-menu-item danger-text" type="button" onClick={() => { setAccountOpen(false); setSignOutOpen(true) }}><LogOut size={17} /> Log out</button>
         </div>
         <div className="sidebar-controls">
           <button className="account-trigger" type="button" disabled={!session.data} aria-label={`Account menu for ${identity}`} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="avatar">{initials}</span><span className="sidebar-label account-trigger-name">{identity}</span><ChevronDown className={`sidebar-label account-trigger-chevron${accountOpen ? ' is-open' : ''}`} size={14} /></button>
@@ -195,5 +196,6 @@ export function AppShell() {
         {nav.map(({ to, label, icon: Icon }) => <Link key={label} to={to} onClick={() => setCommandOpen(false)}><Icon size={15} /><span>{label}</span></Link>)}
       </nav>
     </Dialog>
+    <SignOutDialog open={signOutOpen} identity={identity} isPending={logout.isPending} error={logout.error?.message} onOpenChange={setSignOutOpen} onConfirm={() => logout.mutate()} />
   </div>
 }

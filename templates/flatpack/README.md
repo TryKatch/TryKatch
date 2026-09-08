@@ -41,6 +41,7 @@ The customer-facing workspace word is **organization**. Platform administrators 
 - Every scoped transaction sets PostgreSQL `app.organization_id` and `app.actor_id`; RLS fails closed without them.
 - Runtime database credentials cannot own tables or bypass RLS.
 - Browser authentication uses secure HttpOnly cookies and antiforgery. Browser code never receives access or refresh tokens.
+- Password recovery returns an account-neutral response, rate-limits requests, invalidates existing sessions, and uses `FLATPACK_PUBLIC_URL` as the trusted origin for production email links.
 - External clients use OpenIddict authorization code + PKCE or client credentials. Implicit and password grants are not enabled.
 
 ## Development commands

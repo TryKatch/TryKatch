@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { customFetch, setAntiforgeryToken } from '@flatpackapp/api-client'
 import { Button, Surface } from '@flatpackapp/ui'
+import { ForgotPasswordDialog } from '../components/ForgotPasswordDialog'
 import { FlatpackLogo } from '../components/FlatpackLogo'
 
 interface Session { hasPlatformAccess?: boolean; isPlatformAdministrator?: boolean }
@@ -11,6 +12,7 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false)
   const [mfaRequired, setMfaRequired] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const requestedReturnTo = new URLSearchParams(window.location.search).get('returnTo')
   const returnTo = requestedReturnTo?.startsWith('/invite/') ? requestedReturnTo : undefined
 
@@ -109,11 +111,12 @@ export function LoginPage() {
       </form> : <form onSubmit={submitPassword}>
         <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
         <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
-        <label className="checkbox"><input name="remember" type="checkbox" /> Keep me signed in</label>
+        <div className="auth-form-options"><label className="checkbox"><input name="remember" type="checkbox" /> Keep me signed in</label><button className="text-button" type="button" onClick={() => setForgotPasswordOpen(true)}>Forgot password?</button></div>
         {error && <div className="form-error" role="alert">{error}</div>}
         <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>
       </form>}
     </Surface>
     <small className="auth-note">Secure HttpOnly sessions · tokens never enter the browser</small>
+    <ForgotPasswordDialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen} />
   </main>
 }

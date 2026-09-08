@@ -5,6 +5,7 @@ import { Button, Skeleton } from '@flatpackapp/ui'
 import { Bell, Building2, ChevronDown, LayoutDashboard, LogOut, Menu, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen, ShieldCheck, Sun, UserRound, Users, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { FlatpackLogo } from '../components/FlatpackLogo'
+import { SignOutDialog } from '../components/SignOutDialog'
 import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 
 interface Session { displayName: string; email: string; hasPlatformAccess?: boolean; isPlatformAdministrator?: boolean; platformPermissions?: string[] }
@@ -27,6 +28,7 @@ export function PlatformShell() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('flatpack-platform-sidebar') === 'collapsed')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [signOutOpen, setSignOutOpen] = useState(false)
   const [appearanceOpen, setAppearanceOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem('flatpack-theme')
@@ -89,7 +91,7 @@ export function PlatformShell() {
             {theme === 'custom' && <label className="shell-color-control"><span className="shell-color-well" style={{ backgroundColor: shellColor }}><input type="color" value={shellColor} aria-label="Custom shell color" onChange={(event) => { setShellColor(event.target.value); setTheme('custom') }} /></span><span><strong>Shell color</strong><small>Choose any base color</small></span></label>}
           </div></div></div>
           <div className="account-menu-separator" />
-          <button className="account-menu-item danger-text" type="button" disabled={logout.isPending} onClick={() => logout.mutate()}><LogOut size={17} /> {logout.isPending ? 'Logging out…' : 'Log out'}</button>
+          <button className="account-menu-item danger-text" type="button" onClick={() => { setAccountOpen(false); setSignOutOpen(true) }}><LogOut size={17} /> Log out</button>
         </div>
         <div className="sidebar-controls">
           <button className="account-trigger" type="button" disabled={!session.data} aria-label={`Account menu for ${identity}`} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="avatar">{initials(identity)}</span><span className="sidebar-label account-trigger-name">{identity}</span><ChevronDown className={`sidebar-label account-trigger-chevron${accountOpen ? ' is-open' : ''}`} size={14} /></button>
@@ -104,5 +106,6 @@ export function PlatformShell() {
         {!session.data?.hasPlatformAccess && !session.data?.isPlatformAdministrator ? <div className="shell-loading"><Skeleton /><Skeleton /><Skeleton /></div> : <Outlet />}
       </section>
     </main>
+    <SignOutDialog open={signOutOpen} identity={identity} isPending={logout.isPending} error={logout.error?.message} onOpenChange={setSignOutOpen} onConfirm={() => logout.mutate()} />
   </div>
 }

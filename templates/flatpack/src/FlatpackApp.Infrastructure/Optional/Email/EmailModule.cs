@@ -1,4 +1,5 @@
 using MailKit.Net.Smtp;
+using FlatpackApp.Application.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
@@ -35,7 +36,33 @@ internal sealed class SmtpEmailSender(IConfiguration configuration) : IEmailSend
     }
 }
 
+internal sealed class SmtpAccountRecoveryNotifier(IEmailSender emailSender) : IAccountRecoveryNotifier
+{
+    public bool IsConfigured => true;
+
+    public Task SendPasswordResetAsync(
+        string recipient,
+        string displayName,
+        string resetUrl,
+        CancellationToken cancellationToken = default)
+    {
+        string safeName = System.Net.WebUtility.HtmlEncode(displayName);
+        string safeUrl = System.Net.WebUtility.HtmlEncode(resetUrl);
+        return emailSender.SendAsync(new EmailMessage(
+            recipient,
+            "Reset your Flatpack password",
+            $"Hello {displayName},\n\nUse this link to reset your password:\n{resetUrl}\n\nIf you did not request this, you can safely ignore this message.",
+            $"<p>Hello {safeName},</p><p>Use the link below to reset your password.</p><p><a href=\"{safeUrl}\">Reset password</a></p><p>If you did not request this, you can safely ignore this message.</p>"),
+            cancellationToken);
+    }
+}
+
 public static class EmailModule
 {
-    public static IServiceCollection AddFlatpackEmail(this IServiceCollection services) => services.AddScoped<IEmailSender, SmtpEmailSender>();
+    public static IServiceCollection AddFlatpackEmail(this IServiceCollection services)
+    {
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<IAccountRecoveryNotifier, SmtpAccountRecoveryNotifier>();
+        return services;
+    }
 }

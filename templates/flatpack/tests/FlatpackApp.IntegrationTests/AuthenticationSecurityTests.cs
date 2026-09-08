@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -86,8 +87,72 @@ public sealed class AuthenticationSecurityTests
 
         await AssertLockoutAsync(factory);
         await AssertSecurityStampInvalidatesSessionAsync(factory);
+        await AssertPasswordResetAsync(factory);
         await AssertMultiFactorAndRecoveryCodeAsync(factory);
         await AssertOpenIdConnectGrantPolicyAsync(factory);
+    }
+
+    private static async Task AssertPasswordResetAsync(WebApplicationFactory<Program> factory)
+    {
+        const string email = "recovery@flatpack.test";
+        const string oldPassword = "Local-only!Recovery-Password-42";
+        const string newPassword = "Local-only!Recovered-Password-84";
+        await CreateConfirmedUserAsync(factory, email, oldPassword);
+
+        using HttpClient activeSession = CreateClient(factory);
+        string antiforgery = await GetAntiforgeryTokenAsync(activeSession);
+        (await PostWithAntiforgeryAsync(activeSession, "/api/v1/auth/login", antiforgery, new
+        {
+            email,
+            password = oldPassword,
+            rememberMe = false
+        })).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        using HttpClient recovery = CreateClient(factory);
+        recovery.DefaultRequestHeaders.Add("Origin", "http://127.0.0.1:5173");
+        antiforgery = await GetAntiforgeryTokenAsync(recovery);
+        HttpResponseMessage unknown = await PostWithAntiforgeryAsync(recovery, "/api/v1/auth/password/forgot", antiforgery, new
+        {
+            email = "missing@flatpack.test"
+        });
+        unknown.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        using JsonDocument unknownPayload = JsonDocument.Parse(await unknown.Content.ReadAsStringAsync());
+        unknownPayload.RootElement.GetProperty("developmentResetUrl").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        HttpResponseMessage requested = await PostWithAntiforgeryAsync(recovery, "/api/v1/auth/password/forgot", antiforgery, new { email });
+        requested.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        using JsonDocument payload = JsonDocument.Parse(await requested.Content.ReadAsStringAsync());
+        string resetUrl = payload.RootElement.GetProperty("developmentResetUrl").GetString()
+            ?? throw new InvalidOperationException("Development password recovery did not return a reset URL.");
+        Uri resetUri = new(resetUrl);
+        resetUri.GetLeftPart(UriPartial.Authority).ShouldBe("http://127.0.0.1:5173");
+        Dictionary<string, Microsoft.Extensions.Primitives.StringValues> query = QueryHelpers.ParseQuery(resetUri.Query);
+
+        HttpResponseMessage reset = await PostWithAntiforgeryAsync(recovery, "/api/v1/auth/password/reset", antiforgery, new
+        {
+            email = query["email"].ToString(),
+            token = query["token"].ToString(),
+            newPassword,
+            confirmPassword = newPassword
+        });
+        reset.StatusCode.ShouldBe(HttpStatusCode.NoContent, await reset.Content.ReadAsStringAsync());
+
+        HttpResponseMessage replay = await PostWithAntiforgeryAsync(recovery, "/api/v1/auth/password/reset", antiforgery, new
+        {
+            email = query["email"].ToString(),
+            token = query["token"].ToString(),
+            newPassword,
+            confirmPassword = newPassword
+        });
+        replay.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await activeSession.GetAsync("/api/v1/auth/session")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        using HttpClient signIn = CreateClient(factory);
+        antiforgery = await GetAntiforgeryTokenAsync(signIn);
+        (await PostWithAntiforgeryAsync(signIn, "/api/v1/auth/login", antiforgery, new { email, password = oldPassword, rememberMe = false })).StatusCode
+            .ShouldBe(HttpStatusCode.Unauthorized);
+        (await PostWithAntiforgeryAsync(signIn, "/api/v1/auth/login", antiforgery, new { email, password = newPassword, rememberMe = false })).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
     }
 
     private static async Task AssertSecurityStampInvalidatesSessionAsync(WebApplicationFactory<Program> factory)

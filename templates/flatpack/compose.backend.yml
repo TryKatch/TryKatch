@@ -28,6 +28,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__flatpackdb: ${FLATPACK_RUNTIME_CONNECTION}
+      Application__PublicUrl: ${FLATPACK_PUBLIC_URL}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_SERVICE_NAME: flatpack-app-slug-api
