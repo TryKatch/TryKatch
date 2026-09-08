@@ -17,6 +17,13 @@ dotnet run --project src/FlatpackApp.AppHost
 
 AppHost runs the one-shot `Migrator` project before the API. Production Compose also waits for it and gives the API a separate runtime credential. The role setup and deployment contract are described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 
+The development launch profiles and AppHost seed two local-only identities with the password `FlatpackLocal!2026Strong`:
+
+- `admin@flatpack.com` — platform Administrator access.
+- `tenant@flatpack.com` — Owner access to the seeded Demo Workspace.
+
+Demo seeding is guarded by both the Development environment and `DevelopmentDemo__Enabled`; production configuration never enables it.
+
 ## Architecture
 
 - `Domain` contains framework-free organization, membership, role, invitation, audit, and Project models.

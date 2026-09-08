@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Threading.RateLimiting;
+using FlatpackApp.Api.Development;
 using FlatpackApp.Api.Security;
 using FlatpackApp.Application;
 using FlatpackApp.Identity;
@@ -97,6 +98,10 @@ WebApplication app = builder.Build();
 if (!isOpenApiGeneration)
 {
     await IdentitySeeder.SeedPlatformAdministratorAsync(app.Services, app.Configuration);
+    if (app.Environment.IsDevelopment())
+    {
+        await DevelopmentDemoSeeder.SeedAsync(app.Services, app.Configuration);
+    }
     await IdentitySeeder.SeedOpenIddictClientsAsync(app.Services, app.Configuration);
 }
 

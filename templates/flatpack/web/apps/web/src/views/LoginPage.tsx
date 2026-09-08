@@ -5,8 +5,9 @@ import { FlatpackLogo } from '../components/FlatpackLogo'
 
 interface Session { hasPlatformAccess?: boolean; isPlatformAdministrator?: boolean }
 interface Organization { id: string }
+interface LoginPageProps { navigate?: (path: string) => void }
 
-export function LoginPage() {
+export function LoginPage({ navigate = path => window.location.assign(path) }: LoginPageProps = {}) {
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [mfaRequired, setMfaRequired] = useState(false)
@@ -21,22 +22,25 @@ export function LoginPage() {
 
   async function finish(session: Session, persistent = rememberMe) {
     if (returnTo) {
-      window.location.assign(returnTo)
+      navigate(returnTo)
       return
     }
     if (session.hasPlatformAccess || session.isPlatformAdministrator) {
-      window.location.assign('/dashboard')
+      navigate('/dashboard')
       return
     }
 
     const organizations = await customFetch<Organization[]>('/api/v1/me/organizations', { method: 'GET' })
     if (organizations[0]) {
+      // Authentication rotates the cookie-bound antiforgery identity. Fetch a
+      // fresh request token before the first authenticated mutation.
+      await prepareAntiforgery()
       await customFetch<void>('/api/v1/workspace/select', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ organizationId: organizations[0].id, remember: persistent }),
       })
-      window.location.assign('/overview')
+      navigate('/overview')
       return
     }
 
@@ -95,7 +99,7 @@ export function LoginPage() {
 
   return <main className="auth-page">
     <a className="auth-brand" href="/login" aria-label="Flatpack sign in"><span className="brand-mark"><FlatpackLogo size={17} /></span><strong>Flatpack</strong></a>
-    <section className="auth-card">
+    <section className="auth-card login-card">
       <h1>{mfaRequired ? 'Verify your identity' : 'Sign in'}</h1>
       <p>{mfaRequired ? 'Enter an authenticator or recovery code.' : 'Use your verified account to continue.'}</p>
       {mfaRequired ? <form onSubmit={submitMfa}>
