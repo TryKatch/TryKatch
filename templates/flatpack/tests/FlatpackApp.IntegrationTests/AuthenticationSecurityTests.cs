@@ -51,6 +51,8 @@ public sealed class AuthenticationSecurityTests
                     ["OpenIddict:Clients:1:GrantType"] = "authorization_code",
                     ["OpenIddict:Clients:1:RedirectUris:0"] = "https://client.flatpack.test/callback"
                 }));
+                webHost.ConfigureServices(services => services.PostConfigure<SecurityStampValidatorOptions>(options =>
+                    options.ValidationInterval = TimeSpan.Zero));
             });
 
         using HttpClient client = CreateClient(factory);
@@ -79,8 +81,35 @@ public sealed class AuthenticationSecurityTests
         (await client.GetAsync("/api/v1/auth/session")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         await AssertLockoutAsync(factory);
+        await AssertSecurityStampInvalidatesSessionAsync(factory);
         await AssertMultiFactorAndRecoveryCodeAsync(factory);
         await AssertOpenIdConnectGrantPolicyAsync(factory);
+    }
+
+    private static async Task AssertSecurityStampInvalidatesSessionAsync(WebApplicationFactory<Program> factory)
+    {
+        const string email = "stamp@flatpack.test";
+        const string password = "Local-only!Security-Stamp-Password-42";
+        ApplicationUser createdUser = await CreateConfirmedUserAsync(factory, email, password);
+        using HttpClient client = CreateClient(factory);
+        string antiforgery = await GetAntiforgeryTokenAsync(client);
+        HttpResponseMessage signedIn = await PostWithAntiforgeryAsync(client, "/api/v1/auth/login", antiforgery, new
+        {
+            email,
+            password,
+            rememberMe = false
+        });
+        signedIn.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        using (IServiceScope scope = factory.Services.CreateScope())
+        {
+            UserManager<ApplicationUser> users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser user = await users.FindByIdAsync(createdUser.Id.ToString())
+                ?? throw new InvalidOperationException("The security-stamp test identity was not persisted.");
+            (await users.UpdateSecurityStampAsync(user)).Succeeded.ShouldBeTrue();
+        }
+
+        (await client.GetAsync("/api/v1/auth/session")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     private static async Task AssertLockoutAsync(WebApplicationFactory<Program> factory)
