@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FlatpackApp.Application.Organizations;
 using FlatpackApp.Infrastructure.Organizations;
+using FlatpackApp.Modules.AspNetCore;
 
 namespace FlatpackApp.Api.Security;
 
@@ -12,7 +13,7 @@ public sealed class OrganizationScopeMiddleware(RequestDelegate next)
         IOrganizationAccessResolver resolver,
         IOrganizationContextInitializer initializer)
     {
-        if (context.GetEndpoint()?.Metadata.GetMetadata<OrganizationScopedAttribute>() is null)
+        if (context.GetEndpoint()?.Metadata.GetMetadata<IFlatpackOrganizationScopedMetadata>() is null)
         {
             await next(context);
             return;

@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MSTest" />
     <PackageReference Include="Shouldly" />
   </ItemGroup>
@@ -9,10 +13,16 @@
     <ProjectReference Include="../../src/FlatpackApp.Domain/FlatpackApp.Domain.csproj" />
     <ProjectReference Include="../../src/FlatpackApp.Infrastructure/FlatpackApp.Infrastructure.csproj" />
     <ProjectReference Include="../../src/FlatpackApp.Modules.Abstractions/FlatpackApp.Modules.Abstractions.csproj" />
+    <ProjectReference Include="../../src/FlatpackApp.Modules.AspNetCore/FlatpackApp.Modules.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/FlatpackApp.Modules.GettingStarted/FlatpackApp.Modules.GettingStarted.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../src/FlatpackApp.Modules.GettingStarted/flatpack.module.json" Link="fixtures/getting-started.module.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

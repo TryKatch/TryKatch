@@ -74,6 +74,21 @@ public sealed class Role : RecoverableEntity
         }
     }
 
+    /// <summary>
+    /// Adds newly introduced module defaults without taking away grants that an
+    /// existing installation already holds. This makes module activation additive
+    /// and idempotent across upgrades.
+    /// </summary>
+    public void AddMissingPermissions(IEnumerable<string> permissions)
+    {
+        HashSet<string> existing = Permissions.Select(grant => grant.Permission).ToHashSet(StringComparer.Ordinal);
+        foreach (string permission in permissions.Distinct(StringComparer.Ordinal))
+        {
+            if (existing.Add(permission))
+                Permissions.Add(new RolePermissionGrant(Id, permission));
+        }
+    }
+
     public bool Archive(Guid actorId, DateTimeOffset now)
     {
         EnsureCustomRole("archived");

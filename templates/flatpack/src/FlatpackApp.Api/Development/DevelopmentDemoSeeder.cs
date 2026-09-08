@@ -1,3 +1,4 @@
+using FlatpackApp.Application.Authorization;
 using FlatpackApp.Application.Identity;
 using FlatpackApp.Application.Organizations;
 using FlatpackApp.Domain.Organizations;
@@ -28,6 +29,7 @@ internal static class DevelopmentDemoSeeder
         UserManager<ApplicationUser> users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         PlatformDbContext platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
         IOrganizationDirectory organizations = scope.ServiceProvider.GetRequiredService<IOrganizationDirectory>();
+        IPermissionCatalog permissionCatalog = scope.ServiceProvider.GetRequiredService<IPermissionCatalog>();
 
         ApplicationUser platformAdministrator = await EnsureUserAsync(
             users,
@@ -62,6 +64,24 @@ internal static class DevelopmentDemoSeeder
                 .Where(x => x.OrganizationId == organization.Id && x.Name == "Owner" && x.IsSystem)
                 .Select(x => x.Id)
                 .SingleAsync();
+        }
+
+
+        Role[] systemRoles = await platform.Roles
+            .Include(x => x.Permissions)
+            .Where(x => x.OrganizationId == organization.Id && x.IsSystem)
+            .ToArrayAsync();
+        foreach (Role role in systemRoles)
+        {
+            IReadOnlySet<string> defaults = role.Name switch
+            {
+                "Owner" => permissionCatalog.Keys,
+                "Admin" => permissionCatalog.GetDefaultsForRole(DefaultOrganizationRoles.Admin),
+                "Member" => permissionCatalog.GetDefaultsForRole(DefaultOrganizationRoles.Member),
+                "Viewer" => permissionCatalog.GetDefaultsForRole(DefaultOrganizationRoles.Viewer),
+                _ => Array.Empty<string>().ToHashSet(StringComparer.Ordinal)
+            };
+            role.AddMissingPermissions(defaults);
         }
 
         Membership? membership = await platform.Memberships

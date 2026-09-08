@@ -8,6 +8,7 @@ import { ModuleExtensionSlot } from '../../module-system/ModuleExtensionSlot'
 
 interface Project { id: string; name: string; description: string; createdAt: string; updatedAt?: string; lifecycle: RecordLifecycle }
 interface ProjectPage { items: Project[]; page: number; pageSize: number; totalCount: number }
+interface OrganizationAccess { permissions: string[] }
 
 export function ProjectsPage() {
   const queryClient = useQueryClient()
@@ -15,6 +16,7 @@ export function ProjectsPage() {
   const [viewing, setViewing] = useState<Project>()
   const [error, setError] = useState<string>()
   const query = useQuery({ queryKey: ['projects', 'active'], queryFn: () => customFetch<ProjectPage>('/api/v1/projects?page=1&pageSize=100&lifecycle=active', { method: 'GET' }) })
+  const access = useQuery({ queryKey: ['access'], queryFn: () => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET' }) })
   const save = useMutation({
     mutationFn: (input: { id?: string; name: string; description: string }) => customFetch<Project>(
       input.id ? `/api/v1/projects/${input.id}` : '/api/v1/projects',
@@ -51,7 +53,7 @@ export function ProjectsPage() {
     <PageHeader eyebrow="Application" title="Projects" description="Create, manage, archive, and recover organization-scoped projects." actions={<Button variant="primary" onClick={openCreate}><Plus size={14} /> New project</Button>} />
     <Surface className="collection">
       {query.isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div> : query.isError ? <EmptyState title="Projects could not be loaded" description={query.error.message} action={<Button onClick={() => query.refetch()}>Try again</Button>} /> : <DataTable ariaLabel="Projects" data={query.data?.items ?? []} columns={columns} getRowId={(project) => project.id} searchPlaceholder="Search projects…" initialSort={{ id: 'created', direction: 'desc' }} empty={<EmptyState title="No projects" description="Create the first project to exercise organization-scoped RLS." action={<Button variant="primary" onClick={openCreate}>Create project</Button>} />} />}
-      <ModuleExtensionSlot point="projects.list.after-table" context={{ resultCount: query.data?.items.length ?? 0 }} />
+      <ModuleExtensionSlot point="projects.list.after-table" context={{ resultCount: query.data?.items.length ?? 0 }} permissions={access.data?.permissions} />
     </Surface>
     <Dialog open={editing !== undefined} onOpenChange={(open) => !open && setEditing(undefined)} title={editing ? 'Edit project' : 'Create project'} description="Changes are authorized in the application layer and isolated by PostgreSQL RLS.">
       <form className="dialog-form" onSubmit={submit}>

@@ -1,0 +1,66 @@
+.flatpack-module-surface {
+  overflow: hidden;
+}
+
+.flatpack-module-checklist > header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  padding: 16px 18px;
+}
+
+.flatpack-module-checklist header div,
+.flatpack-module-checklist li div,
+.flatpack-module-extension div {
+  display: grid;
+  gap: 2px;
+}
+
+.flatpack-module-checklist header span,
+.flatpack-module-checklist li small,
+.flatpack-module-extension small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.flatpack-module-checklist ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.flatpack-module-checklist li {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 11px;
+  min-height: 56px;
+  padding: 10px 18px;
+}
+
+.flatpack-module-checklist li:last-child {
+  border-bottom: 0;
+}
+
+.flatpack-module-checklist li > span,
+.flatpack-module-extension > span {
+  align-items: center;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 40%, var(--border));
+  border-radius: 50%;
+  color: var(--success);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.flatpack-module-extension {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+}

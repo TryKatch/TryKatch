@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FlatpackApp.Infrastructure.Persistence;
+using FlatpackApp.Modules.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -14,7 +15,7 @@ public sealed class PlatformDataTransactionMiddleware(RequestDelegate next)
     {
         Endpoint? endpoint = context.GetEndpoint();
         bool usesPlatformData = endpoint?.Metadata.GetMetadata<PlatformDataScopedAttribute>() is not null
-            || endpoint?.Metadata.GetMetadata<OrganizationScopedAttribute>() is not null;
+            || endpoint?.Metadata.GetMetadata<IFlatpackOrganizationScopedMetadata>() is not null;
         if (!usesPlatformData || context.User.Identity?.IsAuthenticated != true)
         {
             await next(context);

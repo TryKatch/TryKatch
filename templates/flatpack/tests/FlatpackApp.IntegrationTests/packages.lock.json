@@ -1250,13 +1250,23 @@
           "SharpZipLib": "1.4.2"
         }
       },
+      "Flatpack.Modules.GettingStarted": {
+        "type": "Project",
+        "dependencies": {
+          "FlatpackApp.Application": "[1.0.0, )",
+          "FlatpackApp.Modules.Abstractions": "[1.0.0, )",
+          "FlatpackApp.Modules.AspNetCore": "[1.0.0, )"
+        }
+      },
       "flatpackapp.api": {
         "type": "Project",
         "dependencies": {
+          "Flatpack.Modules.GettingStarted": "[1.0.0, )",
           "FlatpackApp.Application": "[1.0.0, )",
           "FlatpackApp.Identity": "[1.0.0, )",
           "FlatpackApp.Infrastructure": "[1.0.0, )",
           "FlatpackApp.Modules.Abstractions": "[1.0.0, )",
+          "FlatpackApp.Modules.AspNetCore": "[1.0.0, )",
           "FlatpackApp.ServiceDefaults": "[1.0.0, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.11, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.11, )",
@@ -1312,6 +1322,12 @@
         "dependencies": {
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.11, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.11, )"
+        }
+      },
+      "flatpackapp.modules.aspnetcore": {
+        "type": "Project",
+        "dependencies": {
+          "FlatpackApp.Modules.Abstractions": "[1.0.0, )"
         }
       },
       "flatpackapp.servicedefaults": {

@@ -1,5 +1,7 @@
 using FlatpackApp.Infrastructure.Modules;
 using FlatpackApp.Modules;
+using FlatpackApp.Modules.AspNetCore;
+using FlatpackApp.Modules.GettingStarted;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -78,6 +80,20 @@ public sealed class FlatpackModuleCatalogTests
         services.ShouldContain(descriptor => descriptor.ServiceType == typeof(FlatpackApp.Application.Projects.ProjectUseCases));
         services.ShouldContain(descriptor => descriptor.ServiceType == typeof(FlatpackApp.Application.Authorization.IPermissionDefinitionProvider)
             && descriptor.ImplementationType == typeof(FlatpackApp.Application.Projects.ProjectPermissionDefinitionProvider));
+    }
+
+    [TestMethod]
+    public void ReferenceModuleComposesAfterProjectsAndRegistersItsHostAdapters()
+    {
+        ServiceCollection services = new();
+        IConfiguration configuration = new ConfigurationBuilder().Build();
+
+        FlatpackModuleCatalog catalog = services.AddFlatpackModules(configuration,
+            [new GettingStartedModule(), new ProjectsModule()]);
+
+        catalog.Descriptors.Select(module => module.Id).ShouldBe(["projects", "getting-started"]);
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IFlatpackOrganizationEndpointContributor));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(FlatpackApp.Application.Authorization.IPermissionDefinitionProvider));
     }
 
     private static StubModule Module(

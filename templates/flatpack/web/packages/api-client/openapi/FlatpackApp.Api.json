@@ -5,6 +5,19 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/api/v1/getting-started": {
+      "get": {
+        "tags": [
+          "Getting Started"
+        ],
+        "operationId": "GettingStarted_Get",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/account": {
       "get": {
         "tags": [
@@ -4639,6 +4652,9 @@
     }
   },
   "tags": [
+    {
+      "name": "Getting Started"
+    },
     {
       "name": "AccountProfile"
     },

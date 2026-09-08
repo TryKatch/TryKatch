@@ -34,12 +34,12 @@ const coreNavigation: readonly FlatpackNavigationContribution[] = [
   { id: 'core.audit', section: 'Administration', order: 20, to: '/audit', label: 'Audit', icon: Activity },
   { id: 'core.archive', section: 'Recovery', order: 10, to: '/archive', label: 'Archive', icon: ArchiveRestore },
 ]
-const nav = [...coreNavigation, ...workspaceModules.navigation]
+const allNavigation = [...coreNavigation, ...workspaceModules.navigation]
   .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
 const sectionOrder = ['Workspace', 'Administration', 'Recovery']
-const navSections = sectionOrder.map((label) => ({ label, items: nav.filter((item) => item.section === label) }))
 
 interface Session { displayName: string; email: string; isPlatformAdministrator: boolean }
+interface OrganizationAccess { permissions: string[] }
 interface RequestError extends Error { status?: number }
 
 function getInitials(value: string) {
@@ -74,6 +74,11 @@ export function AppShell() {
     retryDelay: (attempt) => Math.min(750 * 2 ** attempt, 5_000),
     refetchInterval: (query) => query.state.status === 'error' ? 3_000 : false,
     refetchOnWindowFocus: true,
+  })
+  const access = useQuery({
+    queryKey: ['access'],
+    queryFn: () => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET' }),
+    enabled: Boolean(session.data),
   })
   const logout = useMutation({
     mutationFn: () => customFetch<void>('/api/v1/auth/logout', { method: 'POST' }),
@@ -130,6 +135,8 @@ export function AppShell() {
   const identity = session.data?.displayName || session.data?.email || 'Account'
   const initials = getInitials(identity)
   const area = pathname.endsWith('/archive') ? 'Recovery' : pathname.includes('/user-management') || pathname.endsWith('/audit') ? 'Administration' : 'Workspace'
+  const permittedNavigation = allNavigation.filter((item) => !item.requiredPermission || access.data?.permissions.includes(item.requiredPermission))
+  const navSections = sectionOrder.map((label) => ({ label, items: permittedNavigation.filter((item) => item.section === label) }))
 
   return <div className={`app-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
     <aside className="sidebar" id="organization-navigation">
@@ -179,7 +186,7 @@ export function AppShell() {
     </main>
     <Dialog open={commandOpen} onOpenChange={setCommandOpen} title="Jump to" description="Navigate this organization without leaving the keyboard.">
       <nav className="command-list" aria-label="Command palette">
-        {nav.map(({ id, to, label, icon: Icon }) => <Link key={id} to={to} onClick={() => setCommandOpen(false)}><Icon size={15} /><span>{label}</span></Link>)}
+        {permittedNavigation.map(({ id, to, label, icon: Icon }) => <Link key={id} to={to} onClick={() => setCommandOpen(false)}><Icon size={15} /><span>{label}</span></Link>)}
       </nav>
     </Dialog>
     <SignOutDialog open={signOutOpen} identity={identity} isPending={logout.isPending} error={logout.error?.message} onOpenChange={setSignOutOpen} onConfirm={() => logout.mutate()} />

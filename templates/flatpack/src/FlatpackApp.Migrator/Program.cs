@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using FlatpackApp.Identity;
 using FlatpackApp.Infrastructure.Persistence;
+using FlatpackApp.Infrastructure.Projects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -31,7 +32,10 @@ await using (PlatformDbContext platform = new(platformOptions))
     await platform.Database.MigrateAsync();
 }
 
-await using (ApplicationDbContext application = new(applicationOptions))
+// The migrator composes the same data-owning modules as the runtime host. A
+// module that contributes an EF model must be listed explicitly here and owns
+// its migration history; no runtime assembly scanning is used.
+await using (ApplicationDbContext application = new(applicationOptions, [new ProjectsModelContributor()]))
 {
     await application.Database.MigrateAsync();
 }

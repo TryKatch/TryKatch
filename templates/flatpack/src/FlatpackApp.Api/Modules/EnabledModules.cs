@@ -1,5 +1,6 @@
 using FlatpackApp.Infrastructure.Modules;
 using FlatpackApp.Modules;
+using FlatpackApp.Modules.GettingStarted;
 
 namespace FlatpackApp.Api.Modules;
 
@@ -11,6 +12,7 @@ internal static class EnabledModules
 {
     public static IReadOnlyList<IFlatpackModule> All { get; } =
     [
-        new ProjectsModule()
+        new ProjectsModule(),
+        new GettingStartedModule()
     ];
 }

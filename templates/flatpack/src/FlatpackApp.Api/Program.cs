@@ -8,6 +8,7 @@ using FlatpackApp.Identity;
 using FlatpackApp.Infrastructure;
 using FlatpackApp.Infrastructure.Persistence;
 using FlatpackApp.Modules;
+using FlatpackApp.Modules.AspNetCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -135,6 +136,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
+app.MapFlatpackOrganizationModuleEndpoints();
 app.MapDefaultEndpoints();
 app.Run();
 
