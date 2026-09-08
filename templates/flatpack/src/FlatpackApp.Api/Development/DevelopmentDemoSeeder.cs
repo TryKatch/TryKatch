@@ -110,6 +110,12 @@ internal static class DevelopmentDemoSeeder
             return user;
         }
 
+        if (!await users.CheckPasswordAsync(user, password))
+        {
+            string resetToken = await users.GeneratePasswordResetTokenAsync(user);
+            EnsureSucceeded(await users.ResetPasswordAsync(user, resetToken, password));
+        }
+
         bool changed = false;
         if (!string.Equals(user.DisplayName, displayName, StringComparison.Ordinal))
         {

@@ -33,10 +33,12 @@ public static class DependencyInjection
 
         services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
         {
+            bool useLocalDemoPolicy = isDevelopment
+                && configuration.GetValue<bool>("DevelopmentDemo:Enabled");
             options.SignIn.RequireConfirmedEmail = true;
             options.Lockout.MaxFailedAccessAttempts = 5;
             options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-            options.Password.RequiredLength = 12;
+            options.Password.RequiredLength = useLocalDemoPolicy ? 8 : 12;
             options.Password.RequireNonAlphanumeric = true;
             options.User.RequireUniqueEmail = true;
         })

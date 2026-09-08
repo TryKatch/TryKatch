@@ -40,7 +40,7 @@ describe('LoginPage', () => {
     render(<LoginPage navigate={navigate} />)
 
     fireEvent.change(screen.getByRole('textbox', { name: /email address/i }), { target: { value: 'tenant@flatpack.com' } })
-    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'FlatpackLocal!2026Strong' } })
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'Admin@123' } })
     fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/overview'))

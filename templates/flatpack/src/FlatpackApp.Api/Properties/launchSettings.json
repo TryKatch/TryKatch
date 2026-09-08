@@ -11,7 +11,7 @@
         "DevelopmentDemo__Enabled": "true",
         "DevelopmentDemo__PlatformAdminEmail": "admin@flatpack.com",
         "DevelopmentDemo__TenantAdminEmail": "tenant@flatpack.com",
-        "DevelopmentDemo__Password": "FlatpackLocal!2026Strong",
+        "DevelopmentDemo__Password": "Admin@123",
         "DevelopmentDemo__OrganizationName": "Demo Workspace",
         "DevelopmentDemo__OrganizationSlug": "demo-workspace"
       }
@@ -26,7 +26,7 @@
         "DevelopmentDemo__Enabled": "true",
         "DevelopmentDemo__PlatformAdminEmail": "admin@flatpack.com",
         "DevelopmentDemo__TenantAdminEmail": "tenant@flatpack.com",
-        "DevelopmentDemo__Password": "FlatpackLocal!2026Strong",
+        "DevelopmentDemo__Password": "Admin@123",
         "DevelopmentDemo__OrganizationName": "Demo Workspace",
         "DevelopmentDemo__OrganizationSlug": "demo-workspace"
       }

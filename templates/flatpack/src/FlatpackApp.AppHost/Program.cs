@@ -24,7 +24,7 @@ IResourceBuilder<ProjectResource> api = builder
     .WithEnvironment("DevelopmentDemo__Enabled", "true")
     .WithEnvironment("DevelopmentDemo__PlatformAdminEmail", "admin@flatpack.com")
     .WithEnvironment("DevelopmentDemo__TenantAdminEmail", "tenant@flatpack.com")
-    .WithEnvironment("DevelopmentDemo__Password", "FlatpackLocal!2026Strong")
+    .WithEnvironment("DevelopmentDemo__Password", "Admin@123")
     .WithEnvironment("DevelopmentDemo__OrganizationName", "Demo Workspace")
     .WithEnvironment("DevelopmentDemo__OrganizationSlug", "demo-workspace")
     .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", collector.GetEndpoint("otlp-http"));
