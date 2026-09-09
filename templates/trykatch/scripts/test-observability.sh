@@ -18,13 +18,16 @@ docker compose --env-file "$template_root/.env.example" -f "$template_root/compo
 docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.yml" -f "$template_root/compose.observability-tls.yml" config --quiet
 jq empty "$template_root/deploy/observability/grafana/dashboards/json/trykatch-overview.json"
 
-rg -q 'processors: \[memory_limiter, transform/privacy, redaction/privacy, batch\]' "$template_root/deploy/observability/otel-collector.yml"
-rg -q 'storage: file_storage' "$template_root/deploy/observability/otel-collector.yml"
-rg -q 'port: 8888' "$template_root/deploy/observability/otel-collector.yml"
-rg -q 'retention_enabled: true' "$template_root/deploy/observability/loki.yml"
-rg -q 'retention_period: 168h' "$template_root/deploy/observability/loki.yml"
-rg -q -- '--storage.tsdb.retention.time=15d' "$template_root/compose.yml"
-rg -q '127.0.0.1}:3000:3000' "$template_root/compose.yml"
+grep -Fq 'processors: [memory_limiter, transform/privacy, redaction/privacy, batch]' "$template_root/deploy/observability/otel-collector.yml"
+grep -Fq 'storage: file_storage' "$template_root/deploy/observability/otel-collector.yml"
+grep -Fq 'port: 8888' "$template_root/deploy/observability/otel-collector.yml"
+grep -Fq 'retention_enabled: true' "$template_root/deploy/observability/loki.yml"
+grep -Fq 'retention_period: 168h' "$template_root/deploy/observability/loki.yml"
+grep -Fq -- '--storage.tsdb.retention.time=15d' "$template_root/compose.yml"
+grep -Fq '127.0.0.1}:3000:3000' "$template_root/compose.yml"
+
+telemetry_loss_expression='(sum(increase(otelcol_receiver_refused_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_spans_total[5m])) or vector(0))'
+grep -Fq "expr: '$telemetry_loss_expression'" "$template_root/deploy/observability/grafana/alerting/rules.yml"
 
 if [[ $static_only == true ]]; then
   exit 0
