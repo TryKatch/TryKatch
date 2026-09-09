@@ -4,6 +4,7 @@ import { expect, test } from '@playwright/test'
 test('landing page exposes persistent light, system, and dark modes', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' })
   await page.goto('/')
+  await page.getByRole('button', { name: 'Preferences' }).click()
 
   const light = page.getByRole('button', { name: 'Light Theme' })
   const system = page.getByRole('button', { name: 'System Theme' })
@@ -15,12 +16,16 @@ test('landing page exposes persistent light, system, and dark modes', async ({ p
   await dark.click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await page.reload()
+  await page.getByRole('button', { name: 'Preferences' }).click()
   await expect(dark).toHaveAttribute('aria-pressed', 'true')
 
   await system.click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await page.emulateMedia({ colorScheme: 'dark' })
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+
+  await page.getByRole('button', { name: 'French Language' }).click()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fr')
 
   const results = await new AxeBuilder({ page }).analyze()
   expect(results.violations).toEqual([])

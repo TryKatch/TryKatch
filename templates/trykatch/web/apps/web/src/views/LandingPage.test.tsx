@@ -36,6 +36,7 @@ describe('LandingPage', () => {
   it('offers persistent light, system, and dark appearance modes', async () => {
     render(<LandingPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Preferences' }))
     expect(screen.getByRole('button', { name: 'Light Theme' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'System Theme' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Dark Theme' })).toBeInTheDocument()
