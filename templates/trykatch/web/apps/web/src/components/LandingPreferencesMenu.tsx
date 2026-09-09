@@ -1,7 +1,10 @@
-import { Check, ChevronDown, Languages, Monitor, Moon, Settings2, Sun } from 'lucide-react'
+import { Check, ChevronDown, Languages, Monitor, Moon, Sun } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../i18n/I18nProvider'
 import { applyAppearance, defaultShellColor, type Theme } from '../shell/appearance'
+
+type LandingTheme = Exclude<Theme, 'custom'>
+type OpenMenu = 'language' | 'theme' | null
 
 const themes = [
   ['light', Sun, 'Light'],
@@ -14,9 +17,9 @@ const languages = [
   ['fr', 'French'],
 ] as const
 
-function storedTheme(): Theme {
+function storedTheme(): LandingTheme {
   const value = localStorage.getItem('trykatch-theme')
-  return value === 'light' || value === 'dark' || value === 'custom' || value === 'system' ? value : 'system'
+  return value === 'light' || value === 'dark' || value === 'system' ? value : 'system'
 }
 
 function storedShellColor() {
@@ -26,9 +29,12 @@ function storedShellColor() {
 
 export function LandingPreferencesMenu() {
   const { locale, setLocale, t } = useI18n()
-  const [open, setOpen] = useState(false)
-  const [theme, setTheme] = useState<Theme>(storedTheme)
+  const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
+  const [theme, setTheme] = useState<LandingTheme>(storedTheme)
   const container = useRef<HTMLDivElement>(null)
+  const ThemeIcon = themes.find(([value]) => value === theme)?.[1] ?? Monitor
+  const themeLabel = themes.find(([value]) => value === theme)?.[2] ?? 'System'
+  const languageLabel = locale === 'fr' ? 'French' : 'English'
 
   useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)')
@@ -41,10 +47,10 @@ export function LandingPreferencesMenu() {
 
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
-      if (container.current && !container.current.contains(event.target as Node)) setOpen(false)
+      if (container.current && !container.current.contains(event.target as Node)) setOpenMenu(null)
     }
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') setOpenMenu(null)
     }
     window.addEventListener('pointerdown', closeOutside)
     window.addEventListener('keydown', closeOnEscape)
@@ -54,50 +60,71 @@ export function LandingPreferencesMenu() {
     }
   }, [])
 
+  const selectTheme = (value: LandingTheme) => {
+    setTheme(value)
+    setOpenMenu(null)
+  }
+
+  const selectLanguage = (value: 'en' | 'fr') => {
+    setLocale(value)
+    setOpenMenu(null)
+  }
+
   return <div className="landing-preferences" ref={container}>
-    <button
-      className="landing-preferences-trigger"
-      type="button"
-      aria-label={t('Preferences')}
-      aria-haspopup="dialog"
-      aria-expanded={open}
-      onClick={() => setOpen((value) => !value)}
-    >
-      <Settings2 size={15} aria-hidden="true" />
-      <span>{t('Preferences')}</span>
-      <ChevronDown className={open ? 'is-open' : ''} size={13} aria-hidden="true" />
-    </button>
-    {open && <div className="landing-preferences-panel" role="dialog" aria-label={t('Preferences')}>
-      <fieldset>
-        <legend>{t('Theme')}</legend>
+    <div className="landing-preference-menu">
+      <button
+        className="landing-preference-trigger"
+        type="button"
+        aria-label={`${t('Theme')}: ${t(themeLabel)}`}
+        aria-haspopup="menu"
+        aria-expanded={openMenu === 'theme'}
+        onClick={() => setOpenMenu((value) => value === 'theme' ? null : 'theme')}
+      >
+        <ThemeIcon size={15} aria-hidden="true" />
+        <span>{t(themeLabel)}</span>
+        <ChevronDown className={openMenu === 'theme' ? 'is-open' : ''} size={13} aria-hidden="true" />
+      </button>
+      {openMenu === 'theme' && <div className="landing-preference-panel" role="menu" aria-label={t('Theme')}>
         {themes.map(([value, Icon, label]) => <button
           key={value}
           type="button"
-          className={theme === value ? 'selected' : ''}
-          aria-label={`${t(label)} ${t('Theme')}`}
-          aria-pressed={theme === value}
-          onClick={() => setTheme(value)}
+          role="menuitemradio"
+          aria-checked={theme === value}
+          onClick={() => selectTheme(value)}
         >
           <Icon size={15} aria-hidden="true" />
           <span>{t(label)}</span>
           {theme === value && <Check size={14} aria-hidden="true" />}
         </button>)}
-      </fieldset>
-      <fieldset>
-        <legend><Languages size={13} aria-hidden="true" />{t('Language')}</legend>
+      </div>}
+    </div>
+
+    <div className="landing-preference-menu">
+      <button
+        className="landing-preference-trigger"
+        type="button"
+        aria-label={`${t('Language')}: ${t(languageLabel)}`}
+        aria-haspopup="menu"
+        aria-expanded={openMenu === 'language'}
+        onClick={() => setOpenMenu((value) => value === 'language' ? null : 'language')}
+      >
+        <Languages size={15} aria-hidden="true" />
+        <span>{t(languageLabel)}</span>
+        <ChevronDown className={openMenu === 'language' ? 'is-open' : ''} size={13} aria-hidden="true" />
+      </button>
+      {openMenu === 'language' && <div className="landing-preference-panel landing-language-panel" role="menu" aria-label={t('Language')}>
         {languages.map(([value, label]) => <button
           key={value}
           type="button"
-          className={locale === value ? 'selected' : ''}
-          aria-label={`${t(label)} ${t('Language')}`}
-          aria-pressed={locale === value}
-          onClick={() => setLocale(value)}
+          role="menuitemradio"
+          aria-checked={locale === value}
+          onClick={() => selectLanguage(value)}
         >
+          <span className="landing-language-code">{value.toUpperCase()}</span>
           <span>{t(label)}</span>
-          <small>{value.toUpperCase()}</small>
           {locale === value && <Check size={14} aria-hidden="true" />}
         </button>)}
-      </fieldset>
-    </div>}
+      </div>}
+    </div>
   </div>
 }

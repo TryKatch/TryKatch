@@ -43,13 +43,12 @@ const links = [
 </script>
 
 <style>
-  .language-menu { position: relative; color: var(--sl-color-gray-2); }
+  .language-menu { position: relative; width: max-content; color: var(--sl-color-gray-2); }
   summary {
-    display: flex;
-    min-width: 7.5rem;
+    display: inline-flex;
     min-height: 2.5rem;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     padding: 0.45rem 0.6rem;
     border: 1px solid transparent;
     border-radius: 4px;
@@ -67,7 +66,7 @@ const links = [
   }
   summary:focus-visible { outline: 2px solid var(--sl-color-accent); outline-offset: 2px; }
   summary :global(svg) { width: 1rem; height: 1rem; }
-  summary span { flex: 1; text-align: start; }
+  summary span { text-align: start; white-space: nowrap; }
   .caret { width: 0.8rem; transition: transform 120ms ease; }
   details[open] .caret { transform: rotate(180deg); }
 
@@ -111,7 +110,6 @@ const links = [
   a[aria-checked='true'] .check { visibility: visible; }
 
   @media (max-width: 49.99rem) {
-    summary { min-width: 6.75rem; }
     .language-panel { top: auto; bottom: calc(100% + 0.45rem); left: 0; right: auto; }
   }
 </style>

@@ -9,7 +9,8 @@ export default defineConfig({
       description: 'Build secure, modular .NET products on an enterprise application foundation.',
       favicon: '/favicon.svg',
       logo: {
-        src: './src/assets/logo.svg',
+        dark: './src/assets/logo-on-dark.svg',
+        light: './src/assets/logo-on-light.svg',
         replacesTitle: false,
       },
       customCss: ['./src/styles/custom.css'],
