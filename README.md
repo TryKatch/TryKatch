@@ -9,7 +9,7 @@ Trykatch is an Apache-2.0 enterprise application template for .NET 10, PostgreSQ
 `Trykatch.Templates` is the full-stack project generator. Install it once through the standard .NET template engine, then generate as many independent applications as needed. Every default generation includes the .NET solution and the complete React/TanStack frontend workspace:
 
 ```bash
-dotnet new install Trykatch.Templates
+dotnet new install Trykatch.Templates@0.1.0-preview.1
 dotnet new trykatch -n Horizon
 dotnet new trykatch -n Acme.Operations
 ```
@@ -68,4 +68,4 @@ The remaining work required before a stable release is tracked in the [productio
 
 `develop` is the integration and default branch. Feature and fix branches merge into `develop` and are deleted after merge. Release-ready changes merge from `develop` into `main`.
 
-Version tags (`v*`) publish `Trykatch.Templates` and `Trykatch.Cli` to NuGet only when the tagged commit is already present on `main`. Configure the repository's `NUGET_API_KEY` Actions secret before creating the first release tag.
+Version tags (`v*`) publish `Trykatch.Templates` and `Trykatch.Cli` to NuGet through the repository's trusted-publishing workflow, only when the tagged commit is already present on `main`.
