@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   nuget:
@@ -34,6 +35,10 @@ jobs:
         with:
           name: trykatch-release
           path: artifacts
-      - run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      - name: Exchange GitHub identity for a temporary NuGet API key
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: sudi
+      - name: Publish packages to NuGet.org
+        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
