@@ -22,9 +22,10 @@ jobs:
       observability: ${{ steps.scopes.outputs.observability }}
       deployment: ${{ steps.scopes.outputs.deployment }}
       packaging: ${{ steps.scopes.outputs.packaging }}
+      qualification: ${{ steps.scopes.outputs.qualification }}
       template: ${{ steps.scopes.outputs.template }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
       - name: Resolve affected verification scopes
@@ -41,11 +42,11 @@ jobs:
     if: needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: 10.17.1
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: pnpm
@@ -59,8 +60,8 @@ jobs:
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 10.0.x
           cache: true
@@ -87,11 +88,11 @@ jobs:
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: 10.17.1
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: pnpm
@@ -118,7 +119,7 @@ jobs:
     if: needs.changes.outputs.observability == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Validate observability deployment contracts
         run: bash scripts/test-observability.sh
 
@@ -127,7 +128,7 @@ jobs:
     if: needs.changes.outputs.deployment == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file templates/trykatch/.env.example -f templates/trykatch/compose.yml config --quiet
 
   verify-api-image:
@@ -135,7 +136,7 @@ jobs:
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.deployment == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: docker build -f templates/trykatch/src/TrykatchApp.Api/Dockerfile templates/trykatch
 
   verify-web-image:
@@ -143,7 +144,7 @@ jobs:
     if: needs.changes.outputs.web == 'true' || needs.changes.outputs.deployment == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: docker build -f templates/trykatch/web/apps/web/Dockerfile templates/trykatch
 
   verify-migrator:
@@ -151,7 +152,7 @@ jobs:
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.deployment == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: bash scripts/test-migrator.sh
 
   verify-package:
@@ -159,16 +160,16 @@ jobs:
     if: needs.changes.outputs.packaging == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 10.0.x
           cache: true
           cache-dependency-path: templates/trykatch/**/packages.lock.json
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: 10.17.1
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: pnpm
@@ -180,20 +181,53 @@ jobs:
         run: bash scripts/test-federation-module.sh
       - run: bash scripts/test-template.sh
 
+  verify-generated-application:
+    needs: changes
+    if: needs.changes.outputs.qualification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: templates/trykatch/**/packages.lock.json
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
+      - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
+      - name: Install the acceptance browser
+        run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web exec playwright install --with-deps chromium
+      - name: Qualify a clean generated production application
+        run: bash scripts/test-generated-application.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: generated-application-acceptance
+          path: artifacts/generated-application
+          if-no-files-found: error
+          retention-days: 14
+
   verify-supply-chain:
     needs: changes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
-      - uses: anchore/sbom-action@v0.24.0
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         if: needs.changes.outputs.template == 'true'
         with:
           path: templates/trykatch
           format: spdx-json
           output-file: trykatch-template.spdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: needs.changes.outputs.template == 'true'
         with:
           name: trykatch-template-sbom
@@ -223,6 +257,7 @@ jobs:
       - verify-web-image
       - verify-migrator
       - verify-package
+      - verify-generated-application
       - verify-supply-chain
     runs-on: ubuntu-latest
     steps:

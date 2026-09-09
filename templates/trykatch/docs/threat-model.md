@@ -34,7 +34,7 @@ This model covers the generated React web application, same-origin reverse proxy
 | Supply-chain substitution | NuGet and pnpm lockfiles, central versions, vulnerability audits, SBOM generation, secret scanning, and tag-plus-digest container references. |
 | Telemetry outage affecting business traffic | OTLP export is asynchronous; API startup has no Collector dependency; Collector queues/retries are bounded and file-backed for logs/traces; application readiness depends on PostgreSQL, not Grafana backends. Queue overflow, retry expiry, disk/host loss, and missed Prometheus scrapes remain explicit loss windows. |
 | Public operational access | Collector, Loki, Tempo, and Prometheus have no host bindings. Grafana defaults to loopback with a non-default password and requires authenticated HTTPS ingress. Backend-only API ingress must deny `/health/*`; probes themselves remain unauthenticated on the private container network. |
-| Forged forwarding headers | Production ingress must be the only public route to the API and must overwrite forwarded headers. Direct API publishing is a diagnostic profile and requires its own trusted-proxy configuration. |
+| Forged forwarding headers | The React profile binds to loopback; its host ingress must remove client-supplied forwarding headers and derive the scheme from the authenticated connection. The API accepts one symmetric forwarding hop only from the exact configured web-container IP. Direct API publishing is a diagnostic profile and requires its own trusted-proxy configuration. |
 
 ## Residual risks and release blockers
 
