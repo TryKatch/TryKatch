@@ -71,10 +71,11 @@ jobs:
       - run: pnpm --dir templates/trykatch/web build
       - name: Exclude unrelated Google Chrome apt feed
         run: |
-          chrome_source=/etc/apt/sources.list.d/google-chrome.list
-          if [[ -f "$chrome_source" ]]; then
-            sudo mv "$chrome_source" "$RUNNER_TEMP/google-chrome.list.disabled"
-          fi
+          for chrome_source in /etc/apt/sources.list.d/google-chrome.*; do
+            if [[ -f "$chrome_source" ]]; then
+              sudo mv "$chrome_source" "$RUNNER_TEMP/$(basename "$chrome_source").disabled"
+            fi
+          done
       - run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web exec playwright install --with-deps chromium
       - run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web test:e2e
       - run: dotnet list templates/trykatch/TrykatchApp.slnx package --vulnerable --include-transitive
