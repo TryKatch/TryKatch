@@ -36,7 +36,9 @@ public sealed class ModuleWorkspaceTests
         string manifestPath = Path.Combine(temporary.Root, "manifests/projects.json");
         File.WriteAllText(
             catalogPath,
-            File.ReadAllText(catalogPath).Replace("TrykatchApp", "Horizon", StringComparison.Ordinal));
+            File.ReadAllText(catalogPath)
+                .Replace("TrykatchApp", "Horizon", StringComparison.Ordinal)
+                .Replace("trykatchapp", "horizon", StringComparison.Ordinal));
         File.WriteAllText(
             manifestPath,
             File.ReadAllText(manifestPath)
@@ -46,8 +48,42 @@ public sealed class ModuleWorkspaceTests
         ModuleDoctorReport renamed = new ModuleWorkspace(temporary.Root).Generate();
 
         renamed.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, renamed.Errors));
+        File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedModules.cs"))
+            .ShouldContain("using Horizon.Modules;");
+        File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts"))
+            .ShouldContain("from '@horizon/module-sdk'");
         File.ReadAllText(Path.Combine(temporary.Root, "trykatch.modules.lock.json")).ShouldBe(lockBeforeRename);
         lockBeforeRename.ShouldContain("template-normalized-sha256");
+    }
+
+    [TestMethod]
+    public void LegacyVersionOneCatalogDerivesPortableOutputIdentities()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        string catalogPath = Path.Combine(temporary.Root, "trykatch.modules.json");
+        string catalog = File.ReadAllText(catalogPath)
+            .Replace("    \"dotnetModuleContractNamespace\": \"TrykatchApp.Modules\",\n", string.Empty, StringComparison.Ordinal)
+            .Replace("    \"web\": \"web/src/modules.ts\",\n", "    \"web\": \"web/src/modules.ts\"\n", StringComparison.Ordinal)
+            .Replace("    \"webModuleSdkSpecifier\": \"@trykatchapp/module-sdk\"\n", string.Empty, StringComparison.Ordinal)
+            .Replace("TrykatchApp", "CustomerPortal", StringComparison.Ordinal)
+            .Replace("trykatchapp", "customerportal", StringComparison.Ordinal);
+        File.WriteAllText(catalogPath, catalog);
+        string manifestPath = Path.Combine(temporary.Root, "manifests/projects.json");
+        File.WriteAllText(
+            manifestPath,
+            File.ReadAllText(manifestPath)
+                .Replace("TrykatchApp", "CustomerPortal", StringComparison.Ordinal)
+                .Replace("trykatchapp", "customerportal", StringComparison.Ordinal));
+
+        ModuleWorkspace workspace = new(temporary.Root);
+        ModuleDoctorReport generated = workspace.Generate();
+
+        generated.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, generated.Errors));
+        File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedModules.cs"))
+            .ShouldContain("using CustomerPortal.Modules;");
+        File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts"))
+            .ShouldContain("from '@customerportal/module-sdk'");
+        workspace.Inspect().IsHealthy.ShouldBeTrue();
     }
 
     [TestMethod]
@@ -268,6 +304,7 @@ public sealed class ModuleWorkspaceTests
             Directory.CreateDirectory(Path.Combine(root, "src/TrykatchApp.Api"));
             Directory.CreateDirectory(Path.Combine(root, "src/TrykatchApp.Migrator"));
             Directory.CreateDirectory(Path.Combine(root, "web/apps/web"));
+            File.WriteAllText(Path.Combine(root, "TrykatchApp.slnx"), "<Solution />");
             File.WriteAllText(Path.Combine(root, "src/Projects.csproj"), "<Project />");
             File.WriteAllText(Path.Combine(root, "src/SampleExtension.csproj"), "<Project />");
             File.WriteAllText(Path.Combine(root, "web/packages/projects/package.json"), "{}");
@@ -319,9 +356,11 @@ public sealed class ModuleWorkspaceTests
                   "outputs": {
                     "backend": "src/GeneratedModules.cs",
                     "backendNamespace": "TrykatchApp.Api.Modules",
+                    "dotnetModuleContractNamespace": "TrykatchApp.Modules",
                     "migrator": "src/GeneratedMigratorModules.cs",
                     "migratorNamespace": "TrykatchApp.Migrator.Modules",
-                    "web": "web/src/modules.ts"
+                    "web": "web/src/modules.ts",
+                    "webModuleSdkSpecifier": "@trykatchapp/module-sdk"
                   },
                   "modules": [
                     {{registrations}}

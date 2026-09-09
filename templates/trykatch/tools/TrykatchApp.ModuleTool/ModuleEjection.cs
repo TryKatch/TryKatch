@@ -75,8 +75,12 @@ public sealed partial class ModuleWorkspace
             catalog.Modules.Remove(installed.Registration);
             RemovePackageReferences(installed.Manifest, catalog);
             catalog.Modules.Add(installed.Registration);
-            AddProjectReference(ResolveInsideRoot("src/TrykatchApp.Api/TrykatchApp.Api.csproj"), dotnetTarget);
-            AddProjectReference(ResolveInsideRoot("src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj"), dotnetTarget);
+            AddProjectReference(
+                ResolveHostProject(catalog.Outputs.Backend, catalog.Outputs.BackendNamespace, "API"),
+                dotnetTarget);
+            AddProjectReference(
+                ResolveHostProject(catalog.Outputs.Migrator, catalog.Outputs.MigratorNamespace, "migrator"),
+                dotnetTarget);
             if (source.Manifest.Distribution.Web is null && webTarget is not null)
                 UpsertWebDependency(
                     ResolveInsideRoot("web/apps/web/package.json"),
@@ -93,7 +97,7 @@ public sealed partial class ModuleWorkspace
 
             WriteGeneratedRegistries(catalog, ejectedModules);
             WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, JsonOptions) + "\n");
-            RestorePackageGraphs(webTarget is not null);
+            RestorePackageGraphs(catalog, webTarget is not null);
             ModuleDoctorReport report = Inspect();
             if (!report.IsHealthy)
                 throw new InvalidOperationException(string.Join(Environment.NewLine, report.Errors));

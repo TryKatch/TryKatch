@@ -6,9 +6,11 @@
   "outputs": {
     "backend": "src/TrykatchApp.Api/Modules/EnabledModules.cs",
     "backendNamespace": "TrykatchApp.Api.Modules",
+    "dotnetModuleContractNamespace": "TrykatchApp.Modules",
     "migrator": "src/TrykatchApp.Migrator/Modules/EnabledModules.cs",
     "migratorNamespace": "TrykatchApp.Migrator.Modules",
-    "web": "web/apps/web/src/modules.ts"
+    "web": "web/apps/web/src/modules.ts",
+    "webModuleSdkSpecifier": "@trykatchapp/module-sdk"
   },
   "modules": [
     {
