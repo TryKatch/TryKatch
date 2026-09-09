@@ -1,4 +1,5 @@
 import { ArrowRight, Boxes, Database, LockKeyhole, Waypoints } from 'lucide-react'
+import { LandingThemeSwitcher } from '../components/LandingThemeSwitcher'
 import { TrykatchLogo } from '../components/TrykatchLogo'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
 import { useI18n } from '../i18n/I18nProvider'
@@ -32,6 +33,7 @@ export function LandingPage() {
       <nav className="landing-nav-actions" aria-label="Product links">
         <a className="landing-nav-link" href="https://docs.trykatch.net">{t('Documentation')}</a>
         <a className="landing-nav-link" href="https://github.com/TryKatch/TryKatch">GitHub</a>
+        <LandingThemeSwitcher />
         <LanguageSwitcher compact />
         <a className="landing-sign-in" href="#install">{t('Get started')} <ArrowRight size={15} /></a>
       </nav>

@@ -368,6 +368,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .landing-nav-actions { display: flex; align-items: center; gap: 18px; }
 .landing-nav-link { color: var(--muted); font-size: 13px; font-weight: 620; text-decoration: none; }
 .landing-nav-link:hover { color: var(--text); }
+.landing-theme-switcher { display: inline-flex; padding: 2px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.landing-theme-switcher button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; color: var(--muted); background: transparent; border: 0; border-radius: calc(var(--radius) - 1px); font-size: 11px; font-weight: 650; cursor: pointer; transition: color 130ms ease, background-color 160ms cubic-bezier(.2, .8, .2, 1); }
+.landing-theme-switcher button:hover { color: var(--text); background: var(--panel-raised); }
+.landing-theme-switcher button.selected { color: var(--text); background: var(--accent-soft); }
 .landing-sign-in { min-height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; color: var(--text); border: 1px solid var(--line-strong); border-radius: var(--radius); font-weight: 650; text-decoration: none; }
 .landing-sign-in:hover, .landing-secondary-action:hover { background: var(--panel-raised); }
 .landing-hero { width: min(1160px, calc(100% - 48px)); min-height: 520px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, .65fr); align-items: center; gap: clamp(52px, 8vw, 112px); margin: 0 auto; padding: 86px 0; }
@@ -695,8 +699,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .archive-summary-grid { grid-template-columns: 1fr; }
   .record-details-context { grid-template-columns: 42px minmax(0, 1fr); padding-inline: 16px; }.record-details-mark { width: 42px; height: 42px; }.record-details-status { grid-column: 2; justify-self: start; }.record-details-section { padding-inline: 16px; }.record-details > div { grid-template-columns: 1fr; gap: 3px; }.record-details dd { text-align: left; }.record-details-actions { padding-inline: 16px; }.record-details-actions .button { flex: 1; }
   .role-permission-disclosure { padding: 12px; }.role-permission-overview { flex-direction: column; gap: 6px; }.role-permission-overview p { text-align: left; }.role-permission-module > ul { grid-template-columns: 1fr; }.role-permission-module li:nth-child(even) { border-left: 0; }.role-permission-module li:nth-child(n + 2) { border-top: 1px solid var(--line); }.role-permission-module-title small { white-space: normal; }
-  .landing-nav { height: 58px; }
+  .landing-nav { min-height: 58px; height: auto; flex-wrap: wrap; gap: 8px 14px; padding: 10px 0; }
+  .landing-nav-actions { gap: 8px; }
   .landing-nav-link { display: none; }
+  .landing-theme-switcher button { width: 30px; justify-content: center; padding-inline: 0; }
+  .landing-theme-switcher button span { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   .landing-hero h1 { font-size: 41px; }
   .landing-actions { align-items: stretch; flex-direction: column; }
   .landing-primary-action, .landing-secondary-action { width: 100%; }
