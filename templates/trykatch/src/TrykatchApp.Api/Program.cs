@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using TrykatchApp.Api.Development;
 using TrykatchApp.Api.Modules;
@@ -38,8 +39,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
 builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
 builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();
-builder.Services.AddControllers().ConfigureApplicationPartManager(parts =>
-    parts.FeatureProviders.Add(new TrykatchModuleControllerFeatureProvider(moduleCatalog.ModuleIds)));
+builder.Services.ConfigureHttpJsonOptions(options => ConfigureStrictJson(options.SerializerOptions));
+builder.Services.AddControllers()
+    .AddJsonOptions(options => ConfigureStrictJson(options.JsonSerializerOptions))
+    .ConfigureApplicationPartManager(parts =>
+        parts.FeatureProviders.Add(new TrykatchModuleControllerFeatureProvider(moduleCatalog.ModuleIds)));
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer<TrykatchOpenApiDocumentTransformer>();
@@ -147,5 +151,11 @@ app.MapTrykatchOrganizationModuleEndpoints();
 app.MapTrykatchPlatformModuleEndpoints();
 app.MapDefaultEndpoints();
 app.Run();
+
+static void ConfigureStrictJson(JsonSerializerOptions options)
+{
+    options.RespectNullableAnnotations = true;
+    options.RespectRequiredConstructorParameters = true;
+}
 
 public partial class Program;
