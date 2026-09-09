@@ -6,7 +6,7 @@ description: Install the Trykatch template package and generate a complete .NET 
 ## Install the template
 
 ```bash
-dotnet new install Trykatch.Templates
+dotnet new install Trykatch.Templates@0.1.0-preview.1
 ```
 
 Generate a complete .NET 10 backend and React workspace with your product name:
@@ -15,6 +15,8 @@ Generate a complete .NET 10 backend and React workspace with your product name:
 dotnet new trykatch -n Horizon
 cd Horizon
 ```
+
+React is the default surface. The generated project contains the complete `web` workspace, including the React application, reusable UI and module packages, generated API client, tests, lockfile, and production container.
 
 Names containing dots and hyphens are normalized for C# namespaces, directories, container names, and npm packages.
 
