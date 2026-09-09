@@ -185,7 +185,7 @@ public sealed partial class ModuleWorkspace
                 if (remove)
                     RemovePackageReferences(candidate.Manifest, catalog);
                 else
-                    UpsertPackageReferences(candidate.Manifest);
+                    UpsertPackageReferences(catalog, candidate.Manifest);
             }
 
             List<string> errors = [];
@@ -202,7 +202,7 @@ public sealed partial class ModuleWorkspace
             WriteGeneratedRegistries(catalog, modules);
             WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, JsonOptions) + "\n");
             if (candidate is not null)
-                RestorePackageGraphs(candidate.Manifest.Distribution.Web is not null);
+                RestorePackageGraphs(catalog, candidate.Manifest.Distribution.Web is not null);
 
             ModuleDoctorReport report = Inspect();
             if (!report.IsHealthy)
@@ -257,13 +257,14 @@ public sealed partial class ModuleWorkspace
         Path.Combine(".trykatch", "modules", manifest.Id, manifest.Version, "trykatch.module.json"));
 
     private void ValidateInstalledDotnetPackage(
+        ModuleCatalogFile catalog,
         ModuleManifest manifest,
         ModulePackageIdentity package,
         List<string> errors)
     {
         string centralPath = ResolveInsideRoot("Directory.Packages.props");
-        string apiPath = ResolveInsideRoot("src/TrykatchApp.Api/TrykatchApp.Api.csproj");
-        string migratorPath = ResolveInsideRoot("src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj");
+        string apiPath = ResolveHostProject(catalog.Outputs.Backend, catalog.Outputs.BackendNamespace, "API");
+        string migratorPath = ResolveHostProject(catalog.Outputs.Migrator, catalog.Outputs.MigratorNamespace, "migrator");
         if (!HasPackageVersion(centralPath, package.Id, package.Version))
             errors.Add($"Package module '{manifest.Id}' requires exact central .NET package '{package.Id}' version '{package.Version}'.");
         if (!HasPackageReference(apiPath, package.Id))
@@ -282,13 +283,17 @@ public sealed partial class ModuleWorkspace
             errors.Add($"Package module '{manifest.Id}' requires exact web package '{package.Id}' version '{package.Version}'.");
     }
 
-    private void UpsertPackageReferences(ModuleManifest manifest)
+    private void UpsertPackageReferences(ModuleCatalogFile catalog, ModuleManifest manifest)
     {
         ModulePackageIdentity dotnet = manifest.Distribution.Dotnet
             ?? throw new InvalidOperationException($"Package module '{manifest.Id}' has no .NET package identity.");
         UpsertPackageVersion(ResolveInsideRoot("Directory.Packages.props"), dotnet.Id, dotnet.Version);
-        UpsertPackageReference(ResolveInsideRoot("src/TrykatchApp.Api/TrykatchApp.Api.csproj"), dotnet.Id);
-        UpsertPackageReference(ResolveInsideRoot("src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj"), dotnet.Id);
+        UpsertPackageReference(
+            ResolveHostProject(catalog.Outputs.Backend, catalog.Outputs.BackendNamespace, "API"),
+            dotnet.Id);
+        UpsertPackageReference(
+            ResolveHostProject(catalog.Outputs.Migrator, catalog.Outputs.MigratorNamespace, "migrator"),
+            dotnet.Id);
         if (manifest.Distribution.Web is not null && HasWebSurface())
             UpsertWebDependency(
                 ResolveInsideRoot("web/apps/web/package.json"),
@@ -307,8 +312,18 @@ public sealed partial class ModuleWorkspace
         if (!dotnetStillUsed)
         {
             RemovePackageVersion(ResolveInsideRoot("Directory.Packages.props"), dotnet.Id);
-            RemovePackageReference(ResolveInsideRoot("src/TrykatchApp.Api/TrykatchApp.Api.csproj"), dotnet.Id);
-            RemovePackageReference(ResolveInsideRoot("src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj"), dotnet.Id);
+            RemovePackageReference(
+                ResolveHostProject(
+                    remainingCatalog.Outputs.Backend,
+                    remainingCatalog.Outputs.BackendNamespace,
+                    "API"),
+                dotnet.Id);
+            RemovePackageReference(
+                ResolveHostProject(
+                    remainingCatalog.Outputs.Migrator,
+                    remainingCatalog.Outputs.MigratorNamespace,
+                    "migrator"),
+                dotnet.Id);
         }
 
         if (manifest.Distribution.Web is not null && HasWebSurface())
@@ -322,11 +337,11 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    private void RestorePackageGraphs(bool includeWeb)
+    private void RestorePackageGraphs(ModuleCatalogFile catalog, bool includeWeb)
     {
         WorkspaceCommandResult dotnet = _commandRunner.Run(
             "dotnet",
-            ["restore", "TrykatchApp.slnx", "--force-evaluate"],
+            ["restore", ResolveSolution(), "--force-evaluate"],
             _root);
         if (dotnet.ExitCode != 0)
             throw new InvalidOperationException($".NET package restore failed:{Environment.NewLine}{dotnet.Output}");
@@ -354,8 +369,8 @@ public sealed partial class ModuleWorkspace
             ResolveInsideRoot(catalog.Outputs.Backend),
             ResolveInsideRoot(catalog.Outputs.Migrator),
             ResolveInsideRoot("Directory.Packages.props"),
-            ResolveInsideRoot("src/TrykatchApp.Api/TrykatchApp.Api.csproj"),
-            ResolveInsideRoot("src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj")
+            ResolveHostProject(catalog.Outputs.Backend, catalog.Outputs.BackendNamespace, "API"),
+            ResolveHostProject(catalog.Outputs.Migrator, catalog.Outputs.MigratorNamespace, "migrator")
         ];
         if (HasWebSurface())
         {

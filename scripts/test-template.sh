@@ -10,6 +10,17 @@ template_hive="$test_root/template-hive"
 dotnet pack "$repository_root/Trykatch.Templates.csproj" -c Release -o "$test_root/package"
 package_path=$(find "$test_root/package" -name 'Trykatch.Templates.*.nupkg' -print -quit)
 dotnet new --debug:custom-hive "$template_hive" install "$package_path" --force
+dotnet pack \
+  "$repository_root/templates/trykatch/tools/TrykatchApp.ModuleTool/TrykatchApp.ModuleTool.csproj" \
+  -c Release \
+  -o "$test_root/package" \
+  -p:PackageVersion=0.1.0-ci
+dotnet tool install \
+  Trykatch.Cli \
+  --version 0.1.0-ci \
+  --tool-path "$test_root/tools" \
+  --add-source "$test_root/package"
+"$test_root/tools/trykatch" --help >/dev/null
 
 generate_and_build() {
   local name=$1
@@ -39,6 +50,7 @@ test -d "$test_root/Horizon/web"
 test -f "$test_root/Horizon/.github/workflows/web.yml"
 test ! -e "$test_root/Horizon/compose.backend.yml"
 test ! -e "$test_root/Horizon/README.backend.md"
+"$test_root/tools/trykatch" module doctor --root "$test_root/Horizon"
 generate_and_build Acme.Tools-Portal --ui none
 test ! -e "$test_root/Acme.Tools.Portal/web"
 test ! -e "$test_root/Acme.Tools.Portal/.github/workflows/web.yml"

@@ -13,10 +13,22 @@
     "outputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["backend", "backendNamespace", "migrator", "migratorNamespace", "web"],
+      "required": [
+        "backend",
+        "backendNamespace",
+        "dotnetModuleContractNamespace",
+        "migrator",
+        "migratorNamespace",
+        "web",
+        "webModuleSdkSpecifier"
+      ],
       "properties": {
         "backend": { "$ref": "#/$defs/relativePath" },
         "backendNamespace": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+        },
+        "dotnetModuleContractNamespace": {
           "type": "string",
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"
         },
@@ -25,7 +37,8 @@
           "type": "string",
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"
         },
-        "web": { "$ref": "#/$defs/relativePath" }
+        "web": { "$ref": "#/$defs/relativePath" },
+        "webModuleSdkSpecifier": { "type": "string", "minLength": 1 }
       }
     },
     "modules": {

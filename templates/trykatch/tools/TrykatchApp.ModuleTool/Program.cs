@@ -5,8 +5,13 @@ return await RunAsync(args);
 
 static Task<int> RunAsync(string[] arguments)
 {
+    if (arguments.Length == 1
+        && (string.Equals(arguments[0], "--help", StringComparison.Ordinal)
+            || string.Equals(arguments[0], "-h", StringComparison.Ordinal)))
+        return Task.FromResult(ShowUsage(0));
+
     if (arguments.Length < 2 || !string.Equals(arguments[0], "module", StringComparison.Ordinal))
-        return Task.FromResult(ShowUsage());
+        return Task.FromResult(ShowUsage(1));
 
     string root = Directory.GetCurrentDirectory();
     string? expectedSha256 = null;
@@ -39,7 +44,7 @@ static Task<int> RunAsync(string[] arguments)
     }
 
     if (positional.Count == 0)
-        return Task.FromResult(ShowUsage());
+        return Task.FromResult(ShowUsage(1));
 
     try
     {
@@ -98,7 +103,7 @@ static void PrintModules(IEnumerable<ModuleStatus> modules)
         Console.WriteLine($"{module.Id,-24} {module.Version,-12} {(module.Enabled ? "enabled" : "disabled"),-9} {module.Name}");
 }
 
-static int ShowUsage()
+static int ShowUsage(int exitCode)
 {
     Console.WriteLine("Trykatch module lifecycle tool");
     Console.WriteLine();
@@ -113,7 +118,7 @@ static int ShowUsage()
     Console.WriteLine("  trykatch module upgrade <manifest> --sha256 <digest> [--root <path>]");
     Console.WriteLine("  trykatch module eject <id> --source-bundle <path> --sha256 <digest> [--root <path>]");
     Console.WriteLine("  trykatch module unregister <id> [--root <path>]");
-    return 1;
+    return exitCode;
 }
 
 static int Fail(string message)

@@ -149,11 +149,17 @@ public sealed partial class ModuleWorkspace
         ValidateOutputPath(catalog.Outputs.Backend, "backend registry", errors);
         if (!DotnetNamespaceRegex().IsMatch(catalog.Outputs.BackendNamespace))
             errors.Add($"Invalid backend registry namespace '{catalog.Outputs.BackendNamespace}'.");
+        if (!DotnetNamespaceRegex().IsMatch(catalog.Outputs.DotnetModuleContractNamespace))
+            errors.Add($"Invalid .NET module contract namespace '{catalog.Outputs.DotnetModuleContractNamespace}'.");
         ValidateOutputPath(catalog.Outputs.Migrator, "migrator registry", errors);
         if (!DotnetNamespaceRegex().IsMatch(catalog.Outputs.MigratorNamespace))
             errors.Add($"Invalid migrator registry namespace '{catalog.Outputs.MigratorNamespace}'.");
         if (HasWebSurface())
+        {
             ValidateOutputPath(catalog.Outputs.Web, "web registry", errors);
+            if (string.IsNullOrWhiteSpace(catalog.Outputs.WebModuleSdkSpecifier))
+                errors.Add("The web module SDK specifier must not be empty.");
+        }
         ValidateOutputPath(catalog.LockFile, "module lock file", errors);
 
         foreach (ModuleRegistration module in catalog.Modules)
@@ -214,7 +220,7 @@ public sealed partial class ModuleWorkspace
                 errors.Add($"Module '{manifest.Id}' requires a name and description.");
             if (!TryParseVersion(manifest.Version, out Version? moduleVersion))
                 errors.Add($"Module '{manifest.Id}' has invalid semantic version '{manifest.Version}'.");
-            ValidateDistribution(manifest, errors);
+            ValidateDistribution(catalog, manifest, errors);
             ValidateCompatibility(manifest, hostVersion, errors);
             EnsureUnique(manifest.Requires, $"required dependency in '{manifest.Id}'", errors);
             EnsureUnique(manifest.OptionalDependencies, $"optional dependency in '{manifest.Id}'", errors);
@@ -271,7 +277,7 @@ public sealed partial class ModuleWorkspace
             ValidateArtifact(manifest.Id, manifest.Artifacts.WebPackage, "web package", errors);
     }
 
-    private void ValidateDistribution(ModuleManifest manifest, List<string> errors)
+    private void ValidateDistribution(ModuleCatalogFile catalog, ModuleManifest manifest, List<string> errors)
     {
         ModuleDistribution distribution = manifest.Distribution;
         if (!string.Equals(distribution.Kind, "workspace", StringComparison.Ordinal)
@@ -301,7 +307,7 @@ public sealed partial class ModuleWorkspace
             ValidatePackageIdentity(manifest, distribution.Web, "web", errors);
 
         if (distribution.Dotnet is not null)
-            ValidateInstalledDotnetPackage(manifest, distribution.Dotnet, errors);
+            ValidateInstalledDotnetPackage(catalog, manifest, distribution.Dotnet, errors);
         if (distribution.Web is not null && HasWebSurface())
             ValidateInstalledWebPackage(manifest, distribution.Web, errors);
     }
@@ -448,16 +454,26 @@ public sealed partial class ModuleWorkspace
     {
         ValidateGeneratedFile(
             catalog.Outputs.Backend,
-            GenerateDotnetRegistry(catalog.Outputs.BackendNamespace, modules),
+            GenerateDotnetRegistry(
+                catalog.Outputs.BackendNamespace,
+                catalog.Outputs.DotnetModuleContractNamespace,
+                modules),
             "backend module registry",
             errors);
         ValidateGeneratedFile(
             catalog.Outputs.Migrator,
-            GenerateDotnetRegistry(catalog.Outputs.MigratorNamespace, modules),
+            GenerateDotnetRegistry(
+                catalog.Outputs.MigratorNamespace,
+                catalog.Outputs.DotnetModuleContractNamespace,
+                modules),
             "migrator module registry",
             errors);
         if (HasWebSurface())
-            ValidateGeneratedFile(catalog.Outputs.Web, GenerateWeb(modules), "web module registry", errors);
+            ValidateGeneratedFile(
+                catalog.Outputs.Web,
+                GenerateWeb(catalog.Outputs.WebModuleSdkSpecifier, modules),
+                "web module registry",
+                errors);
     }
 
     private void ValidateGeneratedLock(ModuleCatalogFile catalog, IReadOnlyCollection<LoadedModule> modules, List<string> errors) =>
@@ -481,12 +497,20 @@ public sealed partial class ModuleWorkspace
     {
         WriteAtomic(
             ResolveInsideRoot(catalog.Outputs.Backend),
-            GenerateDotnetRegistry(catalog.Outputs.BackendNamespace, modules));
+            GenerateDotnetRegistry(
+                catalog.Outputs.BackendNamespace,
+                catalog.Outputs.DotnetModuleContractNamespace,
+                modules));
         WriteAtomic(
             ResolveInsideRoot(catalog.Outputs.Migrator),
-            GenerateDotnetRegistry(catalog.Outputs.MigratorNamespace, modules));
+            GenerateDotnetRegistry(
+                catalog.Outputs.MigratorNamespace,
+                catalog.Outputs.DotnetModuleContractNamespace,
+                modules));
         if (HasWebSurface())
-            WriteAtomic(ResolveInsideRoot(catalog.Outputs.Web), GenerateWeb(modules));
+            WriteAtomic(
+                ResolveInsideRoot(catalog.Outputs.Web),
+                GenerateWeb(catalog.Outputs.WebModuleSdkSpecifier, modules));
         WriteAtomic(ResolveInsideRoot(catalog.LockFile), GenerateLock(catalog, modules));
     }
 
@@ -512,7 +536,10 @@ public sealed partial class ModuleWorkspace
         return JsonSerializer.Serialize(lockFile, JsonOptions) + "\n";
     }
 
-    private static string GenerateDotnetRegistry(string registryNamespace, IEnumerable<LoadedModule> modules)
+    private static string GenerateDotnetRegistry(
+        string registryNamespace,
+        string moduleContractNamespace,
+        IEnumerable<LoadedModule> modules)
     {
         LoadedModule[] enabled = OrderEnabled(modules).ToArray();
         string[] namespaces = enabled
@@ -525,7 +552,7 @@ public sealed partial class ModuleWorkspace
         output.AppendLine("// Generated by 'trykatch module generate'. Do not edit by hand.");
         foreach (string item in namespaces)
             output.Append("using ").Append(item).AppendLine(";");
-        output.AppendLine("using TrykatchApp.Modules;");
+        output.Append("using ").Append(moduleContractNamespace).AppendLine(";");
         output.AppendLine();
         output.Append("namespace ").Append(registryNamespace).AppendLine(";");
         output.AppendLine();
@@ -543,14 +570,14 @@ public sealed partial class ModuleWorkspace
         return output.ToString();
     }
 
-    private static string GenerateWeb(IEnumerable<LoadedModule> modules)
+    private static string GenerateWeb(string moduleSdkSpecifier, IEnumerable<LoadedModule> modules)
     {
         LoadedModule[] enabled = OrderEnabled(modules)
             .Where(module => module.Manifest.Capabilities.Contains("web", StringComparer.Ordinal))
             .ToArray();
         StringBuilder output = new();
         output.AppendLine("// Generated by 'trykatch module generate'. Do not edit by hand.");
-        output.AppendLine("import { TrykatchWebModuleCatalog } from '@trykatchapp/module-sdk'");
+        output.Append("import { TrykatchWebModuleCatalog } from '").Append(moduleSdkSpecifier).AppendLine("'");
         foreach (LoadedModule module in enabled)
         {
             output.Append("import { ").Append(module.Manifest.Entrypoints.Web.Export).Append(" } from '")
@@ -697,6 +724,32 @@ public sealed partial class ModuleWorkspace
         return resolved;
     }
 
+    private string ResolveHostProject(string generatedRegistryPath, string registryNamespace, string subject)
+    {
+        string registryPath = ResolveInsideRoot(generatedRegistryPath);
+        string? hostDirectory = Directory.GetParent(registryPath)?.Parent?.FullName;
+        string[] projects = hostDirectory is not null && Directory.Exists(hostDirectory)
+            ? Directory.GetFiles(hostDirectory, "*.csproj", SearchOption.TopDirectoryOnly)
+            : [];
+        if (projects.Length == 0 && registryNamespace.EndsWith(".Modules", StringComparison.Ordinal))
+        {
+            string hostNamespace = registryNamespace[..^".Modules".Length];
+            projects = Directory.GetFiles(_root, $"{hostNamespace}.csproj", SearchOption.AllDirectories);
+        }
+        if (projects.Length != 1)
+            throw new InvalidOperationException(
+                $"Expected exactly one {subject} host project beside registry '{generatedRegistryPath}', found {projects.Length}.");
+        return projects[0];
+    }
+
+    private string ResolveSolution()
+    {
+        string[] solutions = Directory.GetFiles(_root, "*.slnx", SearchOption.TopDirectoryOnly);
+        if (solutions.Length != 1)
+            throw new InvalidOperationException($"Expected exactly one solution at the Trykatch workspace root, found {solutions.Length}.");
+        return solutions[0];
+    }
+
     private bool HasWebSurface() => Directory.Exists(Path.Combine(_root, "web"));
 
     private static void EnsureUnique(IEnumerable<string> values, string subject, List<string> errors)
@@ -817,9 +870,11 @@ public sealed class ModuleCatalogOutputs
 {
     public string Backend { get; init; } = string.Empty;
     public string BackendNamespace { get; init; } = string.Empty;
+    public string DotnetModuleContractNamespace { get; init; } = string.Empty;
     public string Migrator { get; init; } = string.Empty;
     public string MigratorNamespace { get; init; } = string.Empty;
     public string Web { get; init; } = string.Empty;
+    public string WebModuleSdkSpecifier { get; init; } = string.Empty;
 }
 
 public sealed class ModuleRegistration
