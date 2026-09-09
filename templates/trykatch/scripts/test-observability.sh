@@ -47,7 +47,7 @@ docker run --rm --entrypoint /bin/promtool \
 docker run --rm -v "$template_root/deploy/observability/loki.yml:/etc/loki/local-config.yaml:ro" \
   "$loki_image" -config.file=/etc/loki/local-config.yaml -verify-config=true
 docker run --rm -v "$template_root/deploy/observability/tempo.yml:/etc/tempo.yml:ro" \
-  "$tempo_image" -config.file=/etc/tempo.yml -config.verify
+  "$tempo_image" -config.file=/etc/tempo.yml -config.verify=true
 
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=otel-collector' \
   -addext 'subjectAltName=DNS:otel-collector' -keyout "$validation_root/server.key" \
