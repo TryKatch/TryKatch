@@ -19,7 +19,7 @@ public static class Extensions
     {
         ObservabilityPolicy policy = ObservabilityPolicy.Resolve(builder.Configuration, builder.Environment);
         builder.Services.AddSingleton(policy);
-        builder.Services.AddTrykatchSerilog(policy, builder.Configuration);
+        builder.Services.AddTrykatchSerilog(policy);
 
         builder.Services.AddServiceDiscovery();
         builder.Services.ConfigureHttpClientDefaults(http =>

@@ -40,8 +40,12 @@
     {
       "type": "timeseries", "title": "Collector failed and refused telemetry", "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total[5m]) + rate(otelcol_exporter_send_failed_spans_total[5m]))", "legendFormat": "failed {{exporter}}", "refId": "A" },
-        { "expr": "sum(rate(otelcol_receiver_refused_log_records_total[5m]) + rate(otelcol_receiver_refused_spans_total[5m]))", "legendFormat": "refused", "refId": "B" }
+        { "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total[5m]))", "legendFormat": "failed logs {{exporter}}", "refId": "A" },
+        { "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))", "legendFormat": "failed spans {{exporter}}", "refId": "B" },
+        { "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_metric_points_total[5m]))", "legendFormat": "failed metrics {{exporter}}", "refId": "C" },
+        { "expr": "sum(rate(otelcol_receiver_refused_log_records_total[5m]))", "legendFormat": "refused logs", "refId": "D" },
+        { "expr": "sum(rate(otelcol_receiver_refused_spans_total[5m]))", "legendFormat": "refused spans", "refId": "E" },
+        { "expr": "sum(rate(otelcol_receiver_refused_metric_points_total[5m]))", "legendFormat": "refused metrics", "refId": "F" }
       ], "gridPos": { "h": 7, "w": 24, "x": 0, "y": 20 }
     }
   ],
