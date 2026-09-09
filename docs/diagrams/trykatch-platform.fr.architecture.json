@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Architecture de la plateforme Trykatch",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/TryKatch/TryKatch",
+      "revision": "83d1cd52ae538c03145f8bc53a522ad10788f223"
+    },
+    "views": [
+      {
+        "id": "request-path",
+        "label": "Suivre une requête d’organisation",
+        "focus": ["browser", "web", "api", "security_kernel", "postgres"],
+        "note": "L’authentification, la résolution de l’organisation, les permissions et la RLS PostgreSQL restent toutes dans le parcours de la requête."
+      },
+      {
+        "id": "module-seam",
+        "label": "Examiner la frontière des modules",
+        "focus": ["security_kernel", "module_runtime", "projects_module", "federation_module"],
+        "note": "Les modules apportent leurs capacités par des contrats validés sans remplacer le noyau de sécurité."
+      },
+      {
+        "id": "operations",
+        "label": "Tracer les preuves opérationnelles",
+        "focus": ["api", "postgres", "outbox_worker", "observability"],
+        "note": "Le travail transactionnel émet des événements persistants et une télémétrie corrélée par la pile d’exploitation partagée."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "Utilisateurs et clients",
+      "sublabel": "navigateur + clients API",
+      "pos": [30, 300],
+      "size": [150, 64],
+      "sources": [{ "path": "README.md", "label": "point d’entrée du produit" }]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Espace de travail React",
+      "sublabel": "TanStack + UI Trykatch",
+      "pos": [210, 300],
+      "size": [154, 64],
+      "sources": [{ "path": "docs/frontend-architecture.md", "label": "architecture frontend" }]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API .NET 10",
+      "sublabel": "contrôleurs + composition",
+      "pos": [400, 300],
+      "size": [160, 64],
+      "sources": [{ "path": "README.md", "label": "architecture générée" }]
+    },
+    {
+      "id": "security_kernel",
+      "type": "security",
+      "label": "Noyau de sécurité",
+      "sublabel": "identité + org + RBAC + RLS",
+      "pos": [610, 300],
+      "size": [174, 64],
+      "sources": [
+        { "path": "docs/threat-model.md", "label": "frontières de sécurité" },
+        { "path": "docs/adr/0008-request-derived-organization-context.md", "label": "contexte d’organisation" }
+      ]
+    },
+    {
+      "id": "module_runtime",
+      "type": "backend",
+      "label": "Catalogue de modules validé",
+      "sublabel": "composition à la compilation",
+      "pos": [840, 300],
+      "size": [180, 64],
+      "sources": [
+        { "path": "docs/module-authoring.md", "label": "contrat des modules" },
+        { "path": "docs/adr/0011-build-time-modular-monolith.md", "label": "décision d’architecture" }
+      ]
+    },
+    {
+      "id": "projects_module",
+      "type": "backend",
+      "label": "Module Projects",
+      "sublabel": "tranche verticale de référence",
+      "pos": [1080, 160],
+      "size": [160, 64],
+      "sources": [{ "path": "docs/module-authoring.md", "label": "module de référence" }]
+    },
+    {
+      "id": "federation_module",
+      "type": "backend",
+      "label": "Module Federation",
+      "sublabel": "adaptateur SSO optionnel",
+      "pos": [1080, 300],
+      "size": [160, 64],
+      "sources": [{ "path": "templates/trykatch/src/TrykatchApp.Modules.Federation/README.md", "label": "module Federation" }]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "identité + plateforme + app",
+      "pos": [840, 500],
+      "size": [180, 64],
+      "sources": [{ "path": "templates/trykatch/docs/database.md", "label": "base de données et RLS" }]
+    },
+    {
+      "id": "outbox_worker",
+      "type": "messagebus",
+      "label": "Worker de l’outbox",
+      "sublabel": "livraison async persistante",
+      "pos": [1080, 500],
+      "size": [160, 64],
+      "sources": [{ "path": "docs/adr/0010-transactional-outbox.md", "label": "décision sur l’outbox" }]
+    },
+    {
+      "id": "observability",
+      "type": "external",
+      "label": "Pile d’exploitation",
+      "sublabel": "OTel + Grafana + Loki + Tempo",
+      "pos": [386, 600],
+      "size": [188, 64],
+      "sources": [{ "path": "templates/trykatch/docs/operations.md", "label": "topologie de télémétrie" }]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "frontière de sécurité non remplaçable",
+      "wraps": ["security_kernel"],
+      "pad": 18
+    },
+    {
+      "kind": "region",
+      "label": "frontière de modules validée",
+      "wraps": ["module_runtime", "projects_module", "federation_module"],
+      "pad": 22
+    }
+  ],
+  "connections": [
+    { "id": "client_web", "from": "browser", "to": "web", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "web_api", "from": "web", "to": "api", "label": "cookie même origine + BFF", "variant": "security", "labelAt": [382, 280] },
+    { "id": "api_kernel", "from": "api", "to": "security_kernel", "label": "requête authentifiée", "variant": "security", "route": "straight", "labelAt": [585, 390] },
+    { "id": "kernel_modules", "from": "security_kernel", "to": "module_runtime", "label": "appel autorisé", "variant": "security", "labelAt": [700, 410] },
+    { "id": "catalog_projects", "from": "module_runtime", "to": "projects_module", "route": "orthogonal-h" },
+    { "id": "catalog_federation", "from": "module_runtime", "to": "federation_module", "route": "straight" },
+    { "id": "kernel_database", "from": "security_kernel", "to": "postgres", "label": "SET LOCAL + RLS forcée", "variant": "security", "route": "orthogonal-v" },
+    { "id": "modules_database", "from": "module_runtime", "to": "postgres", "label": "EF Core + outbox", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [990, 434] },
+    { "id": "database_worker", "from": "postgres", "to": "outbox_worker", "label": "lecture idempotente", "variant": "dashed", "route": "straight", "labelAt": [1050, 486] },
+    { "id": "api_observability", "from": "api", "to": "observability", "label": "OTLP corrélé", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [550, 480] },
+    { "id": "worker_observability", "from": "outbox_worker", "to": "observability", "label": "journaux + traces + métriques", "variant": "dashed", "fromSide": "bottom", "toSide": "right", "via": [[1160, 710], [620, 710], [620, 632]], "labelAt": [890, 700] }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "La sécurité reste centrale",
+      "items": [
+        "Identité, contexte, permissions et RLS restent centraux ; le rôle d’exécution ne peut les contourner"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Les modules restent remplaçables",
+      "items": [
+        "Les contributions sont explicites et validées ; Projects et Federation démontrent le contrat"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "L’exploitation reste observable",
+      "items": [
+        "Métier et outbox partagent la corrélation ; OpenTelemetry exporte journaux, traces et métriques"
+      ]
+    }
+  ]
+}

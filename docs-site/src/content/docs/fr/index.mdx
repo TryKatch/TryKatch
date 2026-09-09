@@ -1,0 +1,36 @@
+---
+title: Documentation Trykatch
+description: Découvrez comment Trykatch associe un noyau multi-organisation sécurisé à des modules full-stack explicites.
+template: splash
+hero:
+  tagline: Une fondation sécurisée et modulaire pour vos produits .NET 10 et React.
+  actions:
+    - text: Installer Trykatch
+      link: /fr/getting-started/install/
+      icon: right-arrow
+      variant: primary
+    - text: Explorer l’architecture
+      link: /fr/architecture/overview/
+      icon: open-book
+      variant: secondary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components'
+
+Trykatch prend en charge les préoccupations transversales les plus difficiles — identité, isolation des organisations, autorisation, auditabilité, modularité et exploitation — afin que les équipes produit puissent se concentrer sur leur métier.
+
+<CardGrid>
+  <Card title="Sécurisé dès la conception" icon="lock">
+    L’authentification Cookie/BFF, les permissions explicites, les contraintes applicatives et la sécurité PostgreSQL au niveau des lignes fonctionnent ensemble.
+  </Card>
+  <Card title="Modulaire sans magie" icon="puzzle">
+    Les modules backend et React apportent leurs fonctionnalités au moyen de manifestes explicites et de points d’extension validés.
+  </Card>
+  <Card title="Exploitation incluse" icon="setting">
+    Aspire, OpenTelemetry, Prometheus, Loki, Tempo et Grafana rendent l’application observable dès le développement local.
+  </Card>
+</CardGrid>
+
+## Comment parcourir cette documentation
+
+Commencez par l’installation, puis utilisez le lien **Suivant** en bas de chaque page. La barre latérale présente toute la structure documentaire et la recherche indexe localement le contenu Markdown lors de la compilation.

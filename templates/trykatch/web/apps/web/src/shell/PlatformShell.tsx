@@ -7,6 +7,8 @@ import { Bell, Building2, ChevronDown, LayoutDashboard, LogOut, Menu, Monitor, M
 import { useEffect, useRef, useState } from 'react'
 import { TrykatchLogo } from '../components/TrykatchLogo'
 import { SignOutDialog } from '../components/SignOutDialog'
+import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
+import { useI18n } from '../i18n/I18nProvider'
 import { workspaceModules } from '../modules'
 import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 
@@ -26,6 +28,7 @@ function initials(value: string) {
 }
 
 export function PlatformShell() {
+  const { t } = useI18n()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const queryClient = useQueryClient()
   const accountMenu = useRef<HTMLDivElement>(null)
@@ -68,44 +71,45 @@ export function PlatformShell() {
     return () => window.removeEventListener('pointerdown', close)
   }, [])
 
-  const identity = session.data?.displayName || session.data?.email || 'Account'
+  const identity = session.data?.displayName || session.data?.email || t('Account')
   const visibleNavigation = platformNavigation.filter((item) => session.data?.isPlatformAdministrator || !item.requiredPermission || session.data?.platformPermissions?.includes(item.requiredPermission))
   const currentLabel = platformNavigation.find((item) => item.exact ? pathname === item.to : pathname.startsWith(item.to))?.label ?? 'Administration'
 
   return <div className={`app-shell platform-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
     <aside className="sidebar" id="platform-navigation">
       <div className="mobile-sidebar-heading">
-        <Link className="brand" to="/dashboard" aria-label="Trykatch platform overview" onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><TrykatchLogo size={17} /></span><span className="sidebar-label">Trykatch</span></Link>
-        <button className="mobile-nav-close" type="button" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)}><X size={19} /></button>
+        <Link className="brand" to="/dashboard" aria-label={`Trykatch ${t('Platform overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><TrykatchLogo size={17} /></span><span className="sidebar-label">Trykatch</span></Link>
+        <button className="mobile-nav-close" type="button" aria-label={t('Close navigation')} onClick={() => setMobileNavOpen(false)}><X size={19} /></button>
       </div>
-      <nav aria-label="Platform administration">
+      <nav aria-label={t('Platform administration')}>
         <section className="sidebar-nav-section" aria-labelledby="platform-navigation-label">
-          <span className="sidebar-label sidebar-section-label" id="platform-navigation-label">Administration</span>
-          <div>{visibleNavigation.map(({ id, to, label, icon: Icon, exact }) => <Link key={id} to={to} aria-label={label} title={label} activeOptions={{ exact }} activeProps={{ className: 'active' }} onClick={() => setMobileNavOpen(false)}><Icon size={16} /><span className="sidebar-label">{label}</span></Link>)}</div>
+          <span className="sidebar-label sidebar-section-label" id="platform-navigation-label">{t('Administration')}</span>
+          <div>{visibleNavigation.map(({ id, to, label, icon: Icon, exact }) => <Link key={id} to={to} aria-label={t(label)} title={t(label)} activeOptions={{ exact }} activeProps={{ className: 'active' }} onClick={() => setMobileNavOpen(false)}><Icon size={16} /><span className="sidebar-label">{t(label)}</span></Link>)}</div>
         </section>
       </nav>
       <div className="sidebar-bottom" ref={accountMenu}>
-        <div className="account-menu" data-open={accountOpen} role="dialog" aria-label="Platform account menu" aria-hidden={!accountOpen} inert={!accountOpen ? true : undefined}>
+        <div className="account-menu" data-open={accountOpen} role="dialog" aria-label={t('Account and appearance')} aria-hidden={!accountOpen} inert={!accountOpen ? true : undefined}>
           <div className="account-menu-identity"><strong>{identity}</strong><span>{session.data?.email}</span></div>
-          <Link className="account-menu-item" to="/dashboard/profile" onClick={() => setAccountOpen(false)}><UserRound size={17} /> Profile</Link>
-          <button className="account-menu-item" type="button" aria-expanded={appearanceOpen} onClick={() => setAppearanceOpen((open) => !open)}><Palette size={17} /> Appearance <ChevronDown className={`menu-chevron${appearanceOpen ? ' is-open' : ''}`} size={15} /></button>
+          <Link className="account-menu-item" to="/dashboard/profile" onClick={() => setAccountOpen(false)}><UserRound size={17} /> {t('Profile')}</Link>
+          <button className="account-menu-item" type="button" aria-expanded={appearanceOpen} onClick={() => setAppearanceOpen((open) => !open)}><Palette size={17} /> {t('Appearance')} <ChevronDown className={`menu-chevron${appearanceOpen ? ' is-open' : ''}`} size={15} /></button>
           <div className="appearance-collapse" data-open={appearanceOpen} aria-hidden={!appearanceOpen} inert={!appearanceOpen ? true : undefined}><div><div className="appearance-panel">
-            <span className="appearance-label">Theme</span>
-            {([['light', Sun], ['system', Monitor], ['dark', Moon], ['custom', Palette]] as const).map(([value, Icon]) => <button key={value} type="button" className={theme === value ? 'selected' : ''} onClick={() => setTheme(value)}><Icon size={15} /><span>{value[0].toUpperCase() + value.slice(1)}{value === 'custom' && <small>{shellColor.toUpperCase()}</small>}</span><span>{theme === value ? '✓' : ''}</span></button>)}
-            {theme === 'custom' && <label className="shell-color-control"><span className="shell-color-well" style={{ backgroundColor: shellColor }}><input type="color" value={shellColor} aria-label="Custom shell color" onChange={(event) => { setShellColor(event.target.value); setTheme('custom') }} /></span><span><strong>Shell color</strong><small>Choose any base color</small></span></label>}
+            <span className="appearance-label">{t('Theme')}</span>
+            {([['light', Sun, 'Light'], ['system', Monitor, 'System'], ['dark', Moon, 'Dark'], ['custom', Palette, 'Custom']] as const).map(([value, Icon, label]) => <button key={value} type="button" className={theme === value ? 'selected' : ''} onClick={() => setTheme(value)}><Icon size={15} /><span>{t(label)}{value === 'custom' && <small>{shellColor.toUpperCase()}</small>}</span><span>{theme === value ? '✓' : ''}</span></button>)}
+            {theme === 'custom' && <label className="shell-color-control"><span className="shell-color-well" style={{ backgroundColor: shellColor }}><input type="color" value={shellColor} aria-label={`${t('Custom')} ${t('Shell color')}`} onChange={(event) => { setShellColor(event.target.value); setTheme('custom') }} /></span><span><strong>{t('Shell color')}</strong><small>{t('Choose any base color')}</small></span></label>}
+            <LanguageSwitcher />
           </div></div></div>
           <div className="account-menu-separator" />
-          <button className="account-menu-item danger-text" type="button" onClick={() => { setAccountOpen(false); setSignOutOpen(true) }}><LogOut size={17} /> Log out</button>
+          <button className="account-menu-item danger-text" type="button" onClick={() => { setAccountOpen(false); setSignOutOpen(true) }}><LogOut size={17} /> {t('Log out')}</button>
         </div>
         <div className="sidebar-controls">
-          <button className="account-trigger" type="button" disabled={!session.data} aria-label={`Account menu for ${identity}`} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="avatar">{initials(identity)}</span><span className="sidebar-label account-trigger-name">{identity}</span><ChevronDown className={`sidebar-label account-trigger-chevron${accountOpen ? ' is-open' : ''}`} size={14} /></button>
-          <button className="collapse-trigger" type="button" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setCollapsed((value) => !value)}>{collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}</button>
+          <button className="account-trigger" type="button" disabled={!session.data} aria-label={`${t('Account')}: ${identity}`} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="avatar">{initials(identity)}</span><span className="sidebar-label account-trigger-name">{identity}</span><ChevronDown className={`sidebar-label account-trigger-chevron${accountOpen ? ' is-open' : ''}`} size={14} /></button>
+          <button className="collapse-trigger" type="button" aria-label={t(collapsed ? 'Expand sidebar' : 'Collapse sidebar')} onClick={() => setCollapsed((value) => !value)}>{collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}</button>
         </div>
       </div>
     </aside>
-    <button className="mobile-nav-backdrop" type="button" aria-label="Close navigation" tabIndex={mobileNavOpen ? 0 : -1} onClick={() => setMobileNavOpen(false)} />
+    <button className="mobile-nav-backdrop" type="button" aria-label={t('Close navigation')} tabIndex={mobileNavOpen ? 0 : -1} onClick={() => setMobileNavOpen(false)} />
     <main className="workspace">
-      <header className="topbar platform-topbar"><button className="mobile-nav-trigger" type="button" aria-label="Open navigation" aria-controls="platform-navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen(true)}><Menu size={19} /></button><span className="platform-topbar-title">{currentLabel}</span><Button variant="ghost" aria-label="Activity"><Bell size={16} /></Button></header>
+      <header className="topbar platform-topbar"><button className="mobile-nav-trigger" type="button" aria-label={t('Open navigation')} aria-controls="platform-navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen(true)}><Menu size={19} /></button><span className="platform-topbar-title">{t(currentLabel)}</span><Button variant="ghost" aria-label={t('Audit')}><Bell size={16} /></Button></header>
       <section className="page">
         {!session.data?.hasPlatformAccess && !session.data?.isPlatformAdministrator ? <div className="shell-loading"><Skeleton /><Skeleton /><Skeleton /></div> : <Outlet />}
       </section>

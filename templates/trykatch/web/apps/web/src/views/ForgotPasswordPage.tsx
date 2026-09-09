@@ -2,8 +2,11 @@ import { customFetch, type ForgotPasswordResponse } from '@trykatchapp/api-clien
 import { Button } from '@trykatchapp/ui'
 import { useState, type FormEvent } from 'react'
 import { TrykatchLogo } from '../components/TrykatchLogo'
+import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
+import { useI18n } from '../i18n/I18nProvider'
 
 export function ForgotPasswordPage() {
+  const { t } = useI18n()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [result, setResult] = useState<ForgotPasswordResponse>()
@@ -20,30 +23,31 @@ export function ForgotPasswordPage() {
         body: JSON.stringify({ email: form.get('email') }),
       }))
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Password reset could not be requested.')
+      setError(reason instanceof Error ? reason.message : t('Password reset could not be requested.'))
     } finally {
       setBusy(false)
     }
   }
 
   return <main className="auth-page">
-    <a className="auth-brand" href="/login" aria-label="Trykatch sign in"><span className="brand-mark"><TrykatchLogo size={17} /></span><strong>Trykatch</strong></a>
+    <div className="auth-language"><LanguageSwitcher compact /></div>
+    <a className="auth-brand" href="/login" aria-label={`Trykatch · ${t('Sign in')}`}><span className="brand-mark"><TrykatchLogo size={17} /></span><strong>Trykatch</strong></a>
     <section className="auth-card" aria-labelledby="forgot-password-title">
       {result ? <div className="recovery-result" role="status">
-        <h1 id="forgot-password-title">Check your email</h1>
+        <h1 id="forgot-password-title">{t('Check your email')}</h1>
         <p>{result.message}</p>
-        {result.developmentResetUrl && <Button asChild variant="primary"><a href={result.developmentResetUrl}>Continue in local development</a></Button>}
-        {!result.deliveryConfigured && !result.developmentResetUrl && <small>Email delivery is not configured. Contact your administrator.</small>}
-        <a className="auth-link" href="/login">Back to sign in</a>
+        {result.developmentResetUrl && <Button asChild variant="primary"><a href={result.developmentResetUrl}>{t('Continue in local development')}</a></Button>}
+        {!result.deliveryConfigured && !result.developmentResetUrl && <small>{t('Email delivery is not configured. Contact your administrator.')}</small>}
+        <a className="auth-link" href="/login">{t('Back to sign in')}</a>
       </div> : <>
-        <h1 id="forgot-password-title">Forgot your password?</h1>
-        <p>Enter your email address and we’ll send you a secure reset link.</p>
+        <h1 id="forgot-password-title">{t('Forgot your password?')}</h1>
+        <p>{t('Enter your email address and we’ll send you a secure reset link.')}</p>
         <form onSubmit={submit}>
-          <label>Email address<input name="email" type="email" autoComplete="email" required autoFocus /></label>
+          <label>{t('Email address')}<input name="email" type="email" autoComplete="email" required autoFocus /></label>
           {error && <div className="form-error" role="alert">{error}</div>}
-          <Button type="submit" variant="primary" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</Button>
+          <Button type="submit" variant="primary" disabled={busy}>{t(busy ? 'Sending…' : 'Send reset link')}</Button>
         </form>
-        <a className="auth-link" href="/login">Back to sign in</a>
+        <a className="auth-link" href="/login">{t('Back to sign in')}</a>
       </>}
     </section>
   </main>

@@ -5,13 +5,15 @@ export interface PasswordFieldProps extends Omit<InputHTMLAttributes<HTMLInputEl
   inputId?: string
   label: ReactNode
   visibilityLabel?: string
+  showLabel?: string
+  hideLabel?: string
 }
 
-export function PasswordField({ className, inputId, label, required, visibilityLabel = 'password', ...props }: PasswordFieldProps) {
+export function PasswordField({ className, inputId, label, required, visibilityLabel = 'password', showLabel = 'Show', hideLabel = 'Hide', ...props }: PasswordFieldProps) {
   const generatedId = useId()
   const id = inputId ?? generatedId
   const [visible, setVisible] = useState(false)
-  const action = visible ? 'Hide' : 'Show'
+  const action = visible ? hideLabel : showLabel
 
   return <div className="password-field">
     <label htmlFor={id}>{label}{required && <> <span aria-hidden="true">*</span></>}</label>

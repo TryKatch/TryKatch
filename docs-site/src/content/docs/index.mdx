@@ -1,0 +1,36 @@
+---
+title: Trykatch documentation
+description: Learn how Trykatch combines a secure multi-tenant kernel with explicit full-stack modules.
+template: splash
+hero:
+  tagline: A secure, modular foundation for .NET 10 and React products.
+  actions:
+    - text: Install Trykatch
+      link: /getting-started/install/
+      icon: right-arrow
+      variant: primary
+    - text: Explore the architecture
+      link: /architecture/overview/
+      icon: open-book
+      variant: secondary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components'
+
+Trykatch packages the difficult shared concerns—identity, organization isolation, authorization, auditability, modularity, and operations—so product teams can focus on their domain.
+
+<CardGrid>
+  <Card title="Secure by construction" icon="lock">
+    Cookie/BFF authentication, explicit permissions, application constraints, and forced PostgreSQL row-level security work together.
+  </Card>
+  <Card title="Modular without magic" icon="puzzle">
+    Backend and React modules contribute capabilities through explicit manifests and validated extension points.
+  </Card>
+  <Card title="Operations included" icon="setting">
+    Aspire, OpenTelemetry, Prometheus, Loki, Tempo, and Grafana make the application observable from local development onward.
+  </Card>
+</CardGrid>
+
+## How to read these docs
+
+Start with installation, then follow the **Next** link at the bottom of each page. The sidebar provides the full information architecture, and the search button indexes the Markdown content locally at build time.

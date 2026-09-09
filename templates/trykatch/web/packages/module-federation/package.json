@@ -3,6 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
+  },
   "exports": {
     ".": "./src/index.tsx"
   },
@@ -15,6 +19,7 @@
     "react": "19.2.8"
   },
   "devDependencies": {
+    "@types/react": "19.2.14",
     "typescript": "6.0.3"
   }
 }

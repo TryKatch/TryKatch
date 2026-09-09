@@ -1,0 +1,26 @@
+---
+title: Platform architecture
+description: Understand the security kernel, full-stack module seam, data layer, and observability path.
+---
+
+Trykatch is a build-time modular monolith. It keeps the security boundary centralized while letting product capabilities remain explicit and replaceable.
+
+<figure className="architecture-figure">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcSet="/diagrams/trykatch-platform.visual-check.2048x1320.dark.png" />
+    <img src="/diagrams/trykatch-platform.visual-check.2048x1320.light.png" alt="Trykatch platform architecture showing the React workspace, .NET API, security kernel, module catalog, PostgreSQL, outbox worker, and observability stack." />
+  </picture>
+  <figcaption>Generated locally from the repository-owned Archify specification. <a href="/diagrams/trykatch-platform.html">Open the interactive diagram</a>.</figcaption>
+</figure>
+
+## The stable kernel
+
+The kernel owns identity and sessions, organization resolution, permission enforcement, PostgreSQL row-level security, audit activity, the transactional outbox, and module validation. A business module can use these services, but cannot replace or bypass them.
+
+## The module seam
+
+Modules contribute backend services, controllers, EF model configuration and migrations, permissions, React routes and navigation, events, workers, and optional assistant tools. A single catalog validates identifiers, dependencies, backend/frontend parity, and enabled state.
+
+## The operational path
+
+Organization-scoped work commits business data and outbox messages together. The worker processes durable messages idempotently. HTTP, database, and worker activity export correlated logs, traces, and metrics through OpenTelemetry.
