@@ -7,6 +7,7 @@ web=false
 observability=false
 deployment=false
 packaging=false
+qualification=false
 
 mark_all() {
   docs=true
@@ -15,6 +16,7 @@ mark_all() {
   observability=true
   deployment=true
   packaging=true
+  qualification=true
 }
 
 classify_path() {
@@ -30,8 +32,18 @@ classify_path() {
     Trykatch.Templates.csproj|scripts/test-template.sh|templates/trykatch/.template.config/*|templates/trykatch/.github/*|templates/trykatch/LICENSE)
       packaging=true
       ;;
+    scripts/test-generated-application.sh)
+      backend=true
+      web=true
+      deployment=true
+      packaging=true
+      qualification=true
+      ;;
     scripts/test-observability.sh|templates/trykatch/scripts/test-observability.sh|templates/trykatch/deploy/observability/*)
       observability=true
+      ;;
+    templates/trykatch/deploy/postgres/*)
+      deployment=true
       ;;
     scripts/test-migrator.sh)
       deployment=true
@@ -81,10 +93,15 @@ else
   template=false
 fi
 
+if [[ $backend == true || $web == true || $deployment == true || $packaging == true ]]; then
+  qualification=true
+fi
+
 printf 'docs=%s\n' "$docs"
 printf 'backend=%s\n' "$backend"
 printf 'web=%s\n' "$web"
 printf 'observability=%s\n' "$observability"
 printf 'deployment=%s\n' "$deployment"
 printf 'packaging=%s\n' "$packaging"
+printf 'qualification=%s\n' "$qualification"
 printf 'template=%s\n' "$template"

@@ -12,7 +12,6 @@ using TrykatchApp.Infrastructure.Persistence;
 using TrykatchApp.Modules;
 using TrykatchApp.Modules.AspNetCore;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using OpenIddict.Validation.AspNetCore;
 using Scalar.AspNetCore;
@@ -91,10 +90,7 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             }));
 });
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-});
+builder.Services.AddTrustedForwardedHeaders(builder.Configuration);
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<PlatformDbContext>("postgres-platform", tags: ["ready"])
     .AddDbContextCheck<ApplicationDbContext>("postgres-application", tags: ["ready"])

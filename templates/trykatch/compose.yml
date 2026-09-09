@@ -46,6 +46,7 @@ services:
       OpenIddict__EncryptionCertificate__Password: ${TRYKATCH_ENCRYPTION_CERTIFICATE_PASSWORD}
       Bootstrap__PlatformAdminEmail: ${TRYKATCH_BOOTSTRAP_ADMIN_EMAIL:-}
       Bootstrap__PlatformAdminPassword: ${TRYKATCH_BOOTSTRAP_ADMIN_PASSWORD:-}
+      ReverseProxy__KnownProxies__0: ${TRYKATCH_WEB_PROXY_IP:-172.30.250.10}
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -67,7 +68,10 @@ services:
     build:
       context: .
       dockerfile: web/apps/web/Dockerfile
-    ports: ["8080:8080"]
+    ports: ["${TRYKATCH_WEB_BIND_ADDRESS:-127.0.0.1}:8080:8080"]
+    networks:
+      default:
+        ipv4_address: ${TRYKATCH_WEB_PROXY_IP:-172.30.250.10}
     depends_on:
       api:
         condition: service_healthy
@@ -189,3 +193,9 @@ volumes:
   tempo-data:
   grafana-data:
   collector-storage:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${TRYKATCH_NETWORK_SUBNET:-172.30.250.0/24}
