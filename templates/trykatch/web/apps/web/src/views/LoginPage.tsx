@@ -2,12 +2,15 @@ import { useState, type FormEvent } from 'react'
 import { customFetch, setAntiforgeryToken } from '@trykatchapp/api-client'
 import { Button, PasswordField } from '@trykatchapp/ui'
 import { TrykatchLogo } from '../components/TrykatchLogo'
+import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
+import { useI18n } from '../i18n/I18nProvider'
 
 interface Session { hasPlatformAccess?: boolean; isPlatformAdministrator?: boolean }
 interface Organization { id: string }
 interface LoginPageProps { navigate?: (path: string) => void }
 
 export function LoginPage({ navigate = path => window.location.assign(path) }: LoginPageProps = {}) {
+  const { t } = useI18n()
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [mfaRequired, setMfaRequired] = useState(false)
@@ -44,7 +47,7 @@ export function LoginPage({ navigate = path => window.location.assign(path) }: L
       return
     }
 
-    setError('Your account does not have an active organization membership.')
+    setError(t('Your account does not have an active organization membership.'))
   }
 
   async function submitPassword(event: FormEvent<HTMLFormElement>) {
@@ -66,7 +69,7 @@ export function LoginPage({ navigate = path => window.location.assign(path) }: L
       if (typeof reason === 'object' && reason !== null && 'status' in reason && reason.status === 428) {
         setMfaRequired(true)
       } else {
-        setError(reason instanceof Error ? reason.message : 'Sign in failed')
+        setError(reason instanceof Error ? reason.message : t('Sign in failed'))
       }
     } finally {
       setBusy(false)
@@ -91,30 +94,31 @@ export function LoginPage({ navigate = path => window.location.assign(path) }: L
       })
       await finish(session)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Multi-factor verification failed')
+      setError(reason instanceof Error ? reason.message : t('Multi-factor verification failed'))
     } finally {
       setBusy(false)
     }
   }
 
   return <main className="auth-page">
-    <a className="auth-brand" href="/" aria-label="Trykatch home"><span className="brand-mark"><TrykatchLogo size={17} /></span><strong>Trykatch</strong></a>
+    <div className="auth-language"><LanguageSwitcher compact /></div>
+    <a className="auth-brand" href="/" aria-label={`Trykatch · ${t('Home')}`}><span className="brand-mark"><TrykatchLogo size={17} /></span><strong>Trykatch</strong></a>
     <section className="auth-card login-card">
-      <h1>{mfaRequired ? 'Verify your identity' : 'Sign in'}</h1>
-      <p>{mfaRequired ? 'Enter an authenticator or recovery code.' : 'Use your verified account to continue.'}</p>
+      <h1>{t(mfaRequired ? 'Verify your identity' : 'Sign in')}</h1>
+      <p>{t(mfaRequired ? 'Enter an authenticator or recovery code.' : 'Use your verified account to continue.')}</p>
       {mfaRequired ? <form onSubmit={submitMfa}>
-        <label>Verification code<input name="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus /></label>
-        <label className="checkbox"><input name="recovery" type="checkbox" /> This is a recovery code</label>
-        <label className="checkbox"><input name="rememberClient" type="checkbox" /> Remember this trusted browser</label>
+        <label>{t('Verification code')}<input name="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus /></label>
+        <label className="checkbox"><input name="recovery" type="checkbox" /> {t('This is a recovery code')}</label>
+        <label className="checkbox"><input name="rememberClient" type="checkbox" /> {t('Remember this trusted browser')}</label>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Verifying…' : 'Verify and continue'}</Button>
-        <Button type="button" variant="ghost" onClick={() => setMfaRequired(false)}>Use a different account</Button>
+        <Button variant="primary" type="submit" disabled={busy}>{t(busy ? 'Verifying…' : 'Verify and continue')}</Button>
+        <Button type="button" variant="ghost" onClick={() => setMfaRequired(false)}>{t('Use a different account')}</Button>
       </form> : <form onSubmit={submitPassword}>
-        <label>Email address<input name="email" type="email" autoComplete="email" required /></label>
-        <PasswordField label="Password" name="password" autoComplete="current-password" visibilityLabel="password" required />
-        <div className="auth-form-options"><label className="checkbox"><input name="remember" type="checkbox" /> Keep me signed in</label><a className="text-button" href="/forgot-password">Forgot password?</a></div>
+        <label>{t('Email address')}<input name="email" type="email" autoComplete="email" required /></label>
+        <PasswordField label={t('Password')} name="password" autoComplete="current-password" visibilityLabel={t('Password').toLowerCase()} showLabel={t('Show')} hideLabel={t('Hide')} required />
+        <div className="auth-form-options"><label className="checkbox"><input name="remember" type="checkbox" /> {t('Keep me signed in')}</label><a className="text-button" href="/forgot-password">{t('Forgot password?')}</a></div>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>
+        <Button variant="primary" type="submit" disabled={busy}>{t(busy ? 'Signing in…' : 'Sign in')}</Button>
       </form>}
     </section>
   </main>

@@ -62,6 +62,7 @@ export function DeleteConfirmationDialog({
   recordType,
   isDeleting = false,
   error,
+  labels,
   onOpenChange,
   onConfirm,
 }: {
@@ -70,24 +71,50 @@ export function DeleteConfirmationDialog({
   recordType: string
   isDeleting?: boolean
   error?: string
+  labels?: Partial<DeleteConfirmationLabels>
   onOpenChange(open: boolean): void
   onConfirm(reason: string): void
 }) {
+  const copy = { ...defaultDeleteConfirmationLabels, ...labels }
   const [reason, setReason] = useState('')
   useEffect(() => { if (!open) setReason('') }, [open])
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (reason.trim().length >= 10) onConfirm(reason.trim())
   }
-  return <Dialog open={open} onOpenChange={onOpenChange} title={`Delete ${recordType}`} description="Request deletion while keeping the record recoverable in Archive.">
+  return <Dialog open={open} onOpenChange={onOpenChange} title={copy.title(recordType)} description={copy.description}>
     <form className="dialog-form delete-confirmation" onSubmit={submit}>
       <div className="delete-record-summary"><span>{recordType}</span><strong>{recordName}</strong></div>
-      <label>Reason for deletion <span aria-hidden="true">*</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} rows={4} required autoFocus placeholder="Explain why this record is being deleted…" /><small>{reason.trim().length}/500 · minimum 10 characters</small></label>
-      <p className="delete-accountability">The record moves to Pending deletion. The reason is stored with it and written to the immutable audit trail; authorized users can still restore it.</p>
+      <label>{copy.reasonLabel} <span aria-hidden="true">*</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} rows={4} required autoFocus placeholder={copy.reasonPlaceholder} /><small>{copy.characterCount(reason.trim().length)}</small></label>
+      <p className="delete-accountability">{copy.accountability}</p>
       {error && <div className="form-error" role="alert">{error}</div>}
-      <div className="dialog-actions"><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" variant="danger" disabled={isDeleting || reason.trim().length < 10}>{isDeleting ? 'Requesting…' : 'Request deletion'}</Button></div>
+      <div className="dialog-actions"><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{copy.cancel}</Button><Button type="submit" variant="danger" disabled={isDeleting || reason.trim().length < 10}>{isDeleting ? copy.requesting : copy.requestDeletion}</Button></div>
     </form>
   </Dialog>
+}
+
+export interface DeleteConfirmationLabels {
+  title(recordType: string): string
+  description: string
+  reasonLabel: string
+  reasonPlaceholder: string
+  characterCount(count: number): string
+  accountability: string
+  cancel: string
+  requesting: string
+  requestDeletion: string
+}
+
+const defaultDeleteConfirmationLabels: DeleteConfirmationLabels = {
+  title: (recordType) => `Delete ${recordType}`,
+  description: 'Request deletion while keeping the record recoverable in Archive.',
+  reasonLabel: 'Reason for deletion',
+  reasonPlaceholder: 'Explain why this record is being deleted…',
+  characterCount: (count) => `${count}/500 · minimum 10 characters`,
+  accountability: 'The record moves to Pending deletion. The reason is stored with it and written to the immutable audit trail; authorized users can still restore it.',
+  cancel: 'Cancel',
+  requesting: 'Requesting…',
+  requestDeletion: 'Request deletion',
 }
 
 export type DataTableDensity = 'compact' | 'comfortable' | 'spacious'
@@ -120,6 +147,37 @@ export interface DataTableProps<T> {
   pageSize?: number
   renderExpandedRow?(row: T): ReactNode
   getRowExpansionLabel?(row: T): string
+  labels?: Partial<DataTableLabels>
+}
+
+export interface DataTableLabels {
+  searchTable: string
+  result: string
+  results: string
+  columns: string
+  tableSettings: string
+  closeTableSettings: string
+  rowDensity: string
+  compact: string
+  comfortable: string
+  spacious: string
+  required: string
+  details: string
+  showDetails(row: string): string
+  hideDetails(row: string): string
+  noMatchingResults: string
+  showing(start: number, end: number, total: number): string
+  previous: string
+  page(page: number, count: number): string
+  next: string
+}
+
+const defaultDataTableLabels: DataTableLabels = {
+  searchTable: 'Search table', result: 'result', results: 'results', columns: 'Columns', tableSettings: 'Table settings',
+  closeTableSettings: 'Close table settings', rowDensity: 'Row density', compact: 'Compact', comfortable: 'Comfortable', spacious: 'Spacious',
+  required: 'Required', details: 'Details', showDetails: (row) => `Show details for ${row}`, hideDetails: (row) => `Hide details for ${row}`,
+  noMatchingResults: 'No matching results.', showing: (start, end, total) => `Showing ${start}–${end} of ${total}`,
+  previous: 'Previous', page: (page, count) => `Page ${page} of ${count}`, next: 'Next',
 }
 
 function compareValues(left: DataTableValue, right: DataTableValue) {
@@ -145,7 +203,9 @@ export function DataTable<T>({
   pageSize,
   renderExpandedRow,
   getRowExpansionLabel,
+  labels: labelOverrides,
 }: DataTableProps<T>) {
+  const labels = { ...defaultDataTableLabels, ...labelOverrides }
   const searchId = useId()
   const columnSchemaKey = `${ariaLabel}|${columns.map((column) => `${column.id}:${column.hideable === false ? 'required' : column.defaultVisible === false ? 'hidden' : 'visible'}`).join('|')}`
   const defaultVisibleColumns = useMemo(() => new Set(columns.filter((column) => column.hideable === false || column.defaultVisible !== false).map((column) => column.id)), [columnSchemaKey])
@@ -240,38 +300,38 @@ export function DataTable<T>({
 
   return <div className={`data-table data-table-${density}`}>
     <div className="data-table-toolbar">
-      {searchable && <label className="data-table-search" htmlFor={searchId}><span aria-hidden="true">⌕</span><span className="sr-only">Search table</span><input id={searchId} type="search" value={search} placeholder={searchPlaceholder} onChange={(event) => { setSearch(event.target.value); setPage(1); setExpandedRowId(undefined) }} /></label>}
+      {searchable && <label className="data-table-search" htmlFor={searchId}><span aria-hidden="true">⌕</span><span className="sr-only">{labels.searchTable}</span><input id={searchId} type="search" value={search} placeholder={searchPlaceholder} onChange={(event) => { setSearch(event.target.value); setPage(1); setExpandedRowId(undefined) }} /></label>}
       {toolbar && <div className="data-table-filters">{toolbar}</div>}
-      <span className="data-table-count" aria-live="polite">{rows.length} {rows.length === 1 ? 'result' : 'results'}</span>
+      <span className="data-table-count" aria-live="polite">{rows.length} {rows.length === 1 ? labels.result : labels.results}</span>
       <div className="data-table-menu" ref={settingsMenu}>
-        <button className="data-table-menu-trigger" type="button" aria-label="Table settings" aria-haspopup="dialog" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}>
+        <button className="data-table-menu-trigger" type="button" aria-label={labels.tableSettings} aria-haspopup="dialog" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}>
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h2m4 0h10M4 18h7m4 0h5M14 4v4M8 10v4m5 2v4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          Columns
+          {labels.columns}
         </button>
-        {settingsOpen && <div className="data-table-menu-panel" role="dialog" aria-label="Table settings">
-          <div className="data-table-menu-heading"><strong>Table settings</strong><button type="button" aria-label="Close table settings" onClick={() => setSettingsOpen(false)}>×</button></div>
-          <fieldset><legend>Row density</legend><div className="density-options">{(['compact', 'comfortable', 'spacious'] as const).map((value) => <label key={value} className={density === value ? 'selected' : ''}><input type="radio" name={`${searchId}-density`} checked={density === value} onChange={() => setDensity(value)} /><span>{value[0].toUpperCase() + value.slice(1)}</span></label>)}</div></fieldset>
-          <fieldset><legend>Columns</legend><div className="column-options">{columns.map((column) => {
+        {settingsOpen && <div className="data-table-menu-panel" role="dialog" aria-label={labels.tableSettings}>
+          <div className="data-table-menu-heading"><strong>{labels.tableSettings}</strong><button type="button" aria-label={labels.closeTableSettings} onClick={() => setSettingsOpen(false)}>×</button></div>
+          <fieldset><legend>{labels.rowDensity}</legend><div className="density-options">{(['compact', 'comfortable', 'spacious'] as const).map((value) => <label key={value} className={density === value ? 'selected' : ''}><input type="radio" name={`${searchId}-density`} checked={density === value} onChange={() => setDensity(value)} /><span>{labels[value]}</span></label>)}</div></fieldset>
+          <fieldset><legend>{labels.columns}</legend><div className="column-options">{columns.map((column) => {
             const required = column.hideable === false
-            return <label key={column.id} className={required ? 'is-required' : ''}><input type="checkbox" aria-label={`${column.header}${required ? ' (required)' : ''}`} checked={visibleColumns.has(column.id)} disabled={required} onChange={() => toggleColumn(column)} /><span>{column.header}</span>{required && <small>Required</small>}</label>
+            return <label key={column.id} className={required ? 'is-required' : ''}><input type="checkbox" aria-label={`${column.header}${required ? ` (${labels.required.toLocaleLowerCase()})` : ''}`} checked={visibleColumns.has(column.id)} disabled={required} onChange={() => toggleColumn(column)} /><span>{column.header}</span>{required && <small>{labels.required}</small>}</label>
           })}</div></fieldset>
         </div>}
       </div>
     </div>
-    <div className="table-wrap"><table aria-label={ariaLabel}><thead><tr>{renderExpandedRow && <th className="data-table-disclosure-heading"><span className="sr-only">Details</span></th>}{displayedColumns.map((column) => <th key={column.id} style={{ width: column.width }} className={column.align === 'right' ? 'is-right' : undefined} aria-sort={sort?.id === column.id ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}>{column.sortValue ? <button type="button" onClick={() => changeSort(column)}>{column.header}<span aria-hidden="true">{sort?.id === column.id ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button> : column.header}</th>)}</tr></thead><tbody>{visibleRows.map((row) => {
+    <div className="table-wrap"><table aria-label={ariaLabel}><thead><tr>{renderExpandedRow && <th className="data-table-disclosure-heading"><span className="sr-only">{labels.details}</span></th>}{displayedColumns.map((column) => <th key={column.id} style={{ width: column.width }} className={column.align === 'right' ? 'is-right' : undefined} aria-sort={sort?.id === column.id ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}>{column.sortValue ? <button type="button" onClick={() => changeSort(column)}>{column.header}<span aria-hidden="true">{sort?.id === column.id ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button> : column.header}</th>)}</tr></thead><tbody>{visibleRows.map((row) => {
       const rowId = getRowId(row)
       const isExpanded = expandedRowId === rowId
       const expansionId = `${searchId}-${rowId}-details`
       const rowLabel = getRowExpansionLabel?.(row) ?? 'row'
       return <Fragment key={rowId}>
         <tr className={isExpanded ? 'is-expanded' : undefined}>
-          {renderExpandedRow && <td className="data-table-disclosure-cell"><button type="button" className="data-table-disclosure" aria-label={`${isExpanded ? 'Hide' : 'Show'} details for ${rowLabel}`} aria-expanded={isExpanded} aria-controls={expansionId} onClick={() => toggleRow(row)}><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m7 5 5 5-5 5" /></svg></button></td>}
+          {renderExpandedRow && <td className="data-table-disclosure-cell"><button type="button" className="data-table-disclosure" aria-label={isExpanded ? labels.hideDetails(rowLabel) : labels.showDetails(rowLabel)} aria-expanded={isExpanded} aria-controls={expansionId} onClick={() => toggleRow(row)}><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m7 5 5 5-5 5" /></svg></button></td>}
           {displayedColumns.map((column) => <td key={column.id} className={column.align === 'right' ? 'is-right' : undefined}>{column.cell(row)}</td>)}
         </tr>
         {renderExpandedRow && isExpanded && <tr className="data-table-expanded-row"><td id={expansionId} colSpan={displayedColumns.length + 1}>{renderExpandedRow(row)}</td></tr>}
       </Fragment>
     })}</tbody></table></div>
-    {rows.length === 0 && (empty ?? <div className="data-table-empty">No matching results.</div>)}
-    {normalizedPageSize && rows.length > normalizedPageSize && <div className="table-pagination data-table-pagination"><span>Showing {(visiblePage - 1) * normalizedPageSize + 1}–{Math.min(visiblePage * normalizedPageSize, rows.length)} of {rows.length}</span><div><Button variant="secondary" disabled={visiblePage <= 1} onClick={() => { setPage((value) => Math.max(1, value - 1)); setExpandedRowId(undefined) }}>Previous</Button><span>Page {visiblePage} of {pageCount}</span><Button variant="secondary" disabled={visiblePage >= pageCount} onClick={() => { setPage((value) => Math.min(pageCount, value + 1)); setExpandedRowId(undefined) }}>Next</Button></div></div>}
+    {rows.length === 0 && (empty ?? <div className="data-table-empty">{labels.noMatchingResults}</div>)}
+    {normalizedPageSize && rows.length > normalizedPageSize && <div className="table-pagination data-table-pagination"><span>{labels.showing((visiblePage - 1) * normalizedPageSize + 1, Math.min(visiblePage * normalizedPageSize, rows.length), rows.length)}</span><div><Button variant="secondary" disabled={visiblePage <= 1} onClick={() => { setPage((value) => Math.max(1, value - 1)); setExpandedRowId(undefined) }}>{labels.previous}</Button><span>{labels.page(visiblePage, pageCount)}</span><Button variant="secondary" disabled={visiblePage >= pageCount} onClick={() => { setPage((value) => Math.min(pageCount, value + 1)); setExpandedRowId(undefined) }}>{labels.next}</Button></div></div>}
   </div>
 }
