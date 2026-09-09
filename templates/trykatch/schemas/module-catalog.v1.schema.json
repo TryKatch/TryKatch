@@ -16,11 +16,9 @@
       "required": [
         "backend",
         "backendNamespace",
-        "dotnetModuleContractNamespace",
         "migrator",
         "migratorNamespace",
-        "web",
-        "webModuleSdkSpecifier"
+        "web"
       ],
       "properties": {
         "backend": { "$ref": "#/$defs/relativePath" },

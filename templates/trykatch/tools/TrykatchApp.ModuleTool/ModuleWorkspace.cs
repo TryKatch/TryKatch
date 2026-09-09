@@ -149,15 +149,16 @@ public sealed partial class ModuleWorkspace
         ValidateOutputPath(catalog.Outputs.Backend, "backend registry", errors);
         if (!DotnetNamespaceRegex().IsMatch(catalog.Outputs.BackendNamespace))
             errors.Add($"Invalid backend registry namespace '{catalog.Outputs.BackendNamespace}'.");
-        if (!DotnetNamespaceRegex().IsMatch(catalog.Outputs.DotnetModuleContractNamespace))
-            errors.Add($"Invalid .NET module contract namespace '{catalog.Outputs.DotnetModuleContractNamespace}'.");
+        string moduleContractNamespace = ResolveDotnetModuleContractNamespace(catalog.Outputs);
+        if (!DotnetNamespaceRegex().IsMatch(moduleContractNamespace))
+            errors.Add($"Invalid .NET module contract namespace '{moduleContractNamespace}'.");
         ValidateOutputPath(catalog.Outputs.Migrator, "migrator registry", errors);
         if (!DotnetNamespaceRegex().IsMatch(catalog.Outputs.MigratorNamespace))
             errors.Add($"Invalid migrator registry namespace '{catalog.Outputs.MigratorNamespace}'.");
         if (HasWebSurface())
         {
             ValidateOutputPath(catalog.Outputs.Web, "web registry", errors);
-            if (string.IsNullOrWhiteSpace(catalog.Outputs.WebModuleSdkSpecifier))
+            if (string.IsNullOrWhiteSpace(ResolveWebModuleSdkSpecifier(catalog.Outputs)))
                 errors.Add("The web module SDK specifier must not be empty.");
         }
         ValidateOutputPath(catalog.LockFile, "module lock file", errors);
@@ -456,7 +457,7 @@ public sealed partial class ModuleWorkspace
             catalog.Outputs.Backend,
             GenerateDotnetRegistry(
                 catalog.Outputs.BackendNamespace,
-                catalog.Outputs.DotnetModuleContractNamespace,
+                ResolveDotnetModuleContractNamespace(catalog.Outputs),
                 modules),
             "backend module registry",
             errors);
@@ -464,14 +465,14 @@ public sealed partial class ModuleWorkspace
             catalog.Outputs.Migrator,
             GenerateDotnetRegistry(
                 catalog.Outputs.MigratorNamespace,
-                catalog.Outputs.DotnetModuleContractNamespace,
+                ResolveDotnetModuleContractNamespace(catalog.Outputs),
                 modules),
             "migrator module registry",
             errors);
         if (HasWebSurface())
             ValidateGeneratedFile(
                 catalog.Outputs.Web,
-                GenerateWeb(catalog.Outputs.WebModuleSdkSpecifier, modules),
+                GenerateWeb(ResolveWebModuleSdkSpecifier(catalog.Outputs), modules),
                 "web module registry",
                 errors);
     }
@@ -499,18 +500,18 @@ public sealed partial class ModuleWorkspace
             ResolveInsideRoot(catalog.Outputs.Backend),
             GenerateDotnetRegistry(
                 catalog.Outputs.BackendNamespace,
-                catalog.Outputs.DotnetModuleContractNamespace,
+                ResolveDotnetModuleContractNamespace(catalog.Outputs),
                 modules));
         WriteAtomic(
             ResolveInsideRoot(catalog.Outputs.Migrator),
             GenerateDotnetRegistry(
                 catalog.Outputs.MigratorNamespace,
-                catalog.Outputs.DotnetModuleContractNamespace,
+                ResolveDotnetModuleContractNamespace(catalog.Outputs),
                 modules));
         if (HasWebSurface())
             WriteAtomic(
                 ResolveInsideRoot(catalog.Outputs.Web),
-                GenerateWeb(catalog.Outputs.WebModuleSdkSpecifier, modules));
+                GenerateWeb(ResolveWebModuleSdkSpecifier(catalog.Outputs), modules));
         WriteAtomic(ResolveInsideRoot(catalog.LockFile), GenerateLock(catalog, modules));
     }
 
@@ -728,6 +729,17 @@ public sealed partial class ModuleWorkspace
     {
         string registryPath = ResolveInsideRoot(generatedRegistryPath);
         string? hostDirectory = Directory.GetParent(registryPath)?.Parent?.FullName;
+        if (hostDirectory is not null)
+        {
+            try
+            {
+                hostDirectory = ResolveInsideRoot(hostDirectory);
+            }
+            catch (InvalidOperationException)
+            {
+                hostDirectory = null;
+            }
+        }
         string[] projects = hostDirectory is not null && Directory.Exists(hostDirectory)
             ? Directory.GetFiles(hostDirectory, "*.csproj", SearchOption.TopDirectoryOnly)
             : [];
@@ -740,6 +752,29 @@ public sealed partial class ModuleWorkspace
             throw new InvalidOperationException(
                 $"Expected exactly one {subject} host project beside registry '{generatedRegistryPath}', found {projects.Length}.");
         return projects[0];
+    }
+
+    private static string ResolveDotnetModuleContractNamespace(ModuleCatalogOutputs outputs)
+    {
+        if (!string.IsNullOrWhiteSpace(outputs.DotnetModuleContractNamespace))
+            return outputs.DotnetModuleContractNamespace;
+
+        const string backendSuffix = ".Api.Modules";
+        return outputs.BackendNamespace.EndsWith(backendSuffix, StringComparison.Ordinal)
+            ? outputs.BackendNamespace[..^backendSuffix.Length] + ".Modules"
+            : string.Empty;
+    }
+
+    private static string ResolveWebModuleSdkSpecifier(ModuleCatalogOutputs outputs)
+    {
+        if (!string.IsNullOrWhiteSpace(outputs.WebModuleSdkSpecifier))
+            return outputs.WebModuleSdkSpecifier;
+
+        const string moduleSuffix = ".Modules";
+        string moduleNamespace = ResolveDotnetModuleContractNamespace(outputs);
+        return moduleNamespace.EndsWith(moduleSuffix, StringComparison.Ordinal)
+            ? "@" + moduleNamespace[..^moduleSuffix.Length].ToLowerInvariant() + "/module-sdk"
+            : string.Empty;
     }
 
     private string ResolveSolution()

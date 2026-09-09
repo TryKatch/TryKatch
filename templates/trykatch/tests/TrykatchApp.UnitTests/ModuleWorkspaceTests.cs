@@ -57,6 +57,36 @@ public sealed class ModuleWorkspaceTests
     }
 
     [TestMethod]
+    public void LegacyVersionOneCatalogDerivesPortableOutputIdentities()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        string catalogPath = Path.Combine(temporary.Root, "trykatch.modules.json");
+        string catalog = File.ReadAllText(catalogPath)
+            .Replace("    \"dotnetModuleContractNamespace\": \"TrykatchApp.Modules\",\n", string.Empty, StringComparison.Ordinal)
+            .Replace("    \"web\": \"web/src/modules.ts\",\n", "    \"web\": \"web/src/modules.ts\"\n", StringComparison.Ordinal)
+            .Replace("    \"webModuleSdkSpecifier\": \"@trykatchapp/module-sdk\"\n", string.Empty, StringComparison.Ordinal)
+            .Replace("TrykatchApp", "CustomerPortal", StringComparison.Ordinal)
+            .Replace("trykatchapp", "customerportal", StringComparison.Ordinal);
+        File.WriteAllText(catalogPath, catalog);
+        string manifestPath = Path.Combine(temporary.Root, "manifests/projects.json");
+        File.WriteAllText(
+            manifestPath,
+            File.ReadAllText(manifestPath)
+                .Replace("TrykatchApp", "CustomerPortal", StringComparison.Ordinal)
+                .Replace("trykatchapp", "customerportal", StringComparison.Ordinal));
+
+        ModuleWorkspace workspace = new(temporary.Root);
+        ModuleDoctorReport generated = workspace.Generate();
+
+        generated.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, generated.Errors));
+        File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedModules.cs"))
+            .ShouldContain("using CustomerPortal.Modules;");
+        File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts"))
+            .ShouldContain("from '@customerportal/module-sdk'");
+        workspace.Inspect().IsHealthy.ShouldBeTrue();
+    }
+
+    [TestMethod]
     public void DoctorDetectsGeneratedRegistryDrift()
     {
         using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
