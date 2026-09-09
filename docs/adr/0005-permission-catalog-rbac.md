@@ -5,7 +5,7 @@
 
 ## Context
 
-Flatpack needs custom organization roles without duplicating permission strings across backend validation, OpenAPI, and React. Optional modules must be able to add capabilities without runtime assembly scanning or database-driven invention of permissions. Delegated role managers must not be able to grant authority they do not hold.
+Trykatch needs custom organization roles without duplicating permission strings across backend validation, OpenAPI, and React. Optional modules must be able to add capabilities without runtime assembly scanning or database-driven invention of permissions. Delegated role managers must not be able to grant authority they do not hold.
 
 Primary guidance supports stable permission identifiers, least-privilege role bundles, server-side delegation boundaries, and policy-based enforcement:
 

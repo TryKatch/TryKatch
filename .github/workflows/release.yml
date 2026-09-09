@@ -23,16 +23,16 @@ jobs:
           dotnet-version: 10.0.x
       - run: bash scripts/test-template.sh
       - run: bash scripts/test-federation-module.sh
-      - run: dotnet pack Flatpack.Templates.csproj -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
-      - run: dotnet pack templates/flatpack/tools/FlatpackApp.ModuleTool -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
+      - run: dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
+      - run: dotnet pack templates/trykatch/tools/TrykatchApp.ModuleTool -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
       - uses: anchore/sbom-action@v0.24.0
         with:
-          path: templates/flatpack
+          path: templates/trykatch
           format: spdx-json
-          output-file: artifacts/flatpack-template.spdx.json
+          output-file: artifacts/trykatch-template.spdx.json
       - uses: actions/upload-artifact@v4
         with:
-          name: flatpack-release
+          name: trykatch-release
           path: artifacts
       - run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
         env:

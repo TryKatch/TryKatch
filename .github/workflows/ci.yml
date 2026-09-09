@@ -21,7 +21,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
           cache: true
-          cache-dependency-path: templates/flatpack/**/packages.lock.json
+          cache-dependency-path: templates/trykatch/**/packages.lock.json
       - uses: pnpm/action-setup@v6
         with:
           version: 10.17.1
@@ -29,52 +29,52 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: templates/flatpack/web/pnpm-lock.yaml
+          cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
       # Aspire's AppHost lock contains an SDK-runtime-specific dashboard package.
       # A normal restore preserves the pinned graph while translating that one
       # package for the runner OS.
-      - run: dotnet restore templates/flatpack/FlatpackApp.slnx
-      - run: dotnet build templates/flatpack/FlatpackApp.slnx -c Release --no-restore
+      - run: dotnet restore templates/trykatch/TrykatchApp.slnx
+      - run: dotnet build templates/trykatch/TrykatchApp.slnx -c Release --no-restore
       - name: Verify deployable .NET publish graphs
         run: |
-          dotnet publish templates/flatpack/src/FlatpackApp.Api/FlatpackApp.Api.csproj -c Release --no-restore --no-build -o artifacts/publish/api
-          dotnet publish templates/flatpack/src/FlatpackApp.Migrator/FlatpackApp.Migrator.csproj -c Release --no-restore --no-build -o artifacts/publish/migrator
+          dotnet publish templates/trykatch/src/TrykatchApp.Api/TrykatchApp.Api.csproj -c Release --no-restore --no-build -o artifacts/publish/api
+          dotnet publish templates/trykatch/src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj -c Release --no-restore --no-build -o artifacts/publish/migrator
       - name: Validate full-stack module composition
-        run: dotnet run --project templates/flatpack/tools/FlatpackApp.ModuleTool -c Release --no-build -- module doctor --root templates/flatpack
-      - name: Verify Flatpack CLI package
-        run: dotnet pack templates/flatpack/tools/FlatpackApp.ModuleTool -c Release --no-build -o artifacts/cli -p:PackageVersion=0.1.0-ci
-      - run: dotnet test templates/flatpack/tests/FlatpackApp.UnitTests -c Release --no-build
-      - run: dotnet test templates/flatpack/tests/FlatpackApp.IntegrationTests -c Release --no-build
-      - run: pnpm --dir templates/flatpack/web install --frozen-lockfile
+        run: dotnet run --project templates/trykatch/tools/TrykatchApp.ModuleTool -c Release --no-build -- module doctor --root templates/trykatch
+      - name: Verify Trykatch CLI package
+        run: dotnet pack templates/trykatch/tools/TrykatchApp.ModuleTool -c Release --no-build -o artifacts/cli -p:PackageVersion=0.1.0-ci
+      - run: dotnet test templates/trykatch/tests/TrykatchApp.UnitTests -c Release --no-build
+      - run: dotnet test templates/trykatch/tests/TrykatchApp.IntegrationTests -c Release --no-build
+      - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
       - name: Verify disabled and enabled Federation composition
         run: bash scripts/test-federation-module.sh
-      - run: pnpm --dir templates/flatpack/web generate
-      - run: git diff --exit-code -- templates/flatpack/web/packages/api-client/openapi templates/flatpack/web/packages/api-client/src/generated templates/flatpack/docs/generated/assistant-contract.json
-      - run: pnpm --dir templates/flatpack/web typecheck
-      - run: pnpm --dir templates/flatpack/web test
-      - run: pnpm --dir templates/flatpack/web build
-      - run: pnpm --dir templates/flatpack/web --filter @flatpackapp/web exec playwright install --with-deps chromium
-      - run: pnpm --dir templates/flatpack/web --filter @flatpackapp/web test:e2e
-      - run: dotnet list templates/flatpack/FlatpackApp.slnx package --vulnerable --include-transitive
-      - run: pnpm --dir templates/flatpack/web audit --audit-level high
-      - run: docker compose -f templates/flatpack/compose.yml config --quiet
-      - run: docker build -f templates/flatpack/src/FlatpackApp.Api/Dockerfile templates/flatpack
-      - run: docker build -f templates/flatpack/web/apps/web/Dockerfile templates/flatpack
+      - run: pnpm --dir templates/trykatch/web generate
+      - run: git diff --exit-code -- templates/trykatch/web/packages/api-client/openapi templates/trykatch/web/packages/api-client/src/generated templates/trykatch/docs/generated/assistant-contract.json
+      - run: pnpm --dir templates/trykatch/web typecheck
+      - run: pnpm --dir templates/trykatch/web test
+      - run: pnpm --dir templates/trykatch/web build
+      - run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web exec playwright install --with-deps chromium
+      - run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web test:e2e
+      - run: dotnet list templates/trykatch/TrykatchApp.slnx package --vulnerable --include-transitive
+      - run: pnpm --dir templates/trykatch/web audit --audit-level high
+      - run: docker compose -f templates/trykatch/compose.yml config --quiet
+      - run: docker build -f templates/trykatch/src/TrykatchApp.Api/Dockerfile templates/trykatch
+      - run: docker build -f templates/trykatch/web/apps/web/Dockerfile templates/trykatch
       - run: bash scripts/test-migrator.sh
       - name: Reclaim ephemeral runner disk
         run: |
           docker system prune --all --force --volumes
-          find templates/flatpack -type d \( -name bin -o -name obj -o -name node_modules -o -name dist \) -prune -exec rm -rf {} +
+          find templates/trykatch -type d \( -name bin -o -name obj -o -name node_modules -o -name dist \) -prune -exec rm -rf {} +
       - run: bash scripts/test-template.sh
       - uses: anchore/sbom-action@v0.24.0
         with:
-          path: templates/flatpack
+          path: templates/trykatch
           format: spdx-json
-          output-file: flatpack-template.spdx.json
+          output-file: trykatch-template.spdx.json
       - uses: actions/upload-artifact@v4
         with:
-          name: flatpack-template-sbom
-          path: flatpack-template.spdx.json
+          name: trykatch-template-sbom
+          path: trykatch-template.spdx.json
       - name: Scan Git history for secrets
         env:
           GITLEAKS_VERSION: 8.30.1

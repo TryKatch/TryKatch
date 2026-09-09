@@ -1,0 +1,35 @@
+﻿{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5274",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DevelopmentDemo__Enabled": "true",
+        "DevelopmentDemo__PlatformAdminEmail": "admin@trykatch.net",
+        "DevelopmentDemo__TenantAdminEmail": "tenant@trykatch.net",
+        "DevelopmentDemo__Password": "Admin@123",
+        "DevelopmentDemo__OrganizationName": "Demo Workspace",
+        "DevelopmentDemo__OrganizationSlug": "demo-workspace"
+      }
+    },
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7268;http://localhost:5274",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DevelopmentDemo__Enabled": "true",
+        "DevelopmentDemo__PlatformAdminEmail": "admin@trykatch.net",
+        "DevelopmentDemo__TenantAdminEmail": "tenant@trykatch.net",
+        "DevelopmentDemo__Password": "Admin@123",
+        "DevelopmentDemo__OrganizationName": "Demo Workspace",
+        "DevelopmentDemo__OrganizationSlug": "demo-workspace"
+      }
+    }
+  }
+}

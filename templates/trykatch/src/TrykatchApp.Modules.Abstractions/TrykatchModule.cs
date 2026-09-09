@@ -1,0 +1,279 @@
+using System.Collections.Frozen;
+using System.Text.RegularExpressions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace TrykatchApp.Modules;
+
+[Flags]
+public enum TrykatchModuleCapabilities
+{
+    None = 0,
+    Api = 1,
+    Web = 2,
+    Data = 4,
+    BackgroundWork = 8,
+    Assistant = 16
+}
+
+public enum TrykatchExtensionPointKind
+{
+    UiSlot,
+    DataTable,
+    Form,
+    Component,
+    Api,
+    Event
+}
+
+public sealed record TrykatchExtensionPointDescriptor(
+    string Id,
+    string Description,
+    TrykatchExtensionPointKind Kind,
+    TrykatchModuleCapabilities Surface);
+
+public enum TrykatchAssistantToolRisk
+{
+    ReadOnly,
+    Mutating,
+    Destructive
+}
+
+/// <summary>
+/// An explicit, provider-neutral allowlist entry for exposing one API operation
+/// to an AI assistant. Authorization remains enforced by the API operation.
+/// </summary>
+public sealed record TrykatchAssistantToolDescriptor(
+    string Name,
+    string OperationId,
+    string Description,
+    TrykatchAssistantToolRisk Risk,
+    bool RequiresHumanConfirmation);
+
+public sealed record TrykatchModuleDescriptor(
+    string Id,
+    string Name,
+    string Version,
+    string Description,
+    IReadOnlyList<string> Requires,
+    IReadOnlyList<string> OptionalDependencies,
+    TrykatchModuleCapabilities Capabilities,
+    IReadOnlyList<TrykatchExtensionPointDescriptor> ExtensionPoints)
+{
+    public IReadOnlyList<TrykatchAssistantToolDescriptor> AssistantTools { get; init; } = [];
+}
+
+/// <summary>
+/// The stable install-time seam for a Trykatch module. Implementations own their
+/// registration complexity; the host owns ordering, validation, and activation.
+/// </summary>
+public interface ITrykatchModule
+{
+    TrykatchModuleDescriptor Descriptor { get; }
+    void Register(IServiceCollection services, IConfiguration configuration);
+}
+
+/// <summary>Associates a host-discovered type with the module that owns its activation.</summary>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+public sealed class TrykatchModuleAttribute(string moduleId) : Attribute
+{
+    public string ModuleId { get; } = moduleId;
+}
+
+public sealed class TrykatchModuleCatalog
+{
+    private static readonly Regex StableId = new(
+        "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
+    private static readonly Regex StableVersion = new(
+        "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
+    private static readonly Regex StableContractId = new(
+        "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
+    private static readonly Regex StableToolName = new(
+        "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
+    private static readonly Regex StableOperationId = new(
+        "^[A-Za-z][A-Za-z0-9_]*$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
+    public TrykatchModuleCatalog(IEnumerable<ITrykatchModule> modules)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+        ITrykatchModule[] supplied = modules.ToArray();
+        ValidateDescriptors(supplied);
+
+        Dictionary<string, ITrykatchModule> byId = supplied.ToDictionary(
+            module => module.Descriptor.Id,
+            StringComparer.Ordinal);
+        ValidateDependencies(byId);
+
+        Modules = OrderByDependencies(byId);
+        Descriptors = Modules.Select(module => module.Descriptor).ToArray();
+        ModuleIds = Descriptors.Select(descriptor => descriptor.Id).ToFrozenSet(StringComparer.Ordinal);
+    }
+
+    public IReadOnlyList<ITrykatchModule> Modules { get; }
+    public IReadOnlyList<TrykatchModuleDescriptor> Descriptors { get; }
+    public IReadOnlySet<string> ModuleIds { get; }
+
+    public bool Contains(string moduleId) => ModuleIds.Contains(moduleId);
+
+    private static void ValidateDescriptors(IReadOnlyCollection<ITrykatchModule> modules)
+    {
+        string? duplicate = modules
+            .GroupBy(module => module.Descriptor.Id, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicate is not null)
+            throw new InvalidOperationException($"Duplicate Trykatch module id '{duplicate}'.");
+
+        foreach (ITrykatchModule module in modules)
+        {
+            TrykatchModuleDescriptor descriptor = module.Descriptor;
+            if (descriptor.Id.Length > 80 || !StableId.IsMatch(descriptor.Id))
+                throw new InvalidOperationException($"Trykatch module id '{descriptor.Id}' must be lower-case kebab-case and no longer than 80 characters.");
+            if (string.IsNullOrWhiteSpace(descriptor.Name) || string.IsNullOrWhiteSpace(descriptor.Description))
+                throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' requires a name and description.");
+            if (!StableVersion.IsMatch(descriptor.Version))
+                throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' has invalid semantic version '{descriptor.Version}'.");
+
+            EnsureUnique(descriptor.Requires, descriptor.Id, "required dependency");
+            EnsureUnique(descriptor.OptionalDependencies, descriptor.Id, "optional dependency");
+            foreach (string dependency in descriptor.Requires.Concat(descriptor.OptionalDependencies))
+            {
+                if (!StableId.IsMatch(dependency))
+                    throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' declares invalid dependency id '{dependency}'.");
+            }
+            string? overlap = descriptor.Requires.Intersect(descriptor.OptionalDependencies, StringComparer.Ordinal).FirstOrDefault();
+            if (overlap is not null)
+                throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' declares '{overlap}' as both required and optional.");
+            if (descriptor.Requires.Contains(descriptor.Id, StringComparer.Ordinal)
+                || descriptor.OptionalDependencies.Contains(descriptor.Id, StringComparer.Ordinal))
+                throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' cannot depend on itself.");
+
+            EnsureUnique(descriptor.ExtensionPoints.Select(point => point.Id), descriptor.Id, "extension point");
+            foreach (TrykatchExtensionPointDescriptor point in descriptor.ExtensionPoints)
+            {
+                if (point.Id.Length > 120 || !StableContractId.IsMatch(point.Id))
+                    throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' declares invalid extension point id '{point.Id}'.");
+                if (string.IsNullOrWhiteSpace(point.Description))
+                    throw new InvalidOperationException($"Trykatch extension point '{point.Id}' requires a description.");
+                if (point.Surface == TrykatchModuleCapabilities.None
+                    || (descriptor.Capabilities & point.Surface) != point.Surface)
+                    throw new InvalidOperationException($"Trykatch extension point '{point.Id}' uses a surface not provided by module '{descriptor.Id}'.");
+            }
+
+            EnsureUnique(descriptor.AssistantTools.Select(tool => tool.Name), descriptor.Id, "assistant tool name");
+            EnsureUnique(descriptor.AssistantTools.Select(tool => tool.OperationId), descriptor.Id, "assistant tool operation");
+            if (descriptor.AssistantTools.Count > 0
+                && !descriptor.Capabilities.HasFlag(TrykatchModuleCapabilities.Assistant))
+                throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' declares assistant tools without the Assistant capability.");
+            foreach (TrykatchAssistantToolDescriptor tool in descriptor.AssistantTools)
+            {
+                if (tool.Name.Length > 64 || !StableToolName.IsMatch(tool.Name))
+                    throw new InvalidOperationException($"Trykatch assistant tool '{tool.Name}' must be lower-case snake_case and no longer than 64 characters.");
+                if (!StableOperationId.IsMatch(tool.OperationId))
+                    throw new InvalidOperationException($"Trykatch assistant tool '{tool.Name}' has invalid operation id '{tool.OperationId}'.");
+                if (string.IsNullOrWhiteSpace(tool.Description))
+                    throw new InvalidOperationException($"Trykatch assistant tool '{tool.Name}' requires a description.");
+                if (tool.Risk != TrykatchAssistantToolRisk.ReadOnly && !tool.RequiresHumanConfirmation)
+                    throw new InvalidOperationException($"Trykatch assistant tool '{tool.Name}' must require human confirmation because it can change state.");
+            }
+        }
+
+        string? duplicatePoint = modules
+            .SelectMany(module => module.Descriptor.ExtensionPoints)
+            .GroupBy(point => point.Id, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicatePoint is not null)
+            throw new InvalidOperationException($"Duplicate Trykatch extension point id '{duplicatePoint}'.");
+
+        string? duplicateTool = modules
+            .SelectMany(module => module.Descriptor.AssistantTools)
+            .GroupBy(tool => tool.Name, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicateTool is not null)
+            throw new InvalidOperationException($"Duplicate Trykatch assistant tool name '{duplicateTool}'.");
+
+        string? duplicateOperation = modules
+            .SelectMany(module => module.Descriptor.AssistantTools)
+            .GroupBy(tool => tool.OperationId, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicateOperation is not null)
+            throw new InvalidOperationException($"Multiple Trykatch assistant tools target operation '{duplicateOperation}'.");
+    }
+
+    private static void ValidateDependencies(IReadOnlyDictionary<string, ITrykatchModule> modules)
+    {
+        foreach (ITrykatchModule module in modules.Values)
+        {
+            foreach (string dependency in module.Descriptor.Requires)
+            {
+                if (!modules.ContainsKey(dependency))
+                    throw new InvalidOperationException($"Trykatch module '{module.Descriptor.Id}' requires missing module '{dependency}'.");
+            }
+        }
+    }
+
+    private static List<ITrykatchModule> OrderByDependencies(IReadOnlyDictionary<string, ITrykatchModule> modules)
+    {
+        List<ITrykatchModule> ordered = [];
+        HashSet<string> visiting = new(StringComparer.Ordinal);
+        HashSet<string> visited = new(StringComparer.Ordinal);
+
+        foreach (string moduleId in modules.Keys.Order(StringComparer.Ordinal))
+            Visit(moduleId);
+
+        return ordered;
+
+        void Visit(string moduleId)
+        {
+            if (visited.Contains(moduleId)) return;
+            if (!visiting.Add(moduleId))
+                throw new InvalidOperationException($"Trykatch module dependency cycle includes '{moduleId}'.");
+
+            ITrykatchModule module = modules[moduleId];
+            IEnumerable<string> dependencies = module.Descriptor.Requires.Concat(
+                module.Descriptor.OptionalDependencies.Where(modules.ContainsKey));
+            foreach (string dependency in dependencies.Order(StringComparer.Ordinal))
+                Visit(dependency);
+
+            visiting.Remove(moduleId);
+            visited.Add(moduleId);
+            ordered.Add(module);
+        }
+    }
+
+    private static void EnsureUnique(IEnumerable<string> values, string moduleId, string subject)
+    {
+        string? duplicate = values
+            .GroupBy(value => value, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicate is not null)
+            throw new InvalidOperationException($"Trykatch module '{moduleId}' declares duplicate {subject} '{duplicate}'.");
+    }
+}
+
+public static class TrykatchModuleServiceCollectionExtensions
+{
+    public static TrykatchModuleCatalog AddTrykatchModules(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IEnumerable<ITrykatchModule> modules)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        TrykatchModuleCatalog catalog = new(modules);
+        services.AddSingleton(catalog);
+        foreach (ITrykatchModule module in catalog.Modules)
+            module.Register(services, configuration);
+
+        return catalog;
+    }
+}

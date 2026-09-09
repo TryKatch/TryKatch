@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../TrykatchApp.Identity/TrykatchApp.Identity.csproj" />
+    <ProjectReference Include="../TrykatchApp.Infrastructure/TrykatchApp.Infrastructure.csproj" />
+    <ProjectReference Include="../TrykatchApp.Modules.Abstractions/TrykatchApp.Modules.Abstractions.csproj" />
+    <ProjectReference Include="../TrykatchApp.Modules.AspNetCore/TrykatchApp.Modules.AspNetCore.csproj" />
+    <ProjectReference Include="../TrykatchApp.Modules.Federation/TrykatchApp.Modules.Federation.csproj" />
+  </ItemGroup>
+</Project>

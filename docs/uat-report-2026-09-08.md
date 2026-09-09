@@ -1,4 +1,4 @@
-# Flatpack UAT report — 2026-09-08
+# Trykatch UAT report — 2026-09-08
 
 ## Scope
 
@@ -16,7 +16,7 @@ Platform role management parity and tenant-owner onboarding from platform admini
 | Workspace entry | Pass | Acceptance established the protected workspace context and opened `/overview` without exposing a tenant identifier in the URL. |
 | Tenant authorization | Pass | The invited identity appeared as the only Northstar member with the built-in Owner role and access to workspace User Management. |
 | Platform separation | Pass | The tenant owner had no platform role and could not enter `/dashboard`; the provisioning platform operator had no Northstar membership. |
-| Installable template | Pass | Packed and installed `Flatpack.Templates.0.1.0.nupkg`, generated `Northstar.Sample`, and built the renamed solution with zero compiler warnings or errors. |
+| Installable template | Pass | Packed and installed `Trykatch.Templates.0.1.0.nupkg`, generated `Northstar.Sample`, and built the renamed solution with zero compiler warnings or errors. |
 
 ## Automated verification
 

@@ -4,9 +4,9 @@ Date: 2026-09-07
 
 ## Decision summary
 
-Flatpack should keep **permissions code-defined and roles organization-owned**. A permission is a stable application capability; a role is a named bundle of those capabilities. Modules contribute permission metadata to one validated runtime catalog, the API publishes that catalog, and the React role editor renders it. Adding a module or permission then changes one backend definition rather than backend validation, DTOs, and a hardcoded UI list separately.
+Trykatch should keep **permissions code-defined and roles organization-owned**. A permission is a stable application capability; a role is a named bundle of those capabilities. Modules contribute permission metadata to one validated runtime catalog, the API publishes that catalog, and the React role editor renders it. Adding a module or permission then changes one backend definition rather than backend validation, DTOs, and a hardcoded UI list separately.
 
-This deliberately remains an in-process RBAC design for v1. It borrows the durable modeling boundaries of larger systems without introducing a Zanzibar-compatible authorization service, a policy language, or a separate deployment before Flatpack needs object-level relationship authorization.
+This deliberately remains an in-process RBAC design for v1. It borrows the durable modeling boundaries of larger systems without introducing a Zanzibar-compatible authorization service, a policy language, or a separate deployment before Trykatch needs object-level relationship authorization.
 
 ## What the primary sources establish
 
@@ -15,9 +15,9 @@ This deliberately remains an in-process RBAC design for v1. It borrows the durab
 - AWS recommends least privilege, periodic removal of unused permissions, conditions that narrow access, and guardrails when permission administration is delegated. Its permissions-boundary model makes effective authority the intersection of granted permissions and a maximum boundary; the boundary limits authority but does not grant it. [AWS IAM security best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html), [permissions boundaries](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html)
 - ASP.NET Core represents authorization as named policies containing requirements evaluated by handlers. `IAuthorizationPolicyProvider` can create parameterized policies dynamically instead of registering every permission separately, and Microsoft recommends a strongly typed authorization attribute for a custom provider. `IAuthorizationService.AuthorizeAsync` also supports resource-aware checks after the resource is loaded. [Policy-based authorization](https://learn.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-10.0), [custom policy providers](https://learn.microsoft.com/en-us/aspnet/core/security/authorization/custom-authorization-policy-providers?view=aspnetcore-10.0), [resource-based authorization](https://learn.microsoft.com/en-us/aspnet/core/security/authorization/resource-based?view=aspnetcore-10.0)
 - Microsoft advises tracking active tenant context on every request while validating authorization separately, and notes that database-backed permissions support fine-grained changes during a session whereas permissions embedded in claims wait for token reissuance. [Map requests to tenants](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/map-requests), [multitenant identity](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/identity), [multitenant identity and access](https://learn.microsoft.com/en-us/azure/well-architected/saas/identity-access)
-- Zanzibar demonstrates why authorization should have a uniform model and a central check API. Its object/relation model separates stored grants from code-defined relation semantics, supports inspection of effective access, and emphasizes consistency after revocation. It is a useful future direction for object sharing or nested groups, not a justification for importing its distributed complexity into Flatpack v1. [Google Zanzibar paper](https://storage.googleapis.com/gweb-research2023-media/pubtools/5068.pdf)
+- Zanzibar demonstrates why authorization should have a uniform model and a central check API. Its object/relation model separates stored grants from code-defined relation semantics, supports inspection of effective access, and emphasizes consistency after revocation. It is a useful future direction for object sharing or nested groups, not a justification for importing its distributed complexity into Trykatch v1. [Google Zanzibar paper](https://storage.googleapis.com/gweb-research2023-media/pubtools/5068.pdf)
 
-## Recommended Flatpack model
+## Recommended Trykatch model
 
 ### 1. Stable permission keys
 
@@ -57,7 +57,7 @@ public sealed record PermissionDefinition(
 
 Each optional module exposes an explicit `IPermissionModule` (or a static descriptor) and registration code adds it deliberately; do not use assembly scanning. At startup, a singleton `IPermissionCatalog` flattens the registered modules and fails fast on duplicate keys, invalid grammar, missing metadata, unknown dependencies, or replacement cycles.
 
-The database continues storing only `(RoleId, PermissionKey)`. The catalog is authoritative and code-owned; organizations own role names and their selected keys. This preserves the clean separation that Flatpack already has and avoids synchronizing a second permissions table on every deployment.
+The database continues storing only `(RoleId, PermissionKey)`. The catalog is authoritative and code-owned; organizations own role names and their selected keys. This preserves the clean separation that Trykatch already has and avoids synchronizing a second permissions table on every deployment.
 
 Expose a versioned endpoint such as `GET /api/v1/authorization/permissions` returning catalog metadata grouped by module/resource. React must consume this endpoint; it must not maintain `availablePermissions`. OpenAPI/Orval then keeps the client contract generated.
 
@@ -68,7 +68,7 @@ The save use case should enforce all of these server-side:
 1. The caller has `identity.role.manage` (or the retained equivalent).
 2. Every submitted key exists, is active, and is assignable to custom roles.
 3. Keys are distinct and required companion permissions are included or added explicitly with a returned explanation.
-4. The caller can grant each submitted permission. The grantable set should be the intersection of the caller's effective permissions and a platform-defined delegation boundary; platform/organization Owner may have a documented exception. This is the Flatpack analogue of an AWS permissions boundary and prevents delegated administrators from escalating themselves.
+4. The caller can grant each submitted permission. The grantable set should be the intersection of the caller's effective permissions and a platform-defined delegation boundary; platform/organization Owner may have a documented exception. This is the Trykatch analogue of an AWS permissions boundary and prevents delegated administrators from escalating themselves.
 5. System roles remain immutable, at least one active Owner remains, and a user cannot remove the last path to role administration.
 6. Updates use a concurrency token (`xmin`, row version, or explicit version) and return `409 Conflict` for stale edits, following the role-`etag` pattern documented by Google Cloud.
 7. The audit event records actor, organization, role, old/new keys, and correlation ID in the same transaction/outbox boundary. Authorization caches or sessions are invalidated immediately after a role or membership change.
@@ -113,7 +113,7 @@ The catalog makes the UI data-driven. Use a wide, responsive editor rather than 
 
 This UI scales when modules add permissions: the new module registers definitions, the catalog endpoint exposes them, and the editor automatically gains a searchable group.
 
-## Current Flatpack gaps and migration path
+## Current Trykatch gaps and migration path
 
 The existing implementation already has valuable foundations: organization-owned roles, immutable system roles, string grants persisted separately, server-side rejection of unknown keys, organization context resolution, audit events, and application-layer checks.
 
@@ -130,7 +130,7 @@ Recommended delivery order:
 
 ## Tradeoffs
 
-- **Code catalog vs permissions table:** code definitions make reviews, deployments, and template modules deterministic. A database catalog enables runtime extensions but creates migration/version skew and lets data invent capabilities the application cannot enforce. Flatpack should choose code ownership for v1.
+- **Code catalog vs permissions table:** code definitions make reviews, deployments, and template modules deterministic. A database catalog enables runtime extensions but creates migration/version skew and lets data invent capabilities the application cannot enforce. Trykatch should choose code ownership for v1.
 - **Module descriptors vs one central file:** explicit module descriptors let optional modules extend the catalog without editing a monolith, at the cost of a small startup composition layer.
 - **Dynamic ASP.NET policies vs registering every policy:** the provider avoids repetitive registration and supports any catalog key, but its naming/parser logic must be strict and thoroughly tested because ASP.NET Core uses a single policy provider.
 - **Coarse RBAC vs Zanzibar-style relationships:** organization RBAC is simpler and appropriate now. Relationship tuples become worthwhile only when requirements include per-project sharing, nested teams, delegated resource ownership, or cross-organization objects.

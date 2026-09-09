@@ -1,0 +1,25 @@
+{
+  "$schema": "https://trykatch.net/schemas/module-catalog.v1.json",
+  "schemaVersion": 1,
+  "hostVersion": "0.1.0",
+  "lockFile": "trykatch.modules.lock.json",
+  "outputs": {
+    "backend": "src/TrykatchApp.Api/Modules/EnabledModules.cs",
+    "backendNamespace": "TrykatchApp.Api.Modules",
+    "migrator": "src/TrykatchApp.Migrator/Modules/EnabledModules.cs",
+    "migratorNamespace": "TrykatchApp.Migrator.Modules",
+    "web": "web/apps/web/src/modules.ts"
+  },
+  "modules": [
+    {
+      "id": "projects",
+      "manifest": "src/TrykatchApp.Infrastructure/Modules/projects.trykatch.module.json",
+      "enabled": true
+    },
+    {
+      "id": "federation",
+      "manifest": "src/TrykatchApp.Modules.Federation/trykatch.module.json",
+      "enabled": false
+    }
+  ]
+}

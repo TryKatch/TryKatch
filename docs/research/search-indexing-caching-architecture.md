@@ -1,12 +1,12 @@
 # Search, Indexing, and Caching Architecture
 
-Status: Proposed for Flatpack v1
+Status: Proposed for Trykatch v1
 Date: 2026-09-08
 Scope: clean-room architecture for tenant-safe querying, search, indexing, and caching
 
 ## Decision summary
 
-Flatpack should adopt a deliberately small default stack:
+Trykatch should adopt a deliberately small default stack:
 
 - PostgreSQL remains the system of record and the v1 search engine.
 - Module-owned query definitions use B-tree, composite, partial, GIN full-text, and `pg_trgm` indexes chosen from observed query shapes.
@@ -16,13 +16,13 @@ Flatpack should adopt a deliberately small default stack:
 - Authorization and organization resolution always happen before a cache lookup. Cache entries never substitute for permission checks or PostgreSQL RLS.
 - Output caching is opt-in only for explicitly public, anonymous, stable endpoints. It is not enabled for authenticated organization APIs.
 
-This gives Flatpack a deep, provider-neutral application interface without prematurely operating a separate search cluster. PostgreSQL supports the search shapes the template currently needs, while HybridCache provides Microsoft’s current two-level cache abstraction, serialization hooks, stampede protection within one application instance, and tag-based invalidation.[^dotnet-cache][^hybrid-cache]
+This gives Trykatch a deep, provider-neutral application interface without prematurely operating a separate search cluster. PostgreSQL supports the search shapes the template currently needs, while HybridCache provides Microsoft’s current two-level cache abstraction, serialization hooks, stampede protection within one application instance, and tag-based invalidation.[^dotnet-cache][^hybrid-cache]
 
 ## Repository evidence
 
 The current template already has the right foundations:
 
-- `FlatpackApp.AppHost` orchestrates PostgreSQL, the API, Vite, OpenTelemetry Collector, Loki, Tempo, Prometheus, and Grafana. It has no cache resource yet.
+- `TrykatchApp.AppHost` orchestrates PostgreSQL, the API, Vite, OpenTelemetry Collector, Loki, Tempo, Prometheus, and Grafana. It has no cache resource yet.
 - The template uses .NET 10, EF Core 10, Npgsql 10, Aspire 13, PostgreSQL RLS, a transactional outbox, audit events, and separate platform/application contexts.
 - Project, audit, organization, and platform-user lists currently use `ILIKE '%term%'`, `LongCountAsync`, and `Skip`/`Take` offset pagination.
 - Existing indexes cover several equality and ordering paths, including organization membership, role names, audit occurrence time, and active project names. There are no trigram or full-text indexes.
@@ -34,7 +34,7 @@ The gap is not a need for an external search product. It is a consistent query c
 
 ### 1. A query kernel with module-owned contributions
 
-Create a small `Flatpack.Search` kernel rather than a universal dynamic query engine. Each module contributes a declarative descriptor containing:
+Create a small `Trykatch.Search` kernel rather than a universal dynamic query engine. Each module contributes a declarative descriptor containing:
 
 - stable module, entity type, and document type identifiers;
 - allowed filter and sort keys mapped to typed expressions;
@@ -46,7 +46,7 @@ Create a small `Flatpack.Search` kernel rather than a universal dynamic query en
 
 This is a deep module: callers receive a compact, stable query/search interface while PostgreSQL, EF translation, cursor encoding, RLS, and index details stay behind it. Modules own business vocabulary and projections; the kernel owns validation, isolation, pagination, telemetry, and orchestration. A descriptor must fail startup/build validation when identifiers collide, a sort is not deterministic, a permission is unknown, or a projector is missing.
 
-OpenMercato’s public module documentation similarly makes search a module contribution, and its public issue history contains a useful failure mode: a tenant token lookup performed a sequential scan because the index did not lead with the tenant and token columns used by the query.[^openmercato-module][^openmercato-index] Flatpack should adopt the contribution seam and query-shape validation, not copy implementation code.
+OpenMercato’s public module documentation similarly makes search a module contribution, and its public issue history contains a useful failure mode: a tenant token lookup performed a sequential scan because the index did not lead with the tenant and token columns used by the query.[^openmercato-module][^openmercato-index] Trykatch should adopt the contribution seam and query-shape validation, not copy implementation code.
 
 ### 2. PostgreSQL-native search baseline
 
@@ -118,7 +118,7 @@ Search returns discovery DTOs, not complete entities. Before returning or naviga
 
 ### 5. HybridCache with Valkey L2
 
-Use `HybridCache` as the application caching seam. It combines an in-process L1 with an optional `IDistributedCache` L2 and protects a single application instance from cache stampedes.[^dotnet-cache][^hybrid-cache] Put a small Flatpack interface above it, such as `IReadModelCache`, that accepts a structured scope and a named policy rather than arbitrary string keys:
+Use `HybridCache` as the application caching seam. It combines an in-process L1 with an optional `IDistributedCache` L2 and protects a single application instance from cache stampedes.[^dotnet-cache][^hybrid-cache] Put a small Trykatch interface above it, such as `IReadModelCache`, that accepts a structured scope and a named policy rather than arbitrary string keys:
 
 ```text
 CacheScope(platform | organization-id)
@@ -167,7 +167,7 @@ Cache failure must degrade to the source database. The cache cannot be required 
 
 ### 7. OutputCache only at an explicit public boundary
 
-ASP.NET Core OutputCache should be opt-in per endpoint, not a global policy for Flatpack APIs. Its safe defaults avoid authenticated responses, responses that set cookies, and non-GET/HEAD requests. Place it after authentication and authorization as Microsoft documents.[^output-cache]
+ASP.NET Core OutputCache should be opt-in per endpoint, not a global policy for Trykatch APIs. Its safe defaults avoid authenticated responses, responses that set cookies, and non-GET/HEAD requests. Place it after authentication and authorization as Microsoft documents.[^output-cache]
 
 Do not output-cache login, logout, session, profile, CSRF, invite acceptance, password reset, MFA, organization resolution, permissions, health checks, or organization-scoped API responses. If a future public documentation/catalog endpoint is cached across nodes, use the dedicated StackExchange.Redis output-cache provider. Microsoft explicitly advises against backing OutputCache with generic `IDistributedCache` because the latter lacks the atomic operations needed for tagging.[^output-cache]
 
@@ -175,11 +175,11 @@ Do not output-cache login, logout, session, profile, CSRF, invite acceptance, pa
 
 ### Redis adapter
 
-Redis can be offered as an adapter, but not Flatpack’s default. Redis versions through 7.2 use BSD-3-Clause; 7.4 through 7.8 use the Redis Source Available License v2 or SSPLv1; Redis 8 and later additionally offer AGPLv3.[^redis-licenses] Redis 8 can be self-hosted without a license fee under an applicable license, but that does not make infrastructure or operations free, and AGPLv3 creates source-distribution obligations that adopters must evaluate. Pin the exact image digest and record the selected license in the SBOM/release evidence.
+Redis can be offered as an adapter, but not Trykatch’s default. Redis versions through 7.2 use BSD-3-Clause; 7.4 through 7.8 use the Redis Source Available License v2 or SSPLv1; Redis 8 and later additionally offer AGPLv3.[^redis-licenses] Redis 8 can be self-hosted without a license fee under an applicable license, but that does not make infrastructure or operations free, and AGPLv3 creates source-distribution obligations that adopters must evaluate. Pin the exact image digest and record the selected license in the SBOM/release evidence.
 
 ### Microsoft Garnet adapter
 
-Garnet is a promising MIT-licensed, .NET-based RESP server from Microsoft Research and is compatible with StackExchange.Redis for many workloads.[^garnet-repo] It is not a 100% Redis drop-in replacement; its compatibility documentation calls out semantic differences and missing modules, including non-atomic default behavior for some multi-key commands.[^garnet-compat] Add it only after Flatpack’s adapter contract, required-command suite, persistence, backup/restore, failover, and operational gates pass.
+Garnet is a promising MIT-licensed, .NET-based RESP server from Microsoft Research and is compatible with StackExchange.Redis for many workloads.[^garnet-repo] It is not a 100% Redis drop-in replacement; its compatibility documentation calls out semantic differences and missing modules, including non-atomic default behavior for some multi-key commands.[^garnet-compat] Add it only after Trykatch’s adapter contract, required-command suite, persistence, backup/restore, failover, and operational gates pass.
 
 ### pgvector semantic search
 
@@ -301,7 +301,7 @@ Indexes are retained only when real workload evidence shows value. PostgreSQL re
 
 ## Final recommendation
 
-The production-oriented Flatpack default should be:
+The production-oriented Trykatch default should be:
 
 ```text
 PostgreSQL 18

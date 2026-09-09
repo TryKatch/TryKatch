@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "hostVersion": "0.1.0",
+  "modules": [
+    {
+      "id": "federation",
+      "version": "1.0.0",
+      "enabled": false,
+      "manifestSha256": "450c8133751cbfa5d6483faf59324edb1a44d473a0b6979f25b3b2adf2354694",
+      "manifestDigestMode": "template-normalized-sha256",
+      "distribution": {
+        "kind": "workspace",
+        "license": "Apache-2.0",
+        "dotnet": null,
+        "web": null
+      }
+    },
+    {
+      "id": "projects",
+      "version": "1.0.0",
+      "enabled": true,
+      "manifestSha256": "b7e17d5a211b508ada3303885096021e4227fb147de879f3ea0e3bc0a8d51070",
+      "manifestDigestMode": "template-normalized-sha256",
+      "distribution": {
+        "kind": "workspace",
+        "license": "Apache-2.0",
+        "dotnet": null,
+        "web": null
+      }
+    }
+  ]
+}

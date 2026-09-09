@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+      - run: dotnet tool restore
+      - run: dotnet restore TrykatchApp.slnx
+      - run: dotnet build TrykatchApp.slnx -c Release --no-restore
+      - name: Validate full-stack module composition
+        run: dotnet run --project tools/TrykatchApp.ModuleTool -c Release --no-build -- module doctor --root .
+      - run: dotnet test tests/TrykatchApp.UnitTests -c Release --no-build
+      - run: dotnet test tests/TrykatchApp.IntegrationTests -c Release --no-build
+      - run: dotnet list TrykatchApp.slnx package --vulnerable --include-transitive
+      - run: docker compose config --quiet
+      - run: docker build -f src/TrykatchApp.Api/Dockerfile .
+      - uses: anchore/sbom-action@v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          output-file: trykatch.spdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trykatch-sbom
+          path: trykatch.spdx.json
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

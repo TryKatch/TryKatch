@@ -2,17 +2,17 @@
 set -euo pipefail
 
 repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-template_root="$repository_root/templates/flatpack"
-tool="$template_root/tools/FlatpackApp.ModuleTool/FlatpackApp.ModuleTool.csproj"
+template_root="$repository_root/templates/trykatch"
+tool="$template_root/tools/TrykatchApp.ModuleTool/TrykatchApp.ModuleTool.csproj"
 snapshot_root=$(mktemp -d)
 tracked_outputs=(
-  "flatpack.modules.json"
-  "flatpack.modules.lock.json"
-  "src/FlatpackApp.Api/Modules/EnabledModules.cs"
-  "src/FlatpackApp.Migrator/Modules/EnabledModules.cs"
+  "trykatch.modules.json"
+  "trykatch.modules.lock.json"
+  "src/TrykatchApp.Api/Modules/EnabledModules.cs"
+  "src/TrykatchApp.Migrator/Modules/EnabledModules.cs"
   "web/apps/web/src/modules.ts"
-  "web/packages/api-client/openapi/FlatpackApp.Api.json"
-  "web/packages/api-client/src/generated/flatpack.ts"
+  "web/packages/api-client/openapi/TrykatchApp.Api.json"
+  "web/packages/api-client/src/generated/trykatch.ts"
   "docs/generated/assistant-contract.json"
 )
 
@@ -32,11 +32,11 @@ cleanup() {
 trap cleanup EXIT
 
 dotnet run --project "$tool" -c Release --no-build -- module enable federation --root "$template_root"
-dotnet build "$template_root/src/FlatpackApp.Api/FlatpackApp.Api.csproj" -c Release --no-restore -warnaserror
+dotnet build "$template_root/src/TrykatchApp.Api/TrykatchApp.Api.csproj" -c Release --no-restore -warnaserror
 (cd "$template_root/web" && pnpm typecheck)
 
 restore_default
-dotnet build "$template_root/src/FlatpackApp.Api/FlatpackApp.Api.csproj" -c Release --no-restore -warnaserror
+dotnet build "$template_root/src/TrykatchApp.Api/TrykatchApp.Api.csproj" -c Release --no-restore -warnaserror
 (cd "$template_root/web" && pnpm generate)
 dotnet run --project "$tool" -c Release --no-build -- module doctor --root "$template_root"
 

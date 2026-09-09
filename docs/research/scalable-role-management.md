@@ -4,7 +4,7 @@ Date: 2026-09-07
 
 ## Question
 
-How should Flatpack keep organization roles understandable when an installation has many roles and each role contains many permissions?
+How should Trykatch keep organization roles understandable when an installation has many roles and each role contains many permissions?
 
 ## Primary-source findings
 
@@ -13,7 +13,7 @@ How should Flatpack keep organization roles understandable when an installation 
 - Apple Business presents a role first, then lets the administrator inspect or edit privileges grouped into domains such as Organization, People, Devices, Apps & Services, and Brands. [View and assign roles in Apple Business](https://support.apple.com/en-gb/guide/business/axmb46d473c7/web)
 - GitHub defines a role as a set of permissions, separates predefined roles from custom roles, and recommends choosing the role that matches a person's function without granting more access than needed. [Roles in an organization](https://docs.github.com/en/organizations/managing-peoples-access-to-your-organization-with-roles/roles-in-an-organization)
 
-## Flatpack decision
+## Trykatch decision
 
 Use a compact master/detail table rather than permission chips in every row:
 

@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TrykatchApp.Api/TrykatchApp.Api.csproj" />
+    <Project Path="src/TrykatchApp.AppHost/TrykatchApp.AppHost.csproj" />
+    <Project Path="src/TrykatchApp.Application/TrykatchApp.Application.csproj" />
+    <Project Path="src/TrykatchApp.Domain/TrykatchApp.Domain.csproj" />
+    <Project Path="src/TrykatchApp.Identity/TrykatchApp.Identity.csproj" />
+    <Project Path="src/TrykatchApp.Infrastructure/TrykatchApp.Infrastructure.csproj" />
+    <Project Path="src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj" />
+    <Project Path="src/TrykatchApp.Modules.Abstractions/TrykatchApp.Modules.Abstractions.csproj" />
+    <Project Path="src/TrykatchApp.Modules.AspNetCore/TrykatchApp.Modules.AspNetCore.csproj" />
+    <Project Path="src/TrykatchApp.Modules.Federation/TrykatchApp.Modules.Federation.csproj" />
+    <Project Path="src/TrykatchApp.ServiceDefaults/TrykatchApp.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TrykatchApp.IntegrationTests/TrykatchApp.IntegrationTests.csproj" />
+    <Project Path="tests/TrykatchApp.UnitTests/TrykatchApp.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/TrykatchApp.ModuleTool/TrykatchApp.ModuleTool.csproj" />
+  </Folder>
+</Solution>

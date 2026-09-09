@@ -4,11 +4,11 @@ Date: 2026-09-08
 
 ## Decision summary
 
-Flatpack should adopt OpenMercato's strongest architectural idea: a **contract-driven modular monolith composed at build time**. It should not copy OpenMercato's TypeScript implementation or imply that arbitrary code can be safely hot-loaded at runtime.
+Trykatch should adopt OpenMercato's strongest architectural idea: a **contract-driven modular monolith composed at build time**. It should not copy OpenMercato's TypeScript implementation or imply that arbitrary code can be safely hot-loaded at runtime.
 
-The recommended Flatpack design is an explicit module registry backed by versioned contracts. A module contributes its own application use cases, infrastructure adapters, EF Core migrations, permissions, HTTP endpoints, health checks, background work, React routes/navigation/widgets, and optional AI agents/tools. The host validates dependency and permission graphs before startup, while PostgreSQL RLS and the existing organization context remain non-negotiable isolation boundaries.
+The recommended Trykatch design is an explicit module registry backed by versioned contracts. A module contributes its own application use cases, infrastructure adapters, EF Core migrations, permissions, HTTP endpoints, health checks, background work, React routes/navigation/widgets, and optional AI agents/tools. The host validates dependency and permission graphs before startup, while PostgreSQL RLS and the existing organization context remain non-negotiable isolation boundaries.
 
-This is compatible with Flatpack's Clean Architecture and its existing prohibition on runtime service scanning: discovery can be explicit or source-generated, deterministic, testable, and Native AOT-friendly.
+This is compatible with Trykatch's Clean Architecture and its existing prohibition on runtime service scanning: discovery can be explicit or source-generated, deterministic, testable, and Native AOT-friendly.
 
 ## What OpenMercato actually does
 
@@ -34,13 +34,13 @@ Each enabled module owns its MikroORM entities and migration directory. The migr
 
 Cross-module ORM relationships and direct business-logic imports are forbidden. The prescribed seams are events for write-side reactions, widgets plus response enrichers for read/UI composition, and scalar foreign-key IDs plus snapshots or separate extension entities for data links. Optional peers must be resolved defensively and degrade when absent. [Repository architecture rules](https://github.com/open-mercato/open-mercato/blob/main/AGENTS.md#architecture), [cross-module coupling rules](https://github.com/open-mercato/open-mercato/blob/main/packages/core/AGENTS.md#cross-module-coupling)
 
-Tenant-owned data is expected to carry tenant and organization scope, and handlers/helpers must apply that scope. This is application/ORM-level scoping; it is not evidence of PostgreSQL RLS. Flatpack should retain its stronger database-enforced RLS backstop rather than replacing it with query filters. [OpenMercato architecture security section](https://www.openmercato.com/architecture), [data and security rules](https://github.com/open-mercato/open-mercato/blob/main/AGENTS.md#data--security)
+Tenant-owned data is expected to carry tenant and organization scope, and handlers/helpers must apply that scope. This is application/ORM-level scoping; it is not evidence of PostgreSQL RLS. Trykatch should retain its stronger database-enforced RLS backstop rather than replacing it with query filters. [OpenMercato architecture security section](https://www.openmercato.com/architecture), [data and security rules](https://github.com/open-mercato/open-mercato/blob/main/AGENTS.md#data--security)
 
 ### Module-owned permissions
 
 Modules publish stable feature IDs from `acl.ts`, and guarded pages/routes require features rather than mutable role names. A module's `setup.ts` declares which standard roles receive those features for new tenants; a synchronization command applies newly declared defaults to existing tenants. [Module ACL/setup rules](https://github.com/open-mercato/open-mercato/blob/main/.ai/docs/module-development.md#module-rules), [real module ACL](https://github.com/open-mercato/official-modules/blob/main/packages/carrier-inpost/src/modules/carrier_inpost/acl.ts), [real tenant setup](https://github.com/open-mercato/official-modules/blob/main/packages/carrier-inpost/src/modules/carrier_inpost/setup.ts)
 
-This matches Flatpack's current direction: modules define immutable permission capabilities, while platform and organization administrators compose those capabilities into their separate custom roles.
+This matches Trykatch's current direction: modules define immutable permission capabilities, while platform and organization administrators compose those capabilities into their separate custom roles.
 
 ### Package installation and dependency boundaries
 
@@ -62,16 +62,16 @@ OpenMercato's current CLI implementation exposes `module add`, `module enable`, 
 
 The lifecycle document proposes compatibility ranges, local state tracking, diagnostics, and conflict-aware upgrades, but its own status is Draft and it explicitly reserves module removal and package-signature verification for future work. It should be treated as design inspiration, not a shipped guarantee. [Lifecycle proposal](https://github.com/open-mercato/open-mercato/blob/main/.ai/specs/implemented/SPEC-061-2026-03-13-official-modules-lifecycle-management.md)
 
-Likewise, disabling a module does not safely erase its data. Migrations are durable schema history; uninstalling code must not implicitly drop tables. This is the correct posture for Flatpack too: disable first, retain data by default, and make destructive purge a separate explicit operation with dependency checks and backup guidance.
+Likewise, disabling a module does not safely erase its data. Migrations are durable schema history; uninstalling code must not implicitly drop tables. This is the correct posture for Trykatch too: disable first, retain data by default, and make destructive purge a separate explicit operation with dependency checks and backup guidance.
 
-## Recommended Flatpack architecture
+## Recommended Trykatch architecture
 
 ### 1. Define one small, stable module kernel
 
-Create `Flatpack.Modules.Abstractions` with a versioned descriptor rather than letting modules depend on `Api`, `Infrastructure`, or React internals:
+Create `Trykatch.Modules.Abstractions` with a versioned descriptor rather than letting modules depend on `Api`, `Infrastructure`, or React internals:
 
 ```text
-FlatpackModuleDescriptor
+TrykatchModuleDescriptor
   Id, DisplayName, Version
   Requires, OptionalDependencies, CompatibilityRange
   Permissions, DataSchemas
@@ -88,10 +88,10 @@ A distributable module should have:
 
 - one NuGet package containing contracts plus backend implementation and migrations;
 - one npm package containing React routes and UI contributions when the module has a web surface;
-- one signed/checksummed Flatpack module manifest binding the backend and frontend package versions;
+- one signed/checksummed Trykatch module manifest binding the backend and frontend package versions;
 - a source/eject mode for teams that want permanent local ownership.
 
-The Flatpack CLI should install or scaffold both halves and update explicit registries and lockfiles. The `.NET new` template remains the application generator; module installation is a separate lifecycle command.
+The Trykatch CLI should install or scaffold both halves and update explicit registries and lockfiles. The `.NET new` template remains the application generator; module installation is a separate lifecycle command.
 
 ### 3. Add stable React extension slots
 
@@ -131,14 +131,14 @@ The runtime should reauthorize every tool call, pass organization/actor context 
 The CLI and module lockfile should support:
 
 ```text
-flatpack module list
-flatpack module add <package>
-flatpack module enable|disable <id>
-flatpack module doctor
-flatpack module upgrade <id>
-flatpack module eject <id>
-flatpack module remove <id>        # keeps data by default
-flatpack module purge-data <id>    # separate, destructive, explicit
+trykatch module list
+trykatch module add <package>
+trykatch module enable|disable <id>
+trykatch module doctor
+trykatch module upgrade <id>
+trykatch module eject <id>
+trykatch module remove <id>        # keeps data by default
+trykatch module purge-data <id>    # separate, destructive, explicit
 ```
 
 Install/upgrade must validate package provenance, compatibility range, dependency graph, duplicate IDs/permissions/routes/slots, migration order, and frontend/backend version alignment before changing the application. Removing a depended-on module must fail. Upgrades of ejected modules should be assisted merges, never overwrites.
@@ -159,7 +159,7 @@ Start by modularizing the canonical source before publishing third-party package
 
 ### Current position
 
-Flatpack now has the right foundation: an explicit backend module catalog, deterministic dependency ordering, descriptor validation, a matching explicit web catalog, lazy React routes, navigation contributions, and module-owned permission-provider registration. The Projects feature proves service registration and shell composition without runtime assembly scanning.
+Trykatch now has the right foundation: an explicit backend module catalog, deterministic dependency ordering, descriptor validation, a matching explicit web catalog, lazy React routes, navigation contributions, and module-owned permission-provider registration. The Projects feature proves service registration and shell composition without runtime assembly scanning.
 
 The first alignment slice now makes Projects removable from the running application. A catalog-aware MVC feature provider removes disabled module controllers; an explicitly registered EF model contributor removes disabled module entities from the runtime model; module permission metadata owns safe standard-role defaults; and the React SDK provides named hosts, ordered permission-gated contributions, and keyed overrides. Historical migrations and data deliberately remain intact when code is disabled.
 
@@ -169,9 +169,9 @@ OpenMercato's corresponding contract is broader: enabled modules own their disco
 
 ### Contract-by-contract gap analysis
 
-| Area | Flatpack observed today | Alignment needed now |
+| Area | Trykatch observed today | Alignment needed now |
 | --- | --- | --- |
-| Manifest metadata | Stable ID, name, semantic version, description, hard/optional dependencies, capabilities, and initial extension-point metadata | Add a module contract version, Flatpack host compatibility range, package/provenance identity, backend/web package pairing, and declared permission, data, setup, event, worker, and assistant contributions. Validate declared capabilities against real contributions and verify backend/web ID and version parity in CI. OpenMercato package metadata and peer dependencies provide the useful precedent. [Package resolver](https://github.com/open-mercato/open-mercato/blob/main/packages/cli/src/lib/module-package.ts), [official package example](https://github.com/open-mercato/official-modules/blob/main/packages/carrier-inpost/package.json) |
+| Manifest metadata | Stable ID, name, semantic version, description, hard/optional dependencies, capabilities, and initial extension-point metadata | Add a module contract version, Trykatch host compatibility range, package/provenance identity, backend/web package pairing, and declared permission, data, setup, event, worker, and assistant contributions. Validate declared capabilities against real contributions and verify backend/web ID and version parity in CI. OpenMercato package metadata and peer dependencies provide the useful precedent. [Package resolver](https://github.com/open-mercato/open-mercato/blob/main/packages/cli/src/lib/module-package.ts), [official package example](https://github.com/open-mercato/official-modules/blob/main/packages/carrier-inpost/package.json) |
 | API activation | Project services and controller activation are catalog-owned; a removal test proves disabled controllers disappear from MVC discovery | Keep the current catalog-aware feature provider and add package/manifest validation so installed module assemblies cannot accidentally expose unowned controllers. OpenMercato only generates routes for enabled modules. [Scanner source](https://github.com/open-mercato/open-mercato/blob/main/packages/cli/src/lib/generators/scanner.ts) |
 | Data and migrations | Project EF mapping is an explicit module contribution and disappears from the disabled runtime model; historical migrations are retained | Add module-specific migration history/CLI status and a module schema version to lock state. The migrator must retain RLS policies and separate migrator/runtime roles. Disable retains data; purge is a separate destructive operation. OpenMercato iterates enabled modules and uses module-specific migration history. [Migration runner](https://github.com/open-mercato/open-mercato/blob/main/packages/cli/src/lib/db/commands.ts#L336-L420) |
 | Setup and ACL | The Project permission provider owns its permission metadata and safe standard-role defaults; central organization setup only aggregates the catalog | Add an idempotent synchronization command for existing organizations when an installed module adds new default grants. OpenMercato puts feature IDs in `acl.ts`, defaults in `setup.ts`, and provides synchronization for existing tenants. [ACL/setup rules](https://github.com/open-mercato/open-mercato/blob/main/.ai/docs/module-development.md#module-rules), [real ACL](https://github.com/open-mercato/official-modules/blob/main/packages/carrier-inpost/src/modules/carrier_inpost/acl.ts), [real setup](https://github.com/open-mercato/official-modules/blob/main/packages/carrier-inpost/src/modules/carrier_inpost/setup.ts) |
@@ -201,4 +201,4 @@ OpenMercato's corresponding contract is broader: enabled modules own their disco
 
 ## Bottom line
 
-Yes, Flatpack can be made comparably modular—and it can be safer in the areas that matter for a .NET multi-tenant template. The target should be **install-time composition with build-time validation**, not arbitrary runtime loading. OpenMercato supplies useful extension vocabulary and a strong assistant model; Flatpack should combine those ideas with Clean Architecture, explicit DI, EF Core migration ownership, OpenAPI generation, PostgreSQL RLS, and conservative package lifecycle rules.
+Yes, Trykatch can be made comparably modular—and it can be safer in the areas that matter for a .NET multi-tenant template. The target should be **install-time composition with build-time validation**, not arbitrary runtime loading. OpenMercato supplies useful extension vocabulary and a strong assistant model; Trykatch should combine those ideas with Clean Architecture, explicit DI, EF Core migration ownership, OpenAPI generation, PostgreSQL RLS, and conservative package lifecycle rules.

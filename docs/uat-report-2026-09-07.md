@@ -1,7 +1,7 @@
-# Flatpack UAT Report
+# Trykatch UAT Report
 
 Date: 2026-09-07  
-Branch: `feat/flatpack-enterprise-template`  
+Branch: `feat/trykatch-enterprise-template`
 Result: **Conditional fail — not ready for release**
 
 The core template, architecture, PostgreSQL isolation, primary business workflows, MFA authenticator flow, and package-generation matrix passed. Release should wait for the three high-severity defects below: recovery-code login is unusable, antiforgery failures are reported as HTTP 500, and the UI exposes organization-management controls that the current organization role cannot use without explaining the resulting 403.
@@ -25,7 +25,7 @@ The isolated API, Vite process, browser session, and PostgreSQL server were stop
 | Canonical .NET build | Pass | Entire solution built with 0 warnings and 0 errors under `-warnaserror`. |
 | React client generation | Pass | OpenAPI regenerated through Orval; TypeScript typecheck and production Vite build passed. |
 | Automated tests | Pass | 6 .NET unit tests, 1 Vitest test, and 1 Chromium/axe login test passed. |
-| Template package | Pass | Fresh `Flatpack.Templates.0.1.0.nupkg` created; package contains 196 files and no `bin`, `obj`, `node_modules`, `dist`, or `.tsbuildinfo` content. |
+| Template package | Pass | Fresh `Trykatch.Templates.0.1.0.nupkg` created; package contains 196 files and no `bin`, `obj`, `node_modules`, `dist`, or `.tsbuildinfo` content. |
 | Template matrix | Pass | Default React, dotted/hyphenated `--ui none`, email, storage, documents, images, and all options together generated, restored, and built with 0 warnings. |
 | Transformed web name | Pass | `Acme.Tools-Portal` generated with React; frozen install, typecheck, and production build passed. |
 | Database migrations | Pass | `identity`, `platform`, and `app` contexts migrated using the migrator role. |
@@ -111,7 +111,7 @@ These remain mandatory release-gate work; they are environmental omissions, not 
 - [Desktop dashboard](../output/playwright/02-dashboard.png)
 - [Dark theme](../output/playwright/03-dark-theme.png)
 - [390px membership view](../output/playwright/04-mobile-members.png)
-- Package: `artifacts/packages/Flatpack.Templates.0.1.0.nupkg`
+- Package: `artifacts/packages/Trykatch.Templates.0.1.0.nupkg`
 - SHA-256: `9760d24f581fee3993e39b4f9c945cb3d8a5a4904da3c8bbbdfaf37ac409f025`
 
 ## Recommendation

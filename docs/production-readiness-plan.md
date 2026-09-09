@@ -1,8 +1,8 @@
-# Flatpack production-readiness plan
+# Trykatch production-readiness plan
 
 ## Objective
 
-Move Flatpack from a production-oriented pre-release template to a stable template that teams can safely adopt for production workloads. Until every required gate below passes, packages use a prerelease version and are not promoted as production-ready.
+Move Trykatch from a production-oriented pre-release template to a stable template that teams can safely adopt for production workloads. Until every required gate below passes, packages use a prerelease version and are not promoted as production-ready.
 
 ## Current baseline
 
@@ -10,21 +10,21 @@ Move Flatpack from a production-oriented pre-release template to a stable templa
 - Unit, PostgreSQL/Testcontainers integration, web, and generated-client tests pass locally.
 - PostgreSQL row-level security blocks cross-organization access for the runtime role.
 - Tenant provisioning, first-owner invitations, neutral workspace URLs, platform separation, platform roles, organization roles, and template generation have passed focused UAT.
-- `Flatpack.Templates` can be packed, installed with `dotnet new install`, generated with renamed solutions, and discovered by Rider and Visual Studio through the .NET template engine.
+- `Trykatch.Templates` can be packed, installed with `dotnet new install`, generated with renamed solutions, and discovered by Rider and Visual Studio through the .NET template engine.
 - OpenAPI 3.1 now drives the generated React client, development-only Scalar reference, module ownership metadata, and a deny-by-default assistant tool contract with drift checks.
 
 ## Hardening evidence — 2026-09-08
 
 The first production-hardening slice for modularity is complete:
 
-- `flatpack.modules.json` is now the single full-stack module catalog; generated API, migrator, and React registries cannot drift independently. `flatpack.modules.lock.json` pins manifest provenance and paired package identity.
-- `Flatpack.Cli` provides `module list`, `doctor`, `generate`, `enable`, and `disable`. Changes are dependency-checked, deterministic, use atomic file replacement with rollback, and preserve module files and data.
+- `trykatch.modules.json` is now the single full-stack module catalog; generated API, migrator, and React registries cannot drift independently. `trykatch.modules.lock.json` pins manifest provenance and paired package identity.
+- `Trykatch.Cli` provides `module list`, `doctor`, `generate`, `enable`, and `disable`. Changes are dependency-checked, deterministic, use atomic file replacement with rollback, and preserve module files and data.
 - Module manifests declare host compatibility, dependencies, capabilities, artifacts, entrypoints, permissions, routes, extension contracts, and explicitly allowlisted assistant tools.
-- CI validates the module graph, backend/web parity, package shape, and generated-template matrix. Release tags package both `Flatpack.Templates` and `Flatpack.Cli` from `main`.
+- CI validates the module graph, backend/web parity, package shape, and generated-template matrix. Release tags package both `Trykatch.Templates` and `Trykatch.Cli` from `main`.
 - Local verification passed a zero-warning Release build, 48 unit tests, 33 web/contract tests, TypeScript typecheck, Vite production build, NuGet and pnpm vulnerability audits, CLI pack/install/doctor, and all template permutations.
 - Four non-container integration tests passed. Four PostgreSQL/Testcontainers tests could not execute because the local Docker daemon did not become responsive; CI remains the required authority for that gate.
 
-This hardening does not promote Flatpack out of preview. Package acquisition/upgrade/eject/unregister, module-owned migration history and rollback, provenance/signing, container qualification, recovery drills, observability ingestion, performance budgets, and final UAT remain release gates below.
+This hardening does not promote Trykatch out of preview. Package acquisition/upgrade/eject/unregister, module-owned migration history and rollback, provenance/signing, container qualification, recovery drills, observability ingestion, performance budgets, and final UAT remain release gates below.
 
 ## Delivery plan
 
@@ -126,4 +126,4 @@ Exit criteria: CI is green, final UAT is approved, installation succeeds on all 
 
 ## Definition of production-ready
 
-Flatpack is production-ready when a newly generated application passes the complete release pipeline from a clean environment, all isolation and security controls are proven, operational recovery is rehearsed, production telemetry is verified end to end, performance budgets are met, and the signed-off package is reproducibly published from `main`.
+Trykatch is production-ready when a newly generated application passes the complete release pipeline from a clean environment, all isolation and security controls are proven, operational recovery is rehearsed, production telemetry is verified end to end, performance budgets are met, and the signed-off package is reproducibly published from `main`.

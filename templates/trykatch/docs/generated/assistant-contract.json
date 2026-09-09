@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "openapi": "3.1.1",
+    "title": "Trykatch API",
+    "version": "v1"
+  },
+  "modules": [
+    {
+      "id": "projects",
+      "name": "Projects",
+      "version": "1.0.0",
+      "capabilities": [
+        "Api",
+        "Web",
+        "Data",
+        "BackgroundWork",
+        "Assistant"
+      ]
+    }
+  ],
+  "policy": {
+    "default": "deny",
+    "authorization": "The API re-authorizes every tool call; the model never grants access.",
+    "writes": "Mutating and destructive tools require an explicit allowlist entry and human confirmation."
+  },
+  "tools": [
+    {
+      "type": "function",
+      "name": "trykatch_get_project",
+      "description": "Get one project by its identifier in the current organization workspace.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "trykatch_list_projects",
+      "description": "List the projects visible in the current organization workspace.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pageSize": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "search": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lifecycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "page",
+          "pageSize",
+          "search",
+          "lifecycle"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "bindings": {
+    "trykatch_get_project": {
+      "operationId": "Projects_Get",
+      "method": "GET",
+      "path": "/api/v1/projects/{id}",
+      "moduleId": "projects",
+      "risk": "read-only",
+      "requiresHumanConfirmation": false,
+      "authorization": "api-enforced",
+      "organizationContext": "request-derived"
+    },
+    "trykatch_list_projects": {
+      "operationId": "Projects_List",
+      "method": "GET",
+      "path": "/api/v1/projects",
+      "moduleId": "projects",
+      "risk": "read-only",
+      "requiresHumanConfirmation": false,
+      "authorization": "api-enforced",
+      "organizationContext": "request-derived"
+    }
+  }
+}

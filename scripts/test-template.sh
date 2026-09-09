@@ -2,13 +2,13 @@
 set -euo pipefail
 
 repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-test_root=$(mktemp -d "${TMPDIR:-/tmp}/flatpack-template.XXXXXX")
+test_root=$(mktemp -d "${TMPDIR:-/tmp}/trykatch-template.XXXXXX")
 test_root=$(cd "$test_root" && pwd -P)
 trap 'rm -rf "$test_root"' EXIT
 template_hive="$test_root/template-hive"
 
-dotnet pack "$repository_root/Flatpack.Templates.csproj" -c Release -o "$test_root/package"
-package_path=$(find "$test_root/package" -name 'Flatpack.Templates.*.nupkg' -print -quit)
+dotnet pack "$repository_root/Trykatch.Templates.csproj" -c Release -o "$test_root/package"
+package_path=$(find "$test_root/package" -name 'Trykatch.Templates.*.nupkg' -print -quit)
 dotnet new --debug:custom-hive "$template_hive" install "$package_path" --force
 
 generate_and_build() {
@@ -16,7 +16,7 @@ generate_and_build() {
   shift
   local namespace_name=${name//-/.}
   local output="$test_root/$namespace_name"
-  dotnet new --debug:custom-hive "$template_hive" flatpack -n "$name" -o "$output" "$@"
+  dotnet new --debug:custom-hive "$template_hive" trykatch -n "$name" -o "$output" "$@"
   dotnet restore "$output/$namespace_name.slnx"
   dotnet build "$output/$namespace_name.slnx" --no-restore
   dotnet run --project "$output/tools/$namespace_name.ModuleTool" --no-build -- module doctor --root "$output"

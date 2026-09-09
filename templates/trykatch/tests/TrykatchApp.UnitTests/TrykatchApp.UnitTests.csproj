@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/TrykatchApp.Application/TrykatchApp.Application.csproj" />
+    <ProjectReference Include="../../src/TrykatchApp.Domain/TrykatchApp.Domain.csproj" />
+    <ProjectReference Include="../../src/TrykatchApp.Infrastructure/TrykatchApp.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/TrykatchApp.Modules.Abstractions/TrykatchApp.Modules.Abstractions.csproj" />
+    <ProjectReference Include="../../src/TrykatchApp.Modules.AspNetCore/TrykatchApp.Modules.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/TrykatchApp.Modules.Federation/TrykatchApp.Modules.Federation.csproj" />
+    <ProjectReference Include="../../tools/TrykatchApp.ModuleTool/TrykatchApp.ModuleTool.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../src/TrykatchApp.Infrastructure/Modules/projects.trykatch.module.json" Link="fixtures/projects.module.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/TrykatchApp.Modules.Federation/trykatch.module.json" Link="fixtures/federation.module.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

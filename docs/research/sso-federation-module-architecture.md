@@ -1,26 +1,26 @@
-# Flatpack SSO and federation module architecture
+# Trykatch SSO and federation module architecture
 
 Status: proposed implementation design
 Date: 2026-09-08
-Scope: clean-room, free/open-source, production-oriented SSO for the Flatpack template
+Scope: clean-room, free/open-source, production-oriented SSO for the Trykatch template
 
 ## Decision
 
-Build SSO as an optional full-stack `Flatpack.Modules.Federation` module whose protocol and administration implementation can be installed or omitted, while keeping the security-sensitive completion of an external sign-in inside the non-replaceable Flatpack identity kernel.
+Build SSO as an optional full-stack `Trykatch.Modules.Federation` module whose protocol and administration implementation can be installed or omitted, while keeping the security-sensitive completion of an external sign-in inside the non-replaceable Trykatch identity kernel.
 
 The first adapter is generic OpenID Connect (OIDC), exercised against a pinned Keycloak development container. An operator can create and test a trusted provider connection by entering an issuer, client identifier, client secret, and a small policy form; neither application code nor the React build changes when a new connection is added. SAML is a later, separately selectable adapter, not part of the first UAT.
 
-This is a better fit than copying Coolify literally. Coolify exposes named provider cards under Settings > OAuth, but its current v4 SSO surface supports only Authentik, Clerk, and Zitadel and explicitly does not offer generic OIDC configuration. It also documents email-based account matching and no provider-group-to-role mapping. Flatpack should copy the approachable enable/test experience, not those limitations. [Coolify SSO overview](https://next.coolify.io/docs/core/security/authentication/sso/overview), [Coolify OAuth overview](https://next.coolify.io/docs/core/security/authentication/oauth/overview)
+This is a better fit than copying Coolify literally. Coolify exposes named provider cards under Settings > OAuth, but its current v4 SSO surface supports only Authentik, Clerk, and Zitadel and explicitly does not offer generic OIDC configuration. It also documents email-based account matching and no provider-group-to-role mapping. Trykatch should copy the approachable enable/test experience, not those limitations. [Coolify SSO overview](https://next.coolify.io/docs/core/security/authentication/sso/overview), [Coolify OAuth overview](https://next.coolify.io/docs/core/security/authentication/oauth/overview)
 
 ### What the Coolify reference actually does
 
 The current Coolify administration flow is intentionally small: a root team owner/administrator opens **Settings → OAuth**, selects a named provider, enters a client ID and secret plus provider-specific base/callback information, saves, and then turns on **Enabled**. For Authentik, for example, Coolify asks for Client ID, Client Secret, Redirect URI and Base URL; its guide explicitly says to save before enabling. Its login page then shows the enabled provider. Coolify also recommends testing in a private window with a non-root account and retaining an administrator recovery login before relying on SSO. [Coolify Authentik setup](https://next.coolify.io/docs/core/security/authentication/sso/authentik), [Coolify SSO test guidance](https://next.coolify.io/docs/core/security/authentication/sso/overview)
 
-That interaction model is appropriate for Flatpack: a compact provider list, one focused configuration form, copyable callback URL, visible test/health status, and a separate enable action. Flatpack should improve the implementation underneath with generic OIDC, explicit identity links, scope-aware policy, encrypted secret references, and test-before-enforce.
+That interaction model is appropriate for Trykatch: a compact provider list, one focused configuration form, copyable callback URL, visible test/health status, and a separate enable action. Trykatch should improve the implementation underneath with generic OIDC, explicit identity links, scope-aware policy, encrypted secret references, and test-before-enforce.
 
 ## Why this is a useful modularity UAT
 
-Federation crosses almost every seam a serious Flatpack module must support:
+Federation crosses almost every seam a serious Trykatch module must support:
 
 - backend registration and protocol callbacks;
 - identity persistence and migrations;
@@ -33,18 +33,18 @@ Federation crosses almost every seam a serious Flatpack module must support:
 
 It therefore proves substantially more than a cosmetic feature module. At the same time, the security kernel must remain in control of the final local identity, session cookie, organization access, RLS context, and authorization decision. A plugin is not a security boundary.
 
-## Existing Flatpack baseline
+## Existing Trykatch baseline
 
-Flatpack already has the right foundation:
+Trykatch already has the right foundation:
 
-- `FlatpackApp.Identity/DependencyInjection.cs` configures ASP.NET Core Identity, secure `__Host-` cookies, confirmed email, lockout, security-stamp invalidation, PostgreSQL-backed Data Protection keys, and an OpenIddict server/validator.
+- `TrykatchApp.Identity/DependencyInjection.cs` configures ASP.NET Core Identity, secure `__Host-` cookies, confirmed email, lockout, security-stamp invalidation, PostgreSQL-backed Data Protection keys, and an OpenIddict server/validator.
 - The first-party React application receives only the HttpOnly application cookie and uses antiforgery protection.
 - `OrganizationScopeMiddleware` derives an authorized workspace context from the authenticated actor and server-protected workspace cookie before organization-scoped code runs.
 - The platform permission catalog already contains `platform.authentication.read` and `platform.authentication.manage`.
 - ADR 0011 makes organization resolution, RBAC, PostgreSQL RLS, auditing, and module validation a non-replaceable security kernel.
-- `IFlatpackModule` and the explicit backend/web catalogs provide build-time activation without arbitrary assembly loading.
+- `ITrykatchModule` and the explicit backend/web catalogs provide build-time activation without arbitrary assembly loading.
 
-What is missing is the external OIDC **client** flow, provider configuration, explicit external-account links, federation policy, and SSO management UI. Flatpack currently uses OpenIddict as an authorization **server** for external clients; that is different from Flatpack acting as an OIDC relying party/client to an enterprise identity provider.
+What is missing is the external OIDC **client** flow, provider configuration, explicit external-account links, federation policy, and SSO management UI. Trykatch currently uses OpenIddict as an authorization **server** for external clients; that is different from Trykatch acting as an OIDC relying party/client to an enterprise identity provider.
 
 ## Module placement and deep interfaces
 
@@ -55,7 +55,7 @@ The kernel owns behavior that no optional module may bypass:
 1. Validate the external protocol result and bind it to the exact trusted connection and login transaction.
 2. Resolve an external subject to one global `ApplicationUser` using `(connection_id, issuer, subject)`, never email alone.
 3. Apply invitation/JIT/domain and organization-access policy.
-4. Create or link the ASP.NET Identity external login and issue the existing Flatpack application cookie.
+4. Create or link the ASP.NET Identity external login and issue the existing Trykatch application cookie.
 5. Run local suspension, security-stamp, platform-access, membership, and organization checks.
 6. Clear or set workspace context only after membership authorization succeeds.
 7. Audit the effective human actor, connection, organization, outcome, and reason without recording tokens or secrets.
@@ -64,7 +64,7 @@ OpenID Connect defines `iss` and `sub` as the stable issuer/subject identity, wh
 
 ### Optional module responsibilities
 
-`Flatpack.Modules.Federation` owns:
+`Trykatch.Modules.Federation` owns:
 
 - provider connection CRUD, enable/disable and test-before-enable;
 - generic OIDC adapter registration and discovery caching;
@@ -118,7 +118,7 @@ Every table holding organization-owned federation configuration includes `Organi
 
 **Organization SSO** authenticates members into one workspace. It is owned by that organization and managed with new code-defined permissions such as `identity.federation.read`, `identity.federation.manage`, and `identity.federation.test`. Platform administrators can support it through an explicit audited support capability, not an implicit bypass.
 
-A platform connection must never automatically grant platform access. An organization connection must never create platform access. External identity proves who the person is; Flatpack RBAC still decides what that person can do.
+A platform connection must never automatically grant platform access. An organization connection must never create platform access. External identity proves who the person is; Trykatch RBAC still decides what that person can do.
 
 ### Federation policy
 
@@ -132,11 +132,11 @@ Policy is explicit and versioned per scope:
 - local-login exception identities for recovery;
 - session action when a provider/policy is disabled (`Keep`, `Revalidate`, `Revoke`).
 
-Do not synchronize arbitrary IdP group names directly to powerful roles in v1. A later claim-mapping adapter may map allowlisted, immutable group/object IDs to Flatpack role IDs with preview, conflict detection, least-privilege defaults, and an auditable reconciliation job.
+Do not synchronize arbitrary IdP group names directly to powerful roles in v1. A later claim-mapping adapter may map allowlisted, immutable group/object IDs to Trykatch role IDs with preview, conflict detection, least-privilege defaults, and an auditable reconciliation job.
 
 ## Configuration without source-code changes
 
-There are two different kinds of plugability and Flatpack should make the distinction visible:
+There are two different kinds of plugability and Trykatch should make the distinction visible:
 
 1. **Install-time module selection:** the federation package contributes backend, migrations, permissions, UI, docs and tests through the existing explicit catalogs. This may require a build/deployment and is deliberate.
 2. **Runtime provider connection:** once the OIDC adapter is installed, administrators add Authentik, Keycloak, Zitadel, Microsoft Entra ID, Okta, or another standards-compliant issuer by configuration only. No source edit or new React component is needed.
@@ -155,7 +155,7 @@ Provider secrets are never sent back to React. The edit screen displays `Configu
 
 OpenIddict's web-provider client supports more than 100 named providers and multiple instances, and recommends a distinct redirect URI per instance to reduce mix-up risk. It also uses server metadata for protocol interoperability. [OpenIddict web providers](https://documentation.openiddict.com/integrations/web-providers)
 
-However, arbitrary dynamic client registrations are not yet a first-class supported OpenIddict feature. Flatpack currently pins OpenIddict 7.7.0 in its generated lockfiles, so this limitation must be treated as an implementation constraint rather than hidden behind the UI. The maintainer's preferred interim approach is to populate `OpenIddictClientOptions` with `IConfigureOptions` and reload through `IOptionsChangeTokenSource`; deriving `OpenIddictClientService` is another possible but more invasive approach. The same discussion warns that accepting an arbitrary user-supplied issuer means trusting that server. A separate OpenIddict issue tracks first-class dynamic client registration for a future 8.0 preview, so Flatpack must not build its v1 contract on that unreleased behavior. [OpenIddict dynamic-registration discussion](https://github.com/openiddict/openiddict-core/issues/2192), [OpenIddict dynamic-registration tracking issue](https://github.com/openiddict/openiddict-core/issues/2404)
+However, arbitrary dynamic client registrations are not yet a first-class supported OpenIddict feature. Trykatch currently pins OpenIddict 7.7.0 in its generated lockfiles, so this limitation must be treated as an implementation constraint rather than hidden behind the UI. The maintainer's preferred interim approach is to populate `OpenIddictClientOptions` with `IConfigureOptions` and reload through `IOptionsChangeTokenSource`; deriving `OpenIddictClientService` is another possible but more invasive approach. The same discussion warns that accepting an arbitrary user-supplied issuer means trusting that server. A separate OpenIddict issue tracks first-class dynamic client registration for a future 8.0 preview, so Trykatch must not build its v1 contract on that unreleased behavior. [OpenIddict dynamic-registration discussion](https://github.com/openiddict/openiddict-core/issues/2192), [OpenIddict dynamic-registration tracking issue](https://github.com/openiddict/openiddict-core/issues/2404)
 
 Therefore the implementation should:
 
@@ -176,7 +176,7 @@ Use Authorization Code flow with PKCE S256 even for the confidential web client.
 
 OIDC discovery must retrieve metadata over TLS, require that the configured issuer exactly matches both the discovery document's `issuer` and the ID token `iss`, and abort on any validation failure. [OpenID Connect Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html)
 
-React never receives IdP access tokens, refresh tokens, client secrets, state, nonce, or PKCE verifier. The backend completes the exchange, discards provider tokens unless a separately approved downstream-integration use case requires them, links the local account, and emits the existing Flatpack application cookie. SSO must not turn the SPA into a token client.
+React never receives IdP access tokens, refresh tokens, client secrets, state, nonce, or PKCE verifier. The backend completes the exchange, discards provider tokens unless a separately approved downstream-integration use case requires them, links the local account, and emits the existing Trykatch application cookie. SSO must not turn the SPA into a token client.
 
 ## Account linking and provisioning
 
@@ -192,7 +192,7 @@ Never silently link solely because the provider returned the same email address.
 - an invitation created for the same normalized email contains a one-time link transaction and the provider asserts `email_verified=true`; or
 - an administrator creates a pending link that the user must confirm from both the local session and provider session.
 
-Coolify's current documentation still describes email matching, but a recent Coolify source change moved toward an explicit `(provider, provider_user_id)` link and verified-email checks. Flatpack should start with the stronger model. [Coolify OAuth overview](https://next.coolify.io/docs/core/security/authentication/oauth/overview), [Coolify explicit-provider-link change](https://github.com/coollabsio/coolify/commit/607cb1003e22bd484f6949cb0cf405b7fceea6f2)
+Coolify's current documentation still describes email matching, but a recent Coolify source change moved toward an explicit `(provider, provider_user_id)` link and verified-email checks. Trykatch should start with the stronger model. [Coolify OAuth overview](https://next.coolify.io/docs/core/security/authentication/oauth/overview), [Coolify explicit-provider-link change](https://github.com/coollabsio/coolify/commit/607cb1003e22bd484f6949cb0cf405b7fceea6f2)
 
 ### Invitation-only provisioning (default)
 
@@ -233,9 +233,9 @@ Operational requirements:
 
 ## Lockout, recovery and offboarding
 
-SSO may be `Required` only after a successful private-window test by a non-break-glass account. Flatpack must preserve at least one tested local platform recovery administrator whose credentials and MFA recovery material are stored operationally outside the application. The product must refuse to remove the final recovery path.
+SSO may be `Required` only after a successful private-window test by a non-break-glass account. Trykatch must preserve at least one tested local platform recovery administrator whose credentials and MFA recovery material are stored operationally outside the application. The product must refuse to remove the final recovery path.
 
-Provider MFA is not automatically equivalent to Flatpack's local MFA policy. Record and interpret `amr`, `acr` and authentication time only through an allowlisted per-provider assurance mapping. High-risk Flatpack operations may still demand a fresh provider reauthentication or local step-up.
+Provider MFA is not automatically equivalent to Trykatch's local MFA policy. Record and interpret `amr`, `acr` and authentication time only through an allowlisted per-provider assurance mapping. High-risk Trykatch operations may still demand a fresh provider reauthentication or local step-up.
 
 Disabling a provider stops new challenges immediately and invalidates outstanding login transactions. It does not silently delete local users or memberships. The administrator chooses whether existing sessions are retained, marked for revalidation, or revoked by rotating security stamps. Coolify likewise warns that removing IdP access alone does not remove active sessions, memberships, passwords or tokens, so offboarding must be completed locally. [Coolify SSO overview](https://next.coolify.io/docs/core/security/authentication/sso/overview)
 
@@ -261,12 +261,12 @@ Use a pinned Apache-2.0 Keycloak container as an Aspire development resource. Ke
 
 The first UAT is complete only when all of the following pass automatically and can be repeated manually:
 
-1. Generate and build a default Flatpack app with federation disabled. Its SSO backend controllers, EF model, OpenAPI operations, React route and login option are absent.
+1. Generate and build a default Trykatch app with federation disabled. Its SSO backend controllers, EF model, OpenAPI operations, React route and login option are absent.
 2. Generate with `--sso oidc` (or install the module through the future module CLI). The package contributes backend registration, migration, permissions, OpenAPI, React route and Aspire Keycloak resource without editing feature files manually.
-3. Start PostgreSQL, API, web and Keycloak. Seed one realm/client, one verified invited user, one verified but uninvited user, one unverified user, and two Flatpack organizations.
+3. Start PostgreSQL, API, web and Keycloak. Seed one realm/client, one verified invited user, one verified but uninvited user, one unverified user, and two Trykatch organizations.
 4. As a platform authentication administrator, create a disabled connection from the UI using only display name, issuer, client ID and client secret. The UI shows the exact callback URL and never reads the secret back.
 5. `Test configuration` validates TLS/development exception, discovery, exact issuer, supported code flow and PKCE, JWKS retrieval and a real non-root private-browser round trip. Only then can the connection be enabled.
-6. The invited user follows the organization invitation, authenticates in Keycloak, becomes linked by `(connection, issuer, subject)`, receives the existing secure Flatpack cookie, lands in the inferred organization workspace, and has exactly the invited organization role. No bearer/refresh token appears in React storage, JavaScript or browser-readable cookies.
+6. The invited user follows the organization invitation, authenticates in Keycloak, becomes linked by `(connection, issuer, subject)`, receives the existing secure Trykatch cookie, lands in the inferred organization workspace, and has exactly the invited organization role. No bearer/refresh token appears in React storage, JavaScript or browser-readable cookies.
 7. The same user signs out and signs back in using the new SSO button; the existing global user and membership are reused. A duplicate account is not created.
 8. The uninvited verified user, unverified user, wrong-audience token, wrong-issuer metadata, replayed callback, altered state, altered nonce, expired code and mismatched invitation email are rejected with non-enumerating UI errors.
 9. An Organization A connection cannot authenticate or read configuration for Organization B. PostgreSQL integration tests prove RLS blocks cross-organization access even when application filters are missing.
@@ -314,18 +314,18 @@ The first UAT is complete only when all of the following pass automatically and 
 
 | Capability | Recommended choice | License/status |
 |---|---|---|
-| OIDC protocol client | Existing OpenIddict Client packages | Apache-2.0; already present transitively in Flatpack lockfiles |
+| OIDC protocol client | Existing OpenIddict Client packages | Apache-2.0; already present transitively in Trykatch lockfiles |
 | ASP.NET Identity/cookies/Data Protection | ASP.NET Core shared framework | MIT |
 | Local enterprise IdP for UAT | Keycloak pinned container | Apache-2.0 |
 | Optional external secret manager | OpenBao | MPL-2.0, open source |
 | Later SAML adapter | ITfoxtec.Identity.Saml2, subject to security review | BSD-3-Clause, .NET 10 support |
 
-This design introduces no mandatory paid package or service. Commercial IdPs remain compatible through standard OIDC, but Flatpack's UAT and default development stack use only free/open-source software.
+This design introduces no mandatory paid package or service. Commercial IdPs remain compatible through standard OIDC, but Trykatch's UAT and default development stack use only free/open-source software.
 
 ## Conclusion
 
-Yes, Flatpack can offer the “enter client ID and secret, test, enable, and it works” experience. The maintainable design is not a universal secret-driven plugin that executes arbitrary code. It is a small, trusted set of compiled protocol adapters behind a deep identity-broker interface, combined with runtime provider connections stored as validated, versioned configuration.
+Yes, Trykatch can offer the “enter client ID and secret, test, enable, and it works” experience. The maintainable design is not a universal secret-driven plugin that executes arbitrary code. It is a small, trusted set of compiled protocol adapters behind a deep identity-broker interface, combined with runtime provider connections stored as validated, versioned configuration.
 
-That separation gives operators configuration freedom without allowing modules to weaken the security kernel, and it makes federation an excellent first UAT of Flatpack's full-stack modular architecture.
+That separation gives operators configuration freedom without allowing modules to weaken the security kernel, and it makes federation an excellent first UAT of Trykatch's full-stack modular architecture.
 
 The same architecture generalizes to other third-party integrations: install a reviewed adapter package for a protocol or vendor family, then create any number of runtime connections containing validated public settings and opaque versioned secret references. API keys are configuration for an installed adapter, not executable plugins. This lets future SMTP, storage, payment, webhook, search, and AI-provider connections be added without feature-code edits while preserving allowlists, authorization, rotation, health and audit controls in one deep connection-management module.
