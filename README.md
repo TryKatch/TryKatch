@@ -57,7 +57,7 @@ dotnet test templates/trykatch/TrykatchApp.slnx --no-build
 dotnet pack -c Release -o artifacts/packages
 ```
 
-The implementation is clean-room. No ASP Nano source, assets, credentials, or branding are included.
+The implementation is independently designed and contains no third-party proprietary source, assets, credentials, or branding.
 
 Architecture decisions and the dependency policy are documented under [docs](docs/).
 The public, searchable Markdown documentation is built with Astro Starlight from [docs-site](docs-site/) and published at [docs.trykatch.net](https://docs.trykatch.net).

@@ -1,10 +1,23 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import axe from 'axe-core'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LandingPage } from './LandingPage'
 
 describe('LandingPage', () => {
-  afterEach(cleanup)
+  beforeEach(() => {
+    localStorage.clear()
+    document.documentElement.removeAttribute('data-theme')
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }))
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
 
   it('explains the product and provides clear open-source adoption paths', async () => {
     const { container } = render(<LandingPage />)
@@ -18,5 +31,18 @@ describe('LandingPage', () => {
 
     const result = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } })
     expect(result.violations).toEqual([])
+  })
+
+  it('offers persistent light, system, and dark appearance modes', async () => {
+    render(<LandingPage />)
+
+    expect(screen.getByRole('button', { name: 'Light Theme' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System Theme' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Dark Theme' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dark Theme' }))
+
+    await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'dark'))
+    expect(localStorage.getItem('trykatch-theme')).toBe('dark')
   })
 })
