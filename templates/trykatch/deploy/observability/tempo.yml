@@ -18,6 +18,12 @@ storage:
     wal:
       path: /var/tempo/wal
 
-compactor:
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 24h
+
+backend_worker:
   compaction:
     block_retention: 24h

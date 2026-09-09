@@ -26,6 +26,12 @@ The first production-hardening slice for modularity is complete:
 
 This hardening does not promote Trykatch out of preview. Package acquisition/upgrade/eject/unregister, module-owned migration history and rollback, provenance/signing, container qualification, recovery drills, observability ingestion, performance budgets, and final UAT remain release gates below.
 
+## Generated-product qualification — 2026-09-09
+
+The clean-room qualification gate now packs and installs `Trykatch.Templates`, generates a dotted and hyphenated application name, starts the generated PostgreSQL migrator, API, and React production containers, and exercises critical platform, organization, authorization, RLS, audit, lifecycle, invitation, and module-catalog journeys through public browser and HTTP interfaces. CI retains failure diagnostics and runs this gate only when backend, frontend, deployment, or packaging inputs change.
+
+The default React production path is covered by this gate. Backend-only and optional-adapter permutations continue to receive pack, restore, build, module-doctor, and Compose validation; runtime qualification of every optional permutation remains an exit criterion for phase 2.
+
 ## Delivery plan
 
 ### 0. Repository and release governance

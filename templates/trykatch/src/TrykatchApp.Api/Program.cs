@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using TrykatchApp.Api.Development;
 using TrykatchApp.Api.Modules;
@@ -11,33 +12,22 @@ using TrykatchApp.Infrastructure.Persistence;
 using TrykatchApp.Modules;
 using TrykatchApp.Modules.AspNetCore;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using OpenIddict.Validation.AspNetCore;
-using Serilog;
-using Serilog.Formatting.Compact;
 using Scalar.AspNetCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+builder.Host.UseDefaultServiceProvider(options =>
+{
+    options.ValidateScopes = true;
+    options.ValidateOnBuild = true;
+});
+
 bool isOpenApiGeneration = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
 if (isOpenApiGeneration)
 {
     builder.Configuration["ConnectionStrings:trykatchdb"] = "Host=localhost;Database=openapi;Username=openapi;Password=openapi";
 }
-
-builder.Host.UseSerilog((context, services, logging) =>
-{
-    logging.ReadFrom.Configuration(context.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext()
-        .WriteTo.Console(new RenderedCompactJsonFormatter());
-
-    string? otlpEndpoint = context.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-    if (!string.IsNullOrWhiteSpace(otlpEndpoint))
-    {
-        logging.WriteTo.OpenTelemetry(options => options.Endpoint = otlpEndpoint);
-    }
-});
 
 builder.AddServiceDefaults();
 builder.Services.AddApplication();
@@ -48,8 +38,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
 builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
 builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();
-builder.Services.AddControllers().ConfigureApplicationPartManager(parts =>
-    parts.FeatureProviders.Add(new TrykatchModuleControllerFeatureProvider(moduleCatalog.ModuleIds)));
+builder.Services.ConfigureHttpJsonOptions(options => ConfigureStrictJson(options.SerializerOptions));
+builder.Services.AddControllers()
+    .AddJsonOptions(options => ConfigureStrictJson(options.JsonSerializerOptions))
+    .ConfigureApplicationPartManager(parts =>
+        parts.FeatureProviders.Add(new TrykatchModuleControllerFeatureProvider(moduleCatalog.ModuleIds)));
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer<TrykatchOpenApiDocumentTransformer>();
@@ -97,10 +90,7 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             }));
 });
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-});
+builder.Services.AddTrustedForwardedHeaders(builder.Configuration);
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<PlatformDbContext>("postgres-platform", tags: ["ready"])
     .AddDbContextCheck<ApplicationDbContext>("postgres-application", tags: ["ready"])
@@ -119,7 +109,6 @@ if (!isOpenApiGeneration)
 
 app.UseForwardedHeaders();
 app.UseExceptionHandler();
-app.UseSerilogRequestLogging();
 app.Use(async (context, next) =>
 {
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
@@ -129,6 +118,7 @@ app.Use(async (context, next) =>
 });
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseServiceDefaults();
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseMiddleware<PlatformDataTransactionMiddleware>();
@@ -157,5 +147,11 @@ app.MapTrykatchOrganizationModuleEndpoints();
 app.MapTrykatchPlatformModuleEndpoints();
 app.MapDefaultEndpoints();
 app.Run();
+
+static void ConfigureStrictJson(JsonSerializerOptions options)
+{
+    options.RespectNullableAnnotations = true;
+    options.RespectRequiredConstructorParameters = true;
+}
 
 public partial class Program;

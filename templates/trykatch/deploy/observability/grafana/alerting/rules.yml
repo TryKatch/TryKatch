@@ -1,0 +1,167 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Trykatch telemetry infrastructure
+    folder: Trykatch
+    interval: 1m
+    rules:
+      - uid: trykatch-collector-unavailable
+        title: OpenTelemetry Collector unavailable
+        condition: Threshold
+        data:
+          - refId: Query
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model: {editorMode: code, expr: 'up{job="otel-collector"}', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+          - refId: Threshold
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: Query
+              conditions: [{evaluator: {params: [1], type: lt}, operator: {type: and}, query: {params: [Threshold]}, reducer: {params: [], type: last}, type: query}]
+              refId: Threshold
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        annotations: {summary: Collector self-metrics are unavailable, runbook: 'docs/operations.md#collector-unavailable'}
+        labels: {severity: critical, service: telemetry, environment: staging-production}
+      - uid: trykatch-collector-queue-high
+        title: Collector persistent queue above 80 percent
+        condition: Threshold
+        data:
+          - refId: Query
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model: {editorMode: code, expr: 'max(otelcol_exporter_queue_size / clamp_min(otelcol_exporter_queue_capacity, 1))', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+          - refId: Threshold
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: Query
+              conditions: [{evaluator: {params: [0.8], type: gt}, operator: {type: and}, query: {params: [Threshold]}, reducer: {params: [], type: last}, type: query}]
+              refId: Threshold
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        annotations: {summary: Collector queue occupancy is sustained above 80 percent, runbook: 'docs/operations.md#queue-pressure'}
+        labels: {severity: warning, service: telemetry, environment: staging-production}
+      - uid: trykatch-telemetry-rejected
+        title: Telemetry rejected or export failed
+        condition: Threshold
+        data:
+          - refId: Query
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model: {editorMode: code, expr: '(sum(increase(otelcol_receiver_refused_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_metric_points_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_metric_points_total[5m])) or vector(0))', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+          - refId: Threshold
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: Query
+              conditions: [{evaluator: {params: [0], type: gt}, operator: {type: and}, query: {params: [Threshold]}, reducer: {params: [], type: last}, type: query}]
+              refId: Threshold
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        annotations: {summary: The Collector is refusing or failing telemetry, runbook: 'docs/operations.md#telemetry-loss'}
+        labels: {severity: warning, service: telemetry, environment: staging-production}
+      - uid: trykatch-application-scrape-failed
+        title: Application metrics scrape failed
+        condition: Threshold
+        data:
+          - refId: Query
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model: {editorMode: code, expr: 'up{job="trykatch-application"}', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+          - refId: Threshold
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: Query
+              conditions: [{evaluator: {params: [1], type: lt}, operator: {type: and}, query: {params: [Threshold]}, reducer: {params: [], type: last}, type: query}]
+              refId: Threshold
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        annotations: {summary: Prometheus cannot scrape application metrics from the Collector, runbook: 'docs/operations.md#metrics-scrape'}
+        labels: {severity: warning, service: telemetry, environment: staging-production}
+  - orgId: 1
+    name: Trykatch application warnings
+    folder: Trykatch
+    interval: 1m
+    rules:
+      - uid: trykatch-api-error-rate
+        title: API 5xx rate above 5 percent
+        condition: Threshold
+        data:
+          - refId: Query
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model: {editorMode: code, expr: '(sum by (service_name, deployment_environment_name) (rate(http_server_request_duration_seconds_count{http_response_status_code=~"5..",deployment_environment_name=~"staging|production"}[5m])) / sum by (service_name, deployment_environment_name) (rate(http_server_request_duration_seconds_count{deployment_environment_name=~"staging|production"}[5m]))) and on(service_name, deployment_environment_name) (sum by (service_name, deployment_environment_name) (rate(http_server_request_duration_seconds_count{deployment_environment_name=~"staging|production"}[5m])) >= 0.2)', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+          - refId: Threshold
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: Query
+              conditions: [{evaluator: {params: [0.05], type: gt}, operator: {type: and}, query: {params: [Threshold]}, reducer: {params: [], type: last}, type: query}]
+              refId: Threshold
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        annotations: {summary: API error rate exceeds the initial tunable warning threshold, runbook: 'docs/operations.md#api-errors-and-latency'}
+        labels: {severity: warning, service: api, environment: staging-production}
+      - uid: trykatch-api-latency
+        title: API p95 latency above 1 second
+        condition: Threshold
+        data:
+          - refId: Query
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model: {editorMode: code, expr: 'histogram_quantile(0.95, sum by (le, service_name, deployment_environment_name) (rate(http_server_request_duration_seconds_bucket{deployment_environment_name=~"staging|production"}[5m])))', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+          - refId: Threshold
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: Query
+              conditions: [{evaluator: {params: [1], type: gt}, operator: {type: and}, query: {params: [Threshold]}, reducer: {params: [], type: last}, type: query}]
+              refId: Threshold
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        annotations: {summary: API p95 latency exceeds the initial tunable warning threshold, runbook: 'docs/operations.md#api-errors-and-latency'}
+        labels: {severity: warning, service: api, environment: staging-production}
+      - uid: trykatch-outbox-failures
+        title: Outbox dispatch failures
+        condition: Threshold
+        data:
+          - refId: Query
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model: {editorMode: code, expr: 'sum by (service_name, deployment_environment_name) (increase(trykatch_outbox_dispatches_total{outcome="failure",deployment_environment_name=~"staging|production"}[5m]))', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+          - refId: Threshold
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: Query
+              conditions: [{evaluator: {params: [0], type: gt}, operator: {type: and}, query: {params: [Threshold]}, reducer: {params: [], type: last}, type: query}]
+              refId: Threshold
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        annotations: {summary: One or more outbox dispatches failed, runbook: 'docs/operations.md#outbox'}
+        labels: {severity: warning, service: api, environment: staging-production}

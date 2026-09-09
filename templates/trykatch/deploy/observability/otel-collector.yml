@@ -1,3 +1,16 @@
+extensions:
+  file_storage:
+    directory: /var/lib/otelcol/storage
+    create_directory: true
+    max_size: 1073741824
+    fsync: true
+    compaction:
+      on_start: true
+      on_rebound: true
+      directory: /var/lib/otelcol/compaction
+      rebound_needed_threshold_mib: 100
+      rebound_trigger_threshold_mib: 10
+
 receivers:
   otlp:
     protocols:
@@ -9,40 +22,143 @@ receivers:
 processors:
   memory_limiter:
     check_interval: 1s
-    limit_mib: 256
+    limit_mib: 384
     spike_limit_mib: 64
+  transform/privacy:
+    error_mode: propagate
+    trace_statements:
+      - context: resource
+        statements:
+          - keep_keys(attributes, ["service.name", "service.namespace", "service.version", "service.instance.id", "deployment.environment.name"])
+      - context: span
+        statements:
+          - set(status.message, "")
+          - set(name, attributes["http.route"]) where attributes["http.route"] != nil
+          - set(name, "database operation") where attributes["db.operation.name"] != nil
+          - set(name, "messaging operation") where attributes["messaging.system"] != nil
+          - set(name, "operation") where attributes["http.route"] == nil and attributes["db.operation.name"] == nil and attributes["messaging.system"] == nil
+      - context: spanevent
+        statements:
+          - set(name, "exception") where name == "exception"
+          - keep_keys(attributes, ["exception.type"])
+    log_statements:
+      - context: resource
+        statements:
+          - keep_keys(attributes, ["service.name", "service.namespace", "service.version", "service.instance.id", "deployment.environment.name"])
+      - context: log
+        statements:
+          - set(body, "Application telemetry event")
+    metric_statements:
+      - context: resource
+        statements:
+          - keep_keys(attributes, ["service.name", "service.namespace", "service.version", "service.instance.id", "deployment.environment.name"])
+      - context: datapoint
+        statements:
+          - set(attributes["service.name"], resource.attributes["service.name"])
+          - set(attributes["service.namespace"], resource.attributes["service.namespace"])
+          - set(attributes["deployment.environment.name"], resource.attributes["deployment.environment.name"])
+  redaction/privacy:
+    allow_all_keys: false
+    allowed_keys:
+      - event.name
+      - event.id
+      - exception.type
+      - error.type
+      - http.request.method
+      - http.response.status_code
+      - http.route
+      - network.protocol.version
+      - url.scheme
+      - db.operation.name
+      - db.namespace
+      - server.address
+      - server.port
+      - messaging.system
+      - messaging.operation.type
+      - messaging.destination.name
+      - messaging.message.id
+      - outcome
+      - RequestMethod
+      - RouteTemplate
+      - StatusCode
+      - ElapsedMilliseconds
+      - MessageId
+      - MessageType
+      - DeliveryAttempt
+      - ExceptionType
+      - service.name
+      - service.namespace
+      - deployment.environment.name
+    blocked_key_patterns:
+      - "(?i).*(authorization|cookie|credential|password|secret|token|email|user|organization|baggage|query|statement).*"
+    blocked_values:
+      - "(?i)bearer\\s+[a-z0-9._~+/-]+=*"
+      - "(?i)(password|secret|token)=[^&\\s]+"
+      - "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+    redact_all_types: true
+    summary: silent
   batch:
     send_batch_size: 1024
+    send_batch_max_size: 2048
     timeout: 5s
 
 exporters:
   otlphttp/loki:
     endpoint: http://loki:3100/otlp
+    timeout: 5s
     retry_on_failure:
       enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 10m
+    sending_queue:
+      enabled: true
+      storage: file_storage
+      sizer: requests
+      queue_size: 2000
+      num_consumers: 4
   otlphttp/tempo:
     endpoint: http://tempo:4318
+    timeout: 5s
     retry_on_failure:
       enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 10m
+    sending_queue:
+      enabled: true
+      storage: file_storage
+      sizer: requests
+      queue_size: 2000
+      num_consumers: 4
   prometheus:
     endpoint: 0.0.0.0:8889
     resource_to_telemetry_conversion:
-      enabled: true
+      enabled: false
 
 service:
+  extensions: [file_storage]
   telemetry:
+    logs:
+      level: info
     metrics:
-      level: basic
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+                without_type_suffix: false
   pipelines:
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, transform/privacy, redaction/privacy, batch]
       exporters: [otlphttp/loki]
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, transform/privacy, redaction/privacy, batch]
       exporters: [otlphttp/tempo]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, transform/privacy, redaction/privacy, batch]
       exporters: [prometheus]

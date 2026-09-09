@@ -13,14 +13,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs: ${{ steps.scopes.outputs.docs }}
+      backend: ${{ steps.scopes.outputs.backend }}
+      web: ${{ steps.scopes.outputs.web }}
+      observability: ${{ steps.scopes.outputs.observability }}
+      deployment: ${{ steps.scopes.outputs.deployment }}
+      packaging: ${{ steps.scopes.outputs.packaging }}
+      qualification: ${{ steps.scopes.outputs.qualification }}
+      template: ${{ steps.scopes.outputs.template }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+      - name: Resolve affected verification scopes
+        id: scopes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          bash scripts/ci/test-detect-changes.sh
+          bash scripts/ci/detect-changes.sh "$BASE_SHA" "$HEAD_SHA" | tee -a "$GITHUB_OUTPUT"
+
   verify-documentation:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: 10.17.1
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: pnpm
@@ -29,23 +55,17 @@ jobs:
       - run: pnpm --dir docs-site build
       - run: pnpm --dir docs-site audit --audit-level high
 
-  verify-template:
+  verify-backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 10.0.x
           cache: true
           cache-dependency-path: templates/trykatch/**/packages.lock.json
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 10.17.1
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
       # Aspire's AppHost lock contains an SDK-runtime-specific dashboard package.
       # A normal restore preserves the pinned graph while translating that one
       # package for the runner OS.
@@ -61,9 +81,23 @@ jobs:
         run: dotnet pack templates/trykatch/tools/TrykatchApp.ModuleTool -c Release --no-build -o artifacts/cli -p:PackageVersion=0.1.0-ci
       - run: dotnet test templates/trykatch/tests/TrykatchApp.UnitTests -c Release --no-build
       - run: dotnet test templates/trykatch/tests/TrykatchApp.IntegrationTests -c Release --no-build
+      - run: dotnet list templates/trykatch/TrykatchApp.slnx package --vulnerable --include-transitive
+
+  verify-web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
       - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
-      - name: Verify disabled and enabled Federation composition
-        run: bash scripts/test-federation-module.sh
       - run: pnpm --dir templates/trykatch/web generate
       - run: git diff --exit-code -- templates/trykatch/web/packages/api-client/openapi templates/trykatch/web/packages/api-client/src/generated templates/trykatch/docs/generated/assistant-contract.json
       - run: pnpm --dir templates/trykatch/web typecheck
@@ -78,23 +112,124 @@ jobs:
           done
       - run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web exec playwright install --with-deps chromium
       - run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web test:e2e
-      - run: dotnet list templates/trykatch/TrykatchApp.slnx package --vulnerable --include-transitive
       - run: pnpm --dir templates/trykatch/web audit --audit-level high
-      - run: docker compose -f templates/trykatch/compose.yml config --quiet
+
+  verify-observability:
+    needs: changes
+    if: needs.changes.outputs.observability == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Validate observability deployment contracts
+        run: bash scripts/test-observability.sh
+
+  verify-deployment:
+    needs: changes
+    if: needs.changes.outputs.deployment == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - run: bash templates/trykatch/scripts/test-proxy-headers.sh --runtime
+      - run: TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file templates/trykatch/.env.example -f templates/trykatch/compose.yml config --quiet
+
+  verify-api-image:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.deployment == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: docker build -f templates/trykatch/src/TrykatchApp.Api/Dockerfile templates/trykatch
+
+  verify-web-image:
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.deployment == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: docker build -f templates/trykatch/web/apps/web/Dockerfile templates/trykatch
+
+  verify-migrator:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.deployment == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: bash scripts/test-migrator.sh
-      - name: Reclaim ephemeral runner disk
-        run: |
-          docker system prune --all --force --volumes
-          find templates/trykatch -type d \( -name bin -o -name obj -o -name node_modules -o -name dist \) -prune -exec rm -rf {} +
+
+  verify-package:
+    needs: changes
+    if: needs.changes.outputs.packaging == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: templates/trykatch/**/packages.lock.json
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
+      - run: dotnet restore templates/trykatch/TrykatchApp.slnx
+      - run: dotnet build templates/trykatch/TrykatchApp.slnx -c Release --no-restore
+      - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
+      - name: Verify disabled and enabled Federation composition
+        run: bash scripts/test-federation-module.sh
       - run: bash scripts/test-template.sh
-      - uses: anchore/sbom-action@v0.24.0
+
+  verify-generated-application:
+    needs: changes
+    if: needs.changes.outputs.qualification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: templates/trykatch/**/packages.lock.json
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
+      - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
+      - name: Install the acceptance browser
+        run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web exec playwright install --with-deps chromium
+      - name: Qualify a clean generated production application
+        run: bash scripts/test-generated-application.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: generated-application-acceptance
+          path: artifacts/generated-application
+          if-no-files-found: error
+          retention-days: 14
+
+  verify-supply-chain:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        if: needs.changes.outputs.template == 'true'
         with:
           path: templates/trykatch
           format: spdx-json
           output-file: trykatch-template.spdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: needs.changes.outputs.template == 'true'
         with:
           name: trykatch-template-sbom
           path: trykatch-template.spdx.json
@@ -110,3 +245,24 @@ jobs:
           echo "${GITLEAKS_LINUX_X64_SHA256}  ${archive}" | sha256sum --check
           tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP" gitleaks
           "$RUNNER_TEMP/gitleaks" git --redact --verbose .
+
+  verify-template:
+    if: always()
+    needs:
+      - changes
+      - verify-backend
+      - verify-web
+      - verify-observability
+      - verify-deployment
+      - verify-api-image
+      - verify-web-image
+      - verify-migrator
+      - verify-package
+      - verify-generated-application
+      - verify-supply-chain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every affected verification scope to pass
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<< "$NEEDS_JSON"

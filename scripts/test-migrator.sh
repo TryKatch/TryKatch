@@ -4,6 +4,7 @@ set -euo pipefail
 repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 compose_file="$repository_root/templates/trykatch/compose.yml"
 export COMPOSE_PROJECT_NAME=trykatch_migrator_test
+export TRYKATCH_RELEASE_VERSION=ci-validation
 export TRYKATCH_POSTGRES_ADMIN_PASSWORD=postgres-admin-test-password
 export TRYKATCH_MIGRATOR_PASSWORD=migrator-test-password-with-24-characters
 export TRYKATCH_RUNTIME_PASSWORD=runtime-test-password-with-24-characters

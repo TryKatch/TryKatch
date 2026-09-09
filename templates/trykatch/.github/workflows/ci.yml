@@ -25,8 +25,10 @@ jobs:
         run: dotnet run --project tools/TrykatchApp.ModuleTool -c Release --no-build -- module doctor --root .
       - run: dotnet test tests/TrykatchApp.UnitTests -c Release --no-build
       - run: dotnet test tests/TrykatchApp.IntegrationTests -c Release --no-build
+      - name: Validate observability deployment contracts
+        run: bash scripts/test-observability.sh
       - run: dotnet list TrykatchApp.slnx package --vulnerable --include-transitive
-      - run: docker compose config --quiet
+      - run: TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file .env.example config --quiet
       - run: docker build -f src/TrykatchApp.Api/Dockerfile .
       - uses: anchore/sbom-action@v0.24.0
         with:
