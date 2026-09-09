@@ -13,7 +13,7 @@ describe('LandingPage', () => {
     expect(screen.getByRole('heading', { name: /the problem/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /structured for change/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /create your application/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /view source/i })).toHaveAttribute('href', 'https://github.com/Dotnet-Community-DRC/Trykatch')
+    expect(screen.getByRole('link', { name: /view source/i })).toHaveAttribute('href', 'https://github.com/TryKatch/TryKatch')
     expect(screen.getByText(/dotnet new trykatch -n horizon/i)).toBeInTheDocument()
 
     const result = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } })

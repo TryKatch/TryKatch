@@ -27,7 +27,7 @@ export function LandingPage() {
         <strong>Trykatch</strong>
       </a>
       <nav className="landing-nav-actions" aria-label="Product links">
-        <a className="landing-nav-link" href="https://github.com/Dotnet-Community-DRC/Trykatch">GitHub</a>
+        <a className="landing-nav-link" href="https://github.com/TryKatch/TryKatch">GitHub</a>
         <a className="landing-sign-in" href="#install">Get started <ArrowRight size={15} /></a>
       </nav>
     </header>
@@ -38,7 +38,7 @@ export function LandingPage() {
         <h1 id="landing-title">Ship the product.<br />Keep the hard parts dependable.</h1>
         <p>Trykatch gives .NET teams a secure multi-tenant foundation with an owned React experience, so every new product does not begin by rebuilding identity, isolation, permissions, and operations.</p>
         <div className="landing-actions">
-          <a className="landing-primary-action" href="https://github.com/Dotnet-Community-DRC/Trykatch">View source <ArrowRight size={16} /></a>
+          <a className="landing-primary-action" href="https://github.com/TryKatch/TryKatch">View source <ArrowRight size={16} /></a>
           <a className="landing-secondary-action" href="#architecture">See how it is structured</a>
         </div>
       </div>
@@ -98,7 +98,7 @@ export function LandingPage() {
         <h2 id="production-title">Designed for production qualification</h2>
         <p>Trykatch provides the architecture, automated checks, and deployment foundations a serious workload needs. Each generated product must still prove its own security, recovery, capacity, and operational requirements before release.</p>
       </div>
-      <a href="https://github.com/Dotnet-Community-DRC/Trykatch/tree/develop/docs">Read the documentation <ArrowRight size={15} /></a>
+      <a href="https://github.com/TryKatch/TryKatch/tree/develop/docs">Read the documentation <ArrowRight size={15} /></a>
     </section>
 
     <footer className="landing-footer"><span>Trykatch</span><small>Open source · Apache-2.0 · .NET 10 · React · PostgreSQL</small></footer>
