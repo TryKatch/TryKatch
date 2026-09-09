@@ -23,6 +23,7 @@ grep -Fq 'storage: file_storage' "$template_root/deploy/observability/otel-colle
 grep -Fq 'port: 8888' "$template_root/deploy/observability/otel-collector.yml"
 grep -Fq 'retention_enabled: true' "$template_root/deploy/observability/loki.yml"
 grep -Fq 'retention_period: 168h' "$template_root/deploy/observability/loki.yml"
+[[ $(grep -Fc 'block_retention: 24h' "$template_root/deploy/observability/tempo.yml") -eq 2 ]]
 grep -Fq -- '--storage.tsdb.retention.time=15d' "$template_root/compose.yml"
 grep -Fq '127.0.0.1}:3000:3000' "$template_root/compose.yml"
 
