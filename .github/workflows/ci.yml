@@ -129,6 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - run: bash templates/trykatch/scripts/test-proxy-headers.sh --runtime
       - run: TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file templates/trykatch/.env.example -f templates/trykatch/compose.yml config --quiet
 
   verify-api-image:

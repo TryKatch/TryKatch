@@ -36,6 +36,7 @@ generate_and_build() {
   test -f "$output/compose.observability-tls.yml"
   test -f "$output/scripts/test-observability.sh"
   if [[ -f "$output/web/package.json" ]]; then
+    bash "$output/scripts/test-proxy-headers.sh"
     (
       cd "$output/web"
       corepack pnpm install --frozen-lockfile
@@ -60,6 +61,7 @@ test ! -e "$test_root/Acme.Tools.Portal/web"
 test ! -e "$test_root/Acme.Tools.Portal/.github/workflows/web.yml"
 test ! -e "$test_root/Acme.Tools.Portal/compose.backend.yml"
 test ! -e "$test_root/Acme.Tools.Portal/README.backend.md"
+test ! -e "$test_root/Acme.Tools.Portal/scripts/test-proxy-headers.sh"
 test -f "$test_root/Acme.Tools.Portal/compose.yml"
 test -f "$test_root/Acme.Tools.Portal/README.md"
 grep -Fq 'ports: ["8080:8080"]' "$test_root/Acme.Tools.Portal/compose.yml"

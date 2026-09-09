@@ -28,9 +28,15 @@ assert_scope 'templates/trykatch/compose.yml' observability true
 assert_scope 'templates/trykatch/.template.config/template.json' packaging true
 assert_scope 'templates/trykatch/src/TrykatchApp.Api/Program.cs' qualification true
 assert_scope 'templates/trykatch/web/apps/web/src/main.tsx' qualification true
+assert_scope 'templates/trykatch/web/apps/web/nginx.conf' web true
+assert_scope 'templates/trykatch/web/apps/web/nginx.conf' deployment true
+assert_scope 'templates/trykatch/web/apps/web/nginx.conf' qualification true
 assert_scope 'templates/trykatch/compose.yml' qualification true
 assert_scope 'templates/trykatch/deploy/postgres/init/10-create-migrator.sh' deployment true
 assert_scope 'templates/trykatch/deploy/postgres/init/10-create-migrator.sh' qualification true
+assert_scope 'templates/trykatch/scripts/test-proxy-headers.sh' deployment true
+assert_scope 'templates/trykatch/scripts/test-proxy-headers.sh' web true
+assert_scope 'templates/trykatch/scripts/test-proxy-headers.sh' qualification true
 assert_scope 'templates/trykatch/.template.config/template.json' qualification true
 assert_scope 'templates/trykatch/deploy/observability/tempo.yml' qualification false
 assert_scope 'scripts/test-generated-application.sh' qualification true
