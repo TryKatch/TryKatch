@@ -13,6 +13,14 @@ export default defineConfig({
         replacesTitle: false,
       },
       customCss: ['./src/styles/custom.css'],
+      locales: {
+        root: { label: 'English', lang: 'en' },
+        fr: { label: 'Français', lang: 'fr' },
+      },
+      components: {
+        ThemeSelect: './src/components/ThemeSelect.astro',
+        LanguageSelect: './src/components/LanguageSelect.astro',
+      },
       editLink: {
         baseUrl: 'https://github.com/TryKatch/TryKatch/edit/develop/docs-site/',
       },
@@ -20,15 +28,25 @@ export default defineConfig({
         { icon: 'github', label: 'GitHub', href: 'https://github.com/TryKatch/TryKatch' },
       ],
       sidebar: [
-        { label: 'Start here', items: ['index', 'getting-started/install'] },
+        {
+          label: 'Start here',
+          translations: { fr: 'Bien démarrer' },
+          items: ['index', 'getting-started/install'],
+        },
         {
           label: 'Architecture',
+          translations: { fr: 'Architecture' },
           items: ['architecture/overview', 'architecture/security-and-tenancy'],
         },
-        { label: 'Modules', items: ['modules/authoring'] },
-        { label: 'Operations', items: ['operations/observability'] },
+        { label: 'Modules', translations: { fr: 'Modules' }, items: ['modules/authoring'] },
+        {
+          label: 'Operations',
+          translations: { fr: 'Exploitation' },
+          items: ['operations/observability'],
+        },
         {
           label: 'Reference',
+          translations: { fr: 'Référence' },
           items: ['reference/template-options', 'reference/release-readiness'],
         },
       ],

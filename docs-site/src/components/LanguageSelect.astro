@@ -1,0 +1,117 @@
+---
+import { Icon } from '@astrojs/starlight/components'
+
+const currentLocale = Astro.locals.starlightRoute.locale === 'fr' ? 'fr' : 'root'
+const unlocalizedPath = Astro.url.pathname.replace(/^\/fr(?=\/|$)/, '') || '/'
+const links = [
+  { locale: 'root', label: 'English', href: unlocalizedPath },
+  { locale: 'fr', label: 'Français', href: unlocalizedPath === '/' ? '/fr/' : `/fr${unlocalizedPath}` },
+]
+---
+
+<details class="language-menu" data-trykatch-language-menu>
+  <summary aria-label={Astro.locals.t('languageSelect.accessibleLabel')}>
+    <Icon name="translate" aria-hidden="true" />
+    <span>{currentLocale === 'fr' ? 'Français' : 'English'}</span>
+    <Icon name="down-caret" class="caret" aria-hidden="true" />
+  </summary>
+  <div class="language-panel" role="menu">
+    <p>{Astro.locals.t('languageSelect.accessibleLabel')}</p>
+    {links.map((link) => (
+      <a href={link.href} lang={link.locale === 'fr' ? 'fr' : 'en'} role="menuitemradio" aria-checked={currentLocale === link.locale}>
+        <span>{link.label}</span>
+        <Icon name="approve-check" class="check" aria-hidden="true" />
+      </a>
+    ))}
+  </div>
+</details>
+
+<script>
+  addEventListener('click', (event) => {
+    document.querySelectorAll<HTMLDetailsElement>('[data-trykatch-language-menu][open]').forEach((menu) => {
+      if (!menu.contains(event.target as Node)) menu.open = false
+    })
+  })
+
+  addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return
+    document.querySelectorAll<HTMLDetailsElement>('[data-trykatch-language-menu][open]').forEach((menu) => {
+      menu.open = false
+      menu.querySelector<HTMLElement>('summary')?.focus()
+    })
+  })
+</script>
+
+<style>
+  .language-menu { position: relative; color: var(--sl-color-gray-2); }
+  summary {
+    display: flex;
+    min-width: 7.5rem;
+    min-height: 2.5rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: var(--sl-text-sm);
+    list-style: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary:hover,
+  summary:focus-visible,
+  details[open] summary {
+    color: var(--sl-color-white);
+    background: var(--sl-color-gray-6);
+    border-color: var(--sl-color-gray-5);
+  }
+  summary:focus-visible { outline: 2px solid var(--sl-color-accent); outline-offset: 2px; }
+  summary :global(svg) { width: 1rem; height: 1rem; }
+  summary span { flex: 1; text-align: start; }
+  .caret { width: 0.8rem; transition: transform 120ms ease; }
+  details[open] .caret { transform: rotate(180deg); }
+
+  .language-panel {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    width: 10rem;
+    padding: 0.35rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 4px;
+    background: var(--sl-color-bg-nav);
+    box-shadow: var(--sl-shadow-md);
+  }
+  .language-panel p {
+    margin: 0;
+    padding: 0.45rem 0.55rem 0.35rem;
+    color: var(--sl-color-gray-3);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  a {
+    display: grid;
+    min-height: 2.4rem;
+    grid-template-columns: 1fr 1rem;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 4px;
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+  }
+  a:hover,
+  a:focus-visible { color: var(--sl-color-white); background: var(--sl-color-gray-6); outline: none; }
+  a:focus-visible { box-shadow: inset 0 0 0 2px var(--sl-color-accent); }
+  a :global(svg) { width: 1rem; height: 1rem; }
+  .check { visibility: hidden; color: var(--sl-color-accent-high); }
+  a[aria-checked='true'] .check { visibility: visible; }
+
+  @media (max-width: 49.99rem) {
+    summary { min-width: 6.75rem; }
+    .language-panel { top: auto; bottom: calc(100% + 0.45rem); left: 0; right: auto; }
+  }
+</style>

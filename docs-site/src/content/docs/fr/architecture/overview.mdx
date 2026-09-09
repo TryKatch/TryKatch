@@ -1,0 +1,26 @@
+---
+title: Architecture de la plateforme
+description: Comprenez le noyau de sécurité, la frontière des modules full-stack, la couche de données et le parcours d’observabilité.
+---
+
+Trykatch est un monolithe modulaire assemblé à la compilation. Il centralise la frontière de sécurité tout en gardant les capacités métier explicites et remplaçables.
+
+<figure className="architecture-figure">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcSet="/diagrams/trykatch-platform.visual-check.2048x1320.dark.png" />
+    <img src="/diagrams/trykatch-platform.visual-check.2048x1320.light.png" alt="Architecture de Trykatch présentant l’espace de travail React, l’API .NET, le noyau de sécurité, le catalogue de modules, PostgreSQL, le worker de l’outbox et la pile d’observabilité." />
+  </picture>
+  <figcaption>Généré localement depuis la spécification Archify conservée dans le dépôt. <a href="/diagrams/trykatch-platform.html">Ouvrir le diagramme interactif</a>.</figcaption>
+</figure>
+
+## Le noyau stable
+
+Le noyau gère l’identité et les sessions, la résolution de l’organisation, l’application des permissions, la sécurité PostgreSQL au niveau des lignes, l’activité d’audit, l’outbox transactionnelle et la validation des modules. Un module métier peut utiliser ces services, mais ne peut ni les remplacer ni les contourner.
+
+## La frontière des modules
+
+Les modules peuvent fournir des services backend, des contrôleurs, la configuration du modèle EF et les migrations, des permissions, des routes et éléments de navigation React, des événements, des workers et des outils d’assistance optionnels. Un catalogue unique valide les identifiants, les dépendances, la parité backend/frontend et l’état d’activation.
+
+## Le parcours opérationnel
+
+Les données métier liées à une organisation et les messages de l’outbox sont validés dans la même transaction. Le worker traite les messages persistants de manière idempotente. Les activités HTTP, base de données et worker exportent des journaux, traces et métriques corrélés au moyen d’OpenTelemetry.

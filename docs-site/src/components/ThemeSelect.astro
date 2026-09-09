@@ -1,0 +1,194 @@
+---
+import { Icon } from '@astrojs/starlight/components'
+
+const choices = [
+  { value: 'dark', label: Astro.locals.t('themeSelect.dark'), icon: 'moon' },
+  { value: 'light', label: Astro.locals.t('themeSelect.light'), icon: 'sun' },
+  { value: 'auto', label: Astro.locals.t('themeSelect.auto'), icon: 'laptop' },
+] as const
+---
+
+<details class="preference-menu" data-trykatch-theme-menu>
+  <summary aria-label={Astro.locals.t('themeSelect.accessibleLabel')}>
+    <span class="summary-icons" aria-hidden="true">
+      <Icon name="moon" class="theme-icon theme-icon-dark" />
+      <Icon name="sun" class="theme-icon theme-icon-light" />
+      <Icon name="laptop" class="theme-icon theme-icon-auto" />
+    </span>
+    <span class="summary-label">{Astro.locals.t('themeSelect.auto')}</span>
+    <Icon name="down-caret" class="caret" aria-hidden="true" />
+  </summary>
+  <div class="preference-panel" role="menu">
+    <p>{Astro.locals.t('themeSelect.accessibleLabel')}</p>
+    {choices.map((choice) => (
+      <button type="button" role="menuitemradio" data-theme-value={choice.value} aria-checked="false">
+        <Icon name={choice.icon} aria-hidden="true" />
+        <span>{choice.label}</span>
+        <Icon name="approve-check" class="check" aria-hidden="true" />
+      </button>
+    ))}
+  </div>
+</details>
+
+<script>
+  type ThemePreference = 'auto' | 'dark' | 'light'
+
+  const labels: Record<ThemePreference, string> = {
+    auto: document.querySelector<HTMLElement>('[data-theme-value="auto"] span')?.textContent ?? 'Auto',
+    dark: document.querySelector<HTMLElement>('[data-theme-value="dark"] span')?.textContent ?? 'Dark',
+    light: document.querySelector<HTMLElement>('[data-theme-value="light"] span')?.textContent ?? 'Light',
+  }
+
+  function readPreference(): ThemePreference {
+    const value = localStorage.getItem('starlight-theme')
+    return value === 'dark' || value === 'light' ? value : 'auto'
+  }
+
+  function resolvedTheme(preference: ThemePreference): 'dark' | 'light' {
+    if (preference !== 'auto') return preference
+    return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+  }
+
+  function updateMenus(preference: ThemePreference) {
+    document.querySelectorAll<HTMLElement>('[data-trykatch-theme-menu]').forEach((menu) => {
+      menu.dataset.value = preference
+      const label = menu.querySelector<HTMLElement>('.summary-label')
+      if (label) label.textContent = labels[preference]
+      menu.querySelectorAll<HTMLElement>('[data-theme-value]').forEach((choice) => {
+        choice.setAttribute('aria-checked', String(choice.dataset.themeValue === preference))
+      })
+    })
+  }
+
+  function applyPreference(preference: ThemePreference) {
+    if (preference === 'auto') localStorage.removeItem('starlight-theme')
+    else localStorage.setItem('starlight-theme', preference)
+    document.documentElement.dataset.theme = resolvedTheme(preference)
+    updateMenus(preference)
+  }
+
+  document.querySelectorAll<HTMLDetailsElement>('[data-trykatch-theme-menu]').forEach((menu) => {
+    menu.querySelectorAll<HTMLButtonElement>('[data-theme-value]').forEach((choice) => {
+      choice.addEventListener('click', () => {
+        const preference = choice.dataset.themeValue as ThemePreference
+        applyPreference(preference)
+        menu.open = false
+        menu.querySelector<HTMLElement>('summary')?.focus()
+      })
+    })
+  })
+
+  addEventListener('click', (event) => {
+    document.querySelectorAll<HTMLDetailsElement>('[data-trykatch-theme-menu][open]').forEach((menu) => {
+      if (!menu.contains(event.target as Node)) menu.open = false
+    })
+  })
+
+  addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return
+    document.querySelectorAll<HTMLDetailsElement>('[data-trykatch-theme-menu][open]').forEach((menu) => {
+      menu.open = false
+      menu.querySelector<HTMLElement>('summary')?.focus()
+    })
+  })
+
+  matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+    if (readPreference() === 'auto') applyPreference('auto')
+  })
+
+  updateMenus(readPreference())
+</script>
+
+<style>
+  .preference-menu {
+    position: relative;
+    color: var(--sl-color-gray-2);
+  }
+
+  summary {
+    display: flex;
+    min-width: 7.75rem;
+    min-height: 2.5rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: var(--sl-text-sm);
+    list-style: none;
+  }
+
+  summary::-webkit-details-marker { display: none; }
+  summary:hover,
+  summary:focus-visible,
+  details[open] summary {
+    color: var(--sl-color-white);
+    background: var(--sl-color-gray-6);
+    border-color: var(--sl-color-gray-5);
+  }
+  summary:focus-visible { outline: 2px solid var(--sl-color-accent); outline-offset: 2px; }
+
+  .summary-icons,
+  .summary-icons :global(svg) { width: 1rem; height: 1rem; }
+  .summary-icons { display: grid; flex: 0 0 auto; place-items: center; }
+  .summary-icons :global(svg) { display: none; grid-area: 1 / 1; }
+  details[data-value='dark'] .theme-icon-dark,
+  details[data-value='light'] .theme-icon-light,
+  details[data-value='auto'] .theme-icon-auto { display: block; }
+
+  .summary-label { flex: 1; text-align: start; }
+  .caret { width: 0.8rem; transition: transform 120ms ease; }
+  details[open] .caret { transform: rotate(180deg); }
+
+  .preference-panel {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    width: 10.5rem;
+    padding: 0.35rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 4px;
+    background: var(--sl-color-bg-nav);
+    box-shadow: var(--sl-shadow-md);
+  }
+
+  .preference-panel p {
+    margin: 0;
+    padding: 0.45rem 0.55rem 0.35rem;
+    color: var(--sl-color-gray-3);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  button {
+    display: grid;
+    width: 100%;
+    min-height: 2.4rem;
+    grid-template-columns: 1rem 1fr 1rem;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.55rem;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--sl-color-gray-2);
+    cursor: pointer;
+    font: inherit;
+    text-align: start;
+  }
+  button:hover,
+  button:focus-visible { color: var(--sl-color-white); background: var(--sl-color-gray-6); outline: none; }
+  button:focus-visible { box-shadow: inset 0 0 0 2px var(--sl-color-accent); }
+  button :global(svg) { width: 1rem; height: 1rem; }
+  button .check { visibility: hidden; color: var(--sl-color-accent-high); }
+  button[aria-checked='true'] .check { visibility: visible; }
+
+  @media (max-width: 49.99rem) {
+    summary { min-width: 6.75rem; }
+    .preference-panel { top: auto; bottom: calc(100% + 0.45rem); left: 0; right: auto; }
+  }
+</style>

@@ -9,3 +9,5 @@ pnpm dev
 ```
 
 Architecture sources live in `../docs/diagrams`. Generated visual assets are copied into `public/diagrams` after Archify validation and delivery.
+
+English content uses the root routes. French translations mirror every page under `src/content/docs/fr/` and are published below `/fr/`.
