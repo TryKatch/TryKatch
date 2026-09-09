@@ -35,6 +35,10 @@ jobs:
       # package for the runner OS.
       - run: dotnet restore templates/flatpack/FlatpackApp.slnx
       - run: dotnet build templates/flatpack/FlatpackApp.slnx -c Release --no-restore
+      - name: Verify deployable .NET publish graphs
+        run: |
+          dotnet publish templates/flatpack/src/FlatpackApp.Api/FlatpackApp.Api.csproj -c Release --no-restore --no-build -o artifacts/publish/api
+          dotnet publish templates/flatpack/src/FlatpackApp.Migrator/FlatpackApp.Migrator.csproj -c Release --no-restore --no-build -o artifacts/publish/migrator
       - name: Validate full-stack module composition
         run: dotnet run --project templates/flatpack/tools/FlatpackApp.ModuleTool -c Release --no-build -- module doctor --root templates/flatpack
       - name: Verify Flatpack CLI package

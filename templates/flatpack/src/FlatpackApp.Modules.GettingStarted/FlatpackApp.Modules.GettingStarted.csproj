@@ -15,7 +15,7 @@
     <ProjectReference Include="../FlatpackApp.Modules.AspNetCore/FlatpackApp.Modules.AspNetCore.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="flatpack.module.json" Pack="true" PackagePath="content/flatpack.module.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="flatpack.module.json" Pack="true" PackagePath="content/flatpack.module.json" />
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

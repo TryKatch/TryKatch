@@ -2,11 +2,9 @@ FROM node:24.7.0-alpine3.22@sha256:be4d5e92ac68483ec71440bf5934865b4b7fcb93588f1
 RUN corepack enable
 WORKDIR /workspace
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
-COPY web/apps/web/package.json apps/web/package.json
-COPY web/packages/ui/package.json packages/ui/package.json
-COPY web/packages/api-client/package.json packages/api-client/package.json
-RUN pnpm install --frozen-lockfile
+RUN pnpm fetch --frozen-lockfile
 COPY web .
+RUN pnpm install --offline --frozen-lockfile
 RUN pnpm --filter @flatpackapp/web build
 
 FROM nginxinc/nginx-unprivileged:1.29.1-alpine3.22@sha256:27985295bdb22a1ef8f712863210bd5877c0f3006494a593e86b3fe0fa55467e AS final
