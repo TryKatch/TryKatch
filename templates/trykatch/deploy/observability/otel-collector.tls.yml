@@ -1,4 +1,6 @@
 extensions:
+  bearertokenauth/receiver:
+    filename: /run/secrets/otel-token
   file_storage:
     directory: /var/lib/otelcol/storage
     create_directory: true
@@ -16,8 +18,18 @@ receivers:
     protocols:
       grpc:
         endpoint: 0.0.0.0:4317
+        tls:
+          cert_file: /run/secrets/otel-server.crt
+          key_file: /run/secrets/otel-server.key
+        auth:
+          authenticator: bearertokenauth/receiver
       http:
         endpoint: 0.0.0.0:4318
+        tls:
+          cert_file: /run/secrets/otel-server.crt
+          key_file: /run/secrets/otel-server.key
+        auth:
+          authenticator: bearertokenauth/receiver
 
 processors:
   memory_limiter:
@@ -59,42 +71,9 @@ processors:
           - set(attributes["deployment.environment.name"], resource.attributes["deployment.environment.name"])
   redaction/privacy:
     allow_all_keys: false
-    allowed_keys:
-      - event.name
-      - event.id
-      - exception.type
-      - error.type
-      - http.request.method
-      - http.response.status_code
-      - http.route
-      - network.protocol.version
-      - url.scheme
-      - db.operation.name
-      - db.namespace
-      - server.address
-      - server.port
-      - messaging.system
-      - messaging.operation.type
-      - messaging.destination.name
-      - messaging.message.id
-      - outcome
-      - RequestMethod
-      - RouteTemplate
-      - StatusCode
-      - ElapsedMilliseconds
-      - MessageId
-      - MessageType
-      - DeliveryAttempt
-      - ExceptionType
-      - service.name
-      - service.namespace
-      - deployment.environment.name
-    blocked_key_patterns:
-      - "(?i).*(authorization|cookie|credential|password|secret|token|email|user|organization|baggage|query|statement).*"
-    blocked_values:
-      - "(?i)bearer\\s+[a-z0-9._~+/-]+=*"
-      - "(?i)(password|secret|token)=[^&\\s]+"
-      - "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+    allowed_keys: [event.name, event.id, exception.type, error.type, http.request.method, http.response.status_code, http.route, network.protocol.version, url.scheme, db.operation.name, db.namespace, server.address, server.port, messaging.system, messaging.operation.type, messaging.destination.name, messaging.message.id, outcome, RequestMethod, RouteTemplate, StatusCode, ElapsedMilliseconds, MessageId, MessageType, DeliveryAttempt, ExceptionType, service.name, service.namespace, deployment.environment.name]
+    blocked_key_patterns: ["(?i).*(authorization|cookie|credential|password|secret|token|email|user|organization|baggage|query|statement).*"]
+    blocked_values: ["(?i)bearer\\s+[a-z0-9._~+/-]+=*", "(?i)(password|secret|token)=[^&\\s]+", "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"]
     redact_all_types: true
     summary: silent
   batch:
@@ -106,59 +85,27 @@ exporters:
   otlphttp/loki:
     endpoint: http://loki:3100/otlp
     timeout: 5s
-    retry_on_failure:
-      enabled: true
-      initial_interval: 1s
-      max_interval: 30s
-      max_elapsed_time: 10m
-    sending_queue:
-      enabled: true
-      storage: file_storage
-      sizer: requests
-      queue_size: 2000
-      num_consumers: 4
+    retry_on_failure: {enabled: true, initial_interval: 1s, max_interval: 30s, max_elapsed_time: 10m}
+    sending_queue: {enabled: true, storage: file_storage, sizer: requests, queue_size: 2000, num_consumers: 4}
   otlphttp/tempo:
     endpoint: http://tempo:4318
     timeout: 5s
-    retry_on_failure:
-      enabled: true
-      initial_interval: 1s
-      max_interval: 30s
-      max_elapsed_time: 10m
-    sending_queue:
-      enabled: true
-      storage: file_storage
-      sizer: requests
-      queue_size: 2000
-      num_consumers: 4
+    retry_on_failure: {enabled: true, initial_interval: 1s, max_interval: 30s, max_elapsed_time: 10m}
+    sending_queue: {enabled: true, storage: file_storage, sizer: requests, queue_size: 2000, num_consumers: 4}
   prometheus:
     endpoint: 0.0.0.0:8889
-    resource_to_telemetry_conversion:
-      enabled: false
+    resource_to_telemetry_conversion: {enabled: false}
 
 service:
-  extensions: [file_storage]
+  extensions: [bearertokenauth/receiver, file_storage]
   telemetry:
-    logs:
-      level: info
+    logs: {level: info}
     metrics:
       readers:
         - pull:
             exporter:
-              prometheus:
-                host: 0.0.0.0
-                port: 8888
-                without_type_suffix: false
+              prometheus: {host: 0.0.0.0, port: 8888, without_type_suffix: false}
   pipelines:
-    logs:
-      receivers: [otlp]
-      processors: [memory_limiter, transform/privacy, redaction/privacy, batch]
-      exporters: [otlphttp/loki]
-    traces:
-      receivers: [otlp]
-      processors: [memory_limiter, transform/privacy, redaction/privacy, batch]
-      exporters: [otlphttp/tempo]
-    metrics:
-      receivers: [otlp]
-      processors: [memory_limiter, transform/privacy, redaction/privacy, batch]
-      exporters: [prometheus]
+    logs: {receivers: [otlp], processors: [memory_limiter, transform/privacy, redaction/privacy, batch], exporters: [otlphttp/loki]}
+    traces: {receivers: [otlp], processors: [memory_limiter, transform/privacy, redaction/privacy, batch], exporters: [otlphttp/tempo]}
+    metrics: {receivers: [otlp], processors: [memory_limiter, transform/privacy, redaction/privacy, batch], exporters: [prometheus]}

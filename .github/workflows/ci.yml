@@ -61,6 +61,8 @@ jobs:
         run: dotnet pack templates/trykatch/tools/TrykatchApp.ModuleTool -c Release --no-build -o artifacts/cli -p:PackageVersion=0.1.0-ci
       - run: dotnet test templates/trykatch/tests/TrykatchApp.UnitTests -c Release --no-build
       - run: dotnet test templates/trykatch/tests/TrykatchApp.IntegrationTests -c Release --no-build
+      - name: Validate observability deployment contracts
+        run: bash scripts/test-observability.sh
       - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
       - name: Verify disabled and enabled Federation composition
         run: bash scripts/test-federation-module.sh
@@ -80,7 +82,7 @@ jobs:
       - run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web test:e2e
       - run: dotnet list templates/trykatch/TrykatchApp.slnx package --vulnerable --include-transitive
       - run: pnpm --dir templates/trykatch/web audit --audit-level high
-      - run: docker compose -f templates/trykatch/compose.yml config --quiet
+      - run: TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file templates/trykatch/.env.example -f templates/trykatch/compose.yml config --quiet
       - run: docker build -f templates/trykatch/src/TrykatchApp.Api/Dockerfile templates/trykatch
       - run: docker build -f templates/trykatch/web/apps/web/Dockerfile templates/trykatch
       - run: bash scripts/test-migrator.sh

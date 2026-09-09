@@ -1265,9 +1265,6 @@
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.11, )",
           "OpenIddict.AspNetCore": "[7.7.0, )",
           "Scalar.AspNetCore": "[2.17.3, )",
-          "Serilog.AspNetCore": "[10.0.0, )",
-          "Serilog.Formatting.Compact": "[3.0.0, )",
-          "Serilog.Sinks.OpenTelemetry": "[4.2.0, )",
           "Trykatch.Modules.Federation": "[1.0.0, )",
           "TrykatchApp.Application": "[1.0.0, )",
           "TrykatchApp.Identity": "[1.0.0, )",
@@ -1341,7 +1338,10 @@
           "OpenTelemetry.Extensions.Hosting": "[1.18.0, )",
           "OpenTelemetry.Instrumentation.AspNetCore": "[1.18.0, )",
           "OpenTelemetry.Instrumentation.Http": "[1.18.0, )",
-          "OpenTelemetry.Instrumentation.Runtime": "[1.18.0, )"
+          "OpenTelemetry.Instrumentation.Runtime": "[1.18.0, )",
+          "Serilog.AspNetCore": "[10.0.0, )",
+          "Serilog.Formatting.Compact": "[3.0.0, )",
+          "Serilog.Sinks.OpenTelemetry": "[4.2.0, )"
         }
       },
       "AWSSDK.S3": {

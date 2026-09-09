@@ -17,6 +17,8 @@ dotnet run --project src/TrykatchApp.AppHost
 
 AppHost runs the one-shot `Migrator` project before the API. Production Compose also waits for it and gives the API a separate runtime credential. The role setup and deployment contract are described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 
+For Compose, copy `.env.example`, set the required immutable `TRYKATCH_RELEASE_VERSION`, and replace every secret placeholder. The base OTLP path is private single-host plaintext; use `compose.observability-tls.yml` for authenticated TLS ingestion and keep Grafana on loopback or behind authenticated HTTPS. See [operations](docs/operations.md) for sampling, privacy, queues, retention, alerts, validation, and deployment-owned staging drills.
+
 The development launch profiles and AppHost seed two local-only identities with the password `Admin@123`:
 
 - `admin@trykatch.net` — platform Administrator access.

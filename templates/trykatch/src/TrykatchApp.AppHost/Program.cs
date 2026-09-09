@@ -9,7 +9,9 @@ IResourceBuilder<PostgresDatabaseResource> database = postgres.AddDatabase("tryk
 IResourceBuilder<ContainerResource> collector = builder
     .AddContainer("otel-collector", "otel/opentelemetry-collector-contrib", "0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6")
     .WithBindMount("../../deploy/observability/otel-collector.yml", "/etc/otelcol-contrib/config.yaml", isReadOnly: true)
+    .WithVolume("trykatch-otel-queue", "/var/lib/otelcol")
     .WithHttpEndpoint(targetPort: 4318, name: "otlp-http")
+    .WithHttpEndpoint(targetPort: 8888, name: "telemetry")
     .WithHttpEndpoint(targetPort: 8889, name: "prometheus");
 
 IResourceBuilder<ProjectResource> migrator = builder
@@ -21,13 +23,20 @@ IResourceBuilder<ProjectResource> api = builder
     .AddProject<Projects.TemplateProjectIdentifier_Api>("api")
     .WithReference(database)
     .WaitForCompletion(migrator)
-    .WithEnvironment("DevelopmentDemo__Enabled", "true")
-    .WithEnvironment("DevelopmentDemo__PlatformAdminEmail", "admin@trykatch.net")
-    .WithEnvironment("DevelopmentDemo__TenantAdminEmail", "tenant@trykatch.net")
-    .WithEnvironment("DevelopmentDemo__Password", "Admin@123")
-    .WithEnvironment("DevelopmentDemo__OrganizationName", "Demo Workspace")
-    .WithEnvironment("DevelopmentDemo__OrganizationSlug", "demo-workspace")
-    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", collector.GetEndpoint("otlp-http"));
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", collector.GetEndpoint("otlp-http"))
+    .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
+    .WithEnvironment("OTEL_TRACES_SAMPLER", "parentbased_traceidratio")
+    .WithEnvironment("OTEL_TRACES_SAMPLER_ARG", "1");
+
+if (builder.ExecutionContext.IsRunMode)
+{
+    api.WithEnvironment("DevelopmentDemo__Enabled", "true")
+        .WithEnvironment("DevelopmentDemo__PlatformAdminEmail", "admin@trykatch.net")
+        .WithEnvironment("DevelopmentDemo__TenantAdminEmail", "tenant@trykatch.net")
+        .WithEnvironment("DevelopmentDemo__Password", "Admin@123")
+        .WithEnvironment("DevelopmentDemo__OrganizationName", "Demo Workspace")
+        .WithEnvironment("DevelopmentDemo__OrganizationSlug", "demo-workspace");
+}
 
 #if TRYKATCH_EMAIL
 IResourceBuilder<ContainerResource> mailpit = builder

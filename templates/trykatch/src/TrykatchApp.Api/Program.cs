@@ -14,8 +14,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using OpenIddict.Validation.AspNetCore;
-using Serilog;
-using Serilog.Formatting.Compact;
 using Scalar.AspNetCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -24,20 +22,6 @@ if (isOpenApiGeneration)
 {
     builder.Configuration["ConnectionStrings:trykatchdb"] = "Host=localhost;Database=openapi;Username=openapi;Password=openapi";
 }
-
-builder.Host.UseSerilog((context, services, logging) =>
-{
-    logging.ReadFrom.Configuration(context.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext()
-        .WriteTo.Console(new RenderedCompactJsonFormatter());
-
-    string? otlpEndpoint = context.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-    if (!string.IsNullOrWhiteSpace(otlpEndpoint))
-    {
-        logging.WriteTo.OpenTelemetry(options => options.Endpoint = otlpEndpoint);
-    }
-});
 
 builder.AddServiceDefaults();
 builder.Services.AddApplication();
@@ -119,7 +103,6 @@ if (!isOpenApiGeneration)
 
 app.UseForwardedHeaders();
 app.UseExceptionHandler();
-app.UseSerilogRequestLogging();
 app.Use(async (context, next) =>
 {
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
@@ -129,6 +112,7 @@ app.Use(async (context, next) =>
 });
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseServiceDefaults();
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseMiddleware<PlatformDataTransactionMiddleware>();
