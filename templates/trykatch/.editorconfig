@@ -22,3 +22,13 @@ indent_size = 2
 [**/Migrations/*.cs]
 generated_code = true
 dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+
+[**/Migrations/**/*.cs]
+generated_code = true
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+
+[**/*Controller.cs]
+csharp_style_prefer_primary_constructors = true:error
+dotnet_diagnostic.IDE0290.severity = error

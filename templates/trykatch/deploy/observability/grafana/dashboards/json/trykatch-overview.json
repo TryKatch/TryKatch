@@ -3,56 +3,53 @@
   "editable": true,
   "panels": [
     {
-      "type": "stat",
-      "title": "Request success rate",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "100 * (1 - (sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_request_duration_seconds_count[5m])), 0.001))", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
-      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 }
+      "type": "stat", "title": "Request success rate", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "100 * (1 - ((sum(rate(http_server_request_duration_seconds_count{service_name=~\"$service\",deployment_environment_name=~\"$environment\",http_response_status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_request_duration_seconds_count{service_name=~\"$service\",deployment_environment_name=~\"$environment\"}[5m])), 0.001)))", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }, "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 }
     },
     {
-      "type": "stat",
-      "title": "Outbox failures (1h)",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "sum(increase(trykatch_outbox_dispatches_total{outcome=\"failure\"}[1h])) or vector(0)", "refId": "A" }],
+      "type": "stat", "title": "Outbox failures (1h)", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(increase(trykatch_outbox_dispatches_total{service_name=~\"$service\",deployment_environment_name=~\"$environment\",outcome=\"failure\"}[1h])) or vector(0)", "refId": "A" }],
       "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 }
     },
     {
-      "type": "timeseries",
-      "title": "PostgreSQL p95 operation latency",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(db_client_operation_duration_seconds_bucket[5m])))", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "s" } },
-      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 0 }
+      "type": "timeseries", "title": "PostgreSQL p95 operation latency", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(db_client_operation_duration_seconds_bucket{service_name=~\"$service\",deployment_environment_name=~\"$environment\"}[5m])))", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s" } }, "gridPos": { "h": 5, "w": 12, "x": 12, "y": 0 }
     },
     {
-      "type": "timeseries",
-      "title": "HTTP request rate",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "sum(rate(http_server_request_duration_seconds_count[5m]))", "refId": "A" }],
+      "type": "timeseries", "title": "HTTP request rate", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=~\"$service\",deployment_environment_name=~\"$environment\"}[5m]))", "refId": "A" }],
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 }
     },
     {
-      "type": "timeseries",
-      "title": "HTTP p95 latency",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))", "refId": "A" }],
-      "fieldConfig": { "defaults": { "unit": "s" } },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 }
+      "type": "timeseries", "title": "HTTP p95 latency", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name=~\"$service\",deployment_environment_name=~\"$environment\"}[5m])))", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s" } }, "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 }
     },
     {
-      "type": "timeseries",
-      "title": "Outbox dispatch throughput",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "sum by (outcome) (rate(trykatch_outbox_dispatches_total[5m]))", "legendFormat": "{{outcome}}", "refId": "A" }],
-      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 13 }
+      "type": "timeseries", "title": "Outbox dispatch throughput", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (outcome) (rate(trykatch_outbox_dispatches_total{service_name=~\"$service\",deployment_environment_name=~\"$environment\"}[5m]))", "legendFormat": "{{outcome}}", "refId": "A" }],
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 13 }
+    },
+    {
+      "type": "timeseries", "title": "Collector queue occupancy", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "max by (exporter) (otelcol_exporter_queue_size / clamp_min(otelcol_exporter_queue_capacity, 1))", "legendFormat": "{{exporter}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }, "gridPos": { "h": 7, "w": 12, "x": 12, "y": 13 }
+    },
+    {
+      "type": "timeseries", "title": "Collector failed and refused telemetry", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total[5m]) + rate(otelcol_exporter_send_failed_spans_total[5m]))", "legendFormat": "failed {{exporter}}", "refId": "A" },
+        { "expr": "sum(rate(otelcol_receiver_refused_log_records_total[5m]) + rate(otelcol_receiver_refused_spans_total[5m]))", "legendFormat": "refused", "refId": "B" }
+      ], "gridPos": { "h": 7, "w": 24, "x": 0, "y": 20 }
     }
   ],
   "schemaVersion": 42,
   "tags": ["trykatch", "starter"],
-  "templating": { "list": [] },
-  "time": { "from": "now-1h", "to": "now" },
-  "title": "Trykatch overview",
-  "uid": "trykatch-overview",
-  "version": 1
+  "templating": { "list": [
+    { "name": "service", "label": "Service", "type": "query", "datasource": { "type": "prometheus", "uid": "prometheus" }, "query": { "query": "label_values(target_info, service_name)", "refId": "service" }, "includeAll": true, "allValue": ".*", "refresh": 1 },
+    { "name": "environment", "label": "Environment", "type": "query", "datasource": { "type": "prometheus", "uid": "prometheus" }, "query": { "query": "label_values(target_info, deployment_environment_name)", "refId": "environment" }, "includeAll": true, "allValue": ".*", "refresh": 1 }
+  ] },
+  "time": { "from": "now-1h", "to": "now" }, "title": "Trykatch overview", "uid": "trykatch-overview", "version": 2
 }

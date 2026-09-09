@@ -1,0 +1,16 @@
+services:
+  api:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: https://otel-collector:4318
+      OTEL_EXPORTER_OTLP_HEADERS_FILE: /run/secrets/otel-headers
+      SSL_CERT_FILE: /run/secrets/otel-ca.crt
+    volumes:
+      - ${TRYKATCH_TELEMETRY_SECRETS_PATH:-./secrets/telemetry}/ca.crt:/run/secrets/otel-ca.crt:ro
+      - ${TRYKATCH_TELEMETRY_SECRETS_PATH:-./secrets/telemetry}/headers:/run/secrets/otel-headers:ro
+  otel-collector:
+    volumes:
+      - ./deploy/observability/otel-collector.tls.yml:/etc/otelcol-contrib/config.yaml:ro
+      - collector-storage:/var/lib/otelcol
+      - ${TRYKATCH_TELEMETRY_SECRETS_PATH:-./secrets/telemetry}/server.crt:/run/secrets/otel-server.crt:ro
+      - ${TRYKATCH_TELEMETRY_SECRETS_PATH:-./secrets/telemetry}/server.key:/run/secrets/otel-server.key:ro
+      - ${TRYKATCH_TELEMETRY_SECRETS_PATH:-./secrets/telemetry}/token:/run/secrets/otel-token:ro

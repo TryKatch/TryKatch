@@ -47,10 +47,11 @@ internal sealed partial class OutboxDelivery(
             message.LastError = exception.Message.Length <= MaximumErrorLength
                 ? exception.Message
                 : exception.Message[..MaximumErrorLength];
-            activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
-            activity?.AddException(exception);
+            string exceptionType = exception.GetType().FullName ?? exception.GetType().Name;
+            activity?.SetStatus(ActivityStatusCode.Error);
+            activity?.SetTag("error.type", exceptionType);
             DispatchCounter.Add(1, new KeyValuePair<string, object?>("outcome", "failure"));
-            LogFailed(logger, exception, message.Id, message.Attempts);
+            LogFailed(logger, message.Id, message.Attempts, exceptionType);
             return false;
         }
         finally
@@ -59,6 +60,6 @@ internal sealed partial class OutboxDelivery(
         }
     }
 
-    [LoggerMessage(EventId = 4201, Level = LogLevel.Error, Message = "Outbox message {MessageId} failed on attempt {DeliveryAttempt}")]
-    private static partial void LogFailed(ILogger logger, Exception exception, Guid messageId, int deliveryAttempt);
+    [LoggerMessage(EventId = 4201, Level = LogLevel.Error, Message = "Outbox message {MessageId} failed on attempt {DeliveryAttempt} with {ExceptionType}")]
+    private static partial void LogFailed(ILogger logger, Guid messageId, int deliveryAttempt, string exceptionType);
 }

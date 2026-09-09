@@ -31,6 +31,10 @@ generate_and_build() {
   dotnet restore "$output/$namespace_name.slnx"
   dotnet build "$output/$namespace_name.slnx" --no-restore
   dotnet run --project "$output/tools/$namespace_name.ModuleTool" --no-build -- module doctor --root "$output"
+  TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file "$output/.env.example" -f "$output/compose.yml" config --quiet
+  test -f "$output/deploy/observability/otel-collector.tls.yml"
+  test -f "$output/compose.observability-tls.yml"
+  test -f "$output/scripts/test-observability.sh"
   if [[ -f "$output/web/package.json" ]]; then
     (
       cd "$output/web"

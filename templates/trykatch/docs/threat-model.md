@@ -14,7 +14,7 @@ This model covers the generated React web application, same-origin reverse proxy
 3. The API authenticates the actor, resolves server-protected workspace context, authorizes permissions, and starts database transactions.
 4. The runtime database role crosses into PostgreSQL but cannot own objects or bypass RLS.
 5. The one-shot migrator uses a separately controlled owner credential.
-6. The API sends OTLP to the collector; Grafana backends are operational infrastructure, not authorization systems.
+6. The API sends OTLP to the collector on the private single-host network; authenticated TLS is mandatory outside that trust domain. Grafana backends are operational infrastructure, not authorization systems.
 7. External OIDC clients cross a protocol boundary and receive only the grants registered for that client.
 
 ## Required controls
@@ -30,9 +30,10 @@ This model covers the generated React web application, same-origin reverse proxy
 | Database-owner compromise through the API | The API receives only the runtime role; bootstrap, migrator, and runtime secrets are distinct; the runtime role is NOINHERIT NOBYPASSRLS and owns no relations; CI verifies these invariants. |
 | Destructive or unaccountable data changes | Archive and pending deletion are recoverable states; delete requires a reason; permanent disposal is outside normal CRUD; security-relevant actions produce immutable audit snapshots. |
 | Duplicate integration effects | Transactional outbox delivery is at least once; every envelope carries a stable message ID; transport adapters and consumers must deduplicate with that ID; retry identity is unit-tested. |
-| Secret disclosure in source, images, logs, or telemetry | Secret paths and PFX files are ignored; Compose mounts certificates read-only; payloads are not logged by the default outbox adapter; CI performs secret and dependency scans; operators must redact custom telemetry. |
+| Secret disclosure in source, images, logs, or telemetry | ServiceDefaults projects console and OTLP logs onto a bounded approved schema; outbox errors export type, not message; Collector resource/attribute allowlists and body/status sanitization fail closed before persistent queues; secret files are mounted read-only; CI checks planted inputs and configuration. Custom fields require privacy review. |
 | Supply-chain substitution | NuGet and pnpm lockfiles, central versions, vulnerability audits, SBOM generation, secret scanning, and tag-plus-digest container references. |
-| Telemetry outage affecting business traffic | OTLP export is asynchronous through the collector; collector batching, memory limits, and retries are configured; application readiness depends on PostgreSQL, not Grafana backends. |
+| Telemetry outage affecting business traffic | OTLP export is asynchronous; API startup has no Collector dependency; Collector queues/retries are bounded and file-backed for logs/traces; application readiness depends on PostgreSQL, not Grafana backends. Queue overflow, retry expiry, disk/host loss, and missed Prometheus scrapes remain explicit loss windows. |
+| Public operational access | Collector, Loki, Tempo, and Prometheus have no host bindings. Grafana defaults to loopback with a non-default password and requires authenticated HTTPS ingress. Backend-only API ingress must deny `/health/*`; probes themselves remain unauthenticated on the private container network. |
 | Forged forwarding headers | Production ingress must be the only public route to the API and must overwrite forwarded headers. Direct API publishing is a diagnostic profile and requires its own trusted-proxy configuration. |
 
 ## Residual risks and release blockers
@@ -42,5 +43,6 @@ This model covers the generated React web application, same-origin reverse proxy
 - Rate limits are single-process in version one. Multi-replica deployments that require a global quota must add a distributed limiter at the ingress or a shared adapter.
 - The broker-free outbox adapter provides a safe local default, not external event delivery. A chosen broker adapter needs its own authentication, authorization, retry, retention, and consumer-idempotency review.
 - Operational access to PostgreSQL, Grafana, Loki, Tempo, Prometheus, the container host, and the deployment secret store is outside application RBAC and must follow least privilege.
+- Staging must prove planted-secret absence with positive telemetry controls, TLS/auth isolation, persistent-queue recovery/loss bounds, retention, cardinality, capacity, and alert delivery. Local validation is not production qualification.
 
 Any unresolved high or critical finding blocks a release candidate. Revisit this model whenever a new module introduces personal data, file upload, outbound messaging, external identity, a public callback, or another persistent store.

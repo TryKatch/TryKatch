@@ -1,5 +1,6 @@
 using TrykatchApp.Application.Outbox;
 using TrykatchApp.Infrastructure.Persistence;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 
@@ -38,6 +39,29 @@ public sealed class OutboxDeliveryTests
         transport.Envelopes.Select(envelope => envelope.DeliveryAttempt).ShouldBe([1, 2]);
     }
 
+    [TestMethod]
+    public async Task FailureTelemetryDoesNotIncludeTheTransportExceptionMessage()
+    {
+        const string plantedSecret = "password=planted-secret";
+        RecordingLogger logger = new();
+        OutboxDelivery delivery = new(
+            new RecordingTransport { Failure = new InvalidOperationException(plantedSecret) },
+            TimeProvider.System,
+            logger);
+        OutboxMessage message = new()
+        {
+            Id = Guid.CreateVersion7(),
+            Type = "TrykatchApp.ProjectChanged",
+            Payload = "{}",
+            OccurredAt = DateTimeOffset.UtcNow
+        };
+
+        (await delivery.DeliverAsync(message, CancellationToken.None)).ShouldBeFalse();
+        logger.Exception.ShouldBeNull();
+        logger.StateText.ShouldNotContain(plantedSecret);
+        logger.StateText.ShouldContain(typeof(InvalidOperationException).FullName!);
+    }
+
     private sealed class RecordingTransport : IOutboxTransport
     {
         public List<OutboxEnvelope> Envelopes { get; } = [];
@@ -54,5 +78,19 @@ public sealed class OutboxDeliveryTests
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class RecordingLogger : ILogger<OutboxDelivery>
+    {
+        public Exception? Exception { get; private set; }
+        public string StateText { get; private set; } = string.Empty;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Exception = exception;
+            StateText = formatter(state, exception);
+        }
     }
 }

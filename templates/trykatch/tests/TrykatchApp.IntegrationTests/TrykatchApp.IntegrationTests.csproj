@@ -9,6 +9,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/TrykatchApp.Api/TrykatchApp.Api.csproj" />
+    <ProjectReference Include="../../src/TrykatchApp.ServiceDefaults/TrykatchApp.ServiceDefaults.csproj" />
   </ItemGroup>
 
   <ItemGroup>

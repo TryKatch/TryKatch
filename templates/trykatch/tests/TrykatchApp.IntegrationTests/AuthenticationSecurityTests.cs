@@ -72,6 +72,8 @@ public sealed class AuthenticationSecurityTests
         });
         missingAntiforgery.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
+        await AssertJsonNullabilityBoundaryAsync(client, antiforgery);
+
         HttpResponseMessage signedIn = await PostWithAntiforgeryAsync(client, "/api/v1/auth/login", antiforgery, new
         {
             email = AdministratorEmail,
@@ -91,6 +93,24 @@ public sealed class AuthenticationSecurityTests
         await AssertPasswordResetAsync(factory);
         await AssertMultiFactorAndRecoveryCodeAsync(factory);
         await AssertOpenIdConnectGrantPolicyAsync(factory);
+    }
+
+    private static async Task AssertJsonNullabilityBoundaryAsync(HttpClient client, string antiforgery)
+    {
+        HttpResponseMessage explicitNull = await PostWithAntiforgeryAsync(client, "/api/v1/auth/login", antiforgery, new
+        {
+            email = (string?)null,
+            password = AdministratorPassword,
+            rememberMe = false
+        });
+        explicitNull.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        HttpResponseMessage missingRequiredValue = await PostWithAntiforgeryAsync(client, "/api/v1/auth/login", antiforgery, new
+        {
+            email = AdministratorEmail,
+            rememberMe = false
+        });
+        missingRequiredValue.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     private static async Task AssertPasswordResetAsync(WebApplicationFactory<Program> factory)
