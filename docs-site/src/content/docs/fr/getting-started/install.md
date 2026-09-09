@@ -6,7 +6,7 @@ description: Installez le modèle Trykatch et générez une solution .NET et Rea
 ## Installer le modèle
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.1
+dotnet new install Trykatch.Templates@0.1.0-preview.2
 ```
 
 Générez un backend .NET 10 et un espace de travail React complets avec le nom de votre produit :

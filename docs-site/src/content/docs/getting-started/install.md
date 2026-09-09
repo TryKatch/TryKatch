@@ -6,7 +6,7 @@ description: Install the Trykatch template package and generate a complete .NET 
 ## Install the template
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.1
+dotnet new install Trykatch.Templates@0.1.0-preview.2
 ```
 
 Generate a complete .NET 10 backend and React workspace with your product name:
