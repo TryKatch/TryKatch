@@ -36,11 +36,12 @@ describe('LandingPage', () => {
   it('offers persistent light, system, and dark appearance modes', async () => {
     render(<LandingPage />)
 
-    expect(screen.getByRole('button', { name: 'Light Theme' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'System Theme' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Dark Theme' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Theme: System' }))
+    expect(screen.getByRole('menuitemradio', { name: 'Light' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: 'System' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemradio', { name: 'Dark' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dark Theme' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Dark' }))
 
     await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'dark'))
     expect(localStorage.getItem('trykatch-theme')).toBe('dark')
