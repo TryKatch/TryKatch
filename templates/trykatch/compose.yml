@@ -68,6 +68,8 @@ services:
     build:
       context: .
       dockerfile: web/apps/web/Dockerfile
+    environment:
+      TRYKATCH_INGRESS_PROXY_IP: ${TRYKATCH_INGRESS_PROXY_IP:-172.30.250.1}
     ports: ["${TRYKATCH_WEB_BIND_ADDRESS:-127.0.0.1}:8080:8080"]
     networks:
       default:
@@ -76,7 +78,11 @@ services:
       api:
         condition: service_healthy
     read_only: true
-    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+      - /etc/nginx/conf.d:mode=0770,uid=101,gid=101
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     restart: unless-stopped
@@ -199,3 +205,4 @@ networks:
     ipam:
       config:
         - subnet: ${TRYKATCH_NETWORK_SUBNET:-172.30.250.0/24}
+          gateway: ${TRYKATCH_INGRESS_PROXY_IP:-172.30.250.1}

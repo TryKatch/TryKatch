@@ -115,6 +115,7 @@
           "condition": "(ui == \"none\")",
           "exclude": [
             "web/**",
+            "scripts/test-proxy-headers.sh",
             ".github/workflows/web.yml",
             "compose.yml",
             "README.md"

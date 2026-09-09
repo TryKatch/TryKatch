@@ -45,8 +45,9 @@ classify_path() {
     templates/trykatch/deploy/postgres/*)
       deployment=true
       ;;
-    scripts/test-migrator.sh)
+    scripts/test-migrator.sh|templates/trykatch/scripts/test-proxy-headers.sh)
       deployment=true
+      web=true
       ;;
     templates/trykatch/compose*.yml|templates/trykatch/.env.example)
       deployment=true
@@ -59,6 +60,10 @@ classify_path() {
       ;;
     templates/trykatch/src/*|templates/trykatch/tests/*|templates/trykatch/tools/TrykatchApp.ModuleTool/*|templates/trykatch/Directory.*|templates/trykatch/TrykatchApp.slnx|templates/trykatch/dotnet-tools.json)
       backend=true
+      ;;
+    templates/trykatch/web/apps/web/nginx.conf|templates/trykatch/web/apps/web/Dockerfile|templates/trykatch/web/apps/web/proxy-test/*)
+      web=true
+      deployment=true
       ;;
     templates/trykatch/web/*|templates/trykatch/tools/*.mjs)
       web=true

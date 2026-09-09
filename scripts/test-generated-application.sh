@@ -185,6 +185,8 @@ EOF
 cat >"$compose_override" <<EOF
 services:
   web:
+    environment:
+      TRYKATCH_INGRESS_PROXY_IP: 127.0.0.1
     ports:
       - "127.0.0.1:8443:8443"
     volumes:
