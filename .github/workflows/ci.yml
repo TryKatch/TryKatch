@@ -13,6 +13,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify-documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: docs-site/pnpm-lock.yaml
+      - run: pnpm --dir docs-site install --frozen-lockfile
+      - run: pnpm --dir docs-site build
+      - run: pnpm --dir docs-site audit --audit-level high
+
   verify-template:
     runs-on: ubuntu-latest
     steps:
