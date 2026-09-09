@@ -5,6 +5,7 @@ application_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 configuration="$application_root/web/apps/web/nginx.conf"
 container_file="$application_root/web/apps/web/Dockerfile"
 compose_file="$application_root/compose.yml"
+environment_file="$application_root/.env.example"
 
 fail() {
   printf 'Proxy header contract failed: %s\n' "$1" >&2
@@ -23,10 +24,18 @@ grep -Fq 'NGINX_ENVSUBST_FILTER=^TRYKATCH_INGRESS_PROXY_IP$' "$container_file" |
   fail 'Nginx template expansion is not restricted to the ingress configuration variable'
 grep -Fq 'COPY web/apps/web/nginx.conf /etc/nginx/templates/default.conf.template' "$container_file" ||
   fail 'the Nginx policy is not rendered from its configuration template'
-grep -Fq 'TRYKATCH_INGRESS_PROXY_IP: ${TRYKATCH_INGRESS_PROXY_IP:-172.30.250.1}' "$compose_file" ||
+grep -Fq 'TRYKATCH_INGRESS_PROXY_IP: ${TRYKATCH_INGRESS_PROXY_IP:-172.30.250.2}' "$compose_file" ||
   fail 'the trusted ingress peer is not supplied to the web container'
-grep -Fq 'gateway: ${TRYKATCH_INGRESS_PROXY_IP:-172.30.250.1}' "$compose_file" ||
-  fail 'the trusted same-host ingress address and Compose gateway can diverge'
+grep -Fq 'gateway: ${TRYKATCH_NETWORK_GATEWAY:-172.30.250.1}' "$compose_file" ||
+  fail 'the Compose gateway is not configured independently from the trusted ingress peer'
+grep -Fq 'ip_range: ${TRYKATCH_NETWORK_DYNAMIC_RANGE:-172.30.250.128/25}' "$compose_file" ||
+  fail 'automatic container allocation is not isolated from reserved proxy addresses'
+grep -Fq 'TRYKATCH_NETWORK_GATEWAY=172.30.250.1' "$environment_file" ||
+  fail 'the example environment does not reserve a distinct Compose gateway'
+grep -Fq 'TRYKATCH_NETWORK_DYNAMIC_RANGE=172.30.250.128/25' "$environment_file" ||
+  fail 'the example environment does not define a safe automatic allocation range'
+grep -Fq 'TRYKATCH_INGRESS_PROXY_IP=172.30.250.2' "$environment_file" ||
+  fail 'the example environment does not reserve a dedicated ingress address'
 grep -Fq '/etc/nginx/conf.d:mode=0770,uid=101,gid=101' "$compose_file" ||
   fail 'the read-only web container has no private writable destination for rendered Nginx configuration'
 
@@ -40,7 +49,7 @@ if [[ ${1:-} != --runtime ]]; then
   exit 0
 fi
 
-for command in docker grep; do
+for command in awk curl docker grep; do
   command -v "$command" >/dev/null 2>&1 || fail "required command is unavailable: $command"
 done
 
@@ -70,6 +79,7 @@ trap cleanup EXIT
 docker network create \
   --driver bridge \
   --subnet 172.31.251.0/24 \
+  --ip-range 172.31.251.128/25 \
   --gateway 172.31.251.1 \
   "$network_name" >/dev/null
 network_created=true
@@ -92,6 +102,7 @@ docker run --detach \
   --network "$network_name" \
   --network-alias web \
   --ip 172.31.251.10 \
+  --publish 127.0.0.1::8080 \
   --env NGINX_ENVSUBST_FILTER='^TRYKATCH_INGRESS_PROXY_IP$' \
   --env TRYKATCH_INGRESS_PROXY_IP=172.31.251.30 \
   --read-only \
@@ -127,6 +138,17 @@ request_from() {
     http://web:8080/api/proxy-contract
 }
 
+request_from_dynamic_peer() {
+  docker run --rm \
+    --network "$network_name" \
+    --entrypoint wget \
+    "$container_image" \
+    -qO- \
+    --header='X-Forwarded-For: 198.51.100.99, 203.0.113.10' \
+    --header='X-Forwarded-Proto: https' \
+    http://web:8080/api/proxy-contract
+}
+
 trusted_result=$(request_from 172.31.251.30)
 [[ $trusted_result == '203.0.113.10|https' ]] ||
   fail "trusted ingress produced unexpected upstream headers: $trusted_result"
@@ -134,5 +156,22 @@ trusted_result=$(request_from 172.31.251.30)
 untrusted_result=$(request_from 172.31.251.31)
 [[ $untrusted_result == '172.31.251.31|http' ]] ||
   fail "untrusted peer influenced upstream headers: $untrusted_result"
+
+dynamic_result=$(request_from_dynamic_peer)
+dynamic_address=${dynamic_result%%|*}
+dynamic_scheme=${dynamic_result##*|}
+[[ $dynamic_address == 172.31.251.* && $dynamic_address != 172.31.251.30 && $dynamic_scheme == http ]] ||
+  fail "an automatically allocated peer received ingress trust: $dynamic_result"
+
+published_port=$(docker port "$proxy_name" 8080/tcp | awk -F: 'NR == 1 { print $NF }')
+[[ -n $published_port ]] || fail 'the host-published proxy port could not be resolved'
+host_result=$(curl --connect-timeout 2 --max-time 5 --fail --silent --show-error \
+  --header 'X-Forwarded-For: 198.51.100.99, 203.0.113.10' \
+  --header 'X-Forwarded-Proto: https' \
+  "http://127.0.0.1:$published_port/api/proxy-contract")
+host_address=${host_result%%|*}
+host_scheme=${host_result##*|}
+[[ $host_address != 198.51.100.99 && $host_address != 203.0.113.10 && $host_scheme == http ]] ||
+  fail "a host-published request influenced upstream headers: $host_result"
 
 printf 'Proxy header runtime behavior passed.\n'
