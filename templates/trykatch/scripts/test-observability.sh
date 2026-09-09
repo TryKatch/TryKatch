@@ -27,8 +27,20 @@ grep -Fq 'retention_period: 168h' "$template_root/deploy/observability/loki.yml"
 grep -Fq -- '--storage.tsdb.retention.time=15d' "$template_root/compose.yml"
 grep -Fq '127.0.0.1}:3000:3000' "$template_root/compose.yml"
 
-telemetry_loss_expression='(sum(increase(otelcol_receiver_refused_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_spans_total[5m])) or vector(0))'
+telemetry_loss_expression='(sum(increase(otelcol_receiver_refused_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_metric_points_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_metric_points_total[5m])) or vector(0))'
 grep -Fq "expr: '$telemetry_loss_expression'" "$template_root/deploy/observability/grafana/alerting/rules.yml"
+
+dashboard="$template_root/deploy/observability/grafana/dashboards/json/trykatch-overview.json"
+grep -Fq 'sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total[5m]))' "$dashboard"
+grep -Fq 'sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))' "$dashboard"
+grep -Fq 'sum by (exporter) (rate(otelcol_exporter_send_failed_metric_points_total[5m]))' "$dashboard"
+
+serilog_registration="$template_root/src/TrykatchApp.ServiceDefaults/Observability/SerilogRegistration.cs"
+grep -Fq '.WriteTo.Sink(new SafeTelemetrySink(policy))' "$serilog_registration"
+if grep -Eq '\.ReadFrom\.(Configuration|Services)' "$serilog_registration"; then
+  printf 'Serilog bypass sinks must not be configurable outside the safe telemetry sink.\n' >&2
+  exit 1
+fi
 
 if [[ $static_only == true ]]; then
   exit 0

@@ -58,7 +58,7 @@ classify_path() {
       web=true
       packaging=true
       ;;
-    templates/trykatch/src/*|templates/trykatch/tests/*|templates/trykatch/tools/TrykatchApp.ModuleTool/*|templates/trykatch/Directory.*|templates/trykatch/TrykatchApp.slnx|templates/trykatch/dotnet-tools.json)
+    templates/trykatch/src/*|templates/trykatch/tests/*|templates/trykatch/tools/TrykatchApp.ModuleTool/*|templates/trykatch/Directory.*|templates/trykatch/.editorconfig|templates/trykatch/TrykatchApp.slnx|templates/trykatch/dotnet-tools.json)
       backend=true
       ;;
     templates/trykatch/web/apps/web/nginx.conf|templates/trykatch/web/apps/web/Dockerfile|templates/trykatch/web/apps/web/proxy-test/*)
@@ -71,6 +71,9 @@ classify_path() {
     templates/trykatch/.dockerignore)
       backend=true
       web=true
+      ;;
+    templates/trykatch/*)
+      mark_all
       ;;
   esac
 }

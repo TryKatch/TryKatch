@@ -57,7 +57,7 @@ groups:
           - refId: Query
             relativeTimeRange: {from: 600, to: 0}
             datasourceUid: prometheus
-            model: {editorMode: code, expr: '(sum(increase(otelcol_receiver_refused_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_spans_total[5m])) or vector(0))', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+            model: {editorMode: code, expr: '(sum(increase(otelcol_receiver_refused_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_metric_points_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_log_records_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_metric_points_total[5m])) or vector(0))', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
           - refId: Threshold
             relativeTimeRange: {from: 0, to: 0}
             datasourceUid: __expr__
