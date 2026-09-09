@@ -69,7 +69,7 @@ services:
       context: .
       dockerfile: web/apps/web/Dockerfile
     environment:
-      TRYKATCH_INGRESS_PROXY_IP: ${TRYKATCH_INGRESS_PROXY_IP:-172.30.250.1}
+      TRYKATCH_INGRESS_PROXY_IP: ${TRYKATCH_INGRESS_PROXY_IP:-172.30.250.2}
     ports: ["${TRYKATCH_WEB_BIND_ADDRESS:-127.0.0.1}:8080:8080"]
     networks:
       default:
@@ -205,4 +205,5 @@ networks:
     ipam:
       config:
         - subnet: ${TRYKATCH_NETWORK_SUBNET:-172.30.250.0/24}
-          gateway: ${TRYKATCH_INGRESS_PROXY_IP:-172.30.250.1}
+          ip_range: ${TRYKATCH_NETWORK_DYNAMIC_RANGE:-172.30.250.128/25}
+          gateway: ${TRYKATCH_NETWORK_GATEWAY:-172.30.250.1}
