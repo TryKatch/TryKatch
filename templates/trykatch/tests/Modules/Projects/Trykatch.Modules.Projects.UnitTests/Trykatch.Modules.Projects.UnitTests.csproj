@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+    <PackageReference Include="Shouldly" />
+    <ProjectReference Include="../../../../src/Common/Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" />
+    <ProjectReference Include="../../../../src/Modules/Projects/Trykatch.Modules.Projects.Domain/Trykatch.Modules.Projects.Domain.csproj" />
+    <ProjectReference Include="../../../../src/Modules/Projects/Trykatch.Modules.Projects.Infrastructure/Trykatch.Modules.Projects.Infrastructure.csproj" />
+    <Compile Include="../../../ArchitectureTestSettings.cs" Link="MSTestSettings.cs" />
+  </ItemGroup>
+</Project>

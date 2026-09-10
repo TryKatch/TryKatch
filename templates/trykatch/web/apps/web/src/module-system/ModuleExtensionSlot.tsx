@@ -1,1 +1,1 @@
-export { ModuleExtensionSlot, TrykatchModuleProvider } from '@trykatchapp/module-sdk'
+export { ModuleExtensionSlot, ModuleProvider } from '@trykatch/module-sdk'

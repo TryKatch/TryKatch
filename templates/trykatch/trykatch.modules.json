@@ -8,28 +8,28 @@
   ],
   "publisherTrust": {},
   "outputs": {
-    "backend": "src/TrykatchApp.Api/Modules/EnabledModules.cs",
-    "backendNamespace": "TrykatchApp.Api.Modules",
-    "dotnetModuleContractNamespace": "TrykatchApp.Modules",
-    "migrator": "src/TrykatchApp.Migrator/Modules/EnabledModules.cs",
-    "migratorNamespace": "TrykatchApp.Migrator.Modules",
+    "backend": "src/API/Trykatch.Api/Modules/EnabledModules.cs",
+    "backendNamespace": "Trykatch.Api.Modules",
+    "dotnetModuleContractNamespace": "Trykatch.Modules",
+    "migrator": "src/API/Trykatch.Migrator/Modules/EnabledModules.cs",
+    "migratorNamespace": "Trykatch.Migrator.Modules",
     "web": "web/apps/web/src/modules.ts",
-    "webModuleSdkSpecifier": "@trykatchapp/module-sdk"
+    "webModuleSdkSpecifier": "@trykatch/module-sdk"
   },
   "modules": [
     {
       "id": "projects",
-      "manifest": "src/TrykatchApp.Infrastructure/Modules/projects.trykatch.module.json",
+      "manifest": "src/Modules/Projects/trykatch.module.json",
       "enabled": true
     },
     {
       "id": "federation",
-      "manifest": "src/TrykatchApp.Modules.Federation/trykatch.module.json",
+      "manifest": "src/Modules/Federation/trykatch.module.json",
       "enabled": false
     },
     {
       "id": "documents",
-      "manifest": "modules/documents/trykatch.module.json",
+      "manifest": "src/Modules/Documents/trykatch.module.json",
       "enabled": true
     }
   ]

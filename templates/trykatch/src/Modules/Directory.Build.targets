@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup Condition="'$(IsCompositeModulePackage)' == 'true'">
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeModuleProjectOutputs</TargetsForTfmSpecificBuildOutput>
+  </PropertyGroup>
+
+  <Target Name="IncludeModuleProjectOutputs"
+          DependsOnTargets="BuildOnlySettings;ResolveReferences"
+          Condition="'$(IsCompositeModulePackage)' == 'true'">
+    <ItemGroup>
+      <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)"
+                            Condition="'%(ReferenceCopyLocalPaths.ReferenceSourceTarget)' == 'ProjectReference' and '$(PackageId)' != '' and $([System.String]::Copy('%(ReferenceCopyLocalPaths.Filename)').StartsWith('$(PackageId).'))">
+        <TargetPath>%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)</TargetPath>
+      </BuildOutputInPackage>
+    </ItemGroup>
+  </Target>
+</Project>

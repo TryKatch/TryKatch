@@ -19,8 +19,8 @@ assert_scope() {
 
 assert_scope 'docs-site/src/content/docs/en/index.mdx' docs true
 assert_scope 'docs-site/src/content/docs/en/index.mdx' template false
-assert_scope 'templates/trykatch/src/TrykatchApp.Api/Program.cs' backend true
-assert_scope 'templates/trykatch/src/TrykatchApp.Api/Program.cs' web false
+assert_scope 'templates/trykatch/src/API/Trykatch.Api/Program.cs' backend true
+assert_scope 'templates/trykatch/src/API/Trykatch.Api/Program.cs' web false
 assert_scope 'templates/trykatch/.editorconfig' backend true
 assert_scope 'templates/trykatch/.editorconfig' qualification true
 assert_scope 'templates/trykatch/.future-template-setting' docs true
@@ -31,11 +31,14 @@ assert_scope 'templates/trykatch/.future-template-setting' deployment true
 assert_scope 'templates/trykatch/.future-template-setting' packaging true
 assert_scope 'templates/trykatch/.future-template-setting' qualification true
 assert_scope 'templates/trykatch/web/apps/web/src/main.tsx' web true
+assert_scope 'templates/trykatch/src/Modules/Federation/Web/src/index.tsx' web true
+assert_scope 'templates/trykatch/src/Modules/Federation/Web/src/index.tsx' backend false
+assert_scope 'templates/trykatch/src/Modules/Federation/Web/src/index.tsx' qualification true
 assert_scope 'templates/trykatch/deploy/observability/tempo.yml' observability true
 assert_scope 'templates/trykatch/compose.yml' deployment true
 assert_scope 'templates/trykatch/compose.yml' observability true
 assert_scope 'templates/trykatch/.template.config/template.json' packaging true
-assert_scope 'templates/trykatch/src/TrykatchApp.Api/Program.cs' qualification true
+assert_scope 'templates/trykatch/src/API/Trykatch.Api/Program.cs' qualification true
 assert_scope 'templates/trykatch/web/apps/web/src/main.tsx' qualification true
 assert_scope 'templates/trykatch/web/apps/web/nginx.conf' web true
 assert_scope 'templates/trykatch/web/apps/web/nginx.conf' deployment true

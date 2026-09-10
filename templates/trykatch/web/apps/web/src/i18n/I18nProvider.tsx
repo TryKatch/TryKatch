@@ -1,3 +1,4 @@
+import { ModuleI18nProvider } from '@trykatch/module-sdk'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 export type AppLocale = 'en' | 'fr'
@@ -116,6 +117,7 @@ const frenchMessages: Record<string, string> = {
   'Platform directory': 'Répertoire de la plateforme',
   'Platform invitations': 'Invitations de la plateforme',
   'Project': 'Projet',
+  'Project details and record lifecycle.': 'Détails du projet et cycle de vie de l’enregistrement.',
   'Projects': 'Projets',
   'Projects could not be loaded': 'Les projets n’ont pas pu être chargés',
   'Purpose': 'Objectif',
@@ -163,6 +165,7 @@ const frenchMessages: Record<string, string> = {
   'Trykatch gives .NET teams a secure multi-tenant foundation with an owned React experience, so every new product does not begin by rebuilding identity, isolation, permissions, and operations.': 'Trykatch offre aux équipes .NET une fondation multi-organisation sécurisée et une expérience React maîtrisée, afin que chaque produit ne recommence pas par reconstruire l’identité, l’isolation, les autorisations et les opérations.',
   'Trykatch makes those concerns a coherent platform kernel, leaving product teams to focus on the domain that makes their application valuable.': 'Trykatch réunit ces préoccupations dans un noyau de plateforme cohérent et permet aux équipes de se concentrer sur la valeur métier de leur application.',
   'Unable to save project': 'Impossible d’enregistrer le projet',
+  'Updated': 'Mis à jour',
   'Unavailable definitions': 'Définitions indisponibles',
   'Use at least 12 characters and avoid a password used elsewhere.': 'Utilisez au moins 12 caractères et évitez un mot de passe déjà utilisé ailleurs.',
   'Use your verified account to continue.': 'Utilisez votre compte vérifié pour continuer.',
@@ -589,7 +592,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     formatDate: (date, options) => new Intl.DateTimeFormat(locale, options).format(typeof date === 'string' ? new Date(date) : date),
   }), [locale])
 
-  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
+  return <I18nContext.Provider value={value}><ModuleI18nProvider value={value}>{children}</ModuleI18nProvider></I18nContext.Provider>
 }
 
 export function useI18n() {

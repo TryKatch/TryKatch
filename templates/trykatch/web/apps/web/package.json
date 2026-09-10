@@ -1,5 +1,5 @@
 {
-  "name": "@trykatchapp/web",
+  "name": "@trykatch/web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,10 +11,11 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
-    "@trykatchapp/api-client": "workspace:*",
-    "@trykatchapp/module-federation": "workspace:*",
-    "@trykatchapp/module-sdk": "workspace:*",
-    "@trykatchapp/ui": "workspace:*",
+    "@trykatch/api-client": "workspace:*",
+    "@trykatch-modules/federation": "workspace:*",
+    "@trykatch/module-sdk": "workspace:*",
+    "@trykatch/ui": "workspace:*",
+    "@trykatch-modules/projects": "workspace:*",
     "@tanstack/react-query": "5.102.8",
     "@tanstack/react-router": "1.170.33",
     "lucide-react": "1.42.0",

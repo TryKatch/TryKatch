@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../Common/Trykatch.Application/Trykatch.Application.csproj" />
+    <ProjectReference Include="../Trykatch.Modules.Projects.Domain/Trykatch.Modules.Projects.Domain.csproj" />
+    <ProjectReference Include="../Trykatch.Modules.Projects.IntegrationEvents/Trykatch.Modules.Projects.IntegrationEvents.csproj" />
+  </ItemGroup>
+</Project>

@@ -28,7 +28,7 @@ dotnet pack "$repository_root/Trykatch.Templates.csproj" -c Release -o "$test_ro
 package_path=$(find "$test_root/package" -name 'Trykatch.Templates.*.nupkg' -print -quit)
 dotnet new --debug:custom-hive "$template_hive" install "$package_path" --force
 dotnet pack \
-  "$repository_root/templates/trykatch/tools/TrykatchApp.ModuleTool/TrykatchApp.ModuleTool.csproj" \
+  "$repository_root/templates/trykatch/tools/Trykatch.ModuleTool/Trykatch.ModuleTool.csproj" \
   -c Release \
   -o "$test_root/package" \
   -p:PackageVersion=0.1.0-ci
@@ -73,7 +73,7 @@ grep -Fq 'trykatch template uninstall' <<<"$template_help_output" ||
 start_help_output=$("$test_root/tools/trykatch" start --help)
 grep -Fq 'trykatch start [--root <path>]' <<<"$start_help_output" ||
   fail 'start help does not document AppHost discovery'
-cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'TrykatchApp.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
+cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'Trykatch.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
 test "$cli_informational_version" = 'Trykatch CLI 0.1.0-ci' ||
   fail "packaged CLI reports '$cli_informational_version' instead of its package version"
 
@@ -111,6 +111,8 @@ test -f "$test_root/Horizon/.github/workflows/web.yml"
 test ! -e "$test_root/Horizon/compose.backend.yml"
 test ! -e "$test_root/Horizon/README.backend.md"
 bash "$repository_root/scripts/test-apphost-launch-profile.sh" "$test_root/Horizon"
+grep -Fq 'AddViteApp("web", "../../../web/apps/web")' "$test_root/Horizon/src/API/Horizon.AppHost/Program.cs" ||
+  fail 'React template output does not register the Vite application with AppHost'
 "$test_root/tools/trykatch" module doctor --root "$test_root/Horizon"
 generate_and_build Acme.Tools-Portal --ui none
 test ! -e "$test_root/Acme.Tools.Portal/web"
@@ -120,6 +122,9 @@ test ! -e "$test_root/Acme.Tools.Portal/README.backend.md"
 test ! -e "$test_root/Acme.Tools.Portal/scripts/test-proxy-headers.sh"
 test -f "$test_root/Acme.Tools.Portal/compose.yml"
 test -f "$test_root/Acme.Tools.Portal/README.md"
+if grep -Fq 'AddViteApp(' "$test_root/Acme.Tools.Portal/src/API/Acme.Tools.Portal.AppHost/Program.cs"; then
+  fail 'Backend-only template output registers a Vite application'
+fi
 grep -Fq 'ports: ["8080:8080"]' "$test_root/Acme.Tools.Portal/compose.yml"
 generate_and_build Email.Sample --ui none --email
 generate_and_build Storage.Sample --ui none --storage

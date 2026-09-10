@@ -99,7 +99,7 @@
       "sublabel": "optional SSO adapter",
       "pos": [1080, 300],
       "size": [160, 64],
-      "sources": [{ "path": "templates/trykatch/src/TrykatchApp.Modules.Federation/README.md", "label": "federation module" }]
+      "sources": [{ "path": "templates/trykatch/src/Modules/Federation/README.md", "label": "federation module" }]
     },
     {
       "id": "postgres",

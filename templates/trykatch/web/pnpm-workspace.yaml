@@ -1,7 +1,7 @@
 packages:
   - apps/*
   - packages/*
-  - ../modules/*/web
+  - ../src/Modules/*/Web
 overrides:
   js-yaml: 4.3.2
 allowBuilds:

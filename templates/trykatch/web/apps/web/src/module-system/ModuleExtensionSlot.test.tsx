@@ -1,14 +1,14 @@
-import { TrykatchWebModuleCatalog, defineTrykatchWebModule } from '@trykatchapp/module-sdk'
+import { WebModuleCatalog, defineWebModule } from '@trykatch/module-sdk'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { TrykatchModuleProvider, ModuleExtensionSlot } from './ModuleExtensionSlot'
+import { ModuleProvider, ModuleExtensionSlot } from './ModuleExtensionSlot'
 import { workspaceModules } from '../modules'
 
 const PublicContribution = () => <span>Public contribution</span>
 const ProtectedContribution = () => <span>Protected contribution</span>
 
-const catalog = new TrykatchWebModuleCatalog([
-  defineTrykatchWebModule({
+const catalog = new WebModuleCatalog([
+  defineWebModule({
     id: 'reference',
     name: 'Reference',
     version: '1.0.0',
@@ -29,34 +29,34 @@ afterEach(cleanup)
 
 describe('ModuleExtensionSlot', () => {
   it('renders only contributions permitted for the current actor', () => {
-    render(<TrykatchModuleProvider catalog={catalog}>
+    render(<ModuleProvider catalog={catalog}>
       <ModuleExtensionSlot point="reference.page.after" />
-    </TrykatchModuleProvider>)
+    </ModuleProvider>)
 
     expect(screen.getByText('Public contribution')).toBeInTheDocument()
     expect(screen.queryByText('Protected contribution')).not.toBeInTheDocument()
   })
 
   it('renders a protected contribution when its permission is present', () => {
-    render(<TrykatchModuleProvider catalog={catalog}>
+    render(<ModuleProvider catalog={catalog}>
       <ModuleExtensionSlot point="reference.page.after" permissions={['reference.manage']} />
-    </TrykatchModuleProvider>)
+    </ModuleProvider>)
 
     expect(screen.getByText('Protected contribution')).toBeInTheDocument()
   })
 
   it('renders the installed Documents contribution at the Projects extension point', () => {
-    render(<TrykatchModuleProvider catalog={workspaceModules}>
+    render(<ModuleProvider catalog={workspaceModules}>
       <ModuleExtensionSlot point="projects.list.after-table" permissions={['documents.read']} />
-    </TrykatchModuleProvider>)
+    </ModuleProvider>)
 
     expect(screen.getByText('Documents module is active.')).toBeInTheDocument()
   })
 
   it('hides the installed Documents contribution without its read permission', () => {
-    render(<TrykatchModuleProvider catalog={workspaceModules}>
+    render(<ModuleProvider catalog={workspaceModules}>
       <ModuleExtensionSlot point="projects.list.after-table" permissions={['projects.read']} />
-    </TrykatchModuleProvider>)
+    </ModuleProvider>)
 
     expect(screen.queryByText('Documents module is active.')).not.toBeInTheDocument()
   })

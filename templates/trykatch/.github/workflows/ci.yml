@@ -19,17 +19,23 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
       - run: dotnet tool restore
-      - run: dotnet restore TrykatchApp.slnx
-      - run: dotnet build TrykatchApp.slnx -c Release --no-restore
+      - run: dotnet restore Trykatch.slnx
+      - run: dotnet build Trykatch.slnx -c Release --no-restore
       - name: Validate full-stack module composition
-        run: dotnet run --project tools/TrykatchApp.ModuleTool -c Release --no-build -- module doctor --root .
-      - run: dotnet test tests/TrykatchApp.UnitTests -c Release --no-build
-      - run: dotnet test tests/TrykatchApp.IntegrationTests -c Release --no-build
+        run: dotnet run --project tools/Trykatch.ModuleTool -c Release --no-build -- module doctor --root .
+      - run: dotnet test tests/Trykatch.UnitTests -c Release --no-build
+      - name: Enforce module architecture
+        run: |
+          dotnet test tests/Trykatch.ArchitectureTests -c Debug
+          for project in tests/Modules/*/*Tests/*.csproj; do dotnet test "$project" -c Debug; done
+      - run: dotnet test tests/Trykatch.IntegrationTests -c Release --no-build
+      - name: Verify composite module packages
+        run: bash scripts/test-module-packages.sh
       - name: Validate observability deployment contracts
         run: bash scripts/test-observability.sh
-      - run: dotnet list TrykatchApp.slnx package --vulnerable --include-transitive
+      - run: dotnet list Trykatch.slnx package --vulnerable --include-transitive
       - run: TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file .env.example config --quiet
-      - run: docker build -f src/TrykatchApp.Api/Dockerfile .
+      - run: docker build -f src/API/Trykatch.Api/Dockerfile .
       - uses: anchore/sbom-action@v0.24.0
         with:
           path: .

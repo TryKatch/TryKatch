@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { customFetch } from '@trykatchapp/api-client'
-import type { TrykatchNavigationContribution } from '@trykatchapp/module-sdk'
-import { Button, Dialog, Skeleton } from '@trykatchapp/ui'
+import { customFetch } from '@trykatch/api-client'
+import type { NavigationContribution } from '@trykatch/module-sdk'
+import { Button, Dialog, Skeleton } from '@trykatch/ui'
 import {
   Activity,
   ArchiveRestore,
@@ -23,14 +23,14 @@ import {
   WifiOff,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { TrykatchLogo } from '../components/TrykatchLogo'
+import { ProductLogo } from '../components/ProductLogo'
 import { SignOutDialog } from '../components/SignOutDialog'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
 import { useI18n } from '../i18n/I18nProvider'
 import { workspaceModules } from '../modules'
 import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 
-const coreNavigation: readonly TrykatchNavigationContribution[] = [
+const coreNavigation: readonly NavigationContribution[] = [
   { id: 'core.overview', section: 'Workspace', order: 10, to: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
   { id: 'core.user-management', section: 'Administration', order: 10, to: '/user-management', label: 'User Management', icon: Users },
   { id: 'core.audit', section: 'Administration', order: 20, to: '/audit', label: 'Audit', icon: Activity },
@@ -144,7 +144,7 @@ export function AppShell() {
   return <div className={`app-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
     <aside className="sidebar" id="organization-navigation">
       <div className="mobile-sidebar-heading">
-        <Link className="brand" to="/overview" aria-label={`Trykatch ${t('Overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><TrykatchLogo size={17} /></span><span className="sidebar-label">Trykatch</span></Link>
+        <Link className="brand" to="/overview" aria-label={`Trykatch ${t('Overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><ProductLogo size={17} /></span><span className="sidebar-label">Trykatch</span></Link>
         <button className="mobile-nav-close" type="button" aria-label={t('Close navigation')} onClick={() => setMobileNavOpen(false)}><X size={19} /></button>
       </div>
       <nav aria-label={t('Organization navigation')}>

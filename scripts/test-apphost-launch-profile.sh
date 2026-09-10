@@ -2,7 +2,7 @@
 set -euo pipefail
 
 application_root=${1:?"usage: test-apphost-launch-profile.sh <generated-application-root>"}
-apphost_project=$(find "$application_root/src" -mindepth 2 -maxdepth 2 -type f -name '*.AppHost.csproj' -print -quit)
+apphost_project=$(find "$application_root/src" -type f -name '*.AppHost.csproj' -print -quit)
 
 if [[ -z "$apphost_project" ]]; then
   printf 'AppHost launch-profile contract failed: no AppHost project found under %s/src\n' "$application_root" >&2
@@ -10,6 +10,7 @@ if [[ -z "$apphost_project" ]]; then
 fi
 
 launch_settings="$(dirname "$apphost_project")/Properties/launchSettings.json"
+apphost_program="$(dirname "$apphost_project")/Program.cs"
 if [[ ! -f "$launch_settings" ]]; then
   printf 'AppHost launch-profile contract failed: %s is missing\n' "$launch_settings" >&2
   exit 1
@@ -40,3 +41,24 @@ if grep -Eq 'https?://(0\.0\.0\.0|[^/";]*\.local)' "$launch_settings"; then
   printf 'AppHost launch-profile contract failed: profile contains a certificate-hostname-unsafe endpoint\n' >&2
   exit 1
 fi
+
+required_asset_paths=(
+  '../../../deploy/postgres/init'
+  '../../../deploy/observability/otel-collector.yml'
+  '../../../deploy/observability/loki.yml'
+  '../../../deploy/observability/tempo.yml'
+  '../../../deploy/observability/prometheus.yml'
+  '../../../deploy/observability/grafana'
+  '../../../web/apps/web'
+)
+
+for required_path in "${required_asset_paths[@]}"; do
+  if ! grep -Fq "\"$required_path\"" "$apphost_program"; then
+    printf 'AppHost asset-path contract failed: %s does not reference %s\n' "$apphost_program" "$required_path" >&2
+    exit 1
+  fi
+  if [[ ! -e "$(dirname "$apphost_project")/$required_path" ]]; then
+    printf 'AppHost asset-path contract failed: %s does not resolve from the AppHost directory\n' "$required_path" >&2
+    exit 1
+  fi
+done

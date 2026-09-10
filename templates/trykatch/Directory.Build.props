@@ -1,9 +1,9 @@
 <Project>
   <PropertyGroup>
     <!--#if (ui == "none") -->
-    <TrykatchUi>none</TrykatchUi>
+    <SelectedUi>none</SelectedUi>
     <!--#else -->
-    <TrykatchUi>react</TrykatchUi>
+    <SelectedUi>react</SelectedUi>
     <!--#endif -->
     <!--#if (email) -->
     <DefineConstants>$(DefineConstants);TRYKATCH_EMAIL</DefineConstants>

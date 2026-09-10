@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { documentsUpdate } from './generated/trykatch'
+import { documentsUpdate } from './generated/client'
 import { setAntiforgeryToken } from './http'
 
 describe('generated Documents client', () => {

@@ -1,4 +1,4 @@
-import { Badge, Button, Dialog } from '@trykatchapp/ui'
+import { Badge, Button, Dialog } from '@trykatch/ui'
 import type { ReactNode } from 'react'
 import { useI18n } from '../i18n/I18nProvider'
 

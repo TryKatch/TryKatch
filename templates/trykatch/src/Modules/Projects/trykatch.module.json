@@ -1,0 +1,70 @@
+{
+  "$schema": "https://try\u006batch.net/schemas/module-manifest.v1.json",
+  "schemaVersion": 1,
+  "id": "projects",
+  "name": "Projects",
+  "version": "1.0.0",
+  "description": "Organization-scoped project management and lifecycle reference feature.",
+  "publisher": "try\u006batch",
+  "distribution": {
+    "kind": "workspace",
+    "license": "Apache-2.0"
+  },
+  "compatibility": {
+    "minimumHostVersion": "0.1.0",
+    "maximumHostVersionExclusive": "1.0.0"
+  },
+  "requires": [],
+  "optionalDependencies": [],
+  "capabilities": ["api", "web", "data", "background-work", "assistant"],
+  "dataOwnership": {
+    "default": "organization",
+    "resources": [
+      {
+        "name": "projects",
+        "schema": "app",
+        "table": "projects",
+        "ownership": "organization",
+        "entityType": "Trykatch.Modules.Projects.Domain.Project",
+        "isolationPolicy": "projects_organization_isolation"
+      }
+    ]
+  },
+  "artifacts": {
+    "dotnetProject": "src/Modules/Projects/Trykatch.Modules.Projects.Infrastructure/Trykatch.Modules.Projects.Infrastructure.csproj",
+    "webPackage": "src/Modules/Projects/Web/package.json"
+  },
+  "entrypoints": {
+    "dotnet": {
+      "type": "Trykatch.Modules.Projects.Infrastructure.ProjectsModule"
+    },
+    "web": {
+      "specifier": "@trykatch-modules/projects",
+      "export": "projectsModule"
+    }
+  },
+  "contributions": {
+    "permissions": ["projects.read", "projects.manage"],
+    "routes": [
+      { "id": "projects.list", "path": "/projects" }
+    ],
+    "extensionPoints": [
+      { "id": "projects.list.after-table" }
+    ],
+    "extensions": [],
+    "assistantTools": [
+      {
+        "name": "try\u006batch_list_projects",
+        "operationId": "Projects_List",
+        "risk": "read-only",
+        "requiresHumanConfirmation": false
+      },
+      {
+        "name": "try\u006batch_get_project",
+        "operationId": "Projects_Get",
+        "risk": "read-only",
+        "requiresHumanConfirmation": false
+      }
+    ]
+  }
+}

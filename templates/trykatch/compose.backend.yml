@@ -9,7 +9,7 @@ services:
     logging: *bounded-logging
     build:
       context: .
-      dockerfile: src/TrykatchApp.Migrator/Dockerfile
+      dockerfile: src/API/Trykatch.Migrator/Dockerfile
     environment:
       ConnectionStrings__trykatchdb: ${TRYKATCH_MIGRATOR_CONNECTION}
       Database__OrganizationRuntimeRole: trykatch_org_runtime
@@ -32,7 +32,7 @@ services:
     logging: *bounded-logging
     build:
       context: .
-      dockerfile: src/TrykatchApp.Api/Dockerfile
+      dockerfile: src/API/Trykatch.Api/Dockerfile
     ports: ["8080:8080"]
     environment:
       ASPNETCORE_ENVIRONMENT: ${TRYKATCH_ENVIRONMENT:-Production}

@@ -37,7 +37,7 @@ Prerequisites are the .NET 10 SDK, Docker Compose, Node.js, pnpm 10.17.1, OpenSS
 
 ```bash
 pnpm --dir templates/trykatch/web install --frozen-lockfile
-pnpm --dir templates/trykatch/web --filter @trykatchapp/web exec playwright install chromium
+pnpm --dir templates/trykatch/web --filter @trykatch/web exec playwright install chromium
 bash scripts/test-generated-application.sh
 ```
 

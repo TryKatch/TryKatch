@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { TrykatchWebModuleCatalog, defineTrykatchWebModule, type TrykatchWebModule } from './index'
+import { WebModuleCatalog, defineWebModule, type WebModule } from './index'
 
 const Empty = () => null
 
-function module(id: string, requires: readonly string[] = []): TrykatchWebModule {
-  return defineTrykatchWebModule({
+function module(id: string, requires: readonly string[] = []): WebModule {
+  return defineWebModule({
     id,
     name: id,
     version: '1.0.0',
@@ -18,30 +18,30 @@ function module(id: string, requires: readonly string[] = []): TrykatchWebModule
   })
 }
 
-describe('TrykatchWebModuleCatalog', () => {
+describe('WebModuleCatalog', () => {
   it('orders dependencies before their consumers', () => {
-    const catalog = new TrykatchWebModuleCatalog([module('reporting', ['projects']), module('projects')])
+    const catalog = new WebModuleCatalog([module('reporting', ['projects']), module('projects')])
     expect(catalog.modules.map((item) => item.id)).toEqual(['projects', 'reporting'])
   })
 
   it('rejects missing dependencies', () => {
-    expect(() => new TrykatchWebModuleCatalog([module('reporting', ['projects'])])).toThrow("requires missing module 'projects'")
+    expect(() => new WebModuleCatalog([module('reporting', ['projects'])])).toThrow("requires missing module 'projects'")
   })
 
   it('rejects route collisions', () => {
     const first = module('projects')
     const second = { ...module('reporting'), routes: [{ id: 'reporting.home', path: '/projects' as const, component: Empty }] }
-    expect(() => new TrykatchWebModuleCatalog([first, second])).toThrow("Duplicate Trykatch route path '/projects'")
+    expect(() => new WebModuleCatalog([first, second])).toThrow("Duplicate Trykatch route path '/projects'")
   })
 
   it('rejects dependency cycles', () => {
-    expect(() => new TrykatchWebModuleCatalog([module('projects', ['reporting']), module('reporting', ['projects'])])).toThrow('dependency cycle')
+    expect(() => new WebModuleCatalog([module('projects', ['reporting']), module('reporting', ['projects'])])).toThrow('dependency cycle')
   })
 
   it('orders an installed optional dependency but allows it to be absent', () => {
     const reporting = { ...module('reporting'), optionalDependencies: ['projects'] }
-    expect(new TrykatchWebModuleCatalog([reporting]).modules.map((item) => item.id)).toEqual(['reporting'])
-    expect(new TrykatchWebModuleCatalog([reporting, module('projects')]).modules.map((item) => item.id)).toEqual(['projects', 'reporting'])
+    expect(new WebModuleCatalog([reporting]).modules.map((item) => item.id)).toEqual(['reporting'])
+    expect(new WebModuleCatalog([reporting, module('projects')]).modules.map((item) => item.id)).toEqual(['projects', 'reporting'])
   })
 
   it('rejects an extension targeting an undeclared host', () => {
@@ -49,7 +49,7 @@ describe('TrykatchWebModuleCatalog', () => {
       ...module('reporting'),
       extensions: [{ id: 'reporting.summary', point: 'dashboard.summary.after', order: 10, component: Empty }],
     }
-    expect(() => new TrykatchWebModuleCatalog([invalid])).toThrow("targets unknown point 'dashboard.summary.after'")
+    expect(() => new WebModuleCatalog([invalid])).toThrow("targets unknown point 'dashboard.summary.after'")
   })
 
   it('orders named extension contributions deterministically', () => {
@@ -65,7 +65,7 @@ describe('TrykatchWebModuleCatalog', () => {
       ],
     }
 
-    const catalog = new TrykatchWebModuleCatalog([contributor, host])
+    const catalog = new WebModuleCatalog([contributor, host])
 
     expect(catalog.extensionsFor('host.page.actions').map((extension) => extension.id))
       .toEqual(['contributor.primary-action', 'contributor.secondary-action'])
@@ -73,8 +73,8 @@ describe('TrykatchWebModuleCatalog', () => {
 
   it('applies explicit overrides and rejects unknown targets', () => {
     const projects = module('projects')
-    const hidden = new TrykatchWebModuleCatalog([projects], { routes: { 'projects.home': null } })
+    const hidden = new WebModuleCatalog([projects], { routes: { 'projects.home': null } })
     expect(hidden.routes).toEqual([])
-    expect(() => new TrykatchWebModuleCatalog([projects], { routes: { 'unknown.route': null } })).toThrow("unknown Trykatch route 'unknown.route'")
+    expect(() => new WebModuleCatalog([projects], { routes: { 'unknown.route': null } })).toThrow("unknown Trykatch route 'unknown.route'")
   })
 })

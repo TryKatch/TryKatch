@@ -1,4 +1,4 @@
-import type { DataTableLabels } from '@trykatchapp/ui'
+import type { DataTableLabels } from '@trykatch/ui'
 import { useI18n } from './I18nProvider'
 
 export function useDataTableLabels(): DataTableLabels {

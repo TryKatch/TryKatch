@@ -1,8 +1,8 @@
-# TrykatchApp
+# Trykatch
 
 > Start secure. Build freely.
 
-TrykatchApp is a clean-room enterprise application foundation for .NET 10, PostgreSQL, React, TanStack, Aspire, and the open Grafana observability stack.
+Trykatch is a clean-room enterprise application foundation for .NET 10, PostgreSQL, React, TanStack, Aspire, and the open Grafana observability stack.
 
 ## Start locally
 
@@ -10,12 +10,12 @@ Prerequisites: .NET SDK 10.0.301+, Docker, Node.js 24+, and pnpm 10.
 
 ```bash
 dotnet tool restore
-dotnet restore TrykatchApp.slnx
+dotnet restore Trykatch.slnx
 pnpm --dir web install --frozen-lockfile
 trykatch start
 ```
 
-If the Trykatch CLI is not installed, run `dotnet run --launch-profile https --project src/TrykatchApp.AppHost/TrykatchApp.AppHost.csproj`. In Rider, open `TrykatchApp.slnx` and run the **TrykatchApp.AppHost: https** profile. AppHost is the development startup project; it provisions PostgreSQL, runs migrations, and injects the separate least-privilege database connections before starting the API and React application. Do not run `TrykatchApp.Api` by itself.
+If the Trykatch CLI is not installed, run `dotnet run --launch-profile https --project src/API/Trykatch.AppHost/Trykatch.AppHost.csproj`. In Rider, open `Trykatch.slnx` and run the **Trykatch.AppHost: https** profile. AppHost is the development startup project; it provisions PostgreSQL, runs migrations, and injects the separate least-privilege database connections before starting the API and React application. Do not run `Trykatch.Api` by itself.
 
 AppHost runs the one-shot `Migrator` project before the API. Production Compose also waits for it and gives the API a separate runtime credential. The role setup and deployment contract are described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 
@@ -30,19 +30,19 @@ Demo seeding and its relaxed eight-character minimum are guarded by both the Dev
 
 ## Architecture
 
-- `Domain` contains framework-free organization, membership, role, invitation, audit, and Project models.
-- `Application` contains focused use cases, validation, permissions, and outbound interfaces.
-- `Infrastructure` owns EF Core, PostgreSQL RLS, auditing, the transactional outbox, and selected adapters.
+- `src/Common` is the security kernel: identity, organizations, RBAC, PostgreSQL RLS, auditing, outbox, module validation, and shared adapters.
+- `src/API` contains the HTTP host, one-shot migrator, and development Aspire AppHost.
+- `src/Modules/<Module>` keeps each business capability together as Domain, Application, IntegrationEvents, Presentation, Infrastructure, and Web projects.
 - `Identity` owns ASP.NET Core Identity, OpenIddict, MFA primitives, session cookies, and data-protection keys.
 - `Migrator` applies ordered schema migrations, verifies the bootstrap-created runtime role, and grants it least-privilege data access.
 - `Modules.Abstractions` defines the small install-time module seam and validates module identity and dependency graphs.
-- `Api` owns controllers, HTTP contracts, BFF endpoints, middleware, and composition.
+- `Api` owns host controllers, BFF endpoints, middleware, and explicit module composition. Module HTTP endpoints remain in their Presentation projects.
 - `ServiceDefaults` owns OpenTelemetry, health, discovery, and resilient HTTP defaults.
 - `AppHost` orchestrates development and tests only.
 - `web/apps/web` is the React application; `web/packages/ui` is the owned component system; `web/packages/api-client` is machine-generated from OpenAPI.
 - `web/packages/module-sdk` validates typed routes and navigation contributed by enabled full-stack modules.
 
-Projects is the reference full-stack module. Its backend registration and permission definitions are activated through the explicit module registry, while its React route and navigation are contributed through the web module catalog. See [module authoring](docs/modules.md).
+Projects and Documents are reference organization modules; Federation is the disabled-by-default platform module. The API references only their Infrastructure entrypoints, while their React routes and navigation are generated from the same catalog. Project-reference and ArchUnitNET tests enforce layer direction and module isolation. See [module authoring](docs/modules.md).
 
 The customer-facing workspace word is **organization**. Platform administrators use the dedicated **Tenant Management** console at `/dashboard/tenants`; ordinary workspace navigation does not expose a tenant selector.
 
@@ -63,9 +63,10 @@ The customer-facing workspace word is **organization**. Platform administrators 
 ## Development commands
 
 ```bash
-dotnet restore TrykatchApp.slnx
-dotnet build TrykatchApp.slnx --no-restore
-dotnet test tests/TrykatchApp.UnitTests
+dotnet restore Trykatch.slnx
+dotnet build Trykatch.slnx --no-restore
+dotnet test tests/Trykatch.UnitTests
+dotnet test tests/Trykatch.ArchitectureTests
 pnpm --dir web generate
 pnpm --dir web typecheck
 pnpm --dir web test

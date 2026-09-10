@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { customFetch } from '@trykatchapp/api-client'
-import { Badge, Button, DataTable, DeleteConfirmationDialog, EmptyState, PageHeader, RowActions, Skeleton, Surface, type DataTableColumn } from '@trykatchapp/ui'
+import { customFetch } from '@trykatch/api-client'
+import { Badge, Button, DataTable, DeleteConfirmationDialog, EmptyState, PageHeader, RowActions, Skeleton, Surface, type DataTableColumn } from '@trykatch/ui'
 import { ArchiveRestore, FolderKanban, Mail, RefreshCw, ShieldCheck, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { formatRecordDate, LifecycleBadge, RecordDetailsDialog } from '../../components/RecordLifecycle'
