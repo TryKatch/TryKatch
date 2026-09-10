@@ -3,7 +3,7 @@ title: Author a module
 description: Add a capability without weakening the security kernel or creating hidden runtime coupling.
 ---
 
-A Trykatch module is a full-stack capability package with an explicit contract. The Projects reference feature demonstrates the complete path, while Federation demonstrates an optional packaged adapter.
+A Trykatch module is a full-stack capability package with an explicit contract. Projects demonstrates a built-in capability, Federation demonstrates an optional platform adapter, and Documents proves an independently packaged organization-data module across .NET, React, migrations, permissions, audit, and lifecycle behavior.
 
 ## What a module can contribute
 
@@ -25,6 +25,8 @@ Identity, organization resolution, RLS, antiforgery, permission enforcement, aud
 3. Implement domain, application, infrastructure, API, and UI behavior inside the module boundary.
 4. Add permissions, organization defaults, migrations, RLS policies, audit events, and outbox behavior.
 5. Run the module doctor, dependency checks, disablement tests, and the generated-template matrix.
+
+Persistent modules must also satisfy the [module data-isolation contract](/architecture/module-data-isolation/). Modules cannot opt out of organization scoping or receive direct access to host database contexts.
 
 ```bash
 trykatch module list --root ./Horizon

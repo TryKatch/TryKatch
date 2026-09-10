@@ -3,7 +3,7 @@ title: Créer un module
 description: Ajoutez une capacité sans affaiblir le noyau de sécurité ni créer de couplage d’exécution caché.
 ---
 
-Un module Trykatch est un ensemble fonctionnel full-stack doté d’un contrat explicite. La fonctionnalité de référence Projects illustre le parcours complet, tandis que Federation présente un adaptateur optionnel distribué séparément.
+Un module Trykatch est un ensemble fonctionnel full-stack doté d’un contrat explicite. Projects illustre une fonctionnalité intégrée, Federation un adaptateur de plateforme optionnel, et Documents démontre un module de données d’organisation distribué séparément couvrant .NET, React, les migrations, les permissions, l’audit et le cycle de vie.
 
 ## Ce qu’un module peut fournir
 
@@ -25,6 +25,8 @@ L’identité, la résolution de l’organisation, la RLS, la protection antifor
 3. Implémentez le domaine, l’application, l’infrastructure, l’API et l’interface dans la frontière du module.
 4. Ajoutez les permissions, valeurs par défaut d’organisation, migrations, politiques RLS, événements d’audit et comportement de l’outbox.
 5. Exécutez le diagnostic des modules, les contrôles de dépendances, les tests de désactivation et la matrice du modèle généré.
+
+Les modules persistants doivent également respecter le [contrat d’isolation des données des modules](/fr/architecture/module-data-isolation/). Aucun module ne peut désactiver le cloisonnement par organisation ni accéder directement aux contextes de base de données de l’hôte.
 
 ```bash
 trykatch module list --root ./Horizon
