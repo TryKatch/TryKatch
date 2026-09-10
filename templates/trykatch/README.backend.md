@@ -11,8 +11,10 @@ Prerequisites: .NET SDK 10.0.301+ and Docker.
 ```bash
 dotnet tool restore
 dotnet restore TrykatchApp.slnx
-dotnet run --project src/TrykatchApp.AppHost
+trykatch start
 ```
+
+If the Trykatch CLI is not installed, run `dotnet run --launch-profile https --project src/TrykatchApp.AppHost/TrykatchApp.AppHost.csproj`.
 
 Before the first API run, apply the migrations with the migrator role as described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 

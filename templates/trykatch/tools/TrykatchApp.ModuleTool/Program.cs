@@ -25,6 +25,11 @@ static Task<int> RunAsync(string[] arguments)
         && string.Equals(arguments[1], "template", StringComparison.Ordinal))
         return Task.FromResult(ShowTemplateHelp());
 
+    if (arguments.Length == 2
+        && IsHelp(arguments[0])
+        && string.Equals(arguments[1], "start", StringComparison.Ordinal))
+        return Task.FromResult(ShowStartHelp());
+
     if (arguments.Length == 1 && IsHelp(arguments[0]))
         return Task.FromResult(ShowHelp());
 
@@ -38,6 +43,9 @@ static Task<int> RunAsync(string[] arguments)
 
     if (string.Equals(arguments[0], "update", StringComparison.Ordinal))
         return RunTemplateAsync(["template", "update", .. arguments.Skip(1)]);
+
+    if (string.Equals(arguments[0], "start", StringComparison.Ordinal))
+        return RunStartAsync(arguments);
 
     if (arguments.Length < 2 || !string.Equals(arguments[0], "module", StringComparison.Ordinal))
         return Task.FromResult(ShowUnknownCommand(arguments[0]));
@@ -134,8 +142,31 @@ static async Task<int> RunTemplateAsync(string[] arguments)
         return ShowTemplateHelp(arguments.Length == 1 ? 1 : 0);
 
     string operation = arguments[1];
-    if (operation is not ("install" or "update"))
+    if (operation is not ("install" or "update" or "uninstall"))
         return ShowTemplateHelp(1);
+
+    if (string.Equals(operation, "uninstall", StringComparison.Ordinal))
+    {
+        if (arguments.Length > 2)
+            return Fail($"Unknown template option '{arguments[2]}'. Run 'trykatch template help'.");
+
+        try
+        {
+            TemplatePackageInstaller uninstaller = new(
+                new DotnetTemplateEngine(),
+                Console.Out,
+                Console.Error,
+                !Console.IsOutputRedirected && !Console.IsErrorRedirected);
+            return await uninstaller.UninstallAsync(CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException
+            or InvalidOperationException
+            or System.ComponentModel.Win32Exception)
+        {
+            return Fail(exception.Message);
+        }
+    }
 
     string version = TemplatePackageInstaller.CurrentVersion;
     bool force = string.Equals(operation, "update", StringComparison.Ordinal);
@@ -177,6 +208,36 @@ static async Task<int> RunTemplateAsync(string[] arguments)
     }
 }
 
+static async Task<int> RunStartAsync(string[] arguments)
+{
+    if (arguments.Skip(1).Any(IsHelpOption))
+        return ShowStartHelp();
+
+    string root = Directory.GetCurrentDirectory();
+    for (int index = 1; index < arguments.Length; index++)
+    {
+        if (!string.Equals(arguments[index], "--root", StringComparison.Ordinal))
+            return Fail($"Unknown start option '{arguments[index]}'. Run 'trykatch start --help'.");
+        if (++index >= arguments.Length)
+            return Fail("--root requires a path.");
+        root = arguments[index];
+    }
+
+    try
+    {
+        ApplicationStarter starter = new(new DotnetApplicationProcess(), Console.Out);
+        return await starter.StartAsync(root, CancellationToken.None);
+    }
+    catch (Exception exception) when (exception is IOException
+        or UnauthorizedAccessException
+        or InvalidOperationException
+        or ArgumentException
+        or System.ComponentModel.Win32Exception)
+    {
+        return Fail(exception.Message);
+    }
+}
+
 static void PrintModules(IEnumerable<ModuleStatus> modules)
 {
     foreach (ModuleStatus module in modules.OrderBy(module => module.Id, StringComparer.Ordinal))
@@ -199,6 +260,7 @@ static int ShowHelp()
     Console.WriteLine("  trykatch template install");
     Console.WriteLine("  trykatch update                 Update the template to this CLI's version.");
     Console.WriteLine("  dotnet new trykatch -n <name> [options]");
+    Console.WriteLine("  trykatch start                  Start a generated application through Aspire.");
     Console.WriteLine();
     Console.WriteLine("Application options:");
     Console.WriteLine("  --ui <react|none>  Include the React frontend or generate a backend-only application.");
@@ -223,6 +285,7 @@ static int ShowTemplateHelp(int exitCode = 0)
     Console.WriteLine("Usage:");
     Console.WriteLine("  trykatch template install [--version <version>] [--force]");
     Console.WriteLine("  trykatch template update [--version <version>]");
+    Console.WriteLine("  trykatch template uninstall");
     Console.WriteLine("  trykatch update [--version <version>]  Alias for 'template update'.");
     Console.WriteLine();
     Console.WriteLine("Options:");
@@ -230,6 +293,21 @@ static int ShowTemplateHelp(int exitCode = 0)
     Console.WriteLine("  --force              Reinstall when the selected version is already present.");
     Console.WriteLine();
     Console.WriteLine("These commands use the official .NET template engine and show progress.");
+    return exitCode;
+}
+
+static int ShowStartHelp(int exitCode = 0)
+{
+    Console.WriteLine("Start a generated Trykatch application");
+    Console.WriteLine();
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  trykatch start [--root <path>]");
+    Console.WriteLine();
+    Console.WriteLine("Options:");
+    Console.WriteLine("  --root <path>  Application directory or AppHost project. Defaults to the current directory.");
+    Console.WriteLine();
+    Console.WriteLine("The command discovers the Aspire AppHost and runs its HTTPS launch profile.");
+    Console.WriteLine("Docker must be running. Press Ctrl+C to stop the application.");
     return exitCode;
 }
 
