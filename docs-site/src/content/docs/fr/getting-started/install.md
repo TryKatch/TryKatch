@@ -6,7 +6,7 @@ description: Installez le modèle Trykatch et générez une solution .NET et Rea
 ## Installer le modèle
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.3
+dotnet new install Trykatch.Templates@0.1.0-preview.5
 ```
 
 Générez un backend .NET 10 et un espace de travail React complets avec le nom de votre produit :
@@ -35,6 +35,18 @@ dotnet new trykatch -n Horizon \
   --documents true \
   --images true
 ```
+
+## Découvrir les commandes disponibles
+
+Installez la CLI optionnelle de gestion du cycle de vie, puis utilisez ses commandes d’aide ciblées :
+
+```bash
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
+trykatch help
+trykatch module help
+```
+
+`trykatch help` présente les choix de génération d’application. `trykatch module help` répertorie toutes les commandes prises en charge pour le cycle de vie des modules.
 
 ## Installation dans l’IDE
 

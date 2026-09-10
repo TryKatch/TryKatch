@@ -1,0 +1,16 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
+---
+
+<StarlightPage
+  frontmatter={{
+    title: 'Page not found',
+    description: 'The requested Trykatch documentation page could not be found.',
+    template: 'splash',
+    editUrl: false,
+  }}
+>
+  <h1>Page not found</h1>
+  <p>The page may have moved or the address may be incorrect.</p>
+  <p><a href="/">Return to the Trykatch documentation home</a></p>
+</StarlightPage>

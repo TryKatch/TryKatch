@@ -5,13 +5,19 @@ return await RunAsync(args);
 
 static Task<int> RunAsync(string[] arguments)
 {
-    if (arguments.Length == 1
-        && (string.Equals(arguments[0], "--help", StringComparison.Ordinal)
-            || string.Equals(arguments[0], "-h", StringComparison.Ordinal)))
-        return Task.FromResult(ShowUsage(0));
+    if (arguments.Length == 0)
+        return Task.FromResult(ShowHelp());
+
+    if (arguments.Length == 2
+        && ((IsHelp(arguments[0]) && string.Equals(arguments[1], "module", StringComparison.Ordinal))
+            || (string.Equals(arguments[0], "module", StringComparison.Ordinal) && IsHelp(arguments[1]))))
+        return Task.FromResult(ShowModuleHelp());
+
+    if (arguments.Length == 1 && IsHelp(arguments[0]))
+        return Task.FromResult(ShowHelp());
 
     if (arguments.Length < 2 || !string.Equals(arguments[0], "module", StringComparison.Ordinal))
-        return Task.FromResult(ShowUsage(1));
+        return Task.FromResult(ShowUnknownCommand(arguments[0]));
 
     string root = Directory.GetCurrentDirectory();
     string? expectedSha256 = null;
@@ -44,7 +50,7 @@ static Task<int> RunAsync(string[] arguments)
     }
 
     if (positional.Count == 0)
-        return Task.FromResult(ShowUsage(1));
+        return Task.FromResult(ShowModuleHelp(1));
 
     try
     {
@@ -103,9 +109,38 @@ static void PrintModules(IEnumerable<ModuleStatus> modules)
         Console.WriteLine($"{module.Id,-24} {module.Version,-12} {(module.Enabled ? "enabled" : "disabled"),-9} {module.Name}");
 }
 
-static int ShowUsage(int exitCode)
+static bool IsHelp(string argument) =>
+    string.Equals(argument, "help", StringComparison.Ordinal)
+    || string.Equals(argument, "--help", StringComparison.Ordinal)
+    || string.Equals(argument, "-h", StringComparison.Ordinal);
+
+static int ShowHelp()
 {
-    Console.WriteLine("Trykatch module lifecycle tool");
+    Console.WriteLine("Trykatch application and module toolkit");
+    Console.WriteLine();
+    Console.WriteLine("Create an application:");
+    Console.WriteLine("  dotnet new install Trykatch.Templates");
+    Console.WriteLine("  dotnet new trykatch -n <name> [options]");
+    Console.WriteLine();
+    Console.WriteLine("Application options:");
+    Console.WriteLine("  --ui <react|none>  Include the React frontend or generate a backend-only application.");
+    Console.WriteLine("  --email            Include SMTP email and local Mailpit support.");
+    Console.WriteLine("  --storage          Include local and S3-compatible object storage.");
+    Console.WriteLine("  --documents        Include spreadsheet and PDF exporters.");
+    Console.WriteLine("  --images           Include image validation and processing.");
+    Console.WriteLine();
+    Console.WriteLine("Module lifecycle:");
+    Console.WriteLine("  trykatch module help     Show every module command and option.");
+    Console.WriteLine("  trykatch module list     List installed modules and their state.");
+    Console.WriteLine("  trykatch module doctor   Validate the full-stack module graph.");
+    Console.WriteLine();
+    Console.WriteLine("Run 'dotnet new trykatch --help' for template-engine options.");
+    return 0;
+}
+
+static int ShowModuleHelp(int exitCode = 0)
+{
+    Console.WriteLine("Trykatch module lifecycle");
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  trykatch module list [--root <path>]");
@@ -119,6 +154,12 @@ static int ShowUsage(int exitCode)
     Console.WriteLine("  trykatch module eject <id> --source-bundle <path> --sha256 <digest> [--root <path>]");
     Console.WriteLine("  trykatch module unregister <id> [--root <path>]");
     return exitCode;
+}
+
+static int ShowUnknownCommand(string command)
+{
+    Console.Error.WriteLine($"error: Unknown command '{command}'. Run 'trykatch help' for available commands.");
+    return 1;
 }
 
 static int Fail(string message)
