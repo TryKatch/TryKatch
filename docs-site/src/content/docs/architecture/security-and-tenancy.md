@@ -20,6 +20,8 @@ Every organization-scoped request passes through four controls:
 
 The runtime database role cannot own tables or bypass RLS. A separate migrator credential owns schema changes.
 
+Modules that persist data must also satisfy Trykatch's executable [module data-isolation contract](/architecture/module-data-isolation/). The contract validates EF Core models, PostgreSQL policies, runtime roles, and cross-organization behavior before release.
+
 ## Platform access is separate
 
 Platform administrators and support operators use platform roles and permissions. Organization roles never grant platform authority, and platform permission names are validated against their own code-defined catalog.

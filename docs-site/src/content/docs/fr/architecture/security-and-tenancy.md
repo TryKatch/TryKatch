@@ -20,6 +20,8 @@ Chaque requête liée à une organisation traverse quatre contrôles :
 
 Le rôle d’exécution de la base de données ne peut ni posséder les tables ni contourner la RLS. Un identifiant de migration distinct possède les changements de schéma.
 
+Les modules qui enregistrent des données doivent également respecter le [contrat d’isolation des données des modules](/fr/architecture/module-data-isolation/) exécutable de Trykatch. Ce contrat valide les modèles EF Core, les politiques PostgreSQL, les rôles d’exécution et le comportement inter-organisation avant toute livraison.
+
 ## L’accès plateforme est séparé
 
 Les administrateurs de plateforme et les opérateurs de support utilisent des rôles et permissions propres à la plateforme. Les rôles d’organisation n’accordent jamais de privilège plateforme, et les noms de permissions plateforme sont validés par leur propre catalogue défini dans le code.
