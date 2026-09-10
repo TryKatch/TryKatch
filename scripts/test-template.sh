@@ -97,6 +97,7 @@ test -d "$test_root/Horizon/web"
 test -f "$test_root/Horizon/.github/workflows/web.yml"
 test ! -e "$test_root/Horizon/compose.backend.yml"
 test ! -e "$test_root/Horizon/README.backend.md"
+bash "$repository_root/scripts/test-apphost-launch-profile.sh" "$test_root/Horizon"
 "$test_root/tools/trykatch" module doctor --root "$test_root/Horizon"
 generate_and_build Acme.Tools-Portal --ui none
 test ! -e "$test_root/Acme.Tools.Portal/web"

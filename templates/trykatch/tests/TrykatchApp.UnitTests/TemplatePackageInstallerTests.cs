@@ -9,7 +9,7 @@ public sealed class TemplatePackageInstallerTests
     [TestMethod]
     public void CurrentVersionMatchesTheCliPackageVersion()
     {
-        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.5");
+        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.6");
     }
 
     [TestMethod]
@@ -20,13 +20,13 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.InstallAsync("0.1.0-preview.5", force: true, CancellationToken.None);
+        int exitCode = await installer.InstallAsync("0.1.0-preview.6", force: true, CancellationToken.None);
 
         exitCode.ShouldBe(0);
-        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.5");
+        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.6");
         engine.Force.ShouldBeTrue();
-        output.ToString().ShouldContain("Installing Trykatch template 0.1.0-preview.5");
-        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.5 installed");
+        output.ToString().ShouldContain("Installing Trykatch template 0.1.0-preview.6");
+        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.6 installed");
         output.ToString().ShouldContain("dotnet new trykatch -n <name>");
         error.ToString().ShouldBeEmpty();
     }
@@ -49,8 +49,8 @@ public sealed class TemplatePackageInstallerTests
 
     [TestMethod]
     [DataRow("")]
-    [DataRow("preview.5")]
-    [DataRow("0.1.0 preview.5")]
+    [DataRow("preview.6")]
+    [DataRow("0.1.0 preview.6")]
     public async Task InstallRejectsAnInvalidVersionBeforeStartingDotnet(string version)
     {
         RecordingTemplateEngine engine = new(new(0, string.Empty, string.Empty));
