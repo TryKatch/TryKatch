@@ -13,18 +13,21 @@ This file is the compact repository map for coding agents. The architectural dec
 
 ## Module map
 
-- Backend contract: `src/TrykatchApp.Modules.Abstractions`
-- Secured HTTP contribution: `src/TrykatchApp.Modules.AspNetCore`
+- Backend contract: `src/Common/Trykatch.Modules.Abstractions`
+- Secured HTTP contribution: `src/Common/Trykatch.Modules.AspNetCore`
 - Authoritative catalog: `trykatch.modules.json`
-- Module lifecycle and diagnostics: `tools/TrykatchApp.ModuleTool`
-- Generated backend registry: `src/TrykatchApp.Api/Modules/EnabledModules.cs`
+- Module lifecycle and diagnostics: `tools/Trykatch.ModuleTool`
+- Generated backend registry: `src/API/Trykatch.Api/Modules/EnabledModules.cs`
 - Web contract: `web/packages/module-sdk`
 - Generated web registry: `web/apps/web/src/modules.ts`
 - Application-owned web overrides: `web/apps/web/src/module-overrides.ts`
-- Package-shaped example: `src/TrykatchApp.Modules.Federation` and `web/packages/module-federation`
-- Full data example: Projects across Domain, Application, Infrastructure, API, and React
+- Optional platform example: `src/Modules/Federation`
+- Organization-data examples: `src/Modules/Projects` and `src/Modules/Documents`
+- Module-local tests: `tests/Modules/<Module>`
 
 Add a capability through module interfaces and a versioned manifest registered in `trykatch.modules.json`. Regenerate both explicit registries with the module tool. Do not use runtime assembly scanning or import another module's private implementation. Publish a named extension point when another module needs to contribute UI or behavior.
+
+Each business module has Domain, Application, IntegrationEvents, Presentation, and Infrastructure projects plus a `Web` package. The host references only Infrastructure. Presentation never references Infrastructure; Domain and IntegrationEvents never reference implementation projects; another module may reference IntegrationEvents only. `Trykatch.ArchitectureTests` and module-local ArchUnitNET tests enforce these rules.
 
 ## API and AI workflow
 
@@ -37,10 +40,14 @@ Add a capability through module interfaces and a versioned manifest registered i
 ## Verification
 
 ```bash
-dotnet build TrykatchApp.slnx
-dotnet run --project tools/TrykatchApp.ModuleTool -- module doctor
-dotnet test tests/TrykatchApp.UnitTests
-dotnet test tests/TrykatchApp.IntegrationTests
+dotnet build Trykatch.slnx
+dotnet run --project tools/Trykatch.ModuleTool -- module doctor
+dotnet test tests/Trykatch.UnitTests
+dotnet test tests/Trykatch.ArchitectureTests
+dotnet test tests/Modules/Projects/Trykatch.Modules.Projects.ArchitectureTests
+dotnet test tests/Modules/Documents/Trykatch.Modules.Documents.ArchitectureTests
+dotnet test tests/Modules/Federation/Trykatch.Modules.Federation.ArchitectureTests
+dotnet test tests/Trykatch.IntegrationTests
 pnpm --dir web generate
 pnpm --dir web typecheck
 pnpm --dir web test

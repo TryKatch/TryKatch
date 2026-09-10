@@ -1,0 +1,54 @@
+{
+  "$schema": "https://try\u006batch.net/schemas/module-manifest.v1.json",
+  "schemaVersion": 1,
+  "id": "federation",
+  "name": "Single sign-on",
+  "version": "1.0.0",
+  "description": "Generic OpenID Connect connection management and federation security policy.",
+  "publisher": "try\u006batch",
+  "distribution": {
+    "kind": "workspace",
+    "license": "Apache-2.0"
+  },
+  "compatibility": {
+    "minimumHostVersion": "0.1.0",
+    "maximumHostVersionExclusive": "1.0.0"
+  },
+  "requires": [],
+  "optionalDependencies": [],
+  "capabilities": ["api", "web", "data"],
+  "dataOwnership": {
+    "default": "platform",
+    "resources": [
+      {
+        "name": "federation-connections",
+        "schema": "identity",
+        "table": "federation_connections",
+        "ownership": "platform",
+        "accessRule": "identity-only"
+      }
+    ]
+  },
+  "artifacts": {
+    "dotnetProject": "src/Modules/Federation/Trykatch.Modules.Federation.Infrastructure/Trykatch.Modules.Federation.Infrastructure.csproj",
+    "webPackage": "src/Modules/Federation/Web/package.json"
+  },
+  "entrypoints": {
+    "dotnet": {
+      "type": "Trykatch.Modules.Federation.Infrastructure.FederationModule"
+    },
+    "web": {
+      "specifier": "@trykatch-modules/federation",
+      "export": "federationModule"
+    }
+  },
+  "contributions": {
+    "permissions": [],
+    "routes": [
+      { "id": "federation.connections", "path": "/authentication/sso" }
+    ],
+    "extensionPoints": [],
+    "extensions": [],
+    "assistantTools": []
+  }
+}

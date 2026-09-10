@@ -6,7 +6,7 @@
       "id": "documents",
       "version": "1.0.0",
       "enabled": true,
-      "manifestSha256": "010b196d5872a514a387c7ccb3af4384ef76b9bfceefc4de2deee8df881ba133",
+      "manifestSha256": "e59f2c88161546ff0bd57feb59bce911d22d0c312d9748beb33294cb4a51597f",
       "manifestDigestMode": "template-normalized-sha256",
       "distribution": {
         "kind": "workspace",
@@ -20,7 +20,7 @@
       "id": "federation",
       "version": "1.0.0",
       "enabled": false,
-      "manifestSha256": "354b152879a5774b3503c47e693116e0e36e9e887486442721080c8e750a5ece",
+      "manifestSha256": "99b79aabd915f2571791518c2a89e78661a72c7fa6a76997a348c77426177194",
       "manifestDigestMode": "template-normalized-sha256",
       "distribution": {
         "kind": "workspace",
@@ -34,7 +34,7 @@
       "id": "projects",
       "version": "1.0.0",
       "enabled": true,
-      "manifestSha256": "93dac48d3c38c305c5f598fce857f73a4dc0c87b4c2e6d4620c19b87aa6fa3cf",
+      "manifestSha256": "abad9d2a041e1a2b609f51fee12bb4d45bf8258399dde0c5301674e30e0d760d",
       "manifestDigestMode": "template-normalized-sha256",
       "distribution": {
         "kind": "workspace",

@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { customFetch } from '@trykatchapp/api-client'
-import type { TrykatchNavigationContribution } from '@trykatchapp/module-sdk'
-import { Button, Skeleton } from '@trykatchapp/ui'
+import { customFetch } from '@trykatch/api-client'
+import type { NavigationContribution } from '@trykatch/module-sdk'
+import { Button, Skeleton } from '@trykatch/ui'
 import { Bell, Building2, ChevronDown, LayoutDashboard, LogOut, Menu, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen, ShieldCheck, Sun, UserRound, Users, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { TrykatchLogo } from '../components/TrykatchLogo'
+import { ProductLogo } from '../components/ProductLogo'
 import { SignOutDialog } from '../components/SignOutDialog'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
 import { useI18n } from '../i18n/I18nProvider'
@@ -14,7 +14,7 @@ import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 
 interface Session { displayName: string; email: string; hasPlatformAccess?: boolean; isPlatformAdministrator?: boolean; platformPermissions?: string[] }
 
-const corePlatformNavigation: readonly TrykatchNavigationContribution[] = [
+const corePlatformNavigation: readonly NavigationContribution[] = [
   { id: 'platform.overview', surface: 'platform', section: 'Administration', order: 10, to: '/dashboard', label: 'Platform overview', icon: LayoutDashboard, requiredPermission: 'platform.dashboard.read', exact: true },
   { id: 'platform.tenants', surface: 'platform', section: 'Administration', order: 20, to: '/dashboard/tenants', label: 'Tenant management', icon: Building2, requiredPermission: 'platform.tenants.read' },
   { id: 'platform.users', surface: 'platform', section: 'Administration', order: 30, to: '/dashboard/users', label: 'User management', icon: Users, requiredPermission: 'platform.users.read' },
@@ -78,7 +78,7 @@ export function PlatformShell() {
   return <div className={`app-shell platform-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
     <aside className="sidebar" id="platform-navigation">
       <div className="mobile-sidebar-heading">
-        <Link className="brand" to="/dashboard" aria-label={`Trykatch ${t('Platform overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><TrykatchLogo size={17} /></span><span className="sidebar-label">Trykatch</span></Link>
+        <Link className="brand" to="/dashboard" aria-label={`Trykatch ${t('Platform overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><ProductLogo size={17} /></span><span className="sidebar-label">Trykatch</span></Link>
         <button className="mobile-nav-close" type="button" aria-label={t('Close navigation')} onClick={() => setMobileNavOpen(false)}><X size={19} /></button>
       </div>
       <nav aria-label={t('Platform administration')}>

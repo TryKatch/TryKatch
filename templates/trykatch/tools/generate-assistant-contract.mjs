@@ -4,7 +4,7 @@ import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const templateRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const defaultOpenApiPath = path.join(templateRoot, 'web/packages/api-client/openapi/TrykatchApp.Api.json')
+const defaultOpenApiPath = path.join(templateRoot, 'web/packages/api-client/openapi/Trykatch.Api.json')
 const defaultOutputPath = path.join(templateRoot, 'docs/generated/assistant-contract.json')
 const httpMethods = new Set(['get', 'post', 'put', 'patch', 'delete'])
 

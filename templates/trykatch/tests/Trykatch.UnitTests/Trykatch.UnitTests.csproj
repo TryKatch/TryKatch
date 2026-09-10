@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Common/Trykatch.Application/Trykatch.Application.csproj" />
+    <ProjectReference Include="../../src/Common/Trykatch.Domain/Trykatch.Domain.csproj" />
+    <ProjectReference Include="../../src/Common/Trykatch.Infrastructure/Trykatch.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Common/Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" />
+    <ProjectReference Include="../../src/Common/Trykatch.Modules.AspNetCore/Trykatch.Modules.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/Modules/Federation/Trykatch.Modules.Federation.Infrastructure/Trykatch.Modules.Federation.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Modules/Federation/Trykatch.Modules.Federation.Application/Trykatch.Modules.Federation.Application.csproj" />
+    <ProjectReference Include="../../src/Modules/Federation/Trykatch.Modules.Federation.Domain/Trykatch.Modules.Federation.Domain.csproj" />
+    <ProjectReference Include="../../src/Modules/Projects/Trykatch.Modules.Projects.IntegrationEvents/Trykatch.Modules.Projects.IntegrationEvents.csproj" />
+    <ProjectReference Include="../../src/Modules/Projects/Trykatch.Modules.Projects.Infrastructure/Trykatch.Modules.Projects.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Modules/Projects/Trykatch.Modules.Projects.Application/Trykatch.Modules.Projects.Application.csproj" />
+    <ProjectReference Include="../../src/Modules/Projects/Trykatch.Modules.Projects.Domain/Trykatch.Modules.Projects.Domain.csproj" />
+    <ProjectReference Include="../../src/Modules/Documents/Trykatch.Modules.Documents.Infrastructure/Trykatch.Modules.Documents.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Modules/Documents/Trykatch.Modules.Documents.Application/Trykatch.Modules.Documents.Application.csproj" />
+    <ProjectReference Include="../../src/Modules/Documents/Trykatch.Modules.Documents.Domain/Trykatch.Modules.Documents.Domain.csproj" />
+    <ProjectReference Include="../../src/Modules/Documents/Trykatch.Modules.Documents.IntegrationEvents/Trykatch.Modules.Documents.IntegrationEvents.csproj" />
+    <ProjectReference Include="../../tools/Trykatch.ModuleTool/Trykatch.ModuleTool.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <Using Include="Trykatch.Modules.Documents.Application" />
+    <Using Include="Trykatch.Modules.Documents.Domain" />
+    <Using Include="Trykatch.Modules.Documents.Infrastructure" />
+    <Using Include="Trykatch.Modules.Federation.Application" />
+    <Using Include="Trykatch.Modules.Federation.Domain" />
+    <Using Include="Trykatch.Modules.Federation.Infrastructure" />
+    <Using Include="Trykatch.Modules.Projects.Domain" />
+    <Using Include="Trykatch.Modules.Projects.Infrastructure" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../src/Modules/Projects/try&#x6B;atch.module.json" Link="fixtures/projects.module.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/Modules/Federation/try&#x6B;atch.module.json" Link="fixtures/federation.module.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -25,7 +25,7 @@ Database__OrganizationRuntimeRole='trykatch_org_runtime' \
 Database__PlatformRuntimeRole='trykatch_platform_runtime' \
 Database__IdentityRuntimeRole='trykatch_identity_runtime' \
 Database__OutboxWorkerRole='trykatch_outbox_worker' \
-dotnet run --project src/TrykatchApp.Migrator
+dotnet run --project src/API/Trykatch.Migrator
 ```
 
 Production Compose runs this migrator to completion before starting the API. The API receives only the four scoped runtime connections; never expose `TRYKATCH_MIGRATOR_CONNECTION` to the API service. Applying migrations during an API replica's startup is deliberately unsupported because concurrent replicas make ownership and rollout ordering ambiguous.

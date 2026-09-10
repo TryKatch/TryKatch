@@ -69,19 +69,19 @@ jobs:
       # Aspire's AppHost lock contains an SDK-runtime-specific dashboard package.
       # A normal restore preserves the pinned graph while translating that one
       # package for the runner OS.
-      - run: dotnet restore templates/trykatch/TrykatchApp.slnx
-      - run: dotnet build templates/trykatch/TrykatchApp.slnx -c Release --no-restore
+      - run: dotnet restore templates/trykatch/Trykatch.slnx
+      - run: dotnet build templates/trykatch/Trykatch.slnx -c Release --no-restore
       - name: Verify deployable .NET publish graphs
         run: |
-          dotnet publish templates/trykatch/src/TrykatchApp.Api/TrykatchApp.Api.csproj -c Release --no-restore --no-build -o artifacts/publish/api
-          dotnet publish templates/trykatch/src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj -c Release --no-restore --no-build -o artifacts/publish/migrator
+          dotnet publish templates/trykatch/src/API/Trykatch.Api/Trykatch.Api.csproj -c Release --no-restore --no-build -o artifacts/publish/api
+          dotnet publish templates/trykatch/src/API/Trykatch.Migrator/Trykatch.Migrator.csproj -c Release --no-restore --no-build -o artifacts/publish/migrator
       - name: Validate full-stack module composition
-        run: dotnet run --project templates/trykatch/tools/TrykatchApp.ModuleTool -c Release --no-build -- module doctor --root templates/trykatch
+        run: dotnet run --project templates/trykatch/tools/Trykatch.ModuleTool -c Release --no-build -- module doctor --root templates/trykatch
       - name: Verify Trykatch CLI package
-        run: dotnet pack templates/trykatch/tools/TrykatchApp.ModuleTool -c Release --no-build -o artifacts/cli -p:PackageVersion=0.1.0-ci
-      - run: dotnet test templates/trykatch/tests/TrykatchApp.UnitTests -c Release --no-build
-      - run: dotnet test templates/trykatch/tests/TrykatchApp.IntegrationTests -c Release --no-build
-      - run: dotnet list templates/trykatch/TrykatchApp.slnx package --vulnerable --include-transitive
+        run: dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release --no-build -o artifacts/cli -p:PackageVersion=0.1.0-ci
+      - run: dotnet test templates/trykatch/tests/Trykatch.UnitTests -c Release --no-build
+      - run: dotnet test templates/trykatch/tests/Trykatch.IntegrationTests -c Release --no-build
+      - run: dotnet list templates/trykatch/Trykatch.slnx package --vulnerable --include-transitive
 
   verify-web:
     needs: changes
@@ -110,8 +110,8 @@ jobs:
               sudo mv "$chrome_source" "$RUNNER_TEMP/$(basename "$chrome_source").disabled"
             fi
           done
-      - run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web exec playwright install --with-deps chromium
-      - run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web test:e2e
+      - run: pnpm --dir templates/trykatch/web --filter @trykatch/web exec playwright install --with-deps chromium
+      - run: pnpm --dir templates/trykatch/web --filter @trykatch/web test:e2e
       - run: pnpm --dir templates/trykatch/web audit --audit-level high
 
   verify-observability:
@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - run: docker build -f templates/trykatch/src/TrykatchApp.Api/Dockerfile templates/trykatch
+      - run: docker build -f templates/trykatch/src/API/Trykatch.Api/Dockerfile templates/trykatch
 
   verify-web-image:
     needs: changes
@@ -175,8 +175,8 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
-      - run: dotnet restore templates/trykatch/TrykatchApp.slnx
-      - run: dotnet build templates/trykatch/TrykatchApp.slnx -c Release --no-restore
+      - run: dotnet restore templates/trykatch/Trykatch.slnx
+      - run: dotnet build templates/trykatch/Trykatch.slnx -c Release --no-restore
       - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
       - name: Verify disabled and enabled Federation composition
         run: bash scripts/test-federation-module.sh
@@ -202,7 +202,7 @@ jobs:
           cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
       - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
       - name: Install the acceptance browser
-        run: pnpm --dir templates/trykatch/web --filter @trykatchapp/web exec playwright install --with-deps chromium
+        run: pnpm --dir templates/trykatch/web --filter @trykatch/web exec playwright install --with-deps chromium
       - name: Qualify a clean generated production application
         run: bash scripts/test-generated-application.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

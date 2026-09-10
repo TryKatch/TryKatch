@@ -1,4 +1,4 @@
-import type { DeleteConfirmationLabels } from '@trykatchapp/ui'
+import type { DeleteConfirmationLabels } from '@trykatch/ui'
 import { useI18n } from './I18nProvider'
 
 export function useDeleteConfirmationLabels(): DeleteConfirmationLabels {

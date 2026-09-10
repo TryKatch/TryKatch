@@ -88,7 +88,7 @@ test.describe('generated production application', () => {
           name: 'Tenant isolation proof',
           description: 'Created by the generated-application acceptance journey.',
         })
-        expect(response.status()).toBe(200)
+        expect(response.status()).toBe(201)
         return await response.json() as ProjectResponse
       })
 

@@ -2,7 +2,7 @@
 
 ## Supported deployment roles
 
-Use `dotnet run --project src/TrykatchApp.AppHost` for local development and bounded integration tests. AppHost run mode and DCP are development-time orchestration; the Aspire Dashboard is local, ephemeral, and not an operational record. ServiceDefaults ships with the API. Although AppHost publish mode can be an input to a future target-specific deployment pipeline, this template has no configured production publisher and does not claim that `aspire publish` is equivalent to the maintained Compose deployment.
+Use `dotnet run --project src/API/Trykatch.AppHost` for local development and bounded integration tests. AppHost run mode and DCP are development-time orchestration; the Aspire Dashboard is local, ephemeral, and not an operational record. ServiceDefaults ships with the API. Although AppHost publish mode can be an input to a future target-specific deployment pipeline, this template has no configured production publisher and does not claim that `aspire publish` is equivalent to the maintained Compose deployment.
 
 The checked-in `compose.yml` (React) or generated `compose.yml` (backend-only) is the production authority for this release. A target platform runs those resources. Before adopting an Aspire publisher, compare its networks, secret references, volumes, identity, migrator ordering, TLS, retention, and ingress against Compose and qualify the generated artifact in staging. Demo users and credentials are attached only in AppHost run mode.
 

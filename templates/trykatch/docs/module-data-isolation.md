@@ -53,10 +53,10 @@ Workspace modules are source-reviewed and use `module register`; they do not cla
 Run from the generated solution root:
 
 ```bash
-dotnet build TrykatchApp.slnx --locked-mode
-dotnet test tests/TrykatchApp.UnitTests/TrykatchApp.UnitTests.csproj --no-build
-dotnet test tests/TrykatchApp.IntegrationTests/TrykatchApp.IntegrationTests.csproj --no-build
-dotnet run --project tools/TrykatchApp.ModuleTool --no-build -- module doctor --root .
+dotnet build Trykatch.slnx --locked-mode
+dotnet test tests/Trykatch.UnitTests/Trykatch.UnitTests.csproj --no-build
+dotnet test tests/Trykatch.IntegrationTests/Trykatch.IntegrationTests.csproj --no-build
+dotnet run --project tools/Trykatch.ModuleTool --no-build -- module doctor --root .
 pnpm --dir web typecheck
 pnpm --dir web test
 pnpm --dir web build

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { customFetch, setAntiforgeryToken } from '@trykatchapp/api-client'
-import { Button, PasswordField } from '@trykatchapp/ui'
-import { TrykatchLogo } from '../components/TrykatchLogo'
+import { customFetch, setAntiforgeryToken } from '@trykatch/api-client'
+import { Button, PasswordField } from '@trykatch/ui'
+import { ProductLogo } from '../components/ProductLogo'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
 import { useI18n } from '../i18n/I18nProvider'
 
@@ -102,7 +102,7 @@ export function LoginPage({ navigate = path => window.location.assign(path) }: L
 
   return <main className="auth-page">
     <div className="auth-language"><LanguageSwitcher compact /></div>
-    <a className="auth-brand" href="/" aria-label={`Trykatch · ${t('Home')}`}><span className="brand-mark"><TrykatchLogo size={17} /></span><strong>Trykatch</strong></a>
+    <a className="auth-brand" href="/" aria-label={`Trykatch · ${t('Home')}`}><span className="brand-mark"><ProductLogo size={17} /></span><strong>Trykatch</strong></a>
     <section className="auth-card login-card">
       <h1>{t(mfaRequired ? 'Verify your identity' : 'Sign in')}</h1>
       <p>{t(mfaRequired ? 'Enter an authenticator or recovery code.' : 'Use your verified account to continue.')}</p>

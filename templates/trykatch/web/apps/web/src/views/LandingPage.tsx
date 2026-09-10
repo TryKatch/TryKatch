@@ -1,6 +1,6 @@
 import { ArrowRight, Boxes, Database, LockKeyhole, Waypoints } from 'lucide-react'
 import { LandingPreferencesMenu } from '../components/LandingPreferencesMenu'
-import { TrykatchLogo } from '../components/TrykatchLogo'
+import { ProductLogo } from '../components/ProductLogo'
 import { useI18n } from '../i18n/I18nProvider'
 
 const foundations = [
@@ -26,7 +26,7 @@ export function LandingPage() {
   return <main className="landing-page">
     <header className="landing-nav">
       <a className="landing-brand" href="/" aria-label="Trykatch home">
-        <span className="brand-mark"><TrykatchLogo size={18} /></span>
+        <span className="brand-mark"><ProductLogo size={18} /></span>
         <strong>Trykatch</strong>
       </a>
       <nav className="landing-nav-actions" aria-label="Product links">
@@ -48,7 +48,7 @@ export function LandingPage() {
         </div>
       </div>
       <aside className="landing-principle" aria-label="Trykatch design principle">
-        <TrykatchLogo size={38} />
+        <ProductLogo size={38} />
         <p>{t('Start secure.')}<br />{t('Build freely.')}</p>
         <small>{t('One security boundary. Explicit modules. Operations designed in.')}</small>
       </aside>
@@ -90,7 +90,7 @@ export function LandingPage() {
         <div><h2 id="install-title">{t('Create your application')}</h2><p>{t('Install once, then generate a complete backend and React workspace with your own product name.')}</p></div>
       </div>
       <div className="landing-command" aria-label="Trykatch installation commands">
-        <code><span>$</span> dotnet new install Trykatch.Templates@0.1.0-preview.9</code>
+        <code><span>$</span> dotnet new install Trykatch.Templates@0.1.0-preview.10</code>
         <code><span>$</span> dotnet new trykatch -n Horizon</code>
       </div>
       <p className="landing-open-source">{t('Open source under Apache-2.0. Use it, extend it, and ship products on top of it.')}</p>

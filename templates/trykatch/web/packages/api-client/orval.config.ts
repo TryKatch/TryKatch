@@ -2,9 +2,9 @@ import { defineConfig } from 'orval'
 
 export default defineConfig({
   trykatch: {
-    input: './openapi/TrykatchApp.Api.json',
+    input: './openapi/Trykatch.Api.json',
     output: {
-      target: './src/generated/trykatch.ts',
+      target: './src/generated/client.ts',
       schemas: './src/generated/models',
       client: 'react-query',
       httpClient: 'fetch',

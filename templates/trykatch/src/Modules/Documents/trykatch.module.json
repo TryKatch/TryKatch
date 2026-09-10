@@ -1,0 +1,44 @@
+{
+  "$schema": "https://try\u006batch.net/schemas/module-manifest.v1.json",
+  "schemaVersion": 1,
+  "id": "documents",
+  "name": "Documents",
+  "version": "1.0.0",
+  "description": "Independent organization-owned CRUD and full-stack module proof.",
+  "publisher": "try\u006batch",
+  "distribution": { "kind": "workspace", "license": "Apache-2.0" },
+  "compatibility": { "minimumHostVersion": "0.1.0", "maximumHostVersionExclusive": "1.0.0" },
+  "requires": ["projects"],
+  "optionalDependencies": [],
+  "capabilities": ["api", "web", "data", "background-work", "assistant"],
+  "dataOwnership": {
+    "default": "organization",
+    "resources": [{
+      "name": "documents",
+      "schema": "app",
+      "table": "documents",
+      "ownership": "organization",
+      "entityType": "Trykatch.Modules.Documents.Domain.DocumentRecord",
+      "isolationPolicy": "documents_organization_isolation"
+    }]
+  },
+  "artifacts": {
+    "dotnetProject": "src/Modules/Documents/Trykatch.Modules.Documents.Infrastructure/Trykatch.Modules.Documents.Infrastructure.csproj",
+    "webPackage": "src/Modules/Documents/Web/package.json"
+  },
+  "entrypoints": {
+    "dotnet": { "type": "Trykatch.Modules.Documents.Infrastructure.DocumentsModule" },
+    "web": { "specifier": "@trykatch-modules/documents", "export": "documentsModule" }
+  },
+  "contributions": {
+    "permissions": ["documents.read", "documents.manage"],
+    "routes": [{ "id": "documents.list", "path": "/documents" }],
+    "extensionPoints": [{ "id": "documents.list.after-table" }],
+    "extensions": [{ "id": "documents.projects-presence", "point": "projects.list.after-table" }],
+    "assistantTools": [
+      { "name": "try\u006batch_list_documents", "operationId": "Documents_List", "risk": "read-only", "requiresHumanConfirmation": false },
+      { "name": "try\u006batch_create_document", "operationId": "Documents_Create", "risk": "state-changing", "requiresHumanConfirmation": true },
+      { "name": "try\u006batch_update_document", "operationId": "Documents_Update", "risk": "state-changing", "requiresHumanConfirmation": true }
+    ]
+  }
+}

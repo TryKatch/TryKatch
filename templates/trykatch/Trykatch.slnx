@@ -1,0 +1,57 @@
+<Solution>
+  <Folder Name="/src/API/">
+    <Project Path="src/API/Trykatch.Api/Trykatch.Api.csproj" />
+    <Project Path="src/API/Trykatch.AppHost/Trykatch.AppHost.csproj" />
+    <Project Path="src/API/Trykatch.Migrator/Trykatch.Migrator.csproj" />
+  </Folder>
+  <Folder Name="/src/Common/">
+    <Project Path="src/Common/Trykatch.Application/Trykatch.Application.csproj" />
+    <Project Path="src/Common/Trykatch.Domain/Trykatch.Domain.csproj" />
+    <Project Path="src/Common/Trykatch.Identity/Trykatch.Identity.csproj" />
+    <Project Path="src/Common/Trykatch.Infrastructure/Trykatch.Infrastructure.csproj" />
+    <Project Path="src/Common/Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" />
+    <Project Path="src/Common/Trykatch.Modules.AspNetCore/Trykatch.Modules.AspNetCore.csproj" />
+    <Project Path="src/Common/Trykatch.ServiceDefaults/Trykatch.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Projects/">
+    <Project Path="src/Modules/Projects/Trykatch.Modules.Projects.Application/Trykatch.Modules.Projects.Application.csproj" />
+    <Project Path="src/Modules/Projects/Trykatch.Modules.Projects.Domain/Trykatch.Modules.Projects.Domain.csproj" />
+    <Project Path="src/Modules/Projects/Trykatch.Modules.Projects.Infrastructure/Trykatch.Modules.Projects.Infrastructure.csproj" />
+    <Project Path="src/Modules/Projects/Trykatch.Modules.Projects.IntegrationEvents/Trykatch.Modules.Projects.IntegrationEvents.csproj" />
+    <Project Path="src/Modules/Projects/Trykatch.Modules.Projects.Presentation/Trykatch.Modules.Projects.Presentation.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Documents/">
+    <Project Path="src/Modules/Documents/Trykatch.Modules.Documents.Application/Trykatch.Modules.Documents.Application.csproj" />
+    <Project Path="src/Modules/Documents/Trykatch.Modules.Documents.Domain/Trykatch.Modules.Documents.Domain.csproj" />
+    <Project Path="src/Modules/Documents/Trykatch.Modules.Documents.Infrastructure/Trykatch.Modules.Documents.Infrastructure.csproj" />
+    <Project Path="src/Modules/Documents/Trykatch.Modules.Documents.IntegrationEvents/Trykatch.Modules.Documents.IntegrationEvents.csproj" />
+    <Project Path="src/Modules/Documents/Trykatch.Modules.Documents.Presentation/Trykatch.Modules.Documents.Presentation.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Federation/">
+    <Project Path="src/Modules/Federation/Trykatch.Modules.Federation.Application/Trykatch.Modules.Federation.Application.csproj" />
+    <Project Path="src/Modules/Federation/Trykatch.Modules.Federation.Domain/Trykatch.Modules.Federation.Domain.csproj" />
+    <Project Path="src/Modules/Federation/Trykatch.Modules.Federation.Infrastructure/Trykatch.Modules.Federation.Infrastructure.csproj" />
+    <Project Path="src/Modules/Federation/Trykatch.Modules.Federation.IntegrationEvents/Trykatch.Modules.Federation.IntegrationEvents.csproj" />
+    <Project Path="src/Modules/Federation/Trykatch.Modules.Federation.Presentation/Trykatch.Modules.Federation.Presentation.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Trykatch.ArchitectureTests/Trykatch.ArchitectureTests.csproj" />
+    <Project Path="tests/Trykatch.IntegrationTests/Trykatch.IntegrationTests.csproj" />
+    <Project Path="tests/Trykatch.UnitTests/Trykatch.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Modules/Projects/">
+    <Project Path="tests/Modules/Projects/Trykatch.Modules.Projects.ArchitectureTests/Trykatch.Modules.Projects.ArchitectureTests.csproj" />
+    <Project Path="tests/Modules/Projects/Trykatch.Modules.Projects.UnitTests/Trykatch.Modules.Projects.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Modules/Documents/">
+    <Project Path="tests/Modules/Documents/Trykatch.Modules.Documents.ArchitectureTests/Trykatch.Modules.Documents.ArchitectureTests.csproj" />
+    <Project Path="tests/Modules/Documents/Trykatch.Modules.Documents.UnitTests/Trykatch.Modules.Documents.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Modules/Federation/">
+    <Project Path="tests/Modules/Federation/Trykatch.Modules.Federation.ArchitectureTests/Trykatch.Modules.Federation.ArchitectureTests.csproj" />
+    <Project Path="tests/Modules/Federation/Trykatch.Modules.Federation.UnitTests/Trykatch.Modules.Federation.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Trykatch.ModuleTool/Trykatch.ModuleTool.csproj" />
+  </Folder>
+</Solution>

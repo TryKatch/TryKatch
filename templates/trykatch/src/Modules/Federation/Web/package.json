@@ -1,0 +1,25 @@
+{
+  "name": "@trykatch-modules/federation",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "dependencies": {
+    "@trykatch/api-client": "workspace:*",
+    "@trykatch/module-sdk": "workspace:*",
+    "@trykatch/ui": "workspace:*",
+    "@tanstack/react-query": "5.102.8",
+    "lucide-react": "1.42.0",
+    "react": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "typescript": "6.0.3"
+  }
+}

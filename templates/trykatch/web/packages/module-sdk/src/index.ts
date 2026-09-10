@@ -1,51 +1,52 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
 
-export { ModuleExtensionSlot, TrykatchModuleProvider } from './extensions'
+export { ModuleExtensionSlot, ModuleProvider } from './extensions'
+export { ModuleI18nProvider, useModuleI18n, type ModuleI18n, type ModuleMessageValues } from './i18n'
 
-export interface TrykatchModuleIconProps {
+export interface ModuleIconProps {
   size?: string | number
 }
 
-export interface TrykatchWebRoute {
+export interface WebRoute {
   id: string
   path: `/${string}`
   surface?: 'workspace' | 'platform'
   component: ComponentType | LazyExoticComponent<ComponentType>
 }
 
-export interface TrykatchNavigationContribution {
+export interface NavigationContribution {
   id: string
   section: string
   order: number
   to: `/${string}`
   label: string
-  icon: ComponentType<TrykatchModuleIconProps>
+  icon: ComponentType<ModuleIconProps>
   requiredPermission?: string
   exact?: boolean
   surface?: 'workspace' | 'platform'
 }
 
-export type TrykatchExtensionPointKind = 'ui-slot' | 'data-table' | 'form' | 'component'
+export type ExtensionPointKind = 'ui-slot' | 'data-table' | 'form' | 'component'
 
-export interface TrykatchWebExtensionPoint {
+export interface WebExtensionPoint {
   id: string
   description: string
-  kind: TrykatchExtensionPointKind
+  kind: ExtensionPointKind
 }
 
-export interface TrykatchWebExtensionProps {
+export interface WebExtensionProps {
   context: Readonly<Record<string, unknown>>
 }
 
-export interface TrykatchWebExtension {
+export interface WebExtension {
   id: string
   point: string
   order: number
   requiredPermission?: string
-  component: ComponentType<TrykatchWebExtensionProps> | LazyExoticComponent<ComponentType<TrykatchWebExtensionProps>>
+  component: ComponentType<WebExtensionProps> | LazyExoticComponent<ComponentType<WebExtensionProps>>
 }
 
-export interface TrykatchArchiveLifecycle {
+export interface ArchiveLifecycle {
   status: 'Active' | 'Archived' | 'Deleted'
   archivedAt?: string | null
   archivedBy?: string | null
@@ -54,60 +55,60 @@ export interface TrykatchArchiveLifecycle {
   deletionReason?: string | null
 }
 
-export interface TrykatchArchiveItem {
+export interface ArchiveItem {
   id: string
   title: string
   description: string
-  lifecycle: TrykatchArchiveLifecycle
+  lifecycle: ArchiveLifecycle
 }
 
-export interface TrykatchArchiveResourceContribution {
+export interface ArchiveResourceContribution {
   kind: string
   typeLabel: string
   readPermission: string
   managePermission: string
-  load(): Promise<readonly TrykatchArchiveItem[]>
+  load(): Promise<readonly ArchiveItem[]>
   restore(id: string): Promise<unknown>
   requestDeletion?(id: string, reason: string): Promise<unknown>
 }
 
-export interface TrykatchWebModule {
+export interface WebModule {
   id: string
   name: string
   version: string
   description: string
   requires: readonly string[]
   optionalDependencies: readonly string[]
-  routes: readonly TrykatchWebRoute[]
-  navigation: readonly TrykatchNavigationContribution[]
-  extensionPoints: readonly TrykatchWebExtensionPoint[]
-  extensions: readonly TrykatchWebExtension[]
-  archiveResources?: readonly TrykatchArchiveResourceContribution[]
+  routes: readonly WebRoute[]
+  navigation: readonly NavigationContribution[]
+  extensionPoints: readonly WebExtensionPoint[]
+  extensions: readonly WebExtension[]
+  archiveResources?: readonly ArchiveResourceContribution[]
 }
 
-export interface TrykatchWebOverrides {
-  routes?: Readonly<Record<string, TrykatchWebRoute | null>>
-  navigation?: Readonly<Record<string, TrykatchNavigationContribution | null>>
-  extensions?: Readonly<Record<string, TrykatchWebExtension | null>>
+export interface WebOverrides {
+  routes?: Readonly<Record<string, WebRoute | null>>
+  navigation?: Readonly<Record<string, NavigationContribution | null>>
+  extensions?: Readonly<Record<string, WebExtension | null>>
 }
 
 const stableId = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 const stableVersion = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$/
 const stableContractId = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/
 
-export function defineTrykatchWebModule<const T extends TrykatchWebModule>(module: T): T {
+export function defineWebModule<const T extends WebModule>(module: T): T {
   return module
 }
 
-export class TrykatchWebModuleCatalog {
-  readonly modules: readonly TrykatchWebModule[]
-  readonly routes: readonly TrykatchWebRoute[]
-  readonly navigation: readonly TrykatchNavigationContribution[]
-  readonly extensionPoints: readonly TrykatchWebExtensionPoint[]
-  readonly extensions: readonly TrykatchWebExtension[]
-  readonly archiveResources: readonly TrykatchArchiveResourceContribution[]
+export class WebModuleCatalog {
+  readonly modules: readonly WebModule[]
+  readonly routes: readonly WebRoute[]
+  readonly navigation: readonly NavigationContribution[]
+  readonly extensionPoints: readonly WebExtensionPoint[]
+  readonly extensions: readonly WebExtension[]
+  readonly archiveResources: readonly ArchiveResourceContribution[]
 
-  constructor(modules: readonly TrykatchWebModule[], overrides: TrykatchWebOverrides = {}) {
+  constructor(modules: readonly WebModule[], overrides: WebOverrides = {}) {
     validateModules(modules)
     this.modules = orderByDependencies(modules)
     this.extensionPoints = this.modules.flatMap((module) => module.extensionPoints)
@@ -140,7 +141,7 @@ export class TrykatchWebModuleCatalog {
   }
 }
 
-function validateModules(modules: readonly TrykatchWebModule[]) {
+function validateModules(modules: readonly WebModule[]) {
   ensureUnique(modules.map((module) => module.id), 'module id')
   const installed = new Set(modules.map((module) => module.id))
 
@@ -170,10 +171,10 @@ function validateModules(modules: readonly TrykatchWebModule[]) {
 }
 
 function validateEffectiveContracts(
-  routes: readonly TrykatchWebRoute[],
-  navigation: readonly TrykatchNavigationContribution[],
-  extensionPoints: readonly TrykatchWebExtensionPoint[],
-  extensions: readonly TrykatchWebExtension[],
+  routes: readonly WebRoute[],
+  navigation: readonly NavigationContribution[],
+  extensionPoints: readonly WebExtensionPoint[],
+  extensions: readonly WebExtension[],
 ) {
   ensureUnique(routes.map((route) => route.id), 'route id')
   ensureUnique(routes.map((route) => route.path), 'route path')
@@ -209,9 +210,9 @@ function applyOverrides<T extends { id: string }>(
   })
 }
 
-function orderByDependencies(modules: readonly TrykatchWebModule[]) {
+function orderByDependencies(modules: readonly WebModule[]) {
   const byId = new Map(modules.map((module) => [module.id, module]))
-  const ordered: TrykatchWebModule[] = []
+  const ordered: WebModule[] = []
   const visiting = new Set<string>()
   const visited = new Set<string>()
 

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../Common/Trykatch.Modules.AspNetCore/Trykatch.Modules.AspNetCore.csproj" />
+    <ProjectReference Include="../Trykatch.Modules.Documents.Application/Trykatch.Modules.Documents.Application.csproj" />
+  </ItemGroup>
+</Project>

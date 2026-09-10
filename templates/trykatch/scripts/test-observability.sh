@@ -35,7 +35,7 @@ grep -Fq 'sum by (exporter) (rate(otelcol_exporter_send_failed_log_records_total
 grep -Fq 'sum by (exporter) (rate(otelcol_exporter_send_failed_spans_total[5m]))' "$dashboard"
 grep -Fq 'sum by (exporter) (rate(otelcol_exporter_send_failed_metric_points_total[5m]))' "$dashboard"
 
-serilog_registration="$template_root/src/TrykatchApp.ServiceDefaults/Observability/SerilogRegistration.cs"
+serilog_registration="$template_root/src/Common/Trykatch.ServiceDefaults/Observability/SerilogRegistration.cs"
 grep -Fq '.WriteTo.Sink(new SafeTelemetrySink(policy))' "$serilog_registration"
 if grep -Eq '\.ReadFrom\.(Configuration|Services)' "$serilog_registration"; then
   printf 'Serilog bypass sinks must not be configurable outside the safe telemetry sink.\n' >&2

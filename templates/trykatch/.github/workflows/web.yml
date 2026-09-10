@@ -26,8 +26,8 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
-      - run: dotnet restore TrykatchApp.slnx
-      - run: dotnet build src/TrykatchApp.Api/TrykatchApp.Api.csproj -c Release --no-restore
+      - run: dotnet restore Trykatch.slnx
+      - run: dotnet build src/API/Trykatch.Api/Trykatch.Api.csproj -c Release --no-restore
       - run: pnpm --dir web install --frozen-lockfile
       - run: pnpm --dir web generate
       - run: pnpm --dir web generate:check
@@ -35,7 +35,7 @@ jobs:
       - run: pnpm --dir web typecheck
       - run: pnpm --dir web test
       - run: pnpm --dir web build
-      - run: pnpm --dir web --filter @trykatchapp/web exec playwright install --with-deps chromium
-      - run: pnpm --dir web --filter @trykatchapp/web test:e2e
+      - run: pnpm --dir web --filter @trykatch/web exec playwright install --with-deps chromium
+      - run: pnpm --dir web --filter @trykatch/web test:e2e
       - run: pnpm --dir web audit --audit-level high
       - run: docker build -f web/apps/web/Dockerfile .

@@ -1,14 +1,14 @@
 {
-  "name": "trykatchapp-web-workspace",
+  "name": "trykatch-web-workspace",
   "private": true,
   "packageManager": "pnpm@10.17.1",
   "scripts": {
     "build": "pnpm --recursive build",
-    "dev": "pnpm --filter @trykatchapp/web dev",
-    "generate": "pnpm --filter @trykatchapp/api-client generate && node ../tools/generate-assistant-contract.mjs",
+    "dev": "pnpm --filter @trykatch/web dev",
+    "generate": "pnpm --filter @trykatch/api-client generate && node ../tools/generate-assistant-contract.mjs",
     "generate:check": "node ../tools/generate-assistant-contract.mjs --check",
     "test": "node --test ../tools/*.test.mjs && pnpm --recursive test",
     "typecheck": "pnpm --recursive typecheck",
-    "storybook": "pnpm --filter @trykatchapp/ui storybook"
+    "storybook": "pnpm --filter @trykatch/ui storybook"
   }
 }

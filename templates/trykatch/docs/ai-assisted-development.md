@@ -27,7 +27,7 @@ Start with read-only retrieval operations. Add write tools only after idempotenc
 ## Commands
 
 ```bash
-dotnet build TrykatchApp.slnx
+dotnet build Trykatch.slnx
 pnpm --dir web generate
 pnpm --dir web generate:check
 pnpm --dir web test

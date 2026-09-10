@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../ArchitectureTestSettings.cs" Link="MSTestSettings.cs" />
+  </ItemGroup>
+</Project>

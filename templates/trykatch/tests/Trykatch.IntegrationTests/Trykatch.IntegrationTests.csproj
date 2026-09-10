@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="MSTest" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/API/Trykatch.Api/Trykatch.Api.csproj" />
+    <ProjectReference Include="../../src/Common/Trykatch.ServiceDefaults/Trykatch.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../src/Modules/Documents/Trykatch.Modules.Documents.Domain/Trykatch.Modules.Documents.Domain.csproj" />
+    <ProjectReference Include="../../src/Modules/Projects/Trykatch.Modules.Projects.Domain/Trykatch.Modules.Projects.Domain.csproj" />
+    <ProjectReference Include="../../src/Modules/Projects/Trykatch.Modules.Projects.Infrastructure/Trykatch.Modules.Projects.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <Using Include="Trykatch.Modules.Documents.Domain" />
+    <Using Include="Trykatch.Modules.Projects.Domain" />
+    <Using Include="Trykatch.Modules.Projects.Infrastructure" />
+  </ItemGroup>
+
+</Project>

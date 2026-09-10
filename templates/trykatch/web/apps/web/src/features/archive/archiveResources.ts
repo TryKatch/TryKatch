@@ -1,5 +1,5 @@
-import { customFetch, type RoleDto } from '@trykatchapp/api-client'
-import type { TrykatchArchiveResourceContribution } from '@trykatchapp/module-sdk'
+import { customFetch, type RoleDto } from '@trykatch/api-client'
+import type { ArchiveResourceContribution } from '@trykatch/module-sdk'
 import type { RecordLifecycle } from '../../components/RecordLifecycle'
 import { workspaceModules } from '../../modules'
 
@@ -103,7 +103,7 @@ export const archiveResourceDefinitions: readonly ArchiveResourceDefinition[] = 
 ] as const
 
 const moduleArchiveResources: readonly ArchiveResourceDefinition[] = workspaceModules.archiveResources.map(
-  (resource: TrykatchArchiveResourceContribution) => {
+  (resource: ArchiveResourceContribution) => {
     if (archiveResourceDefinitions.some((core) => core.kind === resource.kind)) {
       throw new Error(`Module archive resource '${resource.kind}' conflicts with a host resource.`)
     }

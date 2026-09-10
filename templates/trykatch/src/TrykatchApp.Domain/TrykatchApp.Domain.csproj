@@ -1,5 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../TrykatchApp.Modules.Abstractions/TrykatchApp.Modules.Abstractions.csproj" />
-  </ItemGroup>
-</Project>

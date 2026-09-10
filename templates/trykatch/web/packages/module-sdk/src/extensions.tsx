@@ -1,9 +1,9 @@
 import { createContext, Suspense, useContext, type ReactNode } from 'react'
-import type { TrykatchWebModuleCatalog } from './index'
+import type { WebModuleCatalog } from './index'
 
-const ModuleCatalogContext = createContext<TrykatchWebModuleCatalog | null>(null)
+const ModuleCatalogContext = createContext<WebModuleCatalog | null>(null)
 
-export function TrykatchModuleProvider({ catalog, children }: { catalog: TrykatchWebModuleCatalog; children: ReactNode }) {
+export function ModuleProvider({ catalog, children }: { catalog: WebModuleCatalog; children: ReactNode }) {
   return <ModuleCatalogContext.Provider value={catalog}>{children}</ModuleCatalogContext.Provider>
 }
 
@@ -17,7 +17,7 @@ export function ModuleExtensionSlot({
   permissions?: readonly string[]
 }) {
   const catalog = useContext(ModuleCatalogContext)
-  if (!catalog) throw new Error('ModuleExtensionSlot must be rendered inside TrykatchModuleProvider.')
+  if (!catalog) throw new Error('ModuleExtensionSlot must be rendered inside ModuleProvider.')
 
   return catalog.extensionsFor(point)
     .filter((extension) => !extension.requiredPermission || permissions.includes(extension.requiredPermission))
