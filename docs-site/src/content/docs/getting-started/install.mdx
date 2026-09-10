@@ -3,6 +3,8 @@ title: Install and create an application
 description: Install the Trykatch template package and generate a complete .NET and React solution.
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 ## Install the template
 
 Follow these steps in order.
@@ -12,7 +14,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.7
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.8
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -40,7 +42,7 @@ cd Horizon
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.7
+dotnet new install Trykatch.Templates@0.1.0-preview.8
 ```
 :::
 
@@ -53,13 +55,31 @@ Names containing dots and hyphens are normalized for C# namespaces, directories,
 Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.7
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.8
 trykatch update
 ```
 
 `trykatch template update` is the explicit equivalent. Use `--version <version>` with either command when you need a particular release.
 
 Template updates affect projects generated in the future; they do not rewrite an existing application's source files.
+
+## Uninstall Trykatch
+
+Remove the project template first, while the Trykatch CLI is still available:
+
+```bash
+trykatch template uninstall
+```
+
+If you installed the template without the Trykatch CLI, use the equivalent Microsoft command: `dotnet new uninstall Trykatch.Templates`.
+
+If you also want to remove the CLI from your computer, run:
+
+```bash
+dotnet tool uninstall --global Trykatch.Cli
+```
+
+Uninstalling the template or CLI does not delete applications you already generated.
 
 ## Repair local HTTPS certificates
 
@@ -96,22 +116,39 @@ Use the CLI's focused help commands:
 
 ```bash
 trykatch help
+trykatch start --help
 trykatch update
 trykatch template help
 trykatch module help
 ```
 
-`trykatch help` lists application-generation choices. `trykatch template help` documents template installation and updates. `trykatch module help` lists every supported module lifecycle command.
+`trykatch help` lists application-generation choices. `trykatch start --help` documents application startup. `trykatch template help` documents template installation, updates, and removal. `trykatch module help` lists every supported module lifecycle command.
 
-## Start in Rider
+## Start the application
 
-Open the generated `.slnx` file, allow Rider to restore the solution, and select **`<ApplicationName>.AppHost: https`** as the run configuration. The AppHost profile starts PostgreSQL, runs the migrator, injects the separate runtime database credentials, and then starts the API and React application. Keep Docker running and do not use the API project as the standalone startup project.
+Keep Docker running. Always start the AppHost—not the API project by itself—so PostgreSQL, migrations, runtime credentials, the API, and React start together.
 
-From Rider's terminal, the equivalent command is:
+<Tabs syncKey="start-method">
+  <TabItem label="CLI" icon="terminal">
+    From the generated application's root directory, run:
 
-```bash
-dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj
-```
+    ```bash
+    trykatch start
+    ```
+
+    The CLI discovers the generated AppHost. From another directory, use `trykatch start --root /path/to/Horizon`.
+  </TabItem>
+  <TabItem label="Rider">
+    Open the generated `Horizon.slnx` file and allow Rider to restore the solution. Select **`Horizon.AppHost: https`** in the run-configuration menu, then choose **Run** or **Debug**.
+
+    If Rider has not created the configuration, right-click `src/Horizon.AppHost/Horizon.AppHost.csproj` and choose **Run 'Horizon.AppHost'** once.
+  </TabItem>
+  <TabItem label="Visual Studio">
+    Open `Horizon.slnx`. In Solution Explorer, right-click **Horizon.AppHost**, choose **Set as Startup Project**, select the **https** launch profile, and press **F5** or choose **Start**.
+  </TabItem>
+</Tabs>
+
+The equivalent direct .NET command is `dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj`.
 
 ## IDE template installation
 

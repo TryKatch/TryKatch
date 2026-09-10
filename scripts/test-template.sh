@@ -47,6 +47,8 @@ grep -Fq 'trykatch template install' <<<"$help_output" ||
   fail 'CLI help does not show the progress-aware template installer'
 grep -Fq 'trykatch update' <<<"$help_output" ||
   fail 'CLI help does not show the template update command'
+grep -Fq 'trykatch start' <<<"$help_output" ||
+  fail 'CLI help does not show the application start command'
 grep -Fq -- '--ui <react|none>' <<<"$help_output" ||
   fail 'CLI help does not document the frontend choice'
 grep -Fq 'Module lifecycle:' <<<"$help_output" ||
@@ -64,6 +66,11 @@ grep -Fq 'trykatch template install [--version <version>] [--force]' <<<"$templa
   fail 'template help does not document installation options'
 grep -Fq 'trykatch template update [--version <version>]' <<<"$template_help_output" ||
   fail 'template help does not document update options'
+grep -Fq 'trykatch template uninstall' <<<"$template_help_output" ||
+  fail 'template help does not document template removal'
+start_help_output=$("$test_root/tools/trykatch" start --help)
+grep -Fq 'trykatch start [--root <path>]' <<<"$start_help_output" ||
+  fail 'start help does not document AppHost discovery'
 cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'TrykatchApp.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
 test "$cli_informational_version" = 'Trykatch CLI 0.1.0-ci' ||
   fail "packaged CLI reports '$cli_informational_version' instead of its package version"
