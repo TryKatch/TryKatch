@@ -50,6 +50,11 @@ grep -Fq 'Module lifecycle:' <<<"$help_output" ||
 module_help_output=$("$test_root/tools/trykatch" module help)
 grep -Fq 'trykatch module doctor' <<<"$module_help_output" ||
   fail 'module help does not document workspace validation'
+grep -Fq 'trykatch module remove <id>' <<<"$module_help_output" ||
+  fail 'module help does not document the remove alias'
+nested_help_output=$("$test_root/tools/trykatch" module list --help)
+grep -Fq 'Trykatch module lifecycle' <<<"$nested_help_output" ||
+  fail 'nested module commands do not support --help'
 
 generate_and_build() {
   local name=$1

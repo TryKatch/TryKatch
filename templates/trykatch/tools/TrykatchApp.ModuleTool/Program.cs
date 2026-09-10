@@ -9,12 +9,17 @@ static Task<int> RunAsync(string[] arguments)
         return Task.FromResult(ShowHelp());
 
     if (arguments.Length == 2
-        && ((IsHelp(arguments[0]) && string.Equals(arguments[1], "module", StringComparison.Ordinal))
-            || (string.Equals(arguments[0], "module", StringComparison.Ordinal) && IsHelp(arguments[1]))))
+        && IsHelp(arguments[0])
+        && string.Equals(arguments[1], "module", StringComparison.Ordinal))
         return Task.FromResult(ShowModuleHelp());
 
     if (arguments.Length == 1 && IsHelp(arguments[0]))
         return Task.FromResult(ShowHelp());
+
+    if (arguments.Length >= 2
+        && string.Equals(arguments[0], "module", StringComparison.Ordinal)
+        && (IsHelp(arguments[1]) || arguments.Skip(2).Any(IsHelpOption)))
+        return Task.FromResult(ShowModuleHelp());
 
     if (arguments.Length < 2 || !string.Equals(arguments[0], "module", StringComparison.Ordinal))
         return Task.FromResult(ShowUnknownCommand(arguments[0]));
@@ -111,7 +116,10 @@ static void PrintModules(IEnumerable<ModuleStatus> modules)
 
 static bool IsHelp(string argument) =>
     string.Equals(argument, "help", StringComparison.Ordinal)
-    || string.Equals(argument, "--help", StringComparison.Ordinal)
+    || IsHelpOption(argument);
+
+static bool IsHelpOption(string argument) =>
+    string.Equals(argument, "--help", StringComparison.Ordinal)
     || string.Equals(argument, "-h", StringComparison.Ordinal);
 
 static int ShowHelp()
@@ -153,6 +161,7 @@ static int ShowModuleHelp(int exitCode = 0)
     Console.WriteLine("  trykatch module upgrade <manifest> --sha256 <digest> [--root <path>]");
     Console.WriteLine("  trykatch module eject <id> --source-bundle <path> --sha256 <digest> [--root <path>]");
     Console.WriteLine("  trykatch module unregister <id> [--root <path>]");
+    Console.WriteLine("  trykatch module remove <id> [--root <path>]  Alias for unregister.");
     return exitCode;
 }
 
