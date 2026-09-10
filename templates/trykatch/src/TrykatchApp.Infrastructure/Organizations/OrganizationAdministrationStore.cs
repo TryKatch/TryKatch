@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace TrykatchApp.Infrastructure.Organizations;
 
-internal sealed class OrganizationAdministrationStore(PlatformDbContext dbContext) : IOrganizationAdministrationStore
+internal sealed class OrganizationAdministrationStore(OrganizationControlPlaneDbContext dbContext) : IOrganizationAdministrationStore
 {
     public async Task<IReadOnlyList<Role>> ListRolesAsync(Guid organizationId, RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
     {
@@ -51,8 +51,24 @@ internal sealed class OrganizationAdministrationStore(PlatformDbContext dbContex
     public Task<Invitation?> FindInvitationAsync(Guid organizationId, Guid invitationId, CancellationToken cancellationToken) =>
         dbContext.Invitations.SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == invitationId, cancellationToken);
 
-    public Task<Invitation?> FindInvitationByHashAsync(string tokenHash, CancellationToken cancellationToken) =>
-        dbContext.Invitations.SingleOrDefaultAsync(x => x.TokenHash == tokenHash, cancellationToken);
+    public async Task<Invitation?> FindInvitationByHashAsync(string tokenHash, CancellationToken cancellationToken)
+    {
+        if (tokenHash.Length != 64 || tokenHash.Any(character => !Uri.IsHexDigit(character))) return null;
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+        try
+        {
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT set_config('app.invitation_hash', {tokenHash}, true)", cancellationToken);
+            return await dbContext.Invitations.SingleOrDefaultAsync(x => x.TokenHash == tokenHash, cancellationToken);
+        }
+        finally
+        {
+            if (transaction is null)
+                await dbContext.Database.ExecuteSqlRawAsync("SELECT set_config('app.invitation_hash', '', true)", CancellationToken.None);
+        }
+    }
 
     public Task<bool> UsableInvitationExistsAsync(Guid organizationId, string email, DateTimeOffset now, CancellationToken cancellationToken) =>
         dbContext.Invitations.AnyAsync(x => x.OrganizationId == organizationId && x.Email == email && x.AcceptedAt == null && x.RevokedAt == null && x.ExpiresAt > now && x.ArchivedAt == null && x.DeletedAt == null, cancellationToken);

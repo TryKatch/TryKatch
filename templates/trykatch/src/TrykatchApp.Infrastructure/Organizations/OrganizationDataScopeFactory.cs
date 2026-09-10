@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace TrykatchApp.Infrastructure.Organizations;
 
-internal sealed class OrganizationDataScopeFactory(PlatformDbContext dbContext) : IOrganizationDataScopeFactory
+internal sealed class OrganizationDataScopeFactory(OrganizationControlPlaneDbContext dbContext) : IOrganizationDataScopeFactory
 {
     public async Task<IOrganizationDataScope> BeginAsync(
         Guid organizationId,

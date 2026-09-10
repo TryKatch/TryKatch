@@ -6,8 +6,10 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using TrykatchApp.Identity;
+using TrykatchApp.Infrastructure.Modules;
 using TrykatchApp.Infrastructure.Persistence;
 using TrykatchApp.Infrastructure.Projects;
+using TrykatchApp.Modules;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -423,7 +425,8 @@ public sealed class AuthenticationSecurityTests
         await platform.Database.MigrateAsync();
         await using ApplicationDbContext application = new(
             new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options,
-            [new ProjectsModelContributor()]);
+            [new ProjectsModelContributor()],
+            moduleCatalog: new TrykatchModuleCatalog([new ProjectsModule()]));
         await application.Database.MigrateAsync();
     }
 }

@@ -198,9 +198,15 @@ EOF
 cat >"$environment_file" <<EOF
 TRYKATCH_POSTGRES_ADMIN_PASSWORD=$postgres_admin_password
 TRYKATCH_MIGRATOR_PASSWORD=$migrator_password
-TRYKATCH_RUNTIME_PASSWORD=$runtime_password
+TRYKATCH_ORG_RUNTIME_PASSWORD=$runtime_password-org
+TRYKATCH_PLATFORM_RUNTIME_PASSWORD=$runtime_password-platform
+TRYKATCH_IDENTITY_RUNTIME_PASSWORD=$runtime_password-identity
+TRYKATCH_OUTBOX_WORKER_PASSWORD=$runtime_password-outbox
 TRYKATCH_MIGRATOR_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_migrator;Password=$migrator_password
-TRYKATCH_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_runtime;Password=$runtime_password
+TRYKATCH_ORG_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_org_runtime;Password=$runtime_password-org
+TRYKATCH_PLATFORM_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_platform_runtime;Password=$runtime_password-platform
+TRYKATCH_IDENTITY_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_identity_runtime;Password=$runtime_password-identity
+TRYKATCH_OUTBOX_WORKER_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_outbox_worker;Password=$runtime_password-outbox
 TRYKATCH_PUBLIC_URL=$web_url
 TRYKATCH_SECRETS_PATH=$generated_root/secrets
 TRYKATCH_SIGNING_CERTIFICATE_PASSWORD=$signing_certificate_password

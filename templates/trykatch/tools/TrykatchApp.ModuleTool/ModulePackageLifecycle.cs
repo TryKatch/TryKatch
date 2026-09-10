@@ -10,6 +10,7 @@ public sealed partial class ModuleWorkspace
 {
     public ModuleDoctorReport RegisterWorkspace(string manifestPath)
     {
+        using IDisposable mutationLock = AcquirePackageMutationLock();
         ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
         string absolutePath = Path.GetFullPath(manifestPath, _root);
         string relativePath;
@@ -40,15 +41,39 @@ public sealed partial class ModuleWorkspace
         if (errors.Count > 0)
             return ToReport(modules, errors);
 
-        Dictionary<string, byte[]?> originals = CaptureFiles(catalog);
+        HashSet<string> baselineLockFiles = Directory
+            .EnumerateFiles(_root, "packages.lock.json", SearchOption.AllDirectories)
+            .ToHashSet(StringComparer.Ordinal);
+        Dictionary<string, byte[]?> originals = CapturePaths(MutationPaths(
+            catalog,
+            destinationManifestPath: null,
+            previousManifestPath: null,
+            baselineLockFiles));
         try
         {
+            string moduleProject = ResolveInsideRoot(manifest.Artifacts.DotnetProject);
+            AddProjectReference(
+                ResolveHostProject(catalog.Outputs.Backend, catalog.Outputs.BackendNamespace, "API"),
+                moduleProject);
+            AddProjectReference(
+                ResolveHostProject(catalog.Outputs.Migrator, catalog.Outputs.MigratorNamespace, "migrator"),
+                moduleProject);
+            if (manifest.Capabilities.Contains("web", StringComparer.Ordinal) && HasWebSurface())
+            {
+                string webPackage = ResolveInsideRoot(manifest.Artifacts.WebPackage);
+                UpsertWebDependency(
+                    ResolveInsideRoot("web/apps/web/package.json"),
+                    ReadNpmPackageName(webPackage),
+                    "workspace:*");
+            }
             WriteGeneratedRegistries(catalog, modules);
             WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, JsonOptions) + "\n");
+            RestorePackageGraphs(catalog, manifest.Capabilities.Contains("web", StringComparer.Ordinal));
         }
         catch
         {
             RestoreFiles(originals);
+            DeleteNewLockFiles(baselineLockFiles);
             throw;
         }
         return ToReport(modules, []);
@@ -56,6 +81,7 @@ public sealed partial class ModuleWorkspace
 
     public ModuleDoctorReport InstallPackage(string manifestPath, string expectedSha256)
     {
+        using IDisposable mutationLock = AcquirePackageMutationLock();
         CandidatePackage candidate = ReadCandidatePackage(manifestPath, expectedSha256);
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
@@ -64,8 +90,16 @@ public sealed partial class ModuleWorkspace
         ValidateCatalog(catalog, errors);
         if (errors.Count > 0)
             return new([], errors);
+        VerifyCandidatePackage(catalog, candidate);
         if (catalog.Modules.Any(module => string.Equals(module.Id, candidate.Manifest.Id, StringComparison.Ordinal)))
             return new([], [$"Trykatch module '{candidate.Manifest.Id}' is already installed. Use 'module upgrade' for a package update."]);
+        foreach (LoadedModule installed in LoadModules(catalog, errors))
+        {
+            if (string.Equals(installed.Manifest.Distribution.Dotnet?.Id, candidate.Manifest.Distribution.Dotnet!.Id, StringComparison.OrdinalIgnoreCase)
+                || candidate.Manifest.Distribution.Web is not null && string.Equals(installed.Manifest.Distribution.Web?.Id, candidate.Manifest.Distribution.Web.Id, StringComparison.OrdinalIgnoreCase))
+                errors.Add($"Package identity is already owned by installed module '{installed.Manifest.Id}'.");
+        }
+        if (errors.Count > 0) return new([], errors);
 
         string destination = PackageManifestPath(candidate.Manifest);
         ModuleRegistration registration = new()
@@ -81,12 +115,15 @@ public sealed partial class ModuleWorkspace
 
     public ModuleDoctorReport UpgradePackage(string manifestPath, string expectedSha256)
     {
+        using IDisposable mutationLock = AcquirePackageMutationLock();
         CandidatePackage candidate = ReadCandidatePackage(manifestPath, expectedSha256);
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
         if (catalog is null)
             return new([], errors);
         ValidateCatalog(catalog, errors);
+        if (errors.Count == 0)
+            VerifyCandidatePackage(catalog, candidate);
         List<LoadedModule> currentModules = LoadModules(catalog, errors);
         ValidateModules(catalog, currentModules, errors);
         if (errors.Count > 0)
@@ -98,6 +135,8 @@ public sealed partial class ModuleWorkspace
             return ToReport(currentModules, [$"Trykatch module '{candidate.Manifest.Id}' is not installed."]);
         if (!string.Equals(current.Manifest.Distribution.Kind, "package", StringComparison.Ordinal))
             return ToReport(currentModules, [$"Workspace module '{candidate.Manifest.Id}' is source-owned and cannot be upgraded as a package."]);
+        if (!string.Equals(current.Manifest.Publisher, candidate.Manifest.Publisher, StringComparison.Ordinal))
+            return ToReport(currentModules, [$"Package upgrade cannot change the enrolled publisher for '{candidate.Manifest.Id}'."]);
         if (!TryParseVersion(current.Manifest.Version, out Version? existingVersion)
             || !TryParseVersion(candidate.Manifest.Version, out Version? candidateVersion)
             || candidateVersion <= existingVersion)
@@ -119,6 +158,7 @@ public sealed partial class ModuleWorkspace
 
     public ModuleDoctorReport Unregister(string moduleId)
     {
+        using IDisposable mutationLock = AcquirePackageMutationLock();
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
@@ -152,7 +192,11 @@ public sealed partial class ModuleWorkspace
 
         catalog.Modules.Remove(target.Registration);
         CandidatePackage? package = string.Equals(target.Manifest.Distribution.Kind, "package", StringComparison.Ordinal)
-            ? new(target.Manifest, target.ManifestSha256, File.ReadAllBytes(ResolveInsideRoot(target.Registration.Manifest)))
+            ? new(
+                target.Manifest,
+                target.ManifestSha256,
+                File.ReadAllBytes(ResolveInsideRoot(target.Registration.Manifest)),
+                ResolveInsideRoot(target.Registration.Manifest))
             : null;
         return MutatePackageWorkspace(
             catalog,
@@ -173,12 +217,23 @@ public sealed partial class ModuleWorkspace
             .EnumerateFiles(_root, "packages.lock.json", SearchOption.AllDirectories)
             .ToHashSet(StringComparer.Ordinal);
         HashSet<string> paths = MutationPaths(catalog, destinationManifestPath, previousManifestPath, baselineLockFiles);
+        if (!remove && candidate is not null && destinationManifestPath is not null)
+        {
+            if (candidate.VerifiedFiles is null) throw new InvalidOperationException("Packages must be verified before workspace mutation.");
+            foreach (string relative in candidate.VerifiedFiles.Keys)
+                paths.Add(Path.GetFullPath(relative, Path.GetDirectoryName(destinationManifestPath)!));
+            paths.Add(PinnedBackendArchive(candidate.Manifest.Distribution.Dotnet!));
+            candidate.RestoreCachePath = ResolveInsideRoot(Path.Combine(".trykatch", "nuget", Guid.NewGuid().ToString("N")));
+        }
         Dictionary<string, byte[]?> originals = CapturePaths(paths);
 
         try
         {
             if (destinationManifestPath is not null && candidate is not null)
+            {
+                if (!remove) MaterializeVerifiedPackage(candidate, destinationManifestPath);
                 WriteAtomicBytes(destinationManifestPath, candidate.ManifestBytes);
+            }
 
             if (candidate is not null)
             {
@@ -202,7 +257,12 @@ public sealed partial class ModuleWorkspace
             WriteGeneratedRegistries(catalog, modules);
             WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, JsonOptions) + "\n");
             if (candidate is not null)
-                RestorePackageGraphs(catalog, candidate.Manifest.Distribution.Web is not null);
+                RestorePackageGraphs(catalog, candidate.Manifest.Distribution.Web is not null, candidate.RestoreCachePath);
+            if (!remove && candidate is not null)
+            {
+                VerifyRestoredBackend(candidate);
+                VerifyRestoredWeb(candidate);
+            }
 
             ModuleDoctorReport report = Inspect();
             if (!report.IsHealthy)
@@ -218,6 +278,7 @@ public sealed partial class ModuleWorkspace
         {
             RestoreFiles(originals);
             DeleteNewLockFiles(baselineLockFiles);
+            if (candidate?.RestoreCachePath is string cache && Directory.Exists(cache)) Directory.Delete(cache, recursive: true);
             throw;
         }
     }
@@ -250,7 +311,35 @@ public sealed partial class ModuleWorkspace
         }
         if (!string.Equals(manifest.Distribution.Kind, "package", StringComparison.Ordinal))
             throw new InvalidOperationException("Only a manifest with distribution kind 'package' can be installed or upgraded.");
-        return new(manifest, actualSha256, bytes);
+        return new(manifest, actualSha256, bytes, absolutePath);
+    }
+
+    private void VerifyCandidatePackage(ModuleCatalogFile catalog, CandidatePackage candidate)
+    {
+        candidate.VerifiedFiles = VerifyPackageArtifacts(catalog, candidate);
+    }
+
+    private static string ResolvePackageArtifact(string manifestPath, string? relativePath, string subject)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+            throw new InvalidOperationException($"Package manifest must declare its {subject} file.");
+        if (Path.IsPathRooted(relativePath))
+            throw new InvalidOperationException($"Package {subject} must use a relative path beside the reviewed manifest.");
+        string directory = Path.GetDirectoryName(manifestPath)!;
+        string path = Path.GetFullPath(relativePath, directory);
+        string prefix = Path.TrimEndingDirectorySeparator(directory) + Path.DirectorySeparatorChar;
+        if (!path.StartsWith(prefix, StringComparison.Ordinal) || !File.Exists(path))
+            throw new InvalidOperationException($"Package {subject} must be an existing file beside the reviewed manifest.");
+        return path;
+    }
+
+    private static void VerifyDigest(string path, string? expectedSha256, string subject)
+    {
+        if (expectedSha256 is null || expectedSha256.Length != 64 || expectedSha256.Any(character => !Uri.IsHexDigit(character)))
+            throw new InvalidOperationException($"Package manifest must declare a valid SHA-256 digest for its {subject}.");
+        string actual = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+        if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Package {subject} integrity check failed; the workspace was not changed.");
     }
 
     private string PackageManifestPath(ModuleManifest manifest) => ResolveInsideRoot(
@@ -279,7 +368,7 @@ public sealed partial class ModuleWorkspace
         List<string> errors)
     {
         string packageJsonPath = ResolveInsideRoot("web/apps/web/package.json");
-        if (!HasWebDependency(packageJsonPath, package.Id, package.Version))
+        if (!HasWebDependency(packageJsonPath, package.Id, PinnedWebSpecifier(manifest)))
             errors.Add($"Package module '{manifest.Id}' requires exact web package '{package.Id}' version '{package.Version}'.");
     }
 
@@ -298,7 +387,7 @@ public sealed partial class ModuleWorkspace
             UpsertWebDependency(
                 ResolveInsideRoot("web/apps/web/package.json"),
                 manifest.Distribution.Web.Id,
-                manifest.Distribution.Web.Version);
+                PinnedWebSpecifier(manifest));
     }
 
     private void RemovePackageReferences(ModuleManifest manifest, ModuleCatalogFile remainingCatalog)
@@ -337,11 +426,13 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    private void RestorePackageGraphs(ModuleCatalogFile catalog, bool includeWeb)
+    private void RestorePackageGraphs(ModuleCatalogFile catalog, bool includeWeb, string? packagesPath = null)
     {
+        List<string> restoreArguments = ["restore", ResolveSolution(), "--force-evaluate", "--configfile", ResolveInsideRoot("NuGet.Config")];
+        if (packagesPath is not null) restoreArguments.AddRange(["--packages", packagesPath]);
         WorkspaceCommandResult dotnet = _commandRunner.Run(
             "dotnet",
-            ["restore", ResolveSolution(), "--force-evaluate"],
+            restoreArguments,
             _root);
         if (dotnet.ExitCode != 0)
             throw new InvalidOperationException($".NET package restore failed:{Environment.NewLine}{dotnet.Output}");
@@ -369,6 +460,7 @@ public sealed partial class ModuleWorkspace
             ResolveInsideRoot(catalog.Outputs.Backend),
             ResolveInsideRoot(catalog.Outputs.Migrator),
             ResolveInsideRoot("Directory.Packages.props"),
+            ResolveInsideRoot("NuGet.Config"),
             ResolveHostProject(catalog.Outputs.Backend, catalog.Outputs.BackendNamespace, "API"),
             ResolveHostProject(catalog.Outputs.Migrator, catalog.Outputs.MigratorNamespace, "migrator")
         ];
@@ -383,6 +475,15 @@ public sealed partial class ModuleWorkspace
         if (previousManifestPath is not null)
             paths.Add(previousManifestPath);
         paths.UnionWith(packageLocks);
+        foreach (string project in Directory.EnumerateFiles(_root, "*.csproj", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}.trykatch{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}node_modules{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
+        {
+            string directory = Path.Combine(Path.GetDirectoryName(project)!, "obj");
+            foreach (string name in new[] { "project.assets.json", "project.nuget.cache", Path.GetFileName(project) + ".nuget.g.props",
+                Path.GetFileName(project) + ".nuget.g.targets", Path.GetFileName(project) + ".nuget.dgspec.json" })
+                paths.Add(Path.Combine(directory, name));
+        }
         return paths;
     }
 
@@ -494,7 +595,15 @@ public sealed partial class ModuleWorkspace
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n", new UTF8Encoding(false));
     }
 
-    private sealed record CandidatePackage(ModuleManifest Manifest, string ManifestSha256, byte[] ManifestBytes);
+    private sealed record CandidatePackage(
+        ModuleManifest Manifest,
+        string ManifestSha256,
+        byte[] ManifestBytes,
+        string ManifestPath)
+    {
+        public IReadOnlyDictionary<string, byte[]>? VerifiedFiles { get; set; }
+        public string? RestoreCachePath { get; set; }
+    }
 }
 
 internal sealed record WorkspaceCommandResult(int ExitCode, string Output);
@@ -515,6 +624,8 @@ internal sealed class ProcessWorkspaceCommandRunner : IWorkspaceCommandRunner
             RedirectStandardError = true,
             UseShellExecute = false
         };
+        if (string.Equals(fileName, "dotnet", StringComparison.Ordinal))
+            startInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
         foreach (string argument in arguments)
             startInfo.ArgumentList.Add(argument);
 

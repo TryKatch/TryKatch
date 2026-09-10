@@ -13,15 +13,15 @@ public sealed class TrykatchModuleMigrationPlanTests
     {
         DataModule projects = new("projects",
         [
-            new("202609080900_initial", "CREATE TABLE app.projects_test(id uuid PRIMARY KEY);"),
-            new("202609081000_index", "CREATE INDEX ix_projects_test ON app.projects_test(id);")
+            new("202609080900_initial", "CREATE TABLE infrastructure.projects_test(id uuid PRIMARY KEY);"),
+            new("202609081000_index", "CREATE INDEX ix_projects_test ON infrastructure.projects_test(id);")
         ]);
         DataModule reporting = new("reporting",
         [
-            new("202609081100_initial", "CREATE TABLE app.reporting_test(id uuid PRIMARY KEY);")
+            new("202609081100_initial", "CREATE TABLE infrastructure.reporting_test(id uuid PRIMARY KEY);")
         ], ["projects"]);
         string appliedChecksum = TrykatchModuleMigrationPlan.ComputeChecksum(
-            "CREATE TABLE app.projects_test(id uuid PRIMARY KEY);\n");
+            "CREATE TABLE infrastructure.projects_test(id uuid PRIMARY KEY);\n");
 
         IReadOnlyList<PendingTrykatchModuleMigration> plan = TrykatchModuleMigrationPlan.Build(
             new TrykatchModuleCatalog([reporting, projects]).Modules,
@@ -39,7 +39,7 @@ public sealed class TrykatchModuleMigrationPlanTests
     {
         DataModule module = new("projects",
         [
-            new("202609080900_initial", "CREATE TABLE app.projects_test(id uuid PRIMARY KEY);")
+            new("202609080900_initial", "CREATE TABLE infrastructure.projects_test(id uuid PRIMARY KEY);")
         ]);
 
         Should.Throw<InvalidOperationException>(() => TrykatchModuleMigrationPlan.Build(
@@ -53,11 +53,26 @@ public sealed class TrykatchModuleMigrationPlanTests
     {
         DataModule module = new("projects",
         [
-            new("202609080900_initial", "BEGIN; CREATE TABLE app.projects_test(id uuid PRIMARY KEY); COMMIT;")
+            new("202609080900_initial", "BEGIN; CREATE TABLE infrastructure.projects_test(id uuid PRIMARY KEY); COMMIT;")
         ]);
 
         Should.Throw<InvalidOperationException>(() => TrykatchModuleMigrationPlan.Build([module], []))
             .Message.ShouldContain("migrator owns the transaction");
+    }
+
+    [TestMethod]
+    public void BuildRejectsUndeclaredQuotedRelations()
+    {
+        DataModule module = new("projects",
+        [
+            new("202609080900_initial", """
+                CREATE TABLE infrastructure.projects_test(id uuid PRIMARY KEY);
+                CREATE TABLE "identity"."UndeclaredQuoted"(id uuid PRIMARY KEY);
+                """)
+        ]);
+
+        Should.Throw<InvalidOperationException>(() => TrykatchModuleMigrationPlan.Build([module], []))
+            .Message.ShouldContain("identity.UndeclaredQuoted");
     }
 
     private sealed class DataModule(
@@ -73,7 +88,15 @@ public sealed class TrykatchModuleMigrationPlanTests
             requires ?? [],
             [],
             TrykatchModuleCapabilities.Data,
-            []);
+            [])
+        {
+            DefaultDataOwnership = TrykatchDataOwnership.Infrastructure,
+            DataResources =
+            [
+                new($"{id}-test", "infrastructure", $"{id}_test", TrykatchDataOwnership.Infrastructure,
+                    AccessRule: TrykatchDataAccessRule.HostOnly)
+            ]
+        };
 
         public IReadOnlyList<TrykatchModuleMigration> Migrations { get; } = migrations;
 

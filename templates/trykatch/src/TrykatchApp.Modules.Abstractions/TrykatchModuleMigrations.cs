@@ -79,6 +79,9 @@ public static partial class TrykatchModuleMigrationPlan
                     ComputeChecksum(normalizedSql),
                     normalizedSql));
             }
+
+
+            ValidateDeclaredRelations(module, contributor.Migrations);
         }
 
         string? duplicate = defined
@@ -125,9 +128,46 @@ public static partial class TrykatchModuleMigrationPlan
     private static string Key(string moduleId, string migrationId) => $"{moduleId}/{migrationId}";
     private static string NormalizeNewlines(string value) => value.Replace("\r\n", "\n", StringComparison.Ordinal);
 
+    private static void ValidateDeclaredRelations(
+        ITrykatchModule module,
+        IReadOnlyList<TrykatchModuleMigration> migrations)
+    {
+        HashSet<string> created = migrations
+            .SelectMany(migration => CreatedTablePattern().Matches(migration.Sql).Select(match =>
+                $"{match.Groups["schema"].Value}.{match.Groups["table"].Value}"))
+            .ToHashSet(StringComparer.Ordinal);
+        HashSet<string> declared = module.Descriptor.DataResources
+            .Select(resource => $"{resource.Schema}.{resource.Table}")
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (string relation in created.Except(declared, StringComparer.Ordinal))
+            throw new InvalidOperationException(
+                $"Trykatch module '{module.Descriptor.Id}' migration creates undeclared relation '{relation}'.");
+        foreach (TrykatchDataResourceDescriptor resource in module.Descriptor.DataResources)
+        {
+            string relation = $"{resource.Schema}.{resource.Table}";
+            if (!created.Contains(relation))
+                throw new InvalidOperationException(
+                    $"Trykatch module '{module.Descriptor.Id}' declares persistent relation '{relation}' but its migrations do not create it.");
+            if (resource.Ownership == TrykatchDataOwnership.Organization)
+            {
+                string sql = string.Join('\n', migrations.Select(migration => migration.Sql));
+                if (!sql.Contains($"ALTER TABLE {relation} ENABLE ROW LEVEL SECURITY", StringComparison.OrdinalIgnoreCase)
+                    || !sql.Contains($"ALTER TABLE {relation} FORCE ROW LEVEL SECURITY", StringComparison.OrdinalIgnoreCase)
+                    || !sql.Contains("USING", StringComparison.OrdinalIgnoreCase)
+                    || !sql.Contains("WITH CHECK", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        $"Trykatch organization relation '{relation}' requires ENABLE/FORCE RLS with USING and WITH CHECK clauses.");
+            }
+        }
+    }
+
     [GeneratedRegex("^[0-9]{12}_[a-z][a-z0-9_]*$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex MigrationIdPattern();
 
     [GeneratedRegex("(?:^|[;\\s])(?:begin|commit|rollback)(?:[;\\s]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex TransactionControlPattern();
+
+    [GeneratedRegex("CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+(?:\"(?<schema>[A-Za-z_][A-Za-z0-9_]*)\"|(?<schema>[a-z][a-z0-9_]*))\\.(?:\"(?<table>[A-Za-z_][A-Za-z0-9_]*)\"|(?<table>[a-z][a-z0-9_]*))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
+    private static partial Regex CreatedTablePattern();
 }

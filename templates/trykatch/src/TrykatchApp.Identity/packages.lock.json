@@ -389,7 +389,16 @@
         }
       },
       "trykatchapp.domain": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "TrykatchApp.Modules.Abstractions": "[1.0.0, )"
+        }
+      },
+      "trykatchapp.modules.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.11, )"
+        }
       },
       "FluentValidation": {
         "type": "CentralTransitive",

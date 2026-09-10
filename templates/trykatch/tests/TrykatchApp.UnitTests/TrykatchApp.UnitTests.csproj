@@ -16,6 +16,7 @@
     <ProjectReference Include="../../src/TrykatchApp.Modules.AspNetCore/TrykatchApp.Modules.AspNetCore.csproj" />
     <ProjectReference Include="../../src/TrykatchApp.Modules.Federation/TrykatchApp.Modules.Federation.csproj" />
     <ProjectReference Include="../../tools/TrykatchApp.ModuleTool/TrykatchApp.ModuleTool.csproj" />
+    <ProjectReference Include="../../modules/documents/dotnet/Trykatch.Modules.Documents.csproj" />
   </ItemGroup>
 
   <ItemGroup>

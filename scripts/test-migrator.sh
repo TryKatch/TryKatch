@@ -7,9 +7,15 @@ export COMPOSE_PROJECT_NAME=trykatch_migrator_test
 export TRYKATCH_RELEASE_VERSION=ci-validation
 export TRYKATCH_POSTGRES_ADMIN_PASSWORD=postgres-admin-test-password
 export TRYKATCH_MIGRATOR_PASSWORD=migrator-test-password-with-24-characters
-export TRYKATCH_RUNTIME_PASSWORD=runtime-test-password-with-24-characters
+export TRYKATCH_ORG_RUNTIME_PASSWORD=org-runtime-test-password-with-24-characters
+export TRYKATCH_PLATFORM_RUNTIME_PASSWORD=platform-runtime-test-password-with-24-characters
+export TRYKATCH_IDENTITY_RUNTIME_PASSWORD=identity-runtime-test-password-with-24-characters
+export TRYKATCH_OUTBOX_WORKER_PASSWORD=outbox-runtime-test-password-with-24-characters
 export TRYKATCH_MIGRATOR_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_migrator;Password=$TRYKATCH_MIGRATOR_PASSWORD"
-export TRYKATCH_RUNTIME_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_runtime;Password=$TRYKATCH_RUNTIME_PASSWORD"
+export TRYKATCH_ORG_RUNTIME_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_org_runtime;Password=$TRYKATCH_ORG_RUNTIME_PASSWORD"
+export TRYKATCH_PLATFORM_RUNTIME_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_platform_runtime;Password=$TRYKATCH_PLATFORM_RUNTIME_PASSWORD"
+export TRYKATCH_IDENTITY_RUNTIME_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_identity_runtime;Password=$TRYKATCH_IDENTITY_RUNTIME_PASSWORD"
+export TRYKATCH_OUTBOX_WORKER_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_outbox_worker;Password=$TRYKATCH_OUTBOX_WORKER_PASSWORD"
 export GRAFANA_ADMIN_PASSWORD=grafana-admin-test-password
 
 cleanup() {
@@ -22,10 +28,20 @@ docker compose -f "$compose_file" run --rm --build migrator
 
 role_state=$(docker compose -f "$compose_file" exec -T postgres \
   psql --tuples-only --no-align --username postgres --dbname trykatch \
-  --command="SELECT rolsuper, rolbypassrls, count(c.oid) FROM pg_roles r LEFT JOIN pg_class c ON c.relowner = r.oid WHERE r.rolname = 'trykatch_runtime' GROUP BY r.rolsuper, r.rolbypassrls;")
-test "$role_state" = "f|f|0"
+  --command="SELECT string_agg(r.rolname || ':' || r.rolsuper || ':' || r.rolbypassrls || ':' || owned.relations, ',' ORDER BY r.rolname) FROM pg_roles r CROSS JOIN LATERAL (SELECT count(*) AS relations FROM pg_class c WHERE c.relowner = r.oid) owned WHERE r.rolname IN ('trykatch_org_runtime', 'trykatch_platform_runtime', 'trykatch_identity_runtime', 'trykatch_outbox_worker');")
+test "$role_state" = "trykatch_identity_runtime:false:false:0,trykatch_org_runtime:false:false:0,trykatch_outbox_worker:false:false:0,trykatch_platform_runtime:false:false:0"
 
 schema_count=$(docker compose -f "$compose_file" exec -T postgres \
   psql --tuples-only --no-align --username postgres --dbname trykatch \
   --command="SELECT count(*) FROM information_schema.schemata WHERE schema_name IN ('identity', 'platform', 'app');")
 test "$schema_count" = "3"
+
+privilege_state=$(docker compose -f "$compose_file" exec -T postgres \
+  psql --tuples-only --no-align --username postgres --dbname trykatch \
+  --command="SELECT concat_ws(',', has_table_privilege('trykatch_org_runtime', 'app.projects', 'SELECT'), has_table_privilege('trykatch_org_runtime', 'platform.organizations', 'SELECT'), has_table_privilege('trykatch_platform_runtime', 'platform.organizations', 'SELECT'), has_table_privilege('trykatch_platform_runtime', 'platform.outbox_messages', 'SELECT'), has_table_privilege('trykatch_identity_runtime', 'identity.\"AspNetUsers\"', 'SELECT'), has_table_privilege('trykatch_identity_runtime', 'app.projects', 'SELECT'), has_table_privilege('trykatch_outbox_worker', 'platform.outbox_messages', 'UPDATE'), has_table_privilege('trykatch_outbox_worker', 'app.projects', 'SELECT'));" )
+test "$privilege_state" = "true,true,true,false,true,false,true,false"
+
+public_acl_count=$(docker compose -f "$compose_file" exec -T postgres \
+  psql --tuples-only --no-align --username postgres --dbname trykatch \
+  --command="SELECT (SELECT count(*) FROM pg_namespace n CROSS JOIN LATERAL aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) a WHERE n.nspname IN ('app','platform','identity','reference','infrastructure','public') AND a.grantee = 0) + (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault(CASE WHEN c.relkind = 'S' THEN 'S'::\"char\" ELSE 'r'::\"char\" END, c.relowner))) a WHERE n.nspname IN ('app','platform','identity','reference','infrastructure','public') AND a.grantee = 0) + (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a WHERE n.nspname IN ('app','platform','identity','reference','infrastructure','public') AND a.grantee = 0);" )
+test "$public_acl_count" = "0"

@@ -2,8 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using TrykatchApp.Identity;
+using Trykatch.Modules.Documents;
+using TrykatchApp.Infrastructure.Modules;
+using TrykatchApp.Infrastructure.Organizations;
 using TrykatchApp.Infrastructure.Persistence;
 using TrykatchApp.Infrastructure.Projects;
+using TrykatchApp.Modules;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -30,16 +34,25 @@ public sealed class InvitationActivationRlsTests
         await postgres.StartAsync();
         string ownerConnection = postgres.GetConnectionString();
         await ApplyMigrationsAsync(ownerConnection);
-        string runtimeConnection = await CreateRuntimeRoleAsync(ownerConnection);
+        (string organizationConnection, string platformConnection, string identityConnection, string outboxConnection) =
+            await CreateRuntimeRolesAsync(ownerConnection);
 
         await using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(webHost =>
             {
                 webHost.UseEnvironment("Development");
-                webHost.UseSetting("ConnectionStrings:trykatchdb", runtimeConnection);
+                webHost.UseSetting("ConnectionStrings:trykatchdb", organizationConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-organization", organizationConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-platform", platformConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-identity", identityConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-outbox", outboxConnection);
                 webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:trykatchdb"] = runtimeConnection,
+                    ["ConnectionStrings:trykatchdb"] = organizationConnection,
+                    ["ConnectionStrings:trykatch-organization"] = organizationConnection,
+                    ["ConnectionStrings:trykatch-platform"] = platformConnection,
+                    ["ConnectionStrings:trykatch-identity"] = identityConnection,
+                    ["ConnectionStrings:trykatch-outbox"] = outboxConnection,
                     ["Bootstrap:PlatformAdminEmail"] = AdministratorEmail,
                     ["Bootstrap:PlatformAdminPassword"] = AdministratorPassword
                 }));
@@ -130,31 +143,90 @@ public sealed class InvitationActivationRlsTests
         await platform.Database.MigrateAsync();
         await using ApplicationDbContext application = new(
             new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options,
-            [new ProjectsModelContributor()]);
+            [new ProjectsModelContributor(), new DocumentsModelContributor()],
+            moduleCatalog: new TrykatchModuleCatalog([new ProjectsModule(), new DocumentsModule()]));
         await application.Database.MigrateAsync();
+        DocumentsModule documents = new();
+        await using NpgsqlConnection connection = new(connectionString);
+        await connection.OpenAsync();
+        foreach (TrykatchModuleMigration migration in documents.Migrations)
+        {
+            await using NpgsqlCommand command = new(migration.Sql, connection);
+            await command.ExecuteNonQueryAsync();
+        }
+        TrykatchInstalledDataResource[] installed = new ProjectsModule().Descriptor.DataResources
+            .Select(resource => new TrykatchInstalledDataResource("projects", resource))
+            .Concat(documents.Descriptor.DataResources.Select(resource => new TrykatchInstalledDataResource("documents", resource)))
+            .ToArray();
+        await InstalledSchemaCatalog.SynchronizeAsync(connectionString, installed);
     }
 
-    private static async Task<string> CreateRuntimeRoleAsync(string ownerConnection)
+    private static async Task<(string Organization, string Platform, string Identity, string Outbox)> CreateRuntimeRolesAsync(string ownerConnection)
     {
-        const string runtimeRole = "trykatch_invitation_runtime";
-        const string runtimePassword = "runtime-invitation-test-password";
+        const string organizationRole = "trykatch_org_runtime";
+        const string organizationPassword = "organization-runtime-test-password";
+        const string platformRole = "trykatch_platform_runtime";
+        const string platformPassword = "platform-runtime-test-password";
+        const string identityRole = "trykatch_identity_runtime";
+        const string identityPassword = "identity-runtime-test-password";
+        const string outboxRole = "trykatch_outbox_worker";
+        const string outboxPassword = "outbox-runtime-test-password";
         await using NpgsqlConnection connection = new(ownerConnection);
         await connection.OpenAsync();
         await using NpgsqlCommand command = connection.CreateCommand();
         command.CommandText = $"""
-            CREATE ROLE {runtimeRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{runtimePassword}';
-            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {runtimeRole};
-            GRANT USAGE ON SCHEMA identity, platform, app TO {runtimeRole};
-            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity, platform, app TO {runtimeRole};
-            GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity, platform, app TO {runtimeRole};
+            CREATE ROLE {organizationRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{organizationPassword}';
+            CREATE ROLE {platformRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{platformPassword}';
+            CREATE ROLE {identityRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{identityPassword}';
+            CREATE ROLE {outboxRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{outboxPassword}';
+            REVOKE ALL ON SCHEMA public FROM PUBLIC;
+            REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+            REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
+            REVOKE TEMPORARY ON DATABASE {QuoteIdentifier(connection.Database)} FROM PUBLIC;
+            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {organizationRole}, {platformRole}, {identityRole}, {outboxRole};
+
+            GRANT USAGE ON SCHEMA app, platform TO {organizationRole};
+            GRANT SELECT ON platform.organizations, platform.module_data_resources TO {organizationRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON platform.memberships, platform.roles,
+                platform.membership_roles, platform.role_permissions, platform.invitations TO {organizationRole};
+            GRANT SELECT, INSERT ON platform.audit_entries TO {organizationRole};
+            GRANT INSERT ON platform.outbox_messages TO {organizationRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects, app.documents TO {organizationRole};
+
+            GRANT USAGE ON SCHEMA platform TO {platformRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON platform.organizations, platform.organization_data_placements TO {platformRole};
+            GRANT SELECT, INSERT ON platform.roles, platform.role_permissions, platform.invitations TO {platformRole};
+
+            GRANT USAGE ON SCHEMA identity TO {identityRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity TO {identityRole};
+            GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity TO {identityRole};
+
+            GRANT USAGE ON SCHEMA platform TO {outboxRole};
+            GRANT SELECT, UPDATE ON platform.outbox_messages TO {outboxRole};
             """;
         await command.ExecuteNonQueryAsync();
 
-        return new NpgsqlConnectionStringBuilder(ownerConnection)
+        string organizationConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
         {
-            Username = runtimeRole,
-            Password = runtimePassword
+            Username = organizationRole,
+            Password = organizationPassword
         }.ConnectionString;
+        string platformConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
+        {
+            Username = platformRole,
+            Password = platformPassword
+        }.ConnectionString;
+        string identityConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
+        {
+            Username = identityRole,
+            Password = identityPassword
+        }.ConnectionString;
+        string outboxConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
+        {
+            Username = outboxRole,
+            Password = outboxPassword
+        }.ConnectionString;
+        return (organizationConnection, platformConnection, identityConnection, outboxConnection);
     }
 
     private static string QuoteIdentifier(string identifier) => $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";

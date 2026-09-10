@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>Trykatch.Modules.Documents</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Independent organization-owned documents proof module for Trykatch.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/TrykatchApp.Modules.Abstractions/TrykatchApp.Modules.Abstractions.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../../src/TrykatchApp.Modules.AspNetCore/TrykatchApp.Modules.AspNetCore.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../trykatch.module.json" Pack="true" PackagePath="content/trykatch.module.json" />
+  </ItemGroup>
+</Project>

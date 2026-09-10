@@ -6,7 +6,11 @@ using System.Text;
 
 namespace TrykatchApp.Application.Organizations;
 
-public sealed record CreateOrganizationCommand(string Name, string Slug, string AdministratorEmail);
+public sealed record CreateOrganizationCommand(
+    string Name,
+    string Slug,
+    string AdministratorEmail,
+    Guid InitiatingActorId);
 public sealed record OrganizationDto(Guid Id, string Name, string Slug, bool IsActive, DateTimeOffset CreatedAt);
 public sealed record CreateOrganizationResult(OrganizationDto Organization, string AdministratorEmail, string InvitationToken);
 
@@ -17,11 +21,15 @@ public sealed class CreateOrganizationValidator : AbstractValidator<CreateOrgani
         RuleFor(x => x.Name).NotEmpty().MaximumLength(160);
         RuleFor(x => x.Slug).Must(SlugRules.IsValid).WithMessage("Use 2-63 lowercase letters, numbers, or single hyphens.");
         RuleFor(x => x.AdministratorEmail).NotEmpty().EmailAddress().MaximumLength(320);
+        RuleFor(x => x.InitiatingActorId).NotEmpty();
     }
 }
 
 public sealed class CreateOrganization(
     IOrganizationDirectory directory,
+    IOrganizationDataPlacement dataPlacement,
+    IOrganizationInvitationTokenProtector tokenProtector,
+    TimeProvider timeProvider,
     IValidator<CreateOrganizationCommand> validator)
 {
     public async Task<Result<CreateOrganizationResult>> HandleAsync(CreateOrganizationCommand command, CancellationToken cancellationToken)
@@ -32,23 +40,52 @@ public sealed class CreateOrganization(
             return Result.Failure<CreateOrganizationResult>("validation", validation.Errors[0].ErrorMessage);
         }
 
-        if (await directory.SlugExistsAsync(command.Slug, cancellationToken))
-        {
-            return Result.Failure<CreateOrganizationResult>("slug_conflict", "An organization already uses this slug.");
-        }
-
-        Organization organization = Organization.Create(command.Name, command.Slug);
-        await directory.AddAsync(organization, cancellationToken);
-        OrganizationRoleSeeds roleSeeds = await directory.SeedRolesAsync(organization.Id, cancellationToken);
-        string invitationToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
-        Invitation invitation = Invitation.Create(
-            organization.Id,
-            roleSeeds.OwnerRoleId,
+        OrganizationCreationPreparationResult prepared = await directory.PrepareCreationAsync(
+            command.Name,
+            command.Slug,
+            command.InitiatingActorId,
             command.AdministratorEmail,
-            Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(invitationToken))),
-            DateTimeOffset.UtcNow.AddDays(7));
-        await directory.AddInvitationAsync(invitation, cancellationToken);
-        await directory.SaveChangesAsync(cancellationToken);
+            OrganizationDataPlacementKind.Shared,
+            cancellationToken);
+        if (!prepared.IsPrepared || prepared.Preparation is null)
+            return Result.Failure<CreateOrganizationResult>(
+                prepared.ErrorCode ?? "creation_conflict",
+                prepared.ErrorMessage ?? "Organization creation could not be prepared.");
+
+        Organization organization = prepared.Preparation.Organization;
+        OrganizationCreationIntent intent = prepared.Preparation.Intent;
+        Guid ownerRoleId = prepared.Preparation.OwnerRoleId;
+
+        OrganizationDataPlacementResult placement = await dataPlacement.ProvisionAsync(
+            new(organization.Id, OrganizationDataPlacementKind.Shared),
+            cancellationToken);
+        if (!placement.IsReady)
+            return Result.Failure<CreateOrganizationResult>(
+                placement.FailureCode ?? "provisioning_failed",
+                "Organization data placement is not ready. No owner invitation was issued; retrying this request is safe.");
+
+        string invitationToken;
+        string administratorEmail;
+        if (intent.IsCompleted)
+        {
+            invitationToken = tokenProtector.Unprotect(intent.ProtectedInvitationToken!);
+            administratorEmail = intent.AdministratorEmail.ToLowerInvariant();
+        }
+        else
+        {
+            invitationToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+            DateTimeOffset now = timeProvider.GetUtcNow();
+            Invitation invitation = Invitation.Create(
+                organization.Id,
+                ownerRoleId,
+                intent.AdministratorEmail,
+                Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(invitationToken))),
+                now.AddDays(7));
+            intent.MarkInvitationIssued(invitation.Id, tokenProtector.Protect(invitationToken), now);
+            await directory.AddInvitationAsync(invitation, cancellationToken);
+            await directory.SaveChangesAsync(cancellationToken);
+            administratorEmail = invitation.Email;
+        }
 
         OrganizationDto dto = new(
             organization.Id,
@@ -56,6 +93,6 @@ public sealed class CreateOrganization(
             organization.Slug,
             organization.IsActive,
             organization.CreatedAt);
-        return Result.Success(new CreateOrganizationResult(dto, invitation.Email, invitationToken));
+        return Result.Success(new CreateOrganizationResult(dto, administratorEmail, invitationToken));
     }
 }

@@ -1,4 +1,5 @@
 using TrykatchApp.ModuleTool;
+using TrykatchApp.Modules;
 using Shouldly;
 using System.Security.Cryptography;
 
@@ -7,6 +8,107 @@ namespace TrykatchApp.UnitTests;
 [TestClass]
 public sealed class ModuleWorkspaceTests
 {
+    [TestMethod]
+    [DataRow("subject")]
+    [DataRow("builder")]
+    [DataRow("stale")]
+    [DataRow("vulnerable")]
+    [DataRow("sbom")]
+    [DataRow("signature")]
+    [DataRow("signer")]
+    [DataRow("frontend-version")]
+    public void SignedButInvalidReleaseEvidenceCannotMutateTheWorkspace(string invalidEvidence)
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        string candidate = temporary.WritePackageManifest("reporting", "1.0.0", invalidEvidence);
+        ModuleWorkspace workspace = new(temporary.Root, new RecordingCommandRunner());
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string[] guarded = ["trykatch.modules.json", "trykatch.modules.lock.json", "NuGet.Config", "Directory.Packages.props", "web/apps/web/package.json", "web/pnpm-lock.yaml"];
+        Dictionary<string, byte[]> before = guarded.ToDictionary(path => path, path => File.ReadAllBytes(Path.Combine(temporary.Root, path)));
+
+        Should.Throw<InvalidOperationException>(() => workspace.InstallPackage(candidate, Sha256(candidate)));
+
+        foreach ((string path, byte[] bytes) in before) File.ReadAllBytes(Path.Combine(temporary.Root, path)).ShouldBe(bytes);
+        Directory.Exists(Path.Combine(temporary.Root, ".trykatch/modules/reporting")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public void SignedInstallRestoresTheVerifiedBytesEvenIfOriginalArtifactsChangeAfterVerification()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        string candidate = temporary.WritePackageManifest("reporting", "1.0.0");
+        string backend = Path.Combine(temporary.Root, "reporting.1.0.0.nupkg");
+        string frontend = Path.Combine(temporary.Root, "reporting.1.0.0.tgz");
+        string expectedBackend = Sha256(backend);
+        string expectedFrontend = Sha256(frontend);
+        string expectedFrontendIntegrity = "sha512-" + Convert.ToBase64String(
+            SHA512.HashData(File.ReadAllBytes(frontend)));
+        File.WriteAllText(Path.Combine(temporary.Root, "TrykatchApp.slnx"), """
+            <Solution><Project Path="src/TrykatchApp.Api/TrykatchApp.Api.csproj"/><Project Path="src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj"/></Solution>
+            """);
+        File.WriteAllText(Path.Combine(temporary.Root, "Directory.Packages.props"), "<Project><PropertyGroup><ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally></PropertyGroup></Project>");
+        foreach (string project in new[] { "TrykatchApp.Api", "TrykatchApp.Migrator" })
+            File.WriteAllText(Path.Combine(temporary.Root, "src", project, project + ".csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><NuGetAudit>false</NuGetAudit></PropertyGroup></Project>");
+        File.WriteAllText(Path.Combine(temporary.Root, "web/package.json"), "{\"name\":\"security-fixture\",\"private\":true}");
+        File.WriteAllText(Path.Combine(temporary.Root, "web/pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
+
+        ModuleWorkspace workspace = new(temporary.Root, new ArtifactReplacementRunner(backend, frontend));
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        ModuleDoctorReport result = workspace.InstallPackage(candidate, Sha256(candidate));
+
+        result.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, result.Errors));
+        string pinnedBackend = Path.Combine(temporary.Root, ".trykatch/packages", expectedBackend, "Trykatch.Modules.Reporting.1.0.0.nupkg");
+        Sha256(pinnedBackend).ShouldBe(expectedBackend);
+        Sha256(Path.Combine(temporary.Root, ".trykatch/modules/reporting/1.0.0/reporting.1.0.0.tgz")).ShouldBe(expectedFrontend);
+        File.ReadAllText(backend).ShouldBe("Changed after verification.");
+        File.ReadAllText(Path.Combine(temporary.Root, "web/apps/web/package.json"))
+            .ShouldContain("../../../.trykatch/modules/reporting/1.0.0/reporting.1.0.0.tgz");
+        File.ReadAllText(Path.Combine(temporary.Root, "web/pnpm-lock.yaml")).ShouldContain(expectedFrontendIntegrity);
+    }
+
+    [TestMethod]
+    public void InstallRejectsRootedArtifactPathsBeforeChangingWorkspaceFiles()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        string candidate = temporary.WritePackageManifest("reporting", "1.0.0");
+        ModuleWorkspace workspace = new(temporary.Root, new RecordingCommandRunner());
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string catalogPath = Path.Combine(temporary.Root, "trykatch.modules.json");
+        byte[] before = File.ReadAllBytes(catalogPath);
+        System.Text.Json.Nodes.JsonNode manifest = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(candidate))!;
+        manifest["distribution"]!["web"]!["packageFile"] = Path.Combine(temporary.Root, "reporting.1.0.0.tgz");
+        File.WriteAllText(candidate, manifest.ToJsonString());
+
+        Should.Throw<InvalidOperationException>(() => workspace.InstallPackage(candidate, Sha256(candidate)))
+            .Message.ShouldContain("relative path");
+
+        File.ReadAllBytes(catalogPath).ShouldBe(before);
+        Directory.Exists(Path.Combine(temporary.Root, ".trykatch/modules/reporting")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public void InstallRejectsAnUnrelatedArchiveBeforeChangingWorkspaceFiles()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        new ModuleWorkspace(temporary.Root).Generate().IsHealthy.ShouldBeTrue();
+        string candidate = temporary.WritePackageManifest("reporting", "1.0.0");
+        string original = File.ReadAllText(Path.Combine(temporary.Root, "trykatch.modules.json"));
+        System.Text.Json.Nodes.JsonNode manifest = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(candidate))!;
+        string package = Path.Combine(temporary.Root, manifest["distribution"]!["dotnet"]!["packageFile"]!.GetValue<string>());
+        File.Delete(package);
+        using (System.IO.Compression.ZipArchive archive = System.IO.Compression.ZipFile.Open(package, System.IO.Compression.ZipArchiveMode.Create))
+        {
+            using StreamWriter writer = new(archive.CreateEntry("unrelated.nuspec").Open());
+            writer.Write("<package><metadata><id>Unrelated.Package</id><version>9.9.9</version></metadata></package>");
+        }
+        manifest["distribution"]!["dotnet"]!["sha256"] = Sha256(package);
+        File.WriteAllText(candidate, manifest.ToJsonString());
+
+        Should.Throw<InvalidOperationException>(() => new ModuleWorkspace(temporary.Root, new RecordingCommandRunner())
+            .InstallPackage(candidate, Sha256(candidate)));
+        File.ReadAllText(Path.Combine(temporary.Root, "trykatch.modules.json")).ShouldBe(original);
+    }
+
     [TestMethod]
     public void GenerateProducesHealthyDeterministicBackendAndWebRegistries()
     {
@@ -22,6 +124,57 @@ public sealed class ModuleWorkspaceTests
         File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedMigratorModules.cs")).ShouldContain("new ProjectsModule()");
         File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts")).ShouldContain("projectsModule");
         File.ReadAllText(Path.Combine(temporary.Root, "trykatch.modules.lock.json")).ShouldContain("manifestSha256");
+    }
+
+    [TestMethod]
+    public void CliAccessRulesExhaustivelyMatchTheRuntimeContract()
+    {
+        Dictionary<string, TrykatchDataOwnership> ownerships = new(StringComparer.Ordinal)
+        {
+            ["organization"] = TrykatchDataOwnership.Organization,
+            ["platform"] = TrykatchDataOwnership.Platform,
+            ["global"] = TrykatchDataOwnership.Global,
+            ["infrastructure"] = TrykatchDataOwnership.Infrastructure
+        };
+        Dictionary<string, TrykatchDataAccessRule> accessRules = new(StringComparer.Ordinal)
+        {
+            ["platform-only"] = TrykatchDataAccessRule.PlatformOnly,
+            ["identity-only"] = TrykatchDataAccessRule.IdentityOnly,
+            ["global-read-only"] = TrykatchDataAccessRule.GlobalReadOnly,
+            ["host-only"] = TrykatchDataAccessRule.HostOnly,
+            ["outbox-append-only"] = TrykatchDataAccessRule.OutboxAppendOnly
+        };
+        string[] schemas = ["app", "platform", "identity", "reference", "infrastructure", "custom"];
+        string[] ownershipValues = [.. ownerships.Keys, "unknown"];
+        string?[] accessValues = [null, .. accessRules.Keys, "unknown"];
+
+        foreach (string ownership in ownershipValues)
+        foreach (string schema in schemas)
+        foreach (string? accessRule in accessValues)
+        {
+            bool runtimeApproved = false;
+            if (ownerships.TryGetValue(ownership, out TrykatchDataOwnership runtimeOwnership)
+                && (accessRule is null || accessRules.TryGetValue(accessRule, out _)))
+            {
+                TrykatchDataAccessRule? runtimeAccess = accessRule is null ? null : accessRules[accessRule];
+                TrykatchDataResourceDescriptor resource = new(
+                    "parity", schema, "records", runtimeOwnership,
+                    IsolationPolicy: runtimeOwnership == TrykatchDataOwnership.Organization ? "records_organization_isolation" : null,
+                    AccessRule: runtimeAccess);
+                try
+                {
+                    TrykatchDataResourceRules.Validate(resource);
+                    runtimeApproved = true;
+                }
+                catch (InvalidOperationException)
+                {
+                    runtimeApproved = false;
+                }
+            }
+
+            ModuleWorkspace.IsApprovedDataResourceAccess(ownership, schema, accessRule)
+                .ShouldBe(runtimeApproved, $"CLI/runtime access-rule mismatch for {ownership}/{schema}/{accessRule ?? "<null>"}");
+        }
     }
 
     [TestMethod]
@@ -190,7 +343,7 @@ public sealed class ModuleWorkspaceTests
             .ShouldContain("@trykatchapp/module-reporting");
         File.ReadAllText(Path.Combine(temporary.Root, "trykatch.modules.lock.json"))
             .ShouldContain(digest);
-        runner.Commands.Count.ShouldBe(2);
+        runner.Commands.Count.ShouldBe(3);
 
         ModuleDoctorReport removed = workspace.Unregister("reporting");
 
@@ -199,7 +352,7 @@ public sealed class ModuleWorkspaceTests
         File.ReadAllText(Path.Combine(temporary.Root, "Directory.Packages.props"))
             .ShouldNotContain("Trykatch.Modules.Reporting");
         File.Exists(Path.Combine(temporary.Root, "manifests/projects.json")).ShouldBeTrue();
-        runner.Commands.Count.ShouldBe(4);
+        runner.Commands.Count.ShouldBe(5);
     }
 
     [TestMethod]
@@ -208,19 +361,19 @@ public sealed class ModuleWorkspaceTests
         using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
         ModuleWorkspace baseline = new(temporary.Root);
         baseline.Generate().IsHealthy.ShouldBeTrue();
+        string candidatePath = temporary.WritePackageManifest("reporting", "1.0.0");
         string catalogBefore = File.ReadAllText(Path.Combine(temporary.Root, "trykatch.modules.json"));
         string packagesBefore = File.ReadAllText(Path.Combine(temporary.Root, "Directory.Packages.props"));
-        string candidatePath = temporary.WritePackageManifest("reporting", "1.0.0");
-        RecordingCommandRunner runner = new(failFirstCommand: true);
+        string configBefore = File.ReadAllText(Path.Combine(temporary.Root, "NuGet.Config"));
+        RecordingCommandRunner runner = new(failRestore: true);
 
         Should.Throw<InvalidOperationException>(() =>
             new ModuleWorkspace(temporary.Root, runner).InstallPackage(candidatePath, Sha256(candidatePath)));
 
         File.ReadAllText(Path.Combine(temporary.Root, "trykatch.modules.json")).ShouldBe(catalogBefore);
         File.ReadAllText(Path.Combine(temporary.Root, "Directory.Packages.props")).ShouldBe(packagesBefore);
-        Directory.Exists(Path.Combine(temporary.Root, ".trykatch/modules/reporting")).ShouldBeTrue();
-        Directory.EnumerateFiles(Path.Combine(temporary.Root, ".trykatch/modules/reporting"), "*", SearchOption.AllDirectories)
-            .ShouldBeEmpty();
+        File.ReadAllText(Path.Combine(temporary.Root, "NuGet.Config")).ShouldBe(configBefore);
+        Directory.EnumerateFiles(Path.Combine(temporary.Root, ".trykatch/modules/reporting"), "*", SearchOption.AllDirectories).ShouldBeEmpty();
         new ModuleWorkspace(temporary.Root).Inspect().IsHealthy.ShouldBeTrue();
     }
 
@@ -243,6 +396,112 @@ public sealed class ModuleWorkspaceTests
             .ShouldContain("Version=\"1.1.0\"");
         File.ReadAllText(Path.Combine(temporary.Root, "trykatch.modules.lock.json"))
             .ShouldContain("\"version\": \"1.1.0\"");
+    }
+
+    [TestMethod]
+    public async Task ConcurrentDisableCannotBeOverwrittenByAnInFlightUpgrade()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        RecordingCommandRunner upgradeRunner = new();
+        ModuleWorkspace workspace = new(temporary.Root, upgradeRunner);
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string versionOne = temporary.WritePackageManifest("reporting", "1.0.0");
+        workspace.InstallPackage(versionOne, Sha256(versionOne)).IsHealthy.ShouldBeTrue();
+        workspace.SetEnabled("reporting", enabled: true).IsHealthy.ShouldBeTrue();
+        string versionTwo = temporary.WritePackageManifest("reporting", "1.1.0");
+        using ManualResetEventSlim restoreStarted = new();
+        using ManualResetEventSlim continueRestore = new();
+        upgradeRunner.BlockNextPnpmInstall(restoreStarted, continueRestore);
+
+        Task<ModuleDoctorReport> upgrade = Task.Run(() =>
+            workspace.UpgradePackage(versionTwo, Sha256(versionTwo)));
+        restoreStarted.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("upgrade did not reach its serialized package restore");
+        Task<ModuleDoctorReport> disable = Task.Run(() =>
+            new ModuleWorkspace(temporary.Root, new RecordingCommandRunner()).SetEnabled("reporting", enabled: false));
+        await Task.Delay(100);
+        disable.IsCompleted.ShouldBeFalse("disable must wait for the active workspace mutation");
+
+        continueRestore.Set();
+        ModuleDoctorReport[] results = await Task.WhenAll(upgrade, disable);
+
+        results.ShouldAllBe(result => result.IsHealthy);
+        ModuleStatus final = new ModuleWorkspace(temporary.Root).Inspect().Modules.Single(module => module.Id == "reporting");
+        final.Version.ShouldBe("1.1.0");
+        final.Enabled.ShouldBeFalse("the later disable must win after rereading the upgraded catalog");
+    }
+
+    [TestMethod]
+    public void EquivalentWorkspacePathSpellingsShareOneMutationLockIdentity()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+
+        string canonical = ModuleWorkspace.PackageMutationLockName(temporary.Root);
+        string trailingSeparator = ModuleWorkspace.PackageMutationLockName(temporary.Root + Path.DirectorySeparatorChar);
+        string dotSegment = ModuleWorkspace.PackageMutationLockName(Path.Combine(temporary.Root, "."));
+
+        trailingSeparator.ShouldBe(canonical);
+        dotSegment.ShouldBe(canonical);
+    }
+
+    [TestMethod]
+    public void WorkspacePathsThroughASymlinkedAncestorShareOneMutationLockIdentity()
+    {
+        if (OperatingSystem.IsWindows())
+            return; // Creating directory symlinks is not reliably available to unprivileged Windows test processes.
+
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        string parent = Path.GetDirectoryName(temporary.Root)!;
+        string aliasParent = Path.Combine(parent, $"trykatch-module-alias-{Guid.NewGuid():N}");
+        Directory.CreateSymbolicLink(aliasParent, parent);
+        try
+        {
+            string aliasRoot = Path.Combine(aliasParent, Path.GetFileName(temporary.Root));
+            Directory.Exists(aliasRoot).ShouldBeTrue();
+
+            ModuleWorkspace.PackageMutationLockName(aliasRoot)
+                .ShouldBe(ModuleWorkspace.PackageMutationLockName(temporary.Root));
+        }
+        finally
+        {
+            Directory.Delete(aliasParent);
+        }
+    }
+
+    [TestMethod]
+    public void RegisterWorkspaceAcceptsAnAbsoluteManifestPathThroughTheRootAlias()
+    {
+        if (OperatingSystem.IsWindows())
+            return; // Creating directory symlinks is not reliably available to unprivileged Windows test processes.
+
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        string bundle = temporary.WriteSourceBundle("reporting", "1.0.0");
+        string dotnetTarget = Path.Combine(temporary.Root, "src/TrykatchApp.Modules.Reporting");
+        string webTarget = Path.Combine(temporary.Root, "web/packages/module-reporting");
+        Directory.CreateDirectory(dotnetTarget);
+        Directory.CreateDirectory(webTarget);
+        File.Copy(Path.Combine(bundle, "src/TrykatchApp.Modules.Reporting/Reporting.csproj"), Path.Combine(dotnetTarget, "Reporting.csproj"));
+        File.Copy(Path.Combine(bundle, "web/packages/module-reporting/package.json"), Path.Combine(webTarget, "package.json"));
+
+        string parent = Path.GetDirectoryName(temporary.Root)!;
+        string aliasParent = Path.Combine(parent, $"trykatch-module-alias-{Guid.NewGuid():N}");
+        Directory.CreateSymbolicLink(aliasParent, parent);
+        try
+        {
+            string aliasRoot = Path.Combine(aliasParent, Path.GetFileName(temporary.Root));
+            string aliasManifest = Path.Combine(aliasRoot, Path.GetRelativePath(temporary.Root, bundle), "trykatch.module.json");
+
+            ModuleDoctorReport result = new ModuleWorkspace(aliasRoot, new RecordingCommandRunner())
+                .RegisterWorkspace(aliasManifest);
+
+            result.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, result.Errors));
+            result.Modules.Single(module => module.Id == "reporting").Enabled.ShouldBeFalse();
+            File.ReadAllText(Path.Combine(temporary.Root, "trykatch.modules.json"))
+                .ShouldContain("bundle-reporting-1.0.0/trykatch.module.json");
+        }
+        finally
+        {
+            Directory.Delete(aliasParent);
+        }
     }
 
     [TestMethod]
@@ -318,6 +577,13 @@ public sealed class ModuleWorkspaceTests
             File.WriteAllText(Path.Combine(root, "web/apps/web/package.json"),
                 "{\n  \"dependencies\": {}\n}\n");
             File.WriteAllText(Path.Combine(root, "web/pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+            File.WriteAllText(Path.Combine(root, "NuGet.Config"), """
+                <configuration>
+                  <config><add key="signatureValidationMode" value="require" /></config>
+                  <trustedSigners><author name="trykatch"><certificate fingerprint="00" hashAlgorithm="SHA256" allowUntrustedRoot="false" /></author></trustedSigners>
+                  <packageSourceMapping><packageSource key="nuget.org"><package pattern="*" /></packageSource></packageSourceMapping>
+                </configuration>
+                """);
 
             File.WriteAllText(Path.Combine(root, "manifests/projects.json"), Manifest(
                 "projects",
@@ -353,6 +619,7 @@ public sealed class ModuleWorkspaceTests
                   "schemaVersion": 1,
                   "hostVersion": "0.1.0",
                   "lockFile": "trykatch.modules.lock.json",
+                  "trustedPublishers": ["trykatch"],
                   "outputs": {
                     "backend": "src/GeneratedModules.cs",
                     "backendNamespace": "TrykatchApp.Api.Modules",
@@ -370,9 +637,13 @@ public sealed class ModuleWorkspaceTests
             return new(root);
         }
 
-        public string WritePackageManifest(string id, string version)
+        public string WritePackageManifest(string id, string version, string? invalidEvidence = null)
         {
             string path = Path.Combine(Root, $"{id}-{version}.package.json");
+            string packageFile = $"{id}.{version}.nupkg";
+            string provenanceFile = $"{id}.{version}.provenance.json";
+            string sbomFile = $"{id}.{version}.spdx.json";
+            SignedModuleTestArtifacts.Create(Root, id, version, invalidEvidence);
             File.WriteAllText(path, $$"""
                 {
                   "schemaVersion": 1,
@@ -380,11 +651,24 @@ public sealed class ModuleWorkspaceTests
                   "name": "Reporting",
                   "version": "{{version}}",
                   "description": "Packaged reporting module.",
+                  "publisher": "trykatch",
                   "distribution": {
                     "kind": "package",
                     "license": "Apache-2.0",
-                    "dotnet": { "id": "Trykatch.Modules.Reporting", "version": "{{version}}" },
-                    "web": { "id": "@trykatchapp/module-reporting", "version": "{{version}}" }
+                    "dotnet": {
+                      "id": "Trykatch.Modules.Reporting",
+                      "version": "{{version}}",
+                      "packageFile": "{{packageFile}}",
+                      "sha256": "{{Sha256(Path.Combine(Root, packageFile))}}"
+                    },
+                    "web": { "id": "@trykatchapp/module-reporting", "version": "{{version}}", "packageFile": "{{id}}.{{version}}.tgz", "sha256": "{{Sha256(Path.Combine(Root, $"{id}.{version}.tgz"))}}" },
+                    "supplyChain": {
+                      "provenanceFile": "{{provenanceFile}}",
+                      "provenanceSha256": "{{Sha256(Path.Combine(Root, provenanceFile))}}",
+                      "provenanceSignatureFile": "{{id}}.{{version}}.provenance.sig",
+                      "sbomFile": "{{sbomFile}}",
+                      "sbomSha256": "{{Sha256(Path.Combine(Root, sbomFile))}}"
+                    }
                   },
                   "compatibility": {
                     "minimumHostVersion": "0.1.0",
@@ -428,6 +712,7 @@ public sealed class ModuleWorkspaceTests
                   "name": "Reporting",
                   "version": "{{version}}",
                   "description": "Ejected reporting module.",
+                  "publisher": "trykatch",
                   "distribution": { "kind": "workspace", "license": "Apache-2.0" },
                   "compatibility": {
                     "minimumHostVersion": "0.1.0",
@@ -475,6 +760,7 @@ public sealed class ModuleWorkspaceTests
                   "name": "{{id}}",
                   "version": "1.0.0",
                   "description": "Test module.",
+                  "publisher": "trykatch",
                   "distribution": {
                     "kind": "workspace",
                     "license": "Apache-2.0"
@@ -505,16 +791,86 @@ public sealed class ModuleWorkspaceTests
                 """;
     }
 
-    private sealed class RecordingCommandRunner(bool failFirstCommand = false) : IWorkspaceCommandRunner
+    private sealed class RecordingCommandRunner(bool failRestore = false) : IWorkspaceCommandRunner
     {
+        private ManualResetEventSlim? restoreStarted;
+        private ManualResetEventSlim? continueRestore;
         public List<string> Commands { get; } = [];
+
+        public void BlockNextPnpmInstall(ManualResetEventSlim started, ManualResetEventSlim continuation)
+        {
+            restoreStarted = started;
+            continueRestore = continuation;
+        }
 
         public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
         {
             Commands.Add($"{fileName} {string.Join(' ', arguments)}");
-            return failFirstCommand && Commands.Count == 1
-                ? new(1, "simulated restore failure")
-                : new(0, "ok");
+            if (fileName == "dotnet" && arguments.Count > 1 && arguments[0] == "nuget" && arguments[1] == "verify")
+                return new ProcessWorkspaceCommandRunner().Run(fileName, arguments, workingDirectory);
+            if (fileName == "dotnet" && arguments[0] == "restore")
+            {
+                if (failRestore) return new(1, "simulated restore failure");
+                System.Xml.Linq.XDocument config = System.Xml.Linq.XDocument.Load(Path.Combine(workingDirectory, "NuGet.Config"));
+                string? cache = config.Descendants("add").SingleOrDefault(item => (string?)item.Attribute("key") == "globalPackagesFolder")?.Attribute("value")?.Value;
+                if (cache is not null)
+                {
+                    foreach (string archive in Directory.EnumerateFiles(Path.Combine(workingDirectory, ".trykatch/packages"), "*.nupkg", SearchOption.AllDirectories))
+                    {
+                        using System.IO.Compression.ZipArchive package = System.IO.Compression.ZipFile.OpenRead(archive);
+                        using Stream metadata = package.Entries.Single(item => item.Name.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
+                        System.Xml.Linq.XDocument nuspec = System.Xml.Linq.XDocument.Load(metadata);
+                        string id = nuspec.Descendants().Single(item => item.Name.LocalName == "id").Value.ToLowerInvariant();
+                        string version = nuspec.Descendants().Single(item => item.Name.LocalName == "version").Value;
+                        string directory = Path.Combine(workingDirectory, cache, id, version);
+                        Directory.CreateDirectory(directory);
+                        File.Copy(archive, Path.Combine(directory, $"{id}.{version}.nupkg"), overwrite: true);
+                    }
+                }
+            }
+            if (fileName == "pnpm" && arguments[0] == "install")
+            {
+                ManualResetEventSlim? started = Interlocked.Exchange(ref restoreStarted, null);
+                ManualResetEventSlim? continuation = Interlocked.Exchange(ref continueRestore, null);
+                if (started is not null && continuation is not null)
+                {
+                    started.Set();
+                    continuation.Wait(TimeSpan.FromSeconds(10));
+                }
+                string packageJsonPath = Path.Combine(workingDirectory, "apps/web/package.json");
+                using System.Text.Json.JsonDocument packageJson = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(packageJsonPath));
+                foreach (System.Text.Json.JsonProperty dependency in packageJson.RootElement.GetProperty("dependencies").EnumerateObject())
+                {
+                    string specifier = dependency.Value.GetString()!;
+                    if (!specifier.StartsWith("file:", StringComparison.Ordinal)) continue;
+                    string archive = Path.GetFullPath(specifier[5..], Path.GetDirectoryName(packageJsonPath)!);
+                    byte[] bytes = File.ReadAllBytes(archive);
+                    using System.IO.Compression.GZipStream gzip = new(new MemoryStream(bytes), System.IO.Compression.CompressionMode.Decompress);
+                    using System.Formats.Tar.TarReader tar = new(gzip);
+                    System.Formats.Tar.TarEntry? metadata;
+                    do { metadata = tar.GetNextEntry(); } while (metadata is not null && metadata.Name != "package/package.json");
+                    using System.Text.Json.JsonDocument identity = System.Text.Json.JsonDocument.Parse(metadata!.DataStream!);
+                    string version = identity.RootElement.GetProperty("version").GetString()!;
+                    string integrity = "sha512-" + Convert.ToBase64String(SHA512.HashData(bytes));
+                    File.WriteAllText(Path.Combine(workingDirectory, "pnpm-lock.yaml"),
+                        $"lockfileVersion: '9.0'\n# {dependency.Name}@{version}\nintegrity: {integrity}\n");
+                }
+            }
+            return new(0, "ok");
+        }
+    }
+
+    private sealed class ArtifactReplacementRunner(string backend, string frontend) : IWorkspaceCommandRunner
+    {
+        public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
+        {
+            WorkspaceCommandResult result = new ProcessWorkspaceCommandRunner().Run(fileName, arguments, workingDirectory);
+            if (result.ExitCode == 0 && fileName == "dotnet" && arguments[0] == "nuget" && arguments[1] == "verify")
+            {
+                File.WriteAllText(backend, "Changed after verification.");
+                File.WriteAllText(frontend, "Changed after verification.");
+            }
+            return result;
         }
     }
 }

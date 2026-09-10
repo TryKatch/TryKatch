@@ -38,9 +38,33 @@ public sealed partial class ModuleWorkspace
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         ArgumentNullException.ThrowIfNull(commandRunner);
-        _root = Path.GetFullPath(root);
+        _root = NormalizeWorkspaceRoot(root);
         _catalogPath = ResolveInsideRoot("trykatch.modules.json");
         _commandRunner = commandRunner;
+    }
+
+    internal static string NormalizeWorkspaceRoot(string root) =>
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+
+    private static string ResolvePhysicalDirectoryPath(string path)
+    {
+        string fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        string pathRoot = Path.GetPathRoot(fullPath)
+            ?? throw new InvalidOperationException($"Workspace root '{path}' is not an absolute path.");
+        string current = pathRoot;
+
+        foreach (string segment in fullPath[pathRoot.Length..].Split(
+                     [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            string candidate = Path.Combine(current, segment);
+            FileSystemInfo? target = Directory.Exists(candidate)
+                ? new DirectoryInfo(candidate).ResolveLinkTarget(returnFinalTarget: true)
+                : null;
+            current = target is null ? candidate : ResolvePhysicalDirectoryPath(target.FullName);
+        }
+
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(current));
     }
 
     public ModuleDoctorReport Inspect()
@@ -72,6 +96,7 @@ public sealed partial class ModuleWorkspace
 
     public ModuleDoctorReport Generate()
     {
+        using IDisposable mutationLock = AcquirePackageMutationLock();
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
         if (catalog is null)
@@ -89,6 +114,7 @@ public sealed partial class ModuleWorkspace
 
     public ModuleDoctorReport SetEnabled(string moduleId, bool enabled)
     {
+        using IDisposable mutationLock = AcquirePackageMutationLock();
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
@@ -144,6 +170,14 @@ public sealed partial class ModuleWorkspace
             errors.Add($"Invalid Trykatch host version '{catalog.HostVersion}'.");
         if (catalog.Modules.Count == 0)
             errors.Add("The module catalog must contain at least one module.");
+        if (catalog.TrustedPublishers.Count == 0)
+            errors.Add("The module catalog must allowlist at least one trusted publisher.");
+        EnsureUnique(catalog.TrustedPublishers, "trusted publisher", errors);
+        foreach (string publisher in catalog.TrustedPublishers)
+        {
+            if (!StableIdRegex().IsMatch(publisher))
+                errors.Add($"Invalid trusted publisher id '{publisher}'.");
+        }
         EnsureUnique(catalog.Modules.Select(module => module.Id), "module registration id", errors);
         EnsureUnique(catalog.Modules.Select(module => module.Manifest), "module manifest path", errors);
         ValidateOutputPath(catalog.Outputs.Backend, "backend registry", errors);
@@ -219,6 +253,8 @@ public sealed partial class ModuleWorkspace
                 errors.Add($"Invalid module id '{manifest.Id}'.");
             if (string.IsNullOrWhiteSpace(manifest.Name) || string.IsNullOrWhiteSpace(manifest.Description))
                 errors.Add($"Module '{manifest.Id}' requires a name and description.");
+            if (!StableIdRegex().IsMatch(manifest.Publisher))
+                errors.Add($"Module '{manifest.Id}' requires a stable publisher identity.");
             if (!TryParseVersion(manifest.Version, out Version? moduleVersion))
                 errors.Add($"Module '{manifest.Id}' has invalid semantic version '{manifest.Version}'.");
             ValidateDistribution(catalog, manifest, errors);
@@ -231,6 +267,7 @@ public sealed partial class ModuleWorkspace
                 if (!KnownCapabilities.Contains(capability))
                     errors.Add($"Module '{manifest.Id}' declares unknown capability '{capability}'.");
             }
+            ValidateDataOwnership(manifest, errors);
             if (manifest.Requires.Contains(manifest.Id, StringComparer.Ordinal)
                 || manifest.OptionalDependencies.Contains(manifest.Id, StringComparer.Ordinal))
                 errors.Add($"Module '{manifest.Id}' cannot depend on itself.");
@@ -245,6 +282,62 @@ public sealed partial class ModuleWorkspace
         ValidateEnabledGraph(modules, errors);
         ValidateGlobalContributions(modules.Where(module => module.Registration.Enabled), errors);
     }
+
+    private static void ValidateDataOwnership(ModuleManifest manifest, List<string> errors)
+    {
+        bool hasData = manifest.Capabilities.Contains("data", StringComparer.Ordinal);
+        if (hasData && manifest.DataOwnership is null)
+        {
+            errors.Add($"Data module '{manifest.Id}' must declare exactly one default data ownership class and every persistent resource.");
+            return;
+        }
+        if (!hasData && manifest.DataOwnership is not null)
+        {
+            errors.Add($"Module '{manifest.Id}' declares data ownership without the data capability.");
+            return;
+        }
+        if (manifest.DataOwnership is null)
+            return;
+
+        string[] ownershipClasses = ["organization", "platform", "global", "infrastructure"];
+        if (!ownershipClasses.Contains(manifest.DataOwnership.Default, StringComparer.Ordinal))
+            errors.Add($"Module '{manifest.Id}' declares unknown default data ownership '{manifest.DataOwnership.Default}'.");
+        if (manifest.DataOwnership.Resources.Count == 0)
+            errors.Add($"Data module '{manifest.Id}' must declare every persistent resource.");
+        EnsureUnique(manifest.DataOwnership.Resources.Select(resource => resource.Name), $"data resource in '{manifest.Id}'", errors);
+        EnsureUnique(manifest.DataOwnership.Resources.Select(resource => $"{resource.Schema}.{resource.Table}"), $"data relation in '{manifest.Id}'", errors);
+
+        foreach (ModuleDataResource resource in manifest.DataOwnership.Resources)
+        {
+            if (!StableContractIdRegex().IsMatch(resource.Name)
+                || !SqlIdentifierRegex().IsMatch(resource.Schema)
+                || !SqlIdentifierRegex().IsMatch(resource.Table))
+                errors.Add($"Module '{manifest.Id}' declares invalid data resource '{resource.Name}' at '{resource.Schema}.{resource.Table}'.");
+            if (!ownershipClasses.Contains(resource.Ownership, StringComparer.Ordinal))
+                errors.Add($"Module '{manifest.Id}' resource '{resource.Name}' declares unknown ownership '{resource.Ownership}'.");
+            bool approvedAccess = IsApprovedDataResourceAccess(
+                resource.Ownership, resource.Schema, resource.AccessRule);
+            if (!approvedAccess)
+                errors.Add($"Resource '{manifest.Id}/{resource.Name}' requires an approved schema/ownership/accessRule combination.");
+            if (string.Equals(resource.Ownership, "organization", StringComparison.Ordinal)
+                && (string.IsNullOrWhiteSpace(resource.EntityType) || !DotnetTypeRegex().IsMatch(resource.EntityType)
+                    || string.IsNullOrWhiteSpace(resource.IsolationPolicy) || !SqlIdentifierRegex().IsMatch(resource.IsolationPolicy)))
+                errors.Add($"Organization resource '{manifest.Id}/{resource.Name}' requires a valid entityType and isolationPolicy.");
+        }
+    }
+
+    // The standalone CLI cannot depend on the generated application's module
+    // assembly. Unit tests exhaustively compare this string-shaped adapter with
+    // TrykatchDataResourceRules, the runtime contract.
+    internal static bool IsApprovedDataResourceAccess(string ownership, string schema, string? accessRule) => ownership switch
+    {
+        "organization" => schema == "app" && accessRule is null,
+        "platform" => schema == "platform" && accessRule == "platform-only"
+            || schema == "identity" && accessRule == "identity-only",
+        "global" => schema == "reference" && accessRule == "global-read-only",
+        "infrastructure" => schema == "infrastructure" && accessRule == "host-only",
+        _ => false
+    };
 
     private static void ValidateCompatibility(ModuleManifest manifest, Version? hostVersion, List<string> errors)
     {
@@ -293,6 +386,9 @@ public sealed partial class ModuleWorkspace
                 errors.Add($"Workspace module '{manifest.Id}' must not declare package identities.");
             return;
         }
+
+        if (!catalog.TrustedPublishers.Contains(manifest.Publisher, StringComparer.Ordinal))
+            errors.Add($"Package module '{manifest.Id}' publisher '{manifest.Publisher}' is not allowlisted by the workspace.");
 
         if (distribution.Dotnet is null)
             errors.Add($"Package module '{manifest.Id}' must declare its .NET package identity.");
@@ -542,11 +638,11 @@ public sealed partial class ModuleWorkspace
         string moduleContractNamespace,
         IEnumerable<LoadedModule> modules)
     {
-        LoadedModule[] enabled = OrderEnabled(modules).ToArray();
+        LoadedModule[] installed = modules.ToArray();
+        LoadedModule[] enabled = OrderEnabled(installed).ToArray();
         string[] namespaces = enabled
             .Select(module => module.Manifest.Entrypoints.Dotnet.Type[..module.Manifest.Entrypoints.Dotnet.Type.LastIndexOf('.')])
             .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
             .ToArray();
         StringBuilder output = new();
         output.AppendLine("// <auto-generated />");
@@ -557,7 +653,7 @@ public sealed partial class ModuleWorkspace
         output.AppendLine();
         output.Append("namespace ").Append(registryNamespace).AppendLine(";");
         output.AppendLine();
-        output.AppendLine("internal static class EnabledModules");
+        output.AppendLine("public static class EnabledModules");
         output.AppendLine("{");
         output.AppendLine("    public static IReadOnlyList<ITrykatchModule> All { get; } =");
         output.AppendLine("    [");
@@ -565,6 +661,34 @@ public sealed partial class ModuleWorkspace
         {
             string type = module.Manifest.Entrypoints.Dotnet.Type[(module.Manifest.Entrypoints.Dotnet.Type.LastIndexOf('.') + 1)..];
             output.Append("        new ").Append(type).AppendLine("(),");
+        }
+        output.AppendLine("    ];");
+        output.AppendLine("    public static IReadOnlyList<TrykatchInstalledDataResource> InstalledDataResources { get; } =");
+        output.AppendLine("    [");
+        // Synchronization is append-only. Enabled modules enroll newly created
+        // relations; declarations already persisted by a later-disabled module
+        // remain in the database catalog without loading its code.
+        foreach (LoadedModule module in enabled.OrderBy(item => item.Manifest.Id, StringComparer.Ordinal))
+        {
+            foreach (ModuleDataResource resource in module.Manifest.DataOwnership?.Resources ?? [])
+            {
+                string ownership = resource.Ownership switch
+                {
+                    "organization" => "Organization", "platform" => "Platform", "global" => "Global", "infrastructure" => "Infrastructure",
+                    _ => throw new InvalidOperationException("Unsupported data ownership.")
+                };
+                string access = resource.AccessRule switch
+                {
+                    null => "null", "platform-only" => "TrykatchDataAccessRule.PlatformOnly", "identity-only" => "TrykatchDataAccessRule.IdentityOnly",
+                    "global-read-only" => "TrykatchDataAccessRule.GlobalReadOnly", "host-only" => "TrykatchDataAccessRule.HostOnly",
+                    _ => throw new InvalidOperationException("Unsupported data access rule.")
+                };
+                output.Append("        new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", new(")
+                    .Append(JsonSerializer.Serialize(resource.Name)).Append(", ").Append(JsonSerializer.Serialize(resource.Schema)).Append(", ")
+                    .Append(JsonSerializer.Serialize(resource.Table)).Append(", TrykatchDataOwnership.").Append(ownership).Append(", ")
+                    .Append(JsonSerializer.Serialize(resource.EntityType)).Append(", ").Append(JsonSerializer.Serialize(resource.IsolationPolicy))
+                    .Append(", ").Append(access).AppendLine(")),");
+            }
         }
         output.AppendLine("    ];");
         output.AppendLine("}");
@@ -875,6 +999,9 @@ public sealed partial class ModuleWorkspace
     [GeneratedRegex("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.CultureInvariant)]
     private static partial Regex OperationIdRegex();
 
+    [GeneratedRegex("^[a-z][a-z0-9_]*$", RegexOptions.CultureInvariant)]
+    private static partial Regex SqlIdentifierRegex();
+
     private sealed record LoadedModule(
         ModuleRegistration Registration,
         ModuleManifest Manifest,
@@ -897,6 +1024,8 @@ public sealed class ModuleCatalogFile
     public int SchemaVersion { get; init; }
     public string HostVersion { get; init; } = string.Empty;
     public string LockFile { get; init; } = string.Empty;
+    public List<string> TrustedPublishers { get; init; } = [];
+    public Dictionary<string, ModulePublisherTrust> PublisherTrust { get; init; } = new(StringComparer.Ordinal);
     public ModuleCatalogOutputs Outputs { get; init; } = new();
     public List<ModuleRegistration> Modules { get; init; } = [];
 }
@@ -929,14 +1058,33 @@ public sealed class ModuleManifest
     public string Name { get; init; } = string.Empty;
     public string Version { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
+    public string Publisher { get; init; } = string.Empty;
     public ModuleDistribution Distribution { get; init; } = new();
     public ModuleCompatibility Compatibility { get; init; } = new();
     public List<string> Requires { get; init; } = [];
     public List<string> OptionalDependencies { get; init; } = [];
     public List<string> Capabilities { get; init; } = [];
+    public ModuleDataOwnership? DataOwnership { get; init; }
     public ModuleArtifacts Artifacts { get; init; } = new();
     public ModuleEntrypoints Entrypoints { get; init; } = new();
     public ModuleContributions Contributions { get; init; } = new();
+}
+
+public sealed class ModuleDataOwnership
+{
+    public string Default { get; init; } = string.Empty;
+    public List<ModuleDataResource> Resources { get; init; } = [];
+}
+
+public sealed class ModuleDataResource
+{
+    public string Name { get; init; } = string.Empty;
+    public string Schema { get; init; } = string.Empty;
+    public string Table { get; init; } = string.Empty;
+    public string Ownership { get; init; } = string.Empty;
+    public string? EntityType { get; init; }
+    public string? IsolationPolicy { get; init; }
+    public string? AccessRule { get; init; }
 }
 
 public sealed class ModuleCompatibility
@@ -957,12 +1105,32 @@ public sealed class ModuleDistribution
     public string License { get; init; } = string.Empty;
     public ModulePackageIdentity? Dotnet { get; init; }
     public ModulePackageIdentity? Web { get; init; }
+    public ModuleSupplyChain? SupplyChain { get; init; }
+}
+
+public sealed class ModuleSupplyChain
+{
+    public string ProvenanceFile { get; init; } = string.Empty;
+    public string ProvenanceSha256 { get; init; } = string.Empty;
+    public string ProvenanceSignatureFile { get; init; } = string.Empty;
+    public string SbomFile { get; init; } = string.Empty;
+    public string SbomSha256 { get; init; } = string.Empty;
+}
+
+public sealed class ModulePublisherTrust
+{
+    public List<string> NugetSignerSha256 { get; init; } = [];
+    public string AttestationPublicKey { get; init; } = string.Empty;
+    public string BuilderId { get; init; } = string.Empty;
+    public int MaximumAttestationAgeDays { get; init; } = 7;
 }
 
 public sealed class ModulePackageIdentity
 {
     public string Id { get; init; } = string.Empty;
     public string Version { get; init; } = string.Empty;
+    public string? PackageFile { get; init; }
+    public string? Sha256 { get; init; }
 }
 
 public sealed class ModuleLockFile

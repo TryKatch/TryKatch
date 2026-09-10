@@ -11,6 +11,52 @@ importers:
 
   .: {}
 
+  ../modules/documents/web:
+    dependencies:
+      '@tanstack/react-query':
+        specifier: 5.102.8
+        version: 5.102.8(react@19.2.8)
+      '@trykatchapp/api-client':
+        specifier: workspace:*
+        version: link:../../../web/packages/api-client
+      '@trykatchapp/module-sdk':
+        specifier: workspace:*
+        version: link:../../../web/packages/module-sdk
+      '@trykatchapp/ui':
+        specifier: workspace:*
+        version: link:../../../web/packages/ui
+      lucide-react:
+        specifier: 1.42.0
+        version: 1.42.0(react@19.2.8)
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+    devDependencies:
+      '@testing-library/jest-dom':
+        specifier: 7.0.1
+        version: 7.0.1(@testing-library/dom@10.4.1)(vitest@5.0.0(@types/node@26.5.0)(jsdom@27.0.0)(msw@2.15.0(@types/node@26.5.0)(typescript@6.0.3))(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)))
+      '@testing-library/react':
+        specifier: 16.3.3
+        version: 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      jsdom:
+        specifier: 27.0.0
+        version: 27.0.0
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@26.5.0)(jsdom@27.0.0)(msw@2.15.0(@types/node@26.5.0)(typescript@6.0.3))(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))
+
   apps/web:
     dependencies:
       '@tanstack/react-query':
@@ -19,6 +65,9 @@ importers:
       '@tanstack/react-router':
         specifier: 1.170.33
         version: 1.170.33(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@trykatch-modules/documents':
+        specifier: workspace:*
+        version: link:../../../modules/documents/web
       '@trykatchapp/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client

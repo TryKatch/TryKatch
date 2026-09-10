@@ -48,9 +48,10 @@ public sealed class PostgresRlsTests
                   (@membership_a, @role_a), (@membership_b, @role_b);
                 INSERT INTO platform.role_permissions ("RoleId", "Permission") VALUES
                   (@role_a, 'projects.read'), (@role_b, 'projects.read');
-                CREATE ROLE trykatch_access_runtime LOGIN PASSWORD 'runtime-access-test' NOBYPASSRLS;
-                GRANT USAGE ON SCHEMA platform TO trykatch_access_runtime;
-                GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA platform TO trykatch_access_runtime;
+                CREATE ROLE trykatch_org_runtime LOGIN PASSWORD 'runtime-access-test' NOBYPASSRLS;
+                CREATE ROLE trykatch_platform_runtime LOGIN PASSWORD 'platform-access-test' NOBYPASSRLS;
+                GRANT USAGE ON SCHEMA platform TO trykatch_org_runtime, trykatch_platform_runtime;
+                GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA platform TO trykatch_org_runtime, trykatch_platform_runtime;
                 """;
             setup.Parameters.AddWithValue("organization_a", organizationA);
             setup.Parameters.AddWithValue("organization_b", organizationB);
@@ -65,7 +66,7 @@ public sealed class PostgresRlsTests
 
         NpgsqlConnectionStringBuilder connectionBuilder = new(postgres.GetConnectionString())
         {
-            Username = "trykatch_access_runtime",
+            Username = "trykatch_org_runtime",
             Password = "runtime-access-test"
         };
         await using NpgsqlConnection runtime = new(connectionBuilder.ConnectionString);
@@ -73,7 +74,7 @@ public sealed class PostgresRlsTests
 
         await using (NpgsqlTransaction actorTransaction = await runtime.BeginTransactionAsync())
         {
-            await SetContextAsync(runtime, actorTransaction, actorA, null, false);
+            await SetContextAsync(runtime, actorTransaction, actorA, null);
             (await ScalarCountAsync(runtime, actorTransaction, "SELECT count(*) FROM platform.memberships")).ShouldBe(1);
             (await ScalarCountAsync(runtime, actorTransaction, "SELECT count(*) FROM platform.roles")).ShouldBe(0);
             (await ScalarCountAsync(runtime, actorTransaction, "SELECT count(*) FROM platform.role_permissions")).ShouldBe(0);
@@ -81,7 +82,7 @@ public sealed class PostgresRlsTests
 
         await using (NpgsqlTransaction organizationTransaction = await runtime.BeginTransactionAsync())
         {
-            await SetContextAsync(runtime, organizationTransaction, actorA, organizationA, false);
+            await SetContextAsync(runtime, organizationTransaction, actorA, organizationA);
             (await ScalarCountAsync(runtime, organizationTransaction, "SELECT count(*) FROM platform.roles")).ShouldBe(1);
             await using NpgsqlCommand crossOrganizationInsert = runtime.CreateCommand();
             crossOrganizationInsert.Transaction = organizationTransaction;
@@ -92,11 +93,16 @@ public sealed class PostgresRlsTests
             exception.Message.ShouldContain("row-level security");
         }
 
-        await using (NpgsqlTransaction platformTransaction = await runtime.BeginTransactionAsync())
+        NpgsqlConnectionStringBuilder platformBuilder = new(postgres.GetConnectionString())
         {
-            await SetContextAsync(runtime, platformTransaction, actorA, null, true);
-            (await ScalarCountAsync(runtime, platformTransaction, "SELECT count(*) FROM platform.roles")).ShouldBe(2);
-        }
+            Username = "trykatch_platform_runtime",
+            Password = "platform-access-test"
+        };
+        await using NpgsqlConnection platformRuntime = new(platformBuilder.ConnectionString);
+        await platformRuntime.OpenAsync();
+        await using NpgsqlTransaction platformTransaction = await platformRuntime.BeginTransactionAsync();
+        await SetContextAsync(platformRuntime, platformTransaction, actorA, null);
+        (await ScalarCountAsync(platformRuntime, platformTransaction, "SELECT count(*) FROM platform.roles")).ShouldBe(0);
     }
 
     [TestMethod]
@@ -154,14 +160,13 @@ public sealed class PostgresRlsTests
         exception.Message.ShouldContain("row-level security");
     }
 
-    private static async Task SetContextAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid actorId, Guid? organizationId, bool platformAdministrator)
+    private static async Task SetContextAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid actorId, Guid? organizationId)
     {
         await using NpgsqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "SELECT set_config('app.actor_id', @actor, true), set_config('app.organization_id', @organization, true), set_config('app.platform_admin', @platform_admin, true)";
+        command.CommandText = "SELECT set_config('app.actor_id', @actor, true), set_config('app.organization_id', @organization, true)";
         command.Parameters.AddWithValue("actor", actorId.ToString());
         command.Parameters.AddWithValue("organization", organizationId?.ToString() ?? string.Empty);
-        command.Parameters.AddWithValue("platform_admin", platformAdministrator ? "true" : "false");
         await command.ExecuteNonQueryAsync();
     }
 

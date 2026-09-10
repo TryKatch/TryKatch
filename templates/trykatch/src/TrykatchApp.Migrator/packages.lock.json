@@ -474,6 +474,12 @@
         "resolved": "10.0.0",
         "contentHash": "UPWqLSygJlFerRi9XNIuM0a1VC8gHUIufyP24xQ0sc+XimqUAEcjpOz9DhKpyDjH+5B/wO3RpC0KpkEeDj/ddg=="
       },
+      "trykatch.modules.documents": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.11, )"
+        }
+      },
       "Trykatch.Modules.Federation": {
         "type": "Project",
         "dependencies": {
@@ -490,7 +496,10 @@
         }
       },
       "trykatchapp.domain": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "TrykatchApp.Modules.Abstractions": "[1.0.0, )"
+        }
       },
       "trykatchapp.identity": {
         "type": "Project",
@@ -523,7 +532,10 @@
         }
       },
       "trykatchapp.modules.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.11, )"
+        }
       },
       "trykatchapp.modules.aspnetcore": {
         "type": "Project",

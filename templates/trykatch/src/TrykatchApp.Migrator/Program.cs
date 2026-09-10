@@ -1,5 +1,5 @@
-using System.Text.RegularExpressions;
 using TrykatchApp.Identity;
+using TrykatchApp.Infrastructure.Organizations;
 using TrykatchApp.Infrastructure.Persistence;
 using TrykatchApp.Migrator;
 using TrykatchApp.Migrator.Modules;
@@ -44,7 +44,7 @@ await using (PlatformDbContext platform = new(platformOptions))
 
 // The generated registry gives the API and migrator the same ordered module
 // graph. No assembly scanning or second hand-maintained module list is allowed.
-await using (ApplicationDbContext application = new(applicationOptions, modelContributors))
+await using (ApplicationDbContext application = new(applicationOptions, modelContributors, moduleCatalog: moduleCatalog))
 {
     await application.Database.MigrateAsync();
 }
@@ -52,47 +52,59 @@ await using (ApplicationDbContext application = new(applicationOptions, modelCon
 // Optional module-owned SQL migrations are forward-only, serialized with a
 // PostgreSQL advisory lock, and checksum-verified against durable history.
 await ModuleMigrationExecutor.ApplyAsync(connectionString, moduleCatalog.Modules);
+await TrykatchApp.Infrastructure.Organizations.InstalledSchemaCatalog.SynchronizeAsync(
+    connectionString, EnabledModules.InstalledDataResources);
 
-string? runtimeRole = builder.Configuration["Database:RuntimeRole"];
-if (!string.IsNullOrWhiteSpace(runtimeRole))
+HashSet<string> declaredRelations = new(RuntimeDatabaseAccessProfiles.HostOwnedRelations, StringComparer.Ordinal);
+await using (IdentityDbContext identity = new(identityOptions))
+    AddModelRelations(identity, declaredRelations);
+await using (PlatformDbContext platform = new(platformOptions))
+    AddModelRelations(platform, declaredRelations);
+await using (ApplicationDbContext application = new(applicationOptions, modelContributors, moduleCatalog: moduleCatalog))
+    AddModelRelations(application, declaredRelations);
+foreach (TrykatchDataResourceDescriptor resource in await InstalledSchemaCatalog.ReadAsync(connectionString))
+    declaredRelations.Add($"{resource.Schema}.{resource.Table}");
+await InstalledSchemaCatalog.ValidateDeclaredObjectsAsync(connectionString, declaredRelations);
+
+RuntimeRoleSettings runtimeRoles = new(
+    builder.Configuration["Database:OrganizationRuntimeRole"],
+    builder.Configuration["Database:PlatformRuntimeRole"],
+    builder.Configuration["Database:IdentityRuntimeRole"],
+    builder.Configuration["Database:OutboxWorkerRole"]);
+if (runtimeRoles.IsConfigured)
 {
-    await RuntimeRoleProvisioner.ProvisionAsync(connectionString, runtimeRole);
+    RuntimeDatabaseRoles requiredRoles = runtimeRoles.RequireAll();
+    await RuntimeRoleProvisioner.ProvisionAsync(connectionString, requiredRoles);
+    (await TrykatchApp.Infrastructure.Organizations.PostgresIsolationInspector.InspectAsync(
+        connectionString,
+        requiredRoles,
+        moduleCatalog.Descriptors))
+        .ThrowIfInvalid();
 }
 
-internal static partial class RuntimeRoleProvisioner
+static void AddModelRelations(DbContext context, ISet<string> relations)
 {
-    public static async Task ProvisionAsync(string connectionString, string roleName)
+    foreach (Microsoft.EntityFrameworkCore.Metadata.IEntityType entity in context.Model.GetEntityTypes())
     {
-        if (!RoleNamePattern().IsMatch(roleName))
-            throw new InvalidOperationException("Database runtime role must be a lowercase PostgreSQL identifier.");
-
-        await using NpgsqlConnection connection = new(connectionString);
-        await connection.OpenAsync();
-
-        await using NpgsqlCommand verify = connection.CreateCommand();
-        verify.CommandText = "SELECT rolbypassrls OR rolsuper FROM pg_roles WHERE rolname = @role_name";
-        verify.Parameters.AddWithValue("role_name", roleName);
-        if (await verify.ExecuteScalarAsync() is not bool bypassesRls)
-            throw new InvalidOperationException("Database runtime role must be created by the bootstrap administrator before migrations run.");
-        if (bypassesRls)
-            throw new InvalidOperationException("Database runtime role must exist without superuser or BYPASSRLS privileges.");
-
-        await using NpgsqlCommand provision = connection.CreateCommand();
-        provision.CommandText = $"""
-            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {roleName};
-            GRANT USAGE ON SCHEMA identity, platform, app TO {roleName};
-            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity, platform, app TO {roleName};
-            GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity, platform, app TO {roleName};
-            ALTER DEFAULT PRIVILEGES IN SCHEMA identity, platform, app
-                GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {roleName};
-            ALTER DEFAULT PRIVILEGES IN SCHEMA identity, platform, app
-                GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {roleName};
-            """;
-        await provision.ExecuteNonQueryAsync();
+        string? table = entity.GetTableName();
+        string? schema = entity.GetSchema();
+        if (table is not null && schema is not null && RuntimeDatabaseAccessProfiles.ManagedSchemas.Contains(schema))
+            relations.Add($"{schema}.{table}");
     }
+}
 
-    private static string QuoteIdentifier(string identifier) => $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+internal sealed record RuntimeRoleSettings(string? Organization, string? Platform, string? Identity, string? Outbox)
+{
+    public bool IsConfigured => new[] { Organization, Platform, Identity, Outbox }.Any(role => !string.IsNullOrWhiteSpace(role));
 
-    [GeneratedRegex("^[a-z_][a-z0-9_]{0,62}$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
-    private static partial Regex RoleNamePattern();
+    public RuntimeDatabaseRoles RequireAll() => new(
+        Required(Organization, "organization"),
+        Required(Platform, "platform"),
+        Required(Identity, "identity"),
+        Required(Outbox, "outbox"));
+
+    private static string Required(string? role, string purpose) =>
+        !string.IsNullOrWhiteSpace(role)
+            ? role
+            : throw new InvalidOperationException($"Database {purpose} runtime role is required when role provisioning is enabled.");
 }

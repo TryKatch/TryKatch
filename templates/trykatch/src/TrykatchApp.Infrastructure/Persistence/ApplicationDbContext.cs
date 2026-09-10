@@ -1,18 +1,28 @@
 using TrykatchApp.Domain.Organizations;
+using TrykatchApp.Application.Organizations;
+using TrykatchApp.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using System.Linq.Expressions;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace TrykatchApp.Infrastructure.Persistence;
 
 public sealed class ApplicationDbContext(
     DbContextOptions<ApplicationDbContext> options,
-    IEnumerable<IApplicationModelContributor> modelContributors) : DbContext(options)
+    IEnumerable<IApplicationModelContributor> modelContributors,
+    IOrganizationContext? organizationContext = null,
+    TrykatchModuleCatalog? moduleCatalog = null) : DbContext(options)
 {
     private readonly IApplicationModelContributor[] contributors = modelContributors
         .OrderBy(contributor => contributor.ModuleId, StringComparer.Ordinal)
         .ToArray();
 
-    internal string ModelCompositionKey => string.Join('|', contributors.Select(contributor => contributor.ModuleId));
+    internal string ModelCompositionKey { get; } = CreateModelCompositionKey(modelContributors, moduleCatalog);
+    public bool HasOrganizationScope => organizationContext?.IsResolved == true;
+    public Guid CurrentOrganizationId => HasOrganizationScope ? organizationContext!.OrganizationId : Guid.Empty;
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : this(options, [])
@@ -56,5 +66,45 @@ public sealed class ApplicationDbContext(
             entity.Property(x => x.Payload).HasColumnType("jsonb");
             entity.HasIndex(x => new { x.ProcessedAt, x.OccurredAt });
         });
+
+        ApplyOrganizationIsolation(modelBuilder);
+        ApplicationModelIsolationValidator.Validate(modelBuilder.Model, moduleCatalog?.Descriptors ?? []);
+    }
+
+    private void ApplyOrganizationIsolation(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+                     .Where(entity => typeof(IOrganizationOwned).IsAssignableFrom(entity.ClrType)))
+        {
+            ParameterExpression row = Expression.Parameter(entityType.ClrType, "row");
+            Expression organizationId = Expression.Property(row, nameof(IOrganizationOwned.OrganizationId));
+            Expression hasScope = Expression.Property(Expression.Constant(this), nameof(HasOrganizationScope));
+            Expression currentOrganizationId = Expression.Property(Expression.Constant(this), nameof(CurrentOrganizationId));
+            LambdaExpression filter = Expression.Lambda(
+                Expression.AndAlso(hasScope, Expression.Equal(organizationId, currentOrganizationId)),
+                row);
+            modelBuilder.Entity(entityType.ClrType).HasQueryFilter(
+                ApplicationModelIsolationValidator.OrganizationIsolationFilter,
+                filter);
+        }
+    }
+
+    private static string CreateModelCompositionKey(
+        IEnumerable<IApplicationModelContributor> modelContributors,
+        TrykatchModuleCatalog? moduleCatalog)
+    {
+        string composition = JsonSerializer.Serialize(new
+        {
+            Contributors = modelContributors
+                .OrderBy(contributor => contributor.ModuleId, StringComparer.Ordinal)
+                .Select(contributor => new
+                {
+                    contributor.ModuleId,
+                    Type = contributor.GetType().AssemblyQualifiedName
+                }),
+            Descriptors = moduleCatalog?.Descriptors
+                .OrderBy(descriptor => descriptor.Id, StringComparer.Ordinal)
+        });
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(composition)));
     }
 }

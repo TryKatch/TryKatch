@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<?xml version="1.0" encoding="utf-8"?><Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <OpenApiGenerateDocuments>true</OpenApiGenerateDocuments>
     <OpenApiDocumentsDirectory Condition="'$(TrykatchUi)' == 'react'">$(MSBuildProjectDirectory)/../../web/packages/api-client/openapi</OpenApiDocumentsDirectory>
@@ -20,5 +20,5 @@
     <ProjectReference Include="../TrykatchApp.Modules.AspNetCore/TrykatchApp.Modules.AspNetCore.csproj" />
     <ProjectReference Include="../TrykatchApp.Modules.Federation/TrykatchApp.Modules.Federation.csproj" />
     <ProjectReference Include="../TrykatchApp.ServiceDefaults/TrykatchApp.ServiceDefaults.csproj" />
-  </ItemGroup>
+  <ProjectReference Include="../../modules/documents/dotnet/Trykatch.Modules.Documents.csproj" /></ItemGroup>
 </Project>

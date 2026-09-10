@@ -5,7 +5,7 @@ import { ArchiveRestore, FolderKanban, Mail, RefreshCw, ShieldCheck, UserRound }
 import { useState } from 'react'
 import { formatRecordDate, LifecycleBadge, RecordDetailsDialog } from '../../components/RecordLifecycle'
 import {
-  archiveResourceDefinitions,
+  allArchiveResourceDefinitions,
   archiveTimestamp,
   canRequestArchiveItemDeletion,
   canRestoreArchiveItem,
@@ -28,6 +28,14 @@ const resourceIcons = {
   invitation: Mail,
   role: ShieldCheck,
 } as const
+
+function collectionQueryKey(kind: ArchiveResourceKind) {
+  if (kind === 'project') return 'projects'
+  if (kind === 'member') return 'members'
+  if (kind === 'invitation') return 'invitations'
+  if (kind === 'role') return 'access-levels'
+  return `${kind}s`
+}
 
 export function ArchivePage() {
   const { t } = useI18n()
@@ -53,7 +61,7 @@ export function ArchivePage() {
       setViewing(undefined)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['archive'] }),
-        queryClient.invalidateQueries({ queryKey: [item.kind === 'project' ? 'projects' : item.kind === 'member' ? 'members' : item.kind === 'invitation' ? 'invitations' : 'access-levels'] }),
+        queryClient.invalidateQueries({ queryKey: [collectionQueryKey(item.kind)] }),
       ])
     },
   })
@@ -64,13 +72,13 @@ export function ArchivePage() {
       setViewing(undefined)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['archive'] }),
-        queryClient.invalidateQueries({ queryKey: [item.kind === 'project' ? 'projects' : item.kind === 'member' ? 'members' : item.kind === 'invitation' ? 'invitations' : 'access-levels'] }),
+        queryClient.invalidateQueries({ queryKey: [collectionQueryKey(item.kind)] }),
       ])
     },
   })
 
   const permissions = access.data?.permissions ?? []
-  const visibleResourceTypes = archiveResourceDefinitions.filter((definition) => permissions.includes(definition.readPermission))
+  const visibleResourceTypes = allArchiveResourceDefinitions.filter((definition) => permissions.includes(definition.readPermission))
   const items = (archive.data ?? []).filter((item) =>
     (resourceKind === 'all' || item.kind === resourceKind) &&
     (recordState === 'all' || item.lifecycle.status === recordState))
@@ -83,7 +91,7 @@ export function ArchivePage() {
       header: t('Record'),
       hideable: false,
       cell: (item) => {
-        const Icon = resourceIcons[item.kind]
+        const Icon = resourceIcons[item.kind as keyof typeof resourceIcons] ?? FolderKanban
         return <div className="archive-resource-cell"><span><Icon size={16} /></span><div><strong>{item.title}</strong><small>{item.description}</small></div></div>
       },
       sortValue: (item) => item.title,

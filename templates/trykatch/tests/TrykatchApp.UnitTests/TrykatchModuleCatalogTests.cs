@@ -11,6 +11,19 @@ namespace TrykatchApp.UnitTests;
 public sealed class TrykatchModuleCatalogTests
 {
     [TestMethod]
+    public void NonOrganizationResourcesCannotOptOutOfAccessPolicyValidation()
+    {
+        TrykatchModuleDescriptor descriptor = Module("reporting").Descriptor with
+        {
+            Capabilities = TrykatchModuleCapabilities.Data,
+            DefaultDataOwnership = TrykatchDataOwnership.Platform,
+            DataResources = [new("reports", "app", "reports", TrykatchDataOwnership.Platform)]
+        };
+
+        Should.Throw<InvalidOperationException>(() => new TrykatchModuleCatalog([new StubModule(descriptor)]));
+    }
+
+    [TestMethod]
     public void CatalogOrdersRequiredModulesBeforeDependents()
     {
         TrykatchModuleCatalog catalog = new([
@@ -69,16 +82,17 @@ public sealed class TrykatchModuleCatalogTests
     }
 
     [TestMethod]
-    public void ProjectsModuleRegistersItsApplicationAndPermissionContributions()
+    public void ProjectsModuleRegistersItsApplicationAndDeclaresPermissionContributions()
     {
         ServiceCollection services = new();
         IConfiguration configuration = new ConfigurationBuilder().Build();
 
         services.AddTrykatchModules(configuration, [new ProjectsModule()]);
 
-        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(TrykatchApp.Application.Projects.ProjectUseCases));
-        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(TrykatchApp.Application.Authorization.IPermissionDefinitionProvider)
-            && descriptor.ImplementationType == typeof(TrykatchApp.Application.Projects.ProjectPermissionDefinitionProvider));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(global::TrykatchApp.Application.Projects.ProjectUseCases));
+        ProjectsModule module = new();
+        module.Descriptor.Permissions.Select(permission => permission.Key)
+            .ShouldBe(["projects.read", "projects.manage"]);
     }
 
     [TestMethod]

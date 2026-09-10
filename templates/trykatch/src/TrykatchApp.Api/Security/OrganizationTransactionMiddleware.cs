@@ -11,7 +11,7 @@ public sealed class OrganizationTransactionMiddleware(RequestDelegate next)
         HttpContext context,
         IOrganizationContext organization,
         ApplicationDbContext applicationDbContext,
-        PlatformDbContext platformDbContext)
+        OrganizationControlPlaneDbContext platformDbContext)
     {
         if (!organization.IsResolved)
         {

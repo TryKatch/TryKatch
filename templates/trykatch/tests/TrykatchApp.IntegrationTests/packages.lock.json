@@ -1250,6 +1250,12 @@
           "SharpZipLib": "1.4.2"
         }
       },
+      "trykatch.modules.documents": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.11, )"
+        }
+      },
       "Trykatch.Modules.Federation": {
         "type": "Project",
         "dependencies": {
@@ -1265,6 +1271,7 @@
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.11, )",
           "OpenIddict.AspNetCore": "[7.7.0, )",
           "Scalar.AspNetCore": "[2.17.3, )",
+          "Trykatch.Modules.Documents": "[1.0.0, )",
           "Trykatch.Modules.Federation": "[1.0.0, )",
           "TrykatchApp.Application": "[1.0.0, )",
           "TrykatchApp.Identity": "[1.0.0, )",
@@ -1283,7 +1290,10 @@
         }
       },
       "trykatchapp.domain": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "TrykatchApp.Modules.Abstractions": "[1.0.0, )"
+        }
       },
       "trykatchapp.identity": {
         "type": "Project",
@@ -1318,6 +1328,7 @@
       "trykatchapp.modules.abstractions": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.11, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.11, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.11, )"
         }
