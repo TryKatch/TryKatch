@@ -32,11 +32,12 @@ public sealed class TemplatePackageInstallerTests
     }
 
     [TestMethod]
-    [DataRow("Trykatch.Templates@0.1.0-preview.9 is already installed.")]
-    [DataRow("Trykatch.Templates::0.1.0-preview.9 is already installed.")]
-    public async Task InstallTreatsTheRequestedVersionAlreadyBeingInstalledAsSuccess(string engineMessage)
+    public async Task InstallTreatsTheRequestedVersionAlreadyBeingInstalledAsSuccess()
     {
-        RecordingTemplateEngine engine = new(new(106, engineMessage, string.Empty));
+        RecordingTemplateEngine engine = new(new(106, string.Empty, "Le modèle est déjà installé."))
+        {
+            IsRequestedVersionInstalled = true
+        };
         StringWriter output = new();
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
@@ -44,10 +45,50 @@ public sealed class TemplatePackageInstallerTests
         int exitCode = await installer.InstallAsync("0.1.0-preview.9", force: false, CancellationToken.None);
 
         exitCode.ShouldBe(0);
-        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.9");
-        engine.Force.ShouldBeFalse();
+        engine.Package.ShouldBeNull();
         output.ToString().ShouldContain("Trykatch template 0.1.0-preview.9 is already installed");
         error.ToString().ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public async Task DotnetTemplateEngineReadsInstalledVersionFromTheTemplateRegistry()
+    {
+        string templateEngineHome = Path.Combine(Path.GetTempPath(), $"trykatch-template-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(templateEngineHome);
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(templateEngineHome, "packages.json"),
+                """
+                {
+                  "Packages": [
+                    {
+                      "Details": {
+                        "PackageId": "Trykatch.Templates",
+                        "Version": "0.1.0-preview.9"
+                      }
+                    }
+                  ]
+                }
+                """);
+            DotnetTemplateEngine engine = new(templateEngineHome);
+
+            bool installed = await engine.IsPackageInstalledAsync(
+                "Trykatch.Templates",
+                "0.1.0-preview.9",
+                CancellationToken.None);
+            bool otherVersionInstalled = await engine.IsPackageInstalledAsync(
+                "Trykatch.Templates",
+                "0.1.0-preview.8",
+                CancellationToken.None);
+
+            installed.ShouldBeTrue();
+            otherVersionInstalled.ShouldBeFalse();
+        }
+        finally
+        {
+            Directory.Delete(templateEngineHome, recursive: true);
+        }
     }
 
     [TestMethod]
@@ -149,11 +190,19 @@ public sealed class TemplatePackageInstallerTests
 
     private sealed class RecordingTemplateEngine(TemplateEngineResult result) : ITemplateEngine
     {
+        public bool IsRequestedVersionInstalled { get; init; }
+
         public string? Package { get; private set; }
 
         public bool Force { get; private set; }
 
         public string? UninstalledPackageId { get; private set; }
+
+        public Task<bool> IsPackageInstalledAsync(
+            string packageId,
+            string version,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(IsRequestedVersionInstalled);
 
         public Task<TemplateEngineResult> InstallAsync(
             string package,
