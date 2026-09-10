@@ -57,6 +57,19 @@ trykatch update
 
 `trykatch template update` est l’équivalent explicite. Ajoutez `--version <version>` à l’une ou l’autre commande pour sélectionner une version précise.
 
+La mise à jour du modèle s’applique aux futurs projets générés ; elle ne réécrit pas les fichiers source d’une application existante.
+
+## Réparer les certificats HTTPS locaux
+
+L’AppHost sécurise son tableau de bord et son service de ressources interne avec le certificat de développement ASP.NET Core. Si Aspire signale une erreur de nom de certificat, de confiance ou de TLS sur un poste de développement, arrêtez l’AppHost puis recréez le certificat local :
+
+```bash
+dotnet dev-certs https --clean
+dotnet dev-certs https --trust
+```
+
+Redémarrez ensuite l’AppHost. Trykatch fixe chaque point de terminaison Aspire généré sur `https://localhost` afin que son nom corresponde au certificat.
+
 ## Choisir l’interface générée
 
 React est inclus par défaut. Ne générez une solution limitée au backend que lorsque ce choix est intentionnel :

@@ -27,8 +27,12 @@ if ! jq -e '
     and (.environmentVariables | type == "object")
     and .environmentVariables.ASPNETCORE_ENVIRONMENT == "Development"
     and .environmentVariables.DOTNET_ENVIRONMENT == "Development"
+    and (.applicationUrl | startswith("https://localhost:"))
+    and (.environmentVariables.ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL | startswith("https://localhost:"))
+    and (.environmentVariables.ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL | startswith("https://localhost:"))
+    and (.environmentVariables.ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL | startswith("https://localhost:"))
 ' "$launch_settings" >/dev/null; then
-  printf 'AppHost launch-profile contract failed: profiles.https must be a valid Project profile with both development environment variables\n' >&2
+  printf 'AppHost launch-profile contract failed: profiles.https must use secure localhost endpoints and both development environment variables\n' >&2
   exit 1
 fi
 
