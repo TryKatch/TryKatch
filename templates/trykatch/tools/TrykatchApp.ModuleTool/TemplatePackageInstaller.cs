@@ -89,7 +89,7 @@ internal sealed class TemplatePackageInstaller(
     {
         if (!SemanticVersion.IsMatch(version))
         {
-            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.8.");
+            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.9.");
             return 1;
         }
 
@@ -107,6 +107,15 @@ internal sealed class TemplatePackageInstaller(
 
         if (result.ExitCode != 0)
         {
+            if (!force && IsAlreadyInstalled(result, package))
+            {
+                if (isInteractive)
+                    await output.WriteAsync("\r");
+                await output.WriteLineAsync($"✓ Trykatch template {version} is already installed; no update is required.");
+                await output.WriteLineAsync("  Next: dotnet new trykatch -n <name>");
+                return 0;
+            }
+
             if (isInteractive)
                 await output.WriteLineAsync();
             await error.WriteLineAsync(failure);
@@ -119,6 +128,18 @@ internal sealed class TemplatePackageInstaller(
         await output.WriteLineAsync($"✓ {completion} ({FormatElapsed(elapsed.Elapsed)}).");
         await output.WriteLineAsync("  Next: dotnet new trykatch -n <name>");
         return 0;
+    }
+
+    private static bool IsAlreadyInstalled(TemplateEngineResult result, string package)
+    {
+        string transcript = string.Join(
+                Environment.NewLine,
+                result.StandardOutput,
+                result.StandardError)
+            .Replace("::", "@", StringComparison.Ordinal);
+
+        return transcript.Contains(package, StringComparison.OrdinalIgnoreCase)
+            && transcript.Contains("already installed", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task WriteFailureDetailsAsync(TemplateEngineResult result)
