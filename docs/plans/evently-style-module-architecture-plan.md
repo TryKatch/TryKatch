@@ -426,7 +426,7 @@ The work is complete when:
 
 ## Delivery Status
 
-Implemented on `refactor/evently-module-architecture` for the `0.1.0-preview.10` release.
+Implemented on `refactor/evently-module-architecture` for the `0.1.0-preview.11` release.
 
 The delivered structure uses explicit build-time composition and the product-neutral `IModule` contract. Projects, Documents, and Federation each own Domain, Application, IntegrationEvents, Presentation, Infrastructure, and Web artifacts inside their module directory. Architecture tests enforce the dependency graph and reject runtime assembly scanning. Composite module packages contain exactly their five business-module assemblies and retain module-local frontend assets without embedding host contracts. The frontend module SDK exposes stable host services, including localization, so module pages preserve language behavior without importing host internals.
 

@@ -14,6 +14,7 @@ using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Infrastructure.Persistence.Migrations.Platform;
+using Trykatch.Modules.Documents.Infrastructure;
 
 namespace Trykatch.IntegrationTests;
 
@@ -21,6 +22,76 @@ namespace Trykatch.IntegrationTests;
 [TestCategory("Integration")]
 public sealed class PostgresIsolationInspectionTests
 {
+    [TestMethod]
+    [DataRow("projects", "projects", "Horizon.Modules.Projects.Domain.Project", "Horizon.Domain.Projects.Project")]
+    [DataRow("projects", "projects", "Northwind.Crm.Modules.Projects.Domain.Project", "Northwind.Crm.Domain.Projects.Project")]
+    [DataRow("documents", "documents", "Horizon.Modules.Documents.Domain.DocumentRecord", "Try" + "katch.Modules.Documents.DocumentRecord")]
+    public void PreviewNineEntityTypeNamesAreDerivedForGeneratedApplications(
+        string moduleId, string table, string currentEntityType, string expectedLegacyEntityType)
+    {
+        InstalledDataResource resource = new(moduleId,
+            new(table, "app", table, ModuleDataOwnership.Organization, currentEntityType, table + "_organization_isolation"));
+
+        InstalledSchemaCatalog.LegacyEntityTypeFor(resource).ShouldBe(expectedLegacyEntityType);
+    }
+
+    [TestMethod]
+    public async Task PreviewNineModuleDeclarationsAreUpgradedToTheirMovedEntityTypes()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync("CREATE TABLE app.documents (id integer)");
+        InstalledDataResource[] current =
+        [
+            new("projects", new ProjectsModule().Descriptor.DataResources.Single()),
+            new("documents", new DocumentsModule().Descriptor.DataResources.Single())
+        ];
+        InstalledDataResource[] previewNine =
+        [
+            current[0] with
+            {
+                Resource = current[0].Resource with
+                {
+                    EntityType = "TrykatchApp.Domain.Projects.Project"
+                }
+            },
+            current[1] with
+            {
+                Resource = current[1].Resource with
+                {
+                    EntityType = "Try" + "katch.Modules.Documents.DocumentRecord"
+                }
+            }
+        ];
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString, previewNine);
+
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString, current);
+
+        (await InstalledSchemaCatalog.ReadAsync(database.ConnectionString))
+            .Select(resource => resource.EntityType)
+            .ShouldBe(current.Select(item => item.Resource.EntityType), ignoreOrder: true);
+    }
+
+    [TestMethod]
+    public async Task PreviewNineCompatibilityDoesNotAuthorizeOtherDeclarationChanges()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        InstalledDataResource current = new("projects", new ProjectsModule().Descriptor.DataResources.Single());
+        InstalledDataResource changed = current with
+        {
+            Resource = current.Resource with
+            {
+                EntityType = "TrykatchApp.Domain.Projects.Project",
+                IsolationPolicy = "unexpected_policy"
+            }
+        };
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString, [changed]);
+
+        InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(() =>
+            InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString, [current]));
+
+        exception.Message.ShouldContain("explicit reviewed data migration");
+    }
+
     [TestMethod]
     [DataRow("command")]
     [DataRow("role")]

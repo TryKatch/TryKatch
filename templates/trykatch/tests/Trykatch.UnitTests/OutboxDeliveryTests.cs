@@ -13,9 +13,18 @@ public sealed class OutboxDeliveryTests
     public void MovedIntegrationEventsKeepTheirExistingWireContractNames()
     {
         OutboxContractName.For(typeof(Trykatch.Modules.Projects.IntegrationEvents.ProjectChanged))
-            .ShouldBe("Trykatch" + "App.Application.Projects.ProjectChanged");
+            .ShouldBe("TrykatchApp.Application.Projects.ProjectChanged");
         OutboxContractName.For(typeof(Trykatch.Modules.Documents.IntegrationEvents.DocumentChanged))
-            .ShouldBe("Trykatch.Modules.Documents.DocumentChanged");
+            .ShouldBe("Try" + "katch.Modules.Documents.DocumentChanged");
+    }
+
+    [TestMethod]
+    [DataRow("Horizon.Modules.Projects.IntegrationEvents.ProjectChanged", "Horizon.Application.Projects.ProjectChanged")]
+    [DataRow("Northwind.Crm.Modules.Projects.IntegrationEvents.ProjectChanged", "Northwind.Crm.Application.Projects.ProjectChanged")]
+    [DataRow("Horizon.Modules.Documents.IntegrationEvents.DocumentChanged", "Try" + "katch.Modules.Documents.DocumentChanged")]
+    public void GeneratedApplicationsKeepTheirPreviewNineEventName(string currentName, string expectedName)
+    {
+        OutboxContractName.For(currentName).ShouldBe(expectedName);
     }
 
     [TestMethod]
