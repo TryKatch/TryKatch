@@ -9,7 +9,7 @@ Trykatch is an Apache-2.0 enterprise application template for .NET 10, PostgreSQ
 `Trykatch.Templates` is the full-stack project generator. The recommended installer uses the official .NET template engine underneath while adding clear progress and completion states. Every default generation includes the .NET solution and the complete React/TanStack frontend workspace:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.6
 trykatch template install
 dotnet new trykatch -n Horizon
 dotnet new trykatch -n Acme.Operations
@@ -18,7 +18,7 @@ dotnet new trykatch -n Acme.Operations
 For automation or IDE-managed environments, the direct Microsoft CLI command remains supported:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.5
+dotnet new install Trykatch.Templates@0.1.0-preview.6
 ```
 
 The default output includes `web/apps/web`, the reusable `web/packages/ui` component system, the generated TanStack Query API client, frontend tests, and the production web container. Create a backend-only solution only when it is explicitly requested with:
@@ -32,7 +32,7 @@ Optional modules are enabled with `--email`, `--storage`, `--documents`, and `--
 `Trykatch.Cli` installs or updates the project template and manages the module lifecycle. Every generated application also contains its source under `tools/<ApplicationName>.ModuleTool`, so developers can run module commands without a global installation:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.6
 trykatch help
 trykatch template help
 trykatch module help
@@ -49,9 +49,9 @@ The two packages have separate responsibilities:
 ```bash
 dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages
 dotnet pack templates/trykatch/tools/TrykatchApp.ModuleTool -c Release -o artifacts/packages
-dotnet new install artifacts/packages/Trykatch.Templates.0.1.0-preview.5.nupkg --force
+dotnet new install artifacts/packages/Trykatch.Templates.0.1.0-preview.6.nupkg --force
 dotnet new trykatch -n Horizon
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5 --add-source artifacts/packages
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.6 --add-source artifacts/packages
 ```
 
 The installed template uses the standard .NET template engine. Rider can install the `.nupkg` from **New Solution → More Templates → Install Template**, or discover it after `dotnet new install`. Visual Studio discovers installed SDK templates in the **Create a new project** dialog; search for **Trykatch** after installing the package and restarting the dialog or IDE.

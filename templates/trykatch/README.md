@@ -15,6 +15,8 @@ pnpm --dir web install --frozen-lockfile
 dotnet run --project src/TrykatchApp.AppHost
 ```
 
+In Rider, open `TrykatchApp.slnx` and run the **TrykatchApp.AppHost: https** profile. AppHost is the development startup project; it provisions PostgreSQL, runs migrations, and injects the separate least-privilege database connections before starting the API and React application. Do not run `TrykatchApp.Api` by itself.
+
 AppHost runs the one-shot `Migrator` project before the API. Production Compose also waits for it and gives the API a separate runtime credential. The role setup and deployment contract are described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 
 For Compose, copy `.env.example`, set the required immutable `TRYKATCH_RELEASE_VERSION`, and replace every secret placeholder. The web port and Grafana bind to loopback by default. Connect the public TLS ingress directly to the Compose network at the dedicated `TRYKATCH_INGRESS_PROXY_IP`; the gateway, ingress, and web-proxy addresses are reserved outside Docker's automatic allocation range so host-published traffic and unrelated services cannot impersonate the ingress. The API accepts the normalized scheme/client pair only from the explicitly configured web proxy. The base OTLP path is private single-host plaintext; use `compose.observability-tls.yml` for authenticated TLS ingestion. See [operations](docs/operations.md) for ingress trust, sampling, privacy, queues, retention, alerts, validation, and deployment-owned staging drills.

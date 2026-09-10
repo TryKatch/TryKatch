@@ -12,7 +12,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.6
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -40,7 +40,7 @@ cd Horizon
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.5
+dotnet new install Trykatch.Templates@0.1.0-preview.6
 ```
 :::
 
@@ -78,7 +78,17 @@ trykatch module help
 
 `trykatch help` lists application-generation choices. `trykatch template help` documents template installation and updates. `trykatch module help` lists every supported module lifecycle command.
 
-## IDE installation
+## Start in Rider
+
+Open the generated `.slnx` file, allow Rider to restore the solution, and select **`<ApplicationName>.AppHost: https`** as the run configuration. The AppHost profile starts PostgreSQL, runs the migrator, injects the separate runtime database credentials, and then starts the API and React application. Keep Docker running and do not use the API project as the standalone startup project.
+
+From Rider's terminal, the equivalent command is:
+
+```bash
+dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj
+```
+
+## IDE template installation
 
 The package uses the standard .NET template engine. Rider can install the `.nupkg` from **New Solution → More Templates → Install Template**. Visual Studio discovers installed SDK templates in **Create a new project** after the package is installed; search for **Trykatch**.
 
