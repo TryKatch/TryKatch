@@ -1,6 +1,7 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
 
 export { ModuleExtensionSlot, ModuleProvider } from './extensions'
+export { ModuleI18nProvider, useModuleI18n, type ModuleI18n, type ModuleMessageValues } from './i18n'
 
 export interface ModuleIconProps {
   size?: string | number

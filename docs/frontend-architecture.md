@@ -4,8 +4,10 @@ Trykatch keeps reusable interface behavior in the smallest package that can own 
 
 ## Seams
 
-- `apps/web/src/views` composes routes and application data. Views may define feature-specific columns and server filters, but must not reimplement shared table behavior.
-- `apps/web/src/components` contains application-specific modules such as the role editor and Trykatch mark.
+- `src/Modules/<Module>/Web` owns a business module's routes, pages, tests, and frontend package metadata. Module code depends only on published workspace packages and host services exposed by the module SDK.
+- `apps/web/src` is the application host. It composes the generated module registry, shell, platform surfaces, and host-wide providers; it does not reach into a module's internal implementation.
+- `packages/module-sdk` is the stable frontend host contract for routes, navigation, extension points, archive resources, and runtime services such as localization. Modules must not import host-internal contexts.
+- `apps/web/src/components` contains host-specific components such as the role editor and Trykatch mark.
 - `packages/ui/src/primitives.tsx` contains low-level owned UI primitives.
 - `packages/ui/src/patterns.tsx` contains deeper reusable modules that combine behavior and presentation.
 - `packages/api-client/src/generated` is machine-owned. Generate it from OpenAPI with `pnpm generate`; do not edit generated files.

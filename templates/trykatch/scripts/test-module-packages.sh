@@ -18,6 +18,13 @@ for module in Projects Documents Federation; do
       exit 1
     fi
   done
+
+  unexpected="$(grep -E '^lib/net10\.0/Trykatch\.Modules\..*\.dll$' <<<"$entries" | grep -v -E "^lib/net10\.0/Trykatch\.Modules\.$module\.(Domain|Application|IntegrationEvents|Presentation|Infrastructure)\.dll$" || true)"
+  if [[ -n "$unexpected" ]]; then
+    echo "Composite module package contains assemblies outside the $module boundary:" >&2
+    echo "$unexpected" >&2
+    exit 1
+  fi
 done
 
-echo "All composite module packages contain the five required assemblies."
+echo "All composite module packages contain exactly their five module assemblies."

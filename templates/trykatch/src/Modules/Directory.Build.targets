@@ -8,7 +8,7 @@
           Condition="'$(IsCompositeModulePackage)' == 'true'">
     <ItemGroup>
       <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)"
-                            Condition="'%(ReferenceCopyLocalPaths.ReferenceSourceTarget)' == 'ProjectReference' and $([System.String]::Copy('%(ReferenceCopyLocalPaths.Filename)').StartsWith('Trykatch.Modules.'))">
+                            Condition="'%(ReferenceCopyLocalPaths.ReferenceSourceTarget)' == 'ProjectReference' and '$(PackageId)' != '' and $([System.String]::Copy('%(ReferenceCopyLocalPaths.Filename)').StartsWith('$(PackageId).'))">
         <TargetPath>%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)</TargetPath>
       </BuildOutputInPackage>
     </ItemGroup>
