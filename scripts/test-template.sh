@@ -45,6 +45,8 @@ grep -Fq 'dotnet new trykatch -n <name> [options]' <<<"$help_output" ||
   fail 'CLI help does not show the application creation command'
 grep -Fq 'trykatch template install' <<<"$help_output" ||
   fail 'CLI help does not show the progress-aware template installer'
+grep -Fq 'trykatch template uninstall' <<<"$help_output" ||
+  fail 'CLI help does not show template removal'
 grep -Fq 'trykatch update' <<<"$help_output" ||
   fail 'CLI help does not show the template update command'
 grep -Fq 'trykatch start' <<<"$help_output" ||

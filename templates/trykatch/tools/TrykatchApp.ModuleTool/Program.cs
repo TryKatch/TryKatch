@@ -259,6 +259,7 @@ static int ShowHelp()
     Console.WriteLine("Create an application:");
     Console.WriteLine("  trykatch template install");
     Console.WriteLine("  trykatch update                 Update the template to this CLI's version.");
+    Console.WriteLine("  trykatch template uninstall    Remove the installed project template.");
     Console.WriteLine("  dotnet new trykatch -n <name> [options]");
     Console.WriteLine("  trykatch start                  Start a generated application through Aspire.");
     Console.WriteLine();

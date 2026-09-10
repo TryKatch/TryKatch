@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace TrykatchApp.ModuleTool;
@@ -89,11 +90,19 @@ internal sealed class TemplatePackageInstaller(
     {
         if (!SemanticVersion.IsMatch(version))
         {
-            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.8.");
+            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.9.");
             return 1;
         }
 
-        string package = $"Trykatch.Templates@{version}";
+        const string packageId = "Trykatch.Templates";
+        if (!force && await templateEngine.IsPackageInstalledAsync(packageId, version, cancellationToken))
+        {
+            await output.WriteLineAsync($"✓ Trykatch template {version} is already installed; no update is required.");
+            await output.WriteLineAsync("  Next: dotnet new trykatch -n <name>");
+            return 0;
+        }
+
+        string package = $"{packageId}@{version}";
         Stopwatch elapsed = Stopwatch.StartNew();
         Task<TemplateEngineResult> install = templateEngine.InstallAsync(package, force, cancellationToken);
 
@@ -156,6 +165,11 @@ internal sealed record TemplateEngineResult(int ExitCode, string StandardOutput,
 
 internal interface ITemplateEngine
 {
+    Task<bool> IsPackageInstalledAsync(
+        string packageId,
+        string version,
+        CancellationToken cancellationToken);
+
     Task<TemplateEngineResult> InstallAsync(
         string package,
         bool force,
@@ -166,8 +180,69 @@ internal interface ITemplateEngine
         CancellationToken cancellationToken);
 }
 
-internal sealed class DotnetTemplateEngine : ITemplateEngine
+internal sealed class DotnetTemplateEngine(string? templateEngineHome = null) : ITemplateEngine
 {
+    private const string PackagesFileName = "packages.json";
+
+    public async Task<bool> IsPackageInstalledAsync(
+        string packageId,
+        string version,
+        CancellationToken cancellationToken)
+    {
+        string userProfileVariable = OperatingSystem.IsWindows() ? "USERPROFILE" : "HOME";
+        string userProfile = Environment.GetEnvironmentVariable(userProfileVariable)
+            ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string home = templateEngineHome ?? Path.Combine(userProfile, ".templateengine");
+        string packagesFile = Path.Combine(home, PackagesFileName);
+        if (!File.Exists(packagesFile))
+            return false;
+
+        try
+        {
+            await using FileStream stream = File.Open(
+                packagesFile,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using StreamReader reader = new(stream, detectEncodingFromByteOrderMarks: true);
+            string json = await reader.ReadToEndAsync(cancellationToken);
+            using JsonDocument document = JsonDocument.Parse(json);
+
+            if (!document.RootElement.TryGetProperty("Packages", out JsonElement packages)
+                || packages.ValueKind is not JsonValueKind.Array)
+            {
+                return false;
+            }
+
+            foreach (JsonElement package in packages.EnumerateArray())
+            {
+                if (!package.TryGetProperty("Details", out JsonElement details)
+                    || !details.TryGetProperty("PackageId", out JsonElement installedId)
+                    || !details.TryGetProperty("Version", out JsonElement installedVersion))
+                {
+                    continue;
+                }
+
+                if (string.Equals(installedId.GetString(), packageId, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(installedVersion.GetString(), version, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (IOException)
+        {
+            // The template engine may be updating its registry concurrently. Let the
+            // install command provide the authoritative result in that rare case.
+        }
+        catch (JsonException)
+        {
+            // A corrupt or incompatible registry must not be mistaken for an install.
+        }
+
+        return false;
+    }
+
     public async Task<TemplateEngineResult> InstallAsync(
         string package,
         bool force,
