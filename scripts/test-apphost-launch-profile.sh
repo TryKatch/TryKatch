@@ -15,22 +15,22 @@ if [[ ! -f "$launch_settings" ]]; then
   exit 1
 fi
 
-grep -Fq '"https"' "$launch_settings" || {
-  printf 'AppHost launch-profile contract failed: secure https profile is missing\n' >&2
+if ! command -v jq >/dev/null 2>&1; then
+  printf 'AppHost launch-profile contract failed: jq is required to validate launchSettings.json\n' >&2
   exit 1
-}
-grep -Fq '"commandName": "Project"' "$launch_settings" || {
-  printf 'AppHost launch-profile contract failed: profile does not launch the AppHost project\n' >&2
+fi
+
+if ! jq -e '
+  .profiles.https
+  | type == "object"
+    and .commandName == "Project"
+    and (.environmentVariables | type == "object")
+    and .environmentVariables.ASPNETCORE_ENVIRONMENT == "Development"
+    and .environmentVariables.DOTNET_ENVIRONMENT == "Development"
+' "$launch_settings" >/dev/null; then
+  printf 'AppHost launch-profile contract failed: profiles.https must be a valid Project profile with both development environment variables\n' >&2
   exit 1
-}
-grep -Fq '"ASPNETCORE_ENVIRONMENT": "Development"' "$launch_settings" || {
-  printf 'AppHost launch-profile contract failed: ASP.NET Core development environment is missing\n' >&2
-  exit 1
-}
-grep -Fq '"DOTNET_ENVIRONMENT": "Development"' "$launch_settings" || {
-  printf 'AppHost launch-profile contract failed: .NET development environment is missing\n' >&2
-  exit 1
-}
+fi
 
 if grep -Eq 'https?://(0\.0\.0\.0|[^/";]*\.local)' "$launch_settings"; then
   printf 'AppHost launch-profile contract failed: profile contains a certificate-hostname-unsafe endpoint\n' >&2
