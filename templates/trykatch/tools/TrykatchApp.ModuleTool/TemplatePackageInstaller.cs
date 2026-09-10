@@ -49,6 +49,36 @@ internal sealed class TemplatePackageInstaller(
             cancellationToken);
     }
 
+    public async Task<int> UninstallAsync(CancellationToken cancellationToken)
+    {
+        const string packageId = "Trykatch.Templates";
+        Stopwatch elapsed = Stopwatch.StartNew();
+        Task<TemplateEngineResult> uninstall = templateEngine.UninstallAsync(packageId, cancellationToken);
+
+        if (isInteractive)
+            await RenderProgressAsync("Uninstalling Trykatch template", uninstall, cancellationToken);
+        else
+            await output.WriteLineAsync("Uninstalling Trykatch template...");
+
+        TemplateEngineResult result = await uninstall;
+        elapsed.Stop();
+
+        if (result.ExitCode != 0)
+        {
+            if (isInteractive)
+                await output.WriteLineAsync();
+            await error.WriteLineAsync("Could not uninstall the Trykatch template.");
+            await WriteFailureDetailsAsync(result);
+            return result.ExitCode;
+        }
+
+        if (isInteractive)
+            await output.WriteAsync("\r");
+        await output.WriteLineAsync($"✓ Trykatch template uninstalled ({FormatElapsed(elapsed.Elapsed)}).");
+        await output.WriteLineAsync("  To remove the CLI too: dotnet tool uninstall --global Trykatch.Cli");
+        return 0;
+    }
+
     private async Task<int> ApplyAsync(
         string version,
         bool force,
@@ -59,7 +89,7 @@ internal sealed class TemplatePackageInstaller(
     {
         if (!SemanticVersion.IsMatch(version))
         {
-            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.7.");
+            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.8.");
             return 1;
         }
 
@@ -80,13 +110,7 @@ internal sealed class TemplatePackageInstaller(
             if (isInteractive)
                 await output.WriteLineAsync();
             await error.WriteLineAsync(failure);
-            string details = string.Join(
-                Environment.NewLine,
-                new[] { result.StandardOutput, result.StandardError }
-                    .Where(value => !string.IsNullOrWhiteSpace(value))
-                    .Select(value => value.Trim()));
-            if (details.Length > 0)
-                await error.WriteLineAsync(details);
+            await WriteFailureDetailsAsync(result);
             return result.ExitCode;
         }
 
@@ -95,6 +119,17 @@ internal sealed class TemplatePackageInstaller(
         await output.WriteLineAsync($"✓ {completion} ({FormatElapsed(elapsed.Elapsed)}).");
         await output.WriteLineAsync("  Next: dotnet new trykatch -n <name>");
         return 0;
+    }
+
+    private async Task WriteFailureDetailsAsync(TemplateEngineResult result)
+    {
+        string details = string.Join(
+            Environment.NewLine,
+            new[] { result.StandardOutput, result.StandardError }
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim()));
+        if (details.Length > 0)
+            await error.WriteLineAsync(details);
     }
 
     private async Task RenderProgressAsync(
@@ -125,6 +160,10 @@ internal interface ITemplateEngine
         string package,
         bool force,
         CancellationToken cancellationToken);
+
+    Task<TemplateEngineResult> UninstallAsync(
+        string packageId,
+        CancellationToken cancellationToken);
 }
 
 internal sealed class DotnetTemplateEngine : ITemplateEngine
@@ -134,17 +173,29 @@ internal sealed class DotnetTemplateEngine : ITemplateEngine
         bool force,
         CancellationToken cancellationToken)
     {
+        List<string> arguments = ["new", "install", package];
+        if (force)
+            arguments.Add("--force");
+        return await RunAsync(arguments, cancellationToken);
+    }
+
+    public Task<TemplateEngineResult> UninstallAsync(
+        string packageId,
+        CancellationToken cancellationToken) =>
+        RunAsync(["new", "uninstall", packageId], cancellationToken);
+
+    private static async Task<TemplateEngineResult> RunAsync(
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken)
+    {
         ProcessStartInfo startInfo = new("dotnet")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false
         };
-        startInfo.ArgumentList.Add("new");
-        startInfo.ArgumentList.Add("install");
-        startInfo.ArgumentList.Add(package);
-        if (force)
-            startInfo.ArgumentList.Add("--force");
+        foreach (string argument in arguments)
+            startInfo.ArgumentList.Add(argument);
 
         using Process process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start the .NET template engine.");

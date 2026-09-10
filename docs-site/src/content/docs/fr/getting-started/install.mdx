@@ -3,6 +3,8 @@ title: Installer et créer une application
 description: Installez le modèle Trykatch et générez une solution .NET et React complète.
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 ## Installer le modèle
 
 Suivez ces étapes dans l’ordre.
@@ -12,7 +14,7 @@ Suivez ces étapes dans l’ordre.
 Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.7
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.8
 ```
 
 Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
@@ -40,7 +42,7 @@ cd Horizon
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.7
+dotnet new install Trykatch.Templates@0.1.0-preview.8
 ```
 :::
 
@@ -51,13 +53,31 @@ Les noms contenant des points ou des tirets sont normalisés pour produire des e
 Mettez d’abord à jour la CLI, puis utilisez la commande de mise à jour dédiée de Trykatch. La CLI et le modèle restent ainsi sur la même version :
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.7
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.8
 trykatch update
 ```
 
 `trykatch template update` est l’équivalent explicite. Ajoutez `--version <version>` à l’une ou l’autre commande pour sélectionner une version précise.
 
 La mise à jour du modèle s’applique aux futurs projets générés ; elle ne réécrit pas les fichiers source d’une application existante.
+
+## Désinstaller Trykatch
+
+Supprimez d’abord le modèle de projet, pendant que la CLI Trykatch est encore disponible :
+
+```bash
+trykatch template uninstall
+```
+
+Si vous avez installé le modèle sans la CLI Trykatch, utilisez la commande Microsoft équivalente : `dotnet new uninstall Trykatch.Templates`.
+
+Pour supprimer également la CLI de votre ordinateur, exécutez :
+
+```bash
+dotnet tool uninstall --global Trykatch.Cli
+```
+
+La désinstallation du modèle ou de la CLI ne supprime pas les applications déjà générées.
 
 ## Réparer les certificats HTTPS locaux
 
@@ -94,22 +114,39 @@ Utilisez les commandes d’aide ciblées de la CLI :
 
 ```bash
 trykatch help
+trykatch start --help
 trykatch update
 trykatch template help
 trykatch module help
 ```
 
-`trykatch help` présente les choix de génération d’application. `trykatch template help` documente l’installation et la mise à jour du modèle. `trykatch module help` répertorie toutes les commandes prises en charge pour le cycle de vie des modules.
+`trykatch help` présente les choix de génération d’application. `trykatch start --help` documente le démarrage. `trykatch template help` documente l’installation, la mise à jour et la suppression du modèle. `trykatch module help` répertorie toutes les commandes prises en charge pour le cycle de vie des modules.
 
-## Démarrer dans Rider
+## Démarrer l’application
 
-Ouvrez le fichier `.slnx` généré, laissez Rider restaurer la solution, puis sélectionnez **`<NomApplication>.AppHost: https`** comme configuration d’exécution. Le profil AppHost démarre PostgreSQL, exécute le migrateur, injecte les identifiants distincts des rôles d’exécution de la base de données, puis démarre l’API et l’application React. Gardez Docker actif et n’utilisez pas le projet API seul comme projet de démarrage.
+Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seul — afin que PostgreSQL, les migrations, les identifiants d’exécution, l’API et React démarrent ensemble.
 
-Dans le terminal de Rider, la commande équivalente est :
+<Tabs syncKey="start-method">
+  <TabItem label="CLI" icon="terminal">
+    Depuis la racine de l’application générée, exécutez :
 
-```bash
-dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj
-```
+    ```bash
+    trykatch start
+    ```
+
+    La CLI détecte automatiquement l’AppHost généré. Depuis un autre répertoire, utilisez `trykatch start --root /chemin/vers/Horizon`.
+  </TabItem>
+  <TabItem label="Rider">
+    Ouvrez le fichier `Horizon.slnx` généré et laissez Rider restaurer la solution. Sélectionnez **`Horizon.AppHost: https`** dans les configurations d’exécution, puis choisissez **Run** ou **Debug**.
+
+    Si Rider n’a pas créé la configuration, faites un clic droit sur `src/Horizon.AppHost/Horizon.AppHost.csproj`, puis choisissez **Run 'Horizon.AppHost'** une première fois.
+  </TabItem>
+  <TabItem label="Visual Studio">
+    Ouvrez `Horizon.slnx`. Dans l’Explorateur de solutions, faites un clic droit sur **Horizon.AppHost**, choisissez **Définir comme projet de démarrage**, sélectionnez le profil **https**, puis appuyez sur **F5** ou choisissez **Démarrer**.
+  </TabItem>
+</Tabs>
+
+La commande .NET directe équivalente est `dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj`.
 
 ## Installation du modèle dans l’IDE
 

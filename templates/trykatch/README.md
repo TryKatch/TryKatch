@@ -12,10 +12,10 @@ Prerequisites: .NET SDK 10.0.301+, Docker, Node.js 24+, and pnpm 10.
 dotnet tool restore
 dotnet restore TrykatchApp.slnx
 pnpm --dir web install --frozen-lockfile
-dotnet run --project src/TrykatchApp.AppHost
+trykatch start
 ```
 
-In Rider, open `TrykatchApp.slnx` and run the **TrykatchApp.AppHost: https** profile. AppHost is the development startup project; it provisions PostgreSQL, runs migrations, and injects the separate least-privilege database connections before starting the API and React application. Do not run `TrykatchApp.Api` by itself.
+If the Trykatch CLI is not installed, run `dotnet run --launch-profile https --project src/TrykatchApp.AppHost/TrykatchApp.AppHost.csproj`. In Rider, open `TrykatchApp.slnx` and run the **TrykatchApp.AppHost: https** profile. AppHost is the development startup project; it provisions PostgreSQL, runs migrations, and injects the separate least-privilege database connections before starting the API and React application. Do not run `TrykatchApp.Api` by itself.
 
 AppHost runs the one-shot `Migrator` project before the API. Production Compose also waits for it and gives the API a separate runtime credential. The role setup and deployment contract are described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 

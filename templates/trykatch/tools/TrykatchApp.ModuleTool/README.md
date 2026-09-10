@@ -7,6 +7,7 @@ dotnet tool install --global Trykatch.Cli --prerelease
 trykatch help
 trykatch template install
 trykatch template help
+trykatch start
 trykatch module help
 trykatch module doctor --root /path/to/application
 trykatch module register src/My.Module/trykatch.module.json
@@ -15,9 +16,12 @@ trykatch module upgrade ./downloaded/trykatch.module.json --sha256 <published-di
 trykatch module disable <id>
 trykatch module unregister <id>
 trykatch module eject <id> --source-bundle ./reviewed-source --sha256 <published-digest>
+trykatch template uninstall
 ```
 
 `template install` invokes the official .NET template engine with an argument-safe process boundary. It shows a spinner in interactive terminals, emits deterministic progress in redirected output and CI, preserves the template engine's failure details, and defaults to the template version matching the installed CLI. Use `--version <version>` to select another release and `--force` to repair an existing installation.
+
+`start` discovers the generated Aspire AppHost from the current directory or `--root`, then runs its HTTPS launch profile with inherited terminal output. `template uninstall` removes `Trykatch.Templates` through the official .NET template engine; remove the global CLI separately with `dotnet tool uninstall --global Trykatch.Cli`.
 
 `trykatch.modules.lock.json` is machine-owned and records the manifest digest mode,
 digest, version, enablement state, distribution kind, package pairing, and license
