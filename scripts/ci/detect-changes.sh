@@ -29,7 +29,7 @@ classify_path() {
     docs-site/*|docs/*|README.md|CONTRIBUTING.md|SECURITY.md|templates/trykatch/docs/*|templates/trykatch/README*.md|templates/trykatch/AGENTS.md|templates/trykatch/CONTEXT.md)
       docs=true
       ;;
-    Trykatch.Templates.csproj|scripts/test-template.sh|templates/trykatch/.template.config/*|templates/trykatch/.github/*|templates/trykatch/LICENSE)
+    Trykatch.Templates.csproj|scripts/test-template.sh|scripts/test-apphost-launch-profile.sh|templates/trykatch/.template.config/*|templates/trykatch/.github/*|templates/trykatch/LICENSE)
       packaging=true
       ;;
     scripts/test-generated-application.sh)
