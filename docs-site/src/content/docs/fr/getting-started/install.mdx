@@ -5,6 +5,16 @@ description: Installez le modèle Trykatch et générez une solution .NET et Rea
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
+## Prérequis
+
+Installez le SDK .NET 10 et un runtime de conteneurs compatible avec Docker avant de démarrer une application générée. Utilisez Docker Desktop sous macOS ou Windows, ou Docker Engine sous Linux, puis vérifiez que le démon est disponible :
+
+```bash
+docker info
+```
+
+Docker est requis pour PostgreSQL et pour toute la chaîne d’observabilité locale : OpenTelemetry Collector, Prometheus, Loki, Tempo et Grafana. L’AppHost crée et coordonne ces conteneurs ; installer uniquement le client Docker ne suffit pas — le démon Docker doit être actif.
+
 ## Installer le modèle
 
 Suivez ces étapes dans l’ordre.
@@ -126,7 +136,7 @@ trykatch module help
 
 ## Démarrer l’application
 
-Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seul — afin que PostgreSQL, les migrations, les identifiants d’exécution, l’API et React démarrent ensemble.
+Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seul — afin que PostgreSQL, les migrations, les identifiants d’exécution, l’API, React, OpenTelemetry et les services d’observabilité démarrent ensemble.
 
 <Tabs syncKey="start-method">
   <TabItem label="CLI" icon="terminal">
@@ -158,7 +168,7 @@ Vérifiez que le démon Docker — et pas uniquement l’application Docker — 
 docker info
 ```
 
-Si cette commande échoue, redémarrez Docker Desktop et attendez que son moteur soit opérationnel. Réactivez le moteur si Docker Resource Saver l’a suspendu. Arrêtez ensuite l’AppHost, puis redémarrez-le. PostgreSQL ne peut pas démarrer lorsque le runtime de conteneurs est défaillant ; le migrateur et l’API restent donc correctement dans l’état **Waiting**.
+Si cette commande échoue, redémarrez Docker Desktop et attendez que son moteur soit opérationnel. Réactivez le moteur si Docker Resource Saver l’a suspendu. Arrêtez ensuite l’AppHost, puis redémarrez-le. PostgreSQL et les conteneurs d’observabilité locale ne peuvent pas démarrer lorsque le runtime de conteneurs est défaillant ; le migrateur et l’API restent donc correctement dans l’état **Waiting**, tandis que Grafana, Loki, Tempo, Prometheus et OpenTelemetry Collector signalent **Runtime unhealthy**.
 
 ## Installation du modèle dans l’IDE
 
