@@ -29,14 +29,41 @@ internal sealed class TemplatePackageInstaller(
 
     public async Task<int> InstallAsync(string version, bool force, CancellationToken cancellationToken)
     {
+        return await ApplyAsync(
+            version,
+            force,
+            $"Installing Trykatch template {version}",
+            $"Trykatch template {version} installed",
+            $"Could not install Trykatch template {version}.",
+            cancellationToken);
+    }
+
+    public async Task<int> UpdateAsync(string version, CancellationToken cancellationToken)
+    {
+        return await ApplyAsync(
+            version,
+            force: true,
+            $"Updating Trykatch template to {version}",
+            $"Trykatch template updated to {version}",
+            $"Could not update Trykatch template to {version}.",
+            cancellationToken);
+    }
+
+    private async Task<int> ApplyAsync(
+        string version,
+        bool force,
+        string status,
+        string completion,
+        string failure,
+        CancellationToken cancellationToken)
+    {
         if (!SemanticVersion.IsMatch(version))
         {
-            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.6.");
+            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.7.");
             return 1;
         }
 
         string package = $"Trykatch.Templates@{version}";
-        string status = $"Installing Trykatch template {version}";
         Stopwatch elapsed = Stopwatch.StartNew();
         Task<TemplateEngineResult> install = templateEngine.InstallAsync(package, force, cancellationToken);
 
@@ -52,7 +79,7 @@ internal sealed class TemplatePackageInstaller(
         {
             if (isInteractive)
                 await output.WriteLineAsync();
-            await error.WriteLineAsync($"Could not install Trykatch template {version}.");
+            await error.WriteLineAsync(failure);
             string details = string.Join(
                 Environment.NewLine,
                 new[] { result.StandardOutput, result.StandardError }
@@ -65,7 +92,7 @@ internal sealed class TemplatePackageInstaller(
 
         if (isInteractive)
             await output.WriteAsync("\r");
-        await output.WriteLineAsync($"✓ Trykatch template {version} installed ({FormatElapsed(elapsed.Elapsed)}).");
+        await output.WriteLineAsync($"✓ {completion} ({FormatElapsed(elapsed.Elapsed)}).");
         await output.WriteLineAsync("  Next: dotnet new trykatch -n <name>");
         return 0;
     }

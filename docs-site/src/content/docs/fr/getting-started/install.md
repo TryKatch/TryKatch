@@ -12,7 +12,7 @@ Suivez ces étapes dans l’ordre.
 Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.6
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.7
 ```
 
 Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
@@ -40,11 +40,35 @@ cd Horizon
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.6
+dotnet new install Trykatch.Templates@0.1.0-preview.7
 ```
 :::
 
 Les noms contenant des points ou des tirets sont normalisés pour produire des espaces de noms C#, des répertoires, des noms de conteneurs et des packages npm valides.
+
+## Mettre à jour le modèle
+
+Mettez d’abord à jour la CLI, puis utilisez la commande de mise à jour dédiée de Trykatch. La CLI et le modèle restent ainsi sur la même version :
+
+```bash
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.7
+trykatch update
+```
+
+`trykatch template update` est l’équivalent explicite. Ajoutez `--version <version>` à l’une ou l’autre commande pour sélectionner une version précise.
+
+La mise à jour du modèle s’applique aux futurs projets générés ; elle ne réécrit pas les fichiers source d’une application existante.
+
+## Réparer les certificats HTTPS locaux
+
+L’AppHost sécurise son tableau de bord et son service de ressources interne avec le certificat de développement ASP.NET Core. Si Aspire signale une erreur de nom de certificat, de confiance ou de TLS sur un poste de développement, arrêtez l’AppHost puis recréez le certificat local :
+
+```bash
+dotnet dev-certs https --clean
+dotnet dev-certs https --trust
+```
+
+Redémarrez ensuite l’AppHost. Trykatch fixe chaque point de terminaison Aspire généré sur `https://localhost` afin que son nom corresponde au certificat.
 
 ## Choisir l’interface générée
 
@@ -70,6 +94,7 @@ Utilisez les commandes d’aide ciblées de la CLI :
 
 ```bash
 trykatch help
+trykatch update
 trykatch template help
 trykatch module help
 ```
