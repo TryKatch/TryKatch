@@ -31,6 +31,9 @@ assert_scope 'templates/trykatch/.future-template-setting' deployment true
 assert_scope 'templates/trykatch/.future-template-setting' packaging true
 assert_scope 'templates/trykatch/.future-template-setting' qualification true
 assert_scope 'templates/trykatch/web/apps/web/src/main.tsx' web true
+assert_scope 'templates/trykatch/src/Modules/Federation/Web/src/index.tsx' web true
+assert_scope 'templates/trykatch/src/Modules/Federation/Web/src/index.tsx' backend false
+assert_scope 'templates/trykatch/src/Modules/Federation/Web/src/index.tsx' qualification true
 assert_scope 'templates/trykatch/deploy/observability/tempo.yml' observability true
 assert_scope 'templates/trykatch/compose.yml' deployment true
 assert_scope 'templates/trykatch/compose.yml' observability true
