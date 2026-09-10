@@ -90,7 +90,7 @@ export function LandingPage() {
         <div><h2 id="install-title">{t('Create your application')}</h2><p>{t('Install once, then generate a complete backend and React workspace with your own product name.')}</p></div>
       </div>
       <div className="landing-command" aria-label="Trykatch installation commands">
-        <code><span>$</span> dotnet new install Trykatch.Templates@0.1.0-preview.6</code>
+        <code><span>$</span> dotnet new install Trykatch.Templates@0.1.0-preview.7</code>
         <code><span>$</span> dotnet new trykatch -n Horizon</code>
       </div>
       <p className="landing-open-source">{t('Open source under Apache-2.0. Use it, extend it, and ship products on top of it.')}</p>

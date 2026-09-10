@@ -36,6 +36,9 @@ static Task<int> RunAsync(string[] arguments)
     if (string.Equals(arguments[0], "template", StringComparison.Ordinal))
         return RunTemplateAsync(arguments);
 
+    if (string.Equals(arguments[0], "update", StringComparison.Ordinal))
+        return RunTemplateAsync(["template", "update", .. arguments.Skip(1)]);
+
     if (arguments.Length < 2 || !string.Equals(arguments[0], "module", StringComparison.Ordinal))
         return Task.FromResult(ShowUnknownCommand(arguments[0]));
 
@@ -130,11 +133,12 @@ static async Task<int> RunTemplateAsync(string[] arguments)
         || arguments.Skip(2).Any(IsHelpOption))
         return ShowTemplateHelp(arguments.Length == 1 ? 1 : 0);
 
-    if (!string.Equals(arguments[1], "install", StringComparison.Ordinal))
+    string operation = arguments[1];
+    if (operation is not ("install" or "update"))
         return ShowTemplateHelp(1);
 
     string version = TemplatePackageInstaller.CurrentVersion;
-    bool force = false;
+    bool force = string.Equals(operation, "update", StringComparison.Ordinal);
     for (int index = 2; index < arguments.Length; index++)
     {
         if (string.Equals(arguments[index], "--version", StringComparison.Ordinal))
@@ -160,7 +164,9 @@ static async Task<int> RunTemplateAsync(string[] arguments)
             Console.Out,
             Console.Error,
             !Console.IsOutputRedirected && !Console.IsErrorRedirected);
-        return await installer.InstallAsync(version, force, CancellationToken.None);
+        return string.Equals(operation, "update", StringComparison.Ordinal)
+            ? await installer.UpdateAsync(version, CancellationToken.None)
+            : await installer.InstallAsync(version, force, CancellationToken.None);
     }
     catch (Exception exception) when (exception is IOException
         or UnauthorizedAccessException
@@ -191,6 +197,7 @@ static int ShowHelp()
     Console.WriteLine();
     Console.WriteLine("Create an application:");
     Console.WriteLine("  trykatch template install");
+    Console.WriteLine("  trykatch update                 Update the template to this CLI's version.");
     Console.WriteLine("  dotnet new trykatch -n <name> [options]");
     Console.WriteLine();
     Console.WriteLine("Application options:");
@@ -215,12 +222,14 @@ static int ShowTemplateHelp(int exitCode = 0)
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  trykatch template install [--version <version>] [--force]");
+    Console.WriteLine("  trykatch template update [--version <version>]");
+    Console.WriteLine("  trykatch update [--version <version>]  Alias for 'template update'.");
     Console.WriteLine();
     Console.WriteLine("Options:");
-    Console.WriteLine("  --version <version>  Install a specific Trykatch.Templates version.");
+    Console.WriteLine("  --version <version>  Select a specific Trykatch.Templates version.");
     Console.WriteLine("  --force              Reinstall when the selected version is already present.");
     Console.WriteLine();
-    Console.WriteLine("The command uses the official .NET template engine and shows installation progress.");
+    Console.WriteLine("These commands use the official .NET template engine and show progress.");
     return exitCode;
 }
 
