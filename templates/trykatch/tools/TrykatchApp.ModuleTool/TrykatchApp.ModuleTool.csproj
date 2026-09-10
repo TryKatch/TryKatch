@@ -5,6 +5,7 @@
     <ToolCommandName>trykatch</ToolCommandName>
     <PackageId>Trykatch.Cli</PackageId>
     <PackageVersion>0.1.0-preview.5</PackageVersion>
+    <Version>$(PackageVersion)</Version>
     <Description>Validates and composes Trykatch full-stack modules.</Description>
     <PackageProjectUrl>https://trykatch.net</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

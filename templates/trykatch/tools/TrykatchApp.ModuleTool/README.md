@@ -5,6 +5,8 @@ The Trykatch CLI validates and composes the backend and React surfaces of a gene
 ```bash
 dotnet tool install --global Trykatch.Cli --prerelease
 trykatch help
+trykatch template install
+trykatch template help
 trykatch module help
 trykatch module doctor --root /path/to/application
 trykatch module register src/My.Module/trykatch.module.json
@@ -14,6 +16,8 @@ trykatch module disable <id>
 trykatch module unregister <id>
 trykatch module eject <id> --source-bundle ./reviewed-source --sha256 <published-digest>
 ```
+
+`template install` invokes the official .NET template engine with an argument-safe process boundary. It shows a spinner in interactive terminals, emits deterministic progress in redirected output and CI, preserves the template engine's failure details, and defaults to the template version matching the installed CLI. Use `--version <version>` to select another release and `--force` to repair an existing installation.
 
 `trykatch.modules.lock.json` is machine-owned and records the manifest digest mode,
 digest, version, enablement state, distribution kind, package pairing, and license
