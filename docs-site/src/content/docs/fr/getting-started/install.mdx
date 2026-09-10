@@ -14,7 +14,7 @@ Suivez ces étapes dans l’ordre.
 Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.8
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.9
 ```
 
 Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
@@ -29,6 +29,8 @@ trykatch template install
 
 Cette commande installe le modèle .NET et React correspondant. Elle utilise le moteur de modèles officiel de Microsoft, affiche une progression animée dans un terminal interactif et produit des lignes de journal stables dans la CI.
 
+Vous pouvez relancer cette commande sans risque. Si cette version exacte est déjà présente, elle l’indique et se termine avec succès. Si une version antérieure est présente, le moteur de modèles .NET la met à jour.
+
 ### 3. Créer votre application
 
 Remplacez `Horizon` par le nom de votre produit :
@@ -42,7 +44,7 @@ cd Horizon
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.8
+dotnet new install Trykatch.Templates@0.1.0-preview.9
 ```
 :::
 
@@ -53,7 +55,7 @@ Les noms contenant des points ou des tirets sont normalisés pour produire des e
 Mettez d’abord à jour la CLI, puis utilisez la commande de mise à jour dédiée de Trykatch. La CLI et le modèle restent ainsi sur la même version :
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.8
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.9
 trykatch update
 ```
 
@@ -147,6 +149,16 @@ Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seu
 </Tabs>
 
 La commande .NET directe équivalente est `dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj`.
+
+### Si Aspire affiche « Container runtime unhealthy »
+
+Vérifiez que le démon Docker — et pas uniquement l’application Docker — est prêt :
+
+```bash
+docker info
+```
+
+Si cette commande échoue, redémarrez Docker Desktop et attendez que son moteur soit opérationnel. Réactivez le moteur si Docker Resource Saver l’a suspendu. Arrêtez ensuite l’AppHost, puis redémarrez-le. PostgreSQL ne peut pas démarrer lorsque le runtime de conteneurs est défaillant ; le migrateur et l’API restent donc correctement dans l’état **Waiting**.
 
 ## Installation du modèle dans l’IDE
 

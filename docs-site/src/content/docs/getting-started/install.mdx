@@ -14,7 +14,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.8
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.9
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -29,6 +29,8 @@ trykatch template install
 
 This installs the matching .NET and React template. The command uses Microsoft's official .NET template engine, displays live progress in an interactive terminal, and emits stable log lines in CI.
 
+The command is safe to run again. If this exact version is present, it reports that the template is already installed and exits successfully. If an older version is present, the .NET template engine updates it.
+
 ### 3. Create your application
 
 Replace `Horizon` with your product name:
@@ -42,7 +44,7 @@ cd Horizon
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.8
+dotnet new install Trykatch.Templates@0.1.0-preview.9
 ```
 :::
 
@@ -55,7 +57,7 @@ Names containing dots and hyphens are normalized for C# namespaces, directories,
 Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.8
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.9
 trykatch update
 ```
 
@@ -149,6 +151,16 @@ Keep Docker running. Always start the AppHost—not the API project by itself—
 </Tabs>
 
 The equivalent direct .NET command is `dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj`.
+
+### If Aspire reports “Container runtime unhealthy”
+
+Confirm that the Docker daemon—not only the Docker application—is ready:
+
+```bash
+docker info
+```
+
+If that command fails, restart Docker Desktop and wait until its engine is running. Resume the engine if Docker Resource Saver paused it. Then stop and restart the AppHost. PostgreSQL cannot start while the container runtime is unhealthy, so the migrator and API correctly remain in **Waiting**.
 
 ## IDE template installation
 
