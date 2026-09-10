@@ -862,10 +862,18 @@ public sealed class ModuleWorkspaceTests
 
     private sealed class ArtifactReplacementRunner(string backend, string frontend) : IWorkspaceCommandRunner
     {
+        private readonly RecordingCommandRunner restoreRunner = new();
+
         public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
         {
-            WorkspaceCommandResult result = new ProcessWorkspaceCommandRunner().Run(fileName, arguments, workingDirectory);
-            if (result.ExitCode == 0 && fileName == "dotnet" && arguments[0] == "nuget" && arguments[1] == "verify")
+            bool verifiesSignature = fileName == "dotnet"
+                && arguments.Count > 1
+                && arguments[0] == "nuget"
+                && arguments[1] == "verify";
+            WorkspaceCommandResult result = verifiesSignature
+                ? new ProcessWorkspaceCommandRunner().Run(fileName, arguments, workingDirectory)
+                : restoreRunner.Run(fileName, arguments, workingDirectory);
+            if (result.ExitCode == 0 && verifiesSignature)
             {
                 File.WriteAllText(backend, "Changed after verification.");
                 File.WriteAllText(frontend, "Changed after verification.");

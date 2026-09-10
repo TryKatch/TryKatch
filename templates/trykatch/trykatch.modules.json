@@ -6,6 +6,7 @@
   "trustedPublishers": [
     "trykatch"
   ],
+  "publisherTrust": {},
   "outputs": {
     "backend": "src/TrykatchApp.Api/Modules/EnabledModules.cs",
     "backendNamespace": "TrykatchApp.Api.Modules",
