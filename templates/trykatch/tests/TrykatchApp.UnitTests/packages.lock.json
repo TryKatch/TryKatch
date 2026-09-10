@@ -354,7 +354,10 @@
         }
       },
       "trykatchapp.domain": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "TrykatchApp.Modules.Abstractions": "[1.0.0, )"
+        }
       },
       "trykatchapp.infrastructure": {
         "type": "Project",
@@ -375,7 +378,10 @@
         }
       },
       "trykatchapp.modules.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.11, )"
+        }
       },
       "trykatchapp.modules.aspnetcore": {
         "type": "Project",

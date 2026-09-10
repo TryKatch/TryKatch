@@ -37,6 +37,33 @@ public sealed class ProjectsModule : ITrykatchModule
                 TrykatchModuleCapabilities.Web)
         ])
     {
+        DefaultDataOwnership = TrykatchDataOwnership.Organization,
+        DataResources =
+        [
+            new(
+                "projects",
+                "app",
+                "projects",
+                TrykatchDataOwnership.Organization,
+                typeof(global::TrykatchApp.Domain.Projects.Project).FullName,
+                "projects_organization_isolation")
+        ],
+        Permissions =
+        [
+            new(
+                Permissions.ProjectsRead,
+                "View projects",
+                "View projects and their details.",
+                Order: 10,
+                DefaultRoles: [DefaultOrganizationRoles.Admin, DefaultOrganizationRoles.Member, DefaultOrganizationRoles.Viewer]),
+            new(
+                Permissions.ProjectsManage,
+                "Manage projects",
+                "Create, change, archive, restore, and request reasoned deletion of projects.",
+                IsSensitive: true,
+                Order: 20,
+                DefaultRoles: [DefaultOrganizationRoles.Admin, DefaultOrganizationRoles.Member])
+        ],
         AssistantTools =
         [
             new(
@@ -61,6 +88,5 @@ public sealed class ProjectsModule : ITrykatchModule
         services.AddSingleton<IApplicationModelContributor, ProjectsModelContributor>();
         services.AddScoped<IWorkspaceOverviewMetricProvider, ProjectsOverviewMetricProvider>();
         services.AddSingleton<IValidator<CreateProjectCommand>, CreateProjectValidator>();
-        services.AddSingleton<IPermissionDefinitionProvider, ProjectPermissionDefinitionProvider>();
     }
 }

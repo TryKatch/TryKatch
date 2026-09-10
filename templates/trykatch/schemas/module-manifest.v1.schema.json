@@ -10,11 +10,13 @@
     "name",
     "version",
     "description",
+    "publisher",
     "distribution",
     "compatibility",
     "requires",
     "optionalDependencies",
     "capabilities",
+    "dataOwnership",
     "artifacts",
     "entrypoints",
     "contributions"
@@ -26,6 +28,7 @@
     "name": { "type": "string", "minLength": 1 },
     "version": { "$ref": "#/$defs/version" },
     "description": { "type": "string", "minLength": 1 },
+    "publisher": { "$ref": "#/$defs/moduleId" },
     "distribution": {
       "type": "object",
       "additionalProperties": false,
@@ -34,12 +37,24 @@
         "kind": { "enum": ["workspace", "package"] },
         "license": { "type": "string", "minLength": 1 },
         "dotnet": { "$ref": "#/$defs/packageIdentity" },
-        "web": { "$ref": "#/$defs/packageIdentity" }
+        "web": { "$ref": "#/$defs/packageIdentity" },
+        "supplyChain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provenanceFile", "provenanceSha256", "provenanceSignatureFile", "sbomFile", "sbomSha256"],
+          "properties": {
+            "provenanceFile": { "$ref": "#/$defs/relativePath" },
+            "provenanceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "provenanceSignatureFile": { "$ref": "#/$defs/relativePath" },
+            "sbomFile": { "$ref": "#/$defs/relativePath" },
+            "sbomSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          }
+        }
       },
       "allOf": [
         {
           "if": { "properties": { "kind": { "const": "package" } }, "required": ["kind"] },
-          "then": { "required": ["dotnet"] }
+          "then": { "required": ["dotnet", "supplyChain"] }
         }
       ]
     },
@@ -60,6 +75,43 @@
       "items": {
         "enum": ["api", "web", "data", "background-work", "assistant"]
       }
+    },
+    "dataOwnership": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["default", "resources"],
+          "properties": {
+            "default": { "$ref": "#/$defs/ownership" },
+            "resources": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "schema", "table", "ownership"],
+                "properties": {
+                  "name": { "$ref": "#/$defs/contractId" },
+                  "schema": { "$ref": "#/$defs/sqlIdentifier" },
+                  "table": { "$ref": "#/$defs/sqlIdentifier" },
+                  "ownership": { "$ref": "#/$defs/ownership" },
+                  "entityType": { "type": "string", "minLength": 1 },
+                  "isolationPolicy": { "$ref": "#/$defs/sqlIdentifier" },
+                  "accessRule": { "enum": ["platform-only", "identity-only", "global-read-only", "host-only"] }
+                },
+                "allOf": [
+                  {
+                    "if": { "properties": { "ownership": { "const": "organization" } } },
+                    "then": { "required": ["entityType", "isolationPolicy"] }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     "artifacts": {
       "type": "object",
@@ -176,6 +228,13 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*([.-][a-z0-9]+)*$"
     },
+    "ownership": {
+      "enum": ["organization", "platform", "global", "infrastructure"]
+    },
+    "sqlIdentifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
     "contracts": {
       "type": "array",
       "uniqueItems": true,
@@ -189,10 +248,12 @@
     "packageIdentity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "version"],
+      "required": ["id", "version", "packageFile", "sha256"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "version": { "$ref": "#/$defs/version" }
+        "version": { "$ref": "#/$defs/version" },
+        "packageFile": { "$ref": "#/$defs/relativePath" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
       }
     },
     "version": {

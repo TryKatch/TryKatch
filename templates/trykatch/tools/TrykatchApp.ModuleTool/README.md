@@ -4,6 +4,8 @@ The Trykatch CLI validates and composes the backend and React surfaces of a gene
 
 ```bash
 dotnet tool install --global Trykatch.Cli --prerelease
+trykatch help
+trykatch module help
 trykatch module doctor --root /path/to/application
 trykatch module register src/My.Module/trykatch.module.json
 trykatch module install ./downloaded/trykatch.module.json --sha256 <published-digest>

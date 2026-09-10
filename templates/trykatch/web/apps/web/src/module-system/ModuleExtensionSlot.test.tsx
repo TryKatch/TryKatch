@@ -1,7 +1,8 @@
 import { TrykatchWebModuleCatalog, defineTrykatchWebModule } from '@trykatchapp/module-sdk'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { TrykatchModuleProvider, ModuleExtensionSlot } from './ModuleExtensionSlot'
+import { workspaceModules } from '../modules'
 
 const PublicContribution = () => <span>Public contribution</span>
 const ProtectedContribution = () => <span>Protected contribution</span>
@@ -24,6 +25,8 @@ const catalog = new TrykatchWebModuleCatalog([
   }),
 ])
 
+afterEach(cleanup)
+
 describe('ModuleExtensionSlot', () => {
   it('renders only contributions permitted for the current actor', () => {
     render(<TrykatchModuleProvider catalog={catalog}>
@@ -40,5 +43,29 @@ describe('ModuleExtensionSlot', () => {
     </TrykatchModuleProvider>)
 
     expect(screen.getByText('Protected contribution')).toBeInTheDocument()
+  })
+
+  it('renders the installed Documents contribution at the Projects extension point', () => {
+    render(<TrykatchModuleProvider catalog={workspaceModules}>
+      <ModuleExtensionSlot point="projects.list.after-table" permissions={['documents.read']} />
+    </TrykatchModuleProvider>)
+
+    expect(screen.getByText('Documents module is active.')).toBeInTheDocument()
+  })
+
+  it('hides the installed Documents contribution without its read permission', () => {
+    render(<TrykatchModuleProvider catalog={workspaceModules}>
+      <ModuleExtensionSlot point="projects.list.after-table" permissions={['projects.read']} />
+    </TrykatchModuleProvider>)
+
+    expect(screen.queryByText('Documents module is active.')).not.toBeInTheDocument()
+  })
+
+  it('registers Documents recovery in the central archive boundary', () => {
+    const documents = workspaceModules.archiveResources.find((resource) => resource.kind === 'document')
+
+    expect(documents?.readPermission).toBe('documents.read')
+    expect(documents?.managePermission).toBe('documents.manage')
+    expect(documents?.requestDeletion).toBeTypeOf('function')
   })
 })

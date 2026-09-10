@@ -34,6 +34,8 @@ The default React production path is covered by this gate. Backend-only and opti
 
 ## Delivery plan
 
+The mandatory module ownership, tenant data-placement, PostgreSQL isolation, runtime-role separation, signed-module distribution, and independent reference-module work is specified in [the module and tenant data-isolation implementation plan](plans/module-data-isolation-plan.md). Its release criteria are required security gates for the phases below.
+
 ### 0. Repository and release governance
 
 - Keep the GitHub repository private during pre-release development.

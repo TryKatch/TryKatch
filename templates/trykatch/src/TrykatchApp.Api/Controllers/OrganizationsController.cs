@@ -5,6 +5,7 @@ using TrykatchApp.Api.Security;
 using TrykatchApp.Domain.Organizations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace TrykatchApp.Api.Controllers;
 
@@ -36,7 +37,10 @@ public sealed class OrganizationsController(
     [RequirePlatformPermission(PlatformPermissions.TenantsManage)]
     public async Task<ActionResult<CreateOrganizationResult>> Create(CreateOrganizationRequest request, CancellationToken cancellationToken)
     {
-        CreateOrganizationCommand command = new(request.Name, request.Slug, request.AdministratorEmail);
+        string? subject = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (!Guid.TryParse(subject, out Guid actorId))
+            return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Authenticated subject is invalid");
+        CreateOrganizationCommand command = new(request.Name, request.Slug, request.AdministratorEmail, actorId);
         Result<CreateOrganizationResult> result = await createOrganization.HandleAsync(command, cancellationToken);
         return !result.IsSuccess || result.Value is null
             ? Problem(statusCode: result.ErrorCode == "slug_conflict" ? 409 : 400, title: result.ErrorCode, detail: result.ErrorMessage)

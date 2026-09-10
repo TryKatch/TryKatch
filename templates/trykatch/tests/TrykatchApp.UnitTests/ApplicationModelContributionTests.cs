@@ -1,7 +1,11 @@
 using TrykatchApp.Domain.Projects;
 using TrykatchApp.Infrastructure.Persistence;
 using TrykatchApp.Infrastructure.Projects;
+using TrykatchApp.Infrastructure.Modules;
+using TrykatchApp.Modules;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace TrykatchApp.UnitTests;
@@ -26,8 +30,46 @@ public sealed class ApplicationModelContributionTests
         DbContextOptions<ApplicationDbContext> options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql("Host=localhost;Database=module_test;Username=test;Password=test")
             .Options;
-        using ApplicationDbContext context = new(options, [new ProjectsModelContributor()]);
+        TrykatchModuleCatalog catalog = new([new ProjectsModule()]);
+        using ApplicationDbContext context = new(options, [new ProjectsModelContributor()], moduleCatalog: catalog);
 
         context.Model.FindEntityType(typeof(Project)).ShouldNotBeNull();
+    }
+
+    [TestMethod]
+    public void DescriptorChangesDoNotReuseAPreviouslyValidatedModel()
+    {
+        DbContextOptions<ApplicationDbContext> options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql("Host=localhost;Database=module_test;Username=test;Password=test")
+            .Options;
+        ProjectsModule projects = new();
+        using (ApplicationDbContext valid = new(options, [new ProjectsModelContributor()], moduleCatalog: new([projects])))
+            valid.Model.FindEntityType(typeof(Project)).ShouldNotBeNull();
+
+        TrykatchModuleDescriptor invalidDescriptor = projects.Descriptor with
+        {
+            DataResources =
+            [
+                projects.Descriptor.DataResources.Single() with
+                {
+                    Table = "renamed_projects"
+                }
+            ]
+        };
+        using ApplicationDbContext invalid = new(
+            options,
+            [new ProjectsModelContributor()],
+            moduleCatalog: new([new DescriptorOnlyModule(invalidDescriptor)]));
+
+        Should.Throw<InvalidOperationException>(() => _ = invalid.Model);
+    }
+
+    private sealed class DescriptorOnlyModule(TrykatchModuleDescriptor descriptor) : ITrykatchModule
+    {
+        public TrykatchModuleDescriptor Descriptor { get; } = descriptor;
+
+        public void Register(IServiceCollection services, IConfiguration configuration)
+        {
+        }
     }
 }

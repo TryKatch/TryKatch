@@ -19,19 +19,19 @@ Modules may explicitly allowlist read-only or confirmed state-changing operation
 
 Web modules use `@trykatchapp/module-sdk`. Each definition owns lazy-loadable typed routes, navigation, named extension-point hosts, and extension contributions. Contributions have stable IDs, deterministic order, and optional permission gates. The catalog rejects duplicate contracts, unknown hosts, invalid overrides, missing dependencies, and cycles. `web/apps/web/src/modules.ts` is generated from the same catalog as the backend; application-owned visual overrides remain in `web/apps/web/src/module-overrides.ts` and are never overwritten. `null` disables a keyed contribution without editing its provider module.
 
-Data-capable modules explicitly register `IApplicationModelContributor`. This keeps EF Core mapping behind the module seam: when a module is not enabled, its runtime entity model is not composed. The migrator consumes the same generated ordered catalog as the API. A package may also implement `ITrykatchModuleMigrationContributor` for immutable forward-only SQL changes. PostgreSQL serializes those changes with an advisory transaction lock and records module, version, migration ID, checksum, and application time in `platform.module_migrations`. Editing or removing an applied migration fails closed. Existing migrations and tables are retained; disabling or unregistering a module is never a data-deletion operation.
+Data-capable modules declare their ownership and relations, then explicitly register `IApplicationModelContributor`. Organization entities implement `IOrganizationOwned`; the host supplies their named EF isolation filter and validates the entity shape, tenant-first index, declared relation, and policy contract. The migrator consumes the same generated ordered catalog as the API, rejects undeclared SQL tables, and inspects the live PostgreSQL schema after migration. A package may also implement `ITrykatchModuleMigrationContributor` for immutable forward-only SQL changes. PostgreSQL serializes those changes with an advisory transaction lock and records module, version, migration ID, checksum, and application time in `platform.module_migrations`. Editing or removing an applied migration fails closed. Existing migrations and tables are retained; disabling or unregistering a module is never a data-deletion operation. See [Module data isolation](module-data-isolation.md).
 
 ## Package lifecycle
 
 - `register` adds reviewed workspace source and leaves it disabled.
-- `install` requires a separately published SHA-256, exact paired NuGet/npm versions, compatible host range, collision-free contributions, and successful locked-graph regeneration.
+- `install` verifies the allowlisted publisher, signed NuGet package, pinned package/provenance/SBOM hashes, exact paired NuGet/npm versions, compatible host range, collision-free contributions, and successful locked-graph regeneration before changing the workspace.
 - `upgrade` only moves forward and refuses a package identity change.
 - `disable` removes runtime/API/web composition while retaining code and data.
 - `unregister` requires disablement, refuses dependents, removes unused package references, and keeps migration history/data.
 - `eject` requires a matching checksum-verified source bundle and refuses every overwrite.
 - There is deliberately no automatic `purge-data`; destructive data retirement needs a module-specific, reviewed runbook and separate authorization.
 
-All package mutations are transactional at the workspace level: on validation or restore failure, the catalog, generated registries, manifests, project/package files, NuGet lockfiles, and pnpm lockfile are restored.
+All workspace mutations (`register`, `eject`, `generate`, `enable`, `disable`, `install`, `upgrade`, and `unregister`) share one cross-process serialization boundary. The workspace path is made absolute and stripped of trailing separators before the lock identity is derived, so equivalent path spellings cannot create independent locks. Package mutations are also transactional: on validation or restore failure, the catalog, generated registries, manifests, project/package files, NuGet lockfiles, and pnpm lockfile are restored. A later operation always rereads the state written by the earlier operation; for example, a disable queued behind an upgrade cannot be overwritten by the upgrade's stale snapshot.
 
 ## Federation reference module
 
@@ -56,6 +56,8 @@ Its module registration owns the use cases, persistence adapter, EF model contri
 
 `TrykatchApp.Modules.Federation` is the package-shaped reference for an optional platform capability. It is paired with `@trykatchapp/module-federation`, registered in the catalog, and disabled by default. Its manifest binds the .NET and React entrypoints to the same stable module ID, version, dependency graph, permissions, routes, and extension contributions.
 
+`modules/documents` is the independently packaged full-stack organization-data proof. It owns its entity, forward-only SQL migrations and forced-RLS policy, list/create/content-update/archive/restore/deletion-request use cases, permissions/default grants, audit/outbox events, assistant-tool declarations, React route/navigation/table/form, and extension contributions. HTTP policies are repeated through the host-owned module authorization seam inside every application use case. Documents use the recoverable Active/Archived/Deleted lifecycle; reasoned deletion requests require an archived record and stay restorable from the central Archive. The module composes only through stable module interfaces and `IOrganizationModuleData`; it has no reference to host Infrastructure, Domain, Application, API, or another module implementation.
+
 The Projects module remains the enabled reference for organization-scoped domain behavior. Together, Projects and Federation demonstrate built-in and optional module shapes without adding tutorial-only navigation to generated applications.
 
 ## Lifecycle commands
@@ -77,7 +79,7 @@ dotnet run --project tools/TrykatchApp.ModuleTool -- module disable federation
 1. Depend on stable kernel interfaces, never another module's implementation.
 2. Declare a hard dependency only when the module cannot operate without it. Optional integrations must degrade safely.
 3. Contribute immutable permission definitions and safe standard-role defaults from the module; roles remain organization- or platform-owned records.
-4. Organization data must include `OrganizationId`, application constraints, and a PostgreSQL RLS policy.
+4. Persistent modules must declare ownership and every relation. Organization entities implement `IOrganizationOwned`; migrations enable and force RLS and name a policy with both `USING` and `WITH CHECK` organization predicates.
 5. Writes go through application use cases and produce audit/outbox records in the same transaction where required.
 6. Web routes, navigation, named hosts, and extensions are declared by modules. Extend another module only through a published point; do not reach into its private component tree.
 7. Machine-owned registries produced by the module tool must remain deterministic and reviewed. CI rejects drift from `trykatch.modules.json`.

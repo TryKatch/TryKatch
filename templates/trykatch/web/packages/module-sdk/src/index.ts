@@ -1,5 +1,7 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
 
+export { ModuleExtensionSlot, TrykatchModuleProvider } from './extensions'
+
 export interface TrykatchModuleIconProps {
   size?: string | number
 }
@@ -43,6 +45,32 @@ export interface TrykatchWebExtension {
   component: ComponentType<TrykatchWebExtensionProps> | LazyExoticComponent<ComponentType<TrykatchWebExtensionProps>>
 }
 
+export interface TrykatchArchiveLifecycle {
+  status: 'Active' | 'Archived' | 'Deleted'
+  archivedAt?: string | null
+  archivedBy?: string | null
+  deletedAt?: string | null
+  deletedBy?: string | null
+  deletionReason?: string | null
+}
+
+export interface TrykatchArchiveItem {
+  id: string
+  title: string
+  description: string
+  lifecycle: TrykatchArchiveLifecycle
+}
+
+export interface TrykatchArchiveResourceContribution {
+  kind: string
+  typeLabel: string
+  readPermission: string
+  managePermission: string
+  load(): Promise<readonly TrykatchArchiveItem[]>
+  restore(id: string): Promise<unknown>
+  requestDeletion?(id: string, reason: string): Promise<unknown>
+}
+
 export interface TrykatchWebModule {
   id: string
   name: string
@@ -54,6 +82,7 @@ export interface TrykatchWebModule {
   navigation: readonly TrykatchNavigationContribution[]
   extensionPoints: readonly TrykatchWebExtensionPoint[]
   extensions: readonly TrykatchWebExtension[]
+  archiveResources?: readonly TrykatchArchiveResourceContribution[]
 }
 
 export interface TrykatchWebOverrides {
@@ -76,6 +105,7 @@ export class TrykatchWebModuleCatalog {
   readonly navigation: readonly TrykatchNavigationContribution[]
   readonly extensionPoints: readonly TrykatchWebExtensionPoint[]
   readonly extensions: readonly TrykatchWebExtension[]
+  readonly archiveResources: readonly TrykatchArchiveResourceContribution[]
 
   constructor(modules: readonly TrykatchWebModule[], overrides: TrykatchWebOverrides = {}) {
     validateModules(modules)
@@ -86,6 +116,14 @@ export class TrykatchWebModuleCatalog {
       .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
     this.extensions = applyOverrides(this.modules.flatMap((module) => module.extensions), overrides.extensions, 'extension')
       .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
+    this.archiveResources = this.modules.flatMap((module) => module.archiveResources ?? [])
+    ensureUnique(this.archiveResources.map((resource) => resource.kind), 'archive resource kind')
+    for (const resource of this.archiveResources) {
+      if (!stableId.test(resource.kind) || !resource.typeLabel.trim()) throw new Error(`Invalid Trykatch archive resource '${resource.kind}'.`)
+      if (!stableContractId.test(resource.readPermission) || !stableContractId.test(resource.managePermission)) {
+        throw new Error(`Trykatch archive resource '${resource.kind}' requires valid read and manage permissions.`)
+      }
+    }
     validateEffectiveContracts(this.routes, this.navigation, this.extensionPoints, this.extensions)
   }
 

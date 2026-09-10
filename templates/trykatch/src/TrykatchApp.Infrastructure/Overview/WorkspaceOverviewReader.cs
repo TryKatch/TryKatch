@@ -9,7 +9,7 @@ namespace TrykatchApp.Infrastructure.Overview;
 
 internal sealed class WorkspaceOverviewReader(
     ApplicationDbContext applicationDbContext,
-    PlatformDbContext platformDbContext,
+    OrganizationControlPlaneDbContext platformDbContext,
     IUserDirectory users,
     IEnumerable<IWorkspaceOverviewMetricProvider> metricProviders) : IWorkspaceOverviewReader
 {

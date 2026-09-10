@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<?xml version="1.0" encoding="utf-8"?><Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
@@ -13,5 +13,5 @@
     <ProjectReference Include="../TrykatchApp.Modules.Abstractions/TrykatchApp.Modules.Abstractions.csproj" />
     <ProjectReference Include="../TrykatchApp.Modules.AspNetCore/TrykatchApp.Modules.AspNetCore.csproj" />
     <ProjectReference Include="../TrykatchApp.Modules.Federation/TrykatchApp.Modules.Federation.csproj" />
-  </ItemGroup>
+  <ProjectReference Include="../../modules/documents/dotnet/Trykatch.Modules.Documents.csproj" /></ItemGroup>
 </Project>

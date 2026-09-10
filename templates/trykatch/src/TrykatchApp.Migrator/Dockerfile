@@ -5,6 +5,9 @@ RUN dotnet restore src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj --locked
     && dotnet publish src/TrykatchApp.Migrator/TrykatchApp.Migrator.csproj -c Release -o /app --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.11@sha256:011bb5f30180717b1c8b65822ff2c99bcb96bc65af0164589751b83c7b4949f7 AS final
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build --chown=$APP_UID:$APP_UID /app .
 USER $APP_UID

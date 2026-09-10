@@ -1,8 +1,9 @@
 using TrykatchApp.Domain.Common;
+using TrykatchApp.Modules;
 
 namespace TrykatchApp.Domain.Projects;
 
-public sealed class Project : RecoverableEntity
+public sealed class Project : RecoverableEntity, IOrganizationOwned
 {
     private Project(Guid id, Guid organizationId, string name, string description, Guid createdBy) : base(id)
     {

@@ -12,7 +12,10 @@ services:
       dockerfile: src/TrykatchApp.Migrator/Dockerfile
     environment:
       ConnectionStrings__trykatchdb: ${TRYKATCH_MIGRATOR_CONNECTION}
-      Database__RuntimeRole: trykatch_runtime
+      Database__OrganizationRuntimeRole: trykatch_org_runtime
+      Database__PlatformRuntimeRole: trykatch_platform_runtime
+      Database__IdentityRuntimeRole: trykatch_identity_runtime
+      Database__OutboxWorkerRole: trykatch_outbox_worker
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,7 +36,10 @@ services:
     ports: ["8080:8080"]
     environment:
       ASPNETCORE_ENVIRONMENT: ${TRYKATCH_ENVIRONMENT:-Production}
-      ConnectionStrings__trykatchdb: ${TRYKATCH_RUNTIME_CONNECTION}
+      ConnectionStrings__trykatch-organization: ${TRYKATCH_ORG_RUNTIME_CONNECTION}
+      ConnectionStrings__trykatch-platform: ${TRYKATCH_PLATFORM_RUNTIME_CONNECTION}
+      ConnectionStrings__trykatch-identity: ${TRYKATCH_IDENTITY_RUNTIME_CONNECTION}
+      ConnectionStrings__trykatch-outbox: ${TRYKATCH_OUTBOX_WORKER_CONNECTION}
       Application__PublicUrl: ${TRYKATCH_PUBLIC_URL}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
@@ -72,7 +78,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${TRYKATCH_POSTGRES_ADMIN_PASSWORD}
       TRYKATCH_MIGRATOR_PASSWORD: ${TRYKATCH_MIGRATOR_PASSWORD}
-      TRYKATCH_RUNTIME_PASSWORD: ${TRYKATCH_RUNTIME_PASSWORD}
+      TRYKATCH_ORG_RUNTIME_PASSWORD: ${TRYKATCH_ORG_RUNTIME_PASSWORD}
+      TRYKATCH_PLATFORM_RUNTIME_PASSWORD: ${TRYKATCH_PLATFORM_RUNTIME_PASSWORD}
+      TRYKATCH_IDENTITY_RUNTIME_PASSWORD: ${TRYKATCH_IDENTITY_RUNTIME_PASSWORD}
+      TRYKATCH_OUTBOX_WORKER_PASSWORD: ${TRYKATCH_OUTBOX_WORKER_PASSWORD}
     volumes: [postgres-data:/var/lib/postgresql, ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro]
     read_only: true
     tmpfs: [/tmp, /var/run/postgresql]

@@ -5,6 +5,7 @@
   "name": "Projects",
   "version": "1.0.0",
   "description": "Organization-scoped project management and lifecycle reference feature.",
+  "publisher": "trykatch",
   "distribution": {
     "kind": "workspace",
     "license": "Apache-2.0"
@@ -16,6 +17,19 @@
   "requires": [],
   "optionalDependencies": [],
   "capabilities": ["api", "web", "data", "background-work", "assistant"],
+  "dataOwnership": {
+    "default": "organization",
+    "resources": [
+      {
+        "name": "projects",
+        "schema": "app",
+        "table": "projects",
+        "ownership": "organization",
+        "entityType": "TrykatchApp.Domain.Projects.Project",
+        "isolationPolicy": "projects_organization_isolation"
+      }
+    ]
+  },
   "artifacts": {
     "dotnetProject": "src/TrykatchApp.Infrastructure/TrykatchApp.Infrastructure.csproj",
     "webPackage": "web/apps/web/package.json"

@@ -28,6 +28,10 @@ if (isOpenApiGeneration)
 {
     builder.Configuration["ConnectionStrings:trykatchdb"] = "Host=localhost;Database=openapi;Username=openapi;Password=openapi";
 }
+else if (!builder.Environment.IsDevelopment())
+{
+    RuntimeDatabaseConnectionContract.Validate(builder.Configuration);
+}
 
 builder.AddServiceDefaults();
 builder.Services.AddApplication();

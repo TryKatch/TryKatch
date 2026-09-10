@@ -3,29 +3,45 @@
   "hostVersion": "0.1.0",
   "modules": [
     {
-      "id": "federation",
+      "id": "documents",
       "version": "1.0.0",
-      "enabled": false,
-      "manifestSha256": "450c8133751cbfa5d6483faf59324edb1a44d473a0b6979f25b3b2adf2354694",
+      "enabled": true,
+      "manifestSha256": "010b196d5872a514a387c7ccb3af4384ef76b9bfceefc4de2deee8df881ba133",
       "manifestDigestMode": "template-normalized-sha256",
       "distribution": {
         "kind": "workspace",
         "license": "Apache-2.0",
         "dotnet": null,
-        "web": null
+        "web": null,
+        "supplyChain": null
+      }
+    },
+    {
+      "id": "federation",
+      "version": "1.0.0",
+      "enabled": false,
+      "manifestSha256": "354b152879a5774b3503c47e693116e0e36e9e887486442721080c8e750a5ece",
+      "manifestDigestMode": "template-normalized-sha256",
+      "distribution": {
+        "kind": "workspace",
+        "license": "Apache-2.0",
+        "dotnet": null,
+        "web": null,
+        "supplyChain": null
       }
     },
     {
       "id": "projects",
       "version": "1.0.0",
       "enabled": true,
-      "manifestSha256": "b7e17d5a211b508ada3303885096021e4227fb147de879f3ea0e3bc0a8d51070",
+      "manifestSha256": "93dac48d3c38c305c5f598fce857f73a4dc0c87b4c2e6d4620c19b87aa6fa3cf",
       "manifestDigestMode": "template-normalized-sha256",
       "distribution": {
         "kind": "workspace",
         "license": "Apache-2.0",
         "dotnet": null,
-        "web": null
+        "web": null,
+        "supplyChain": null
       }
     }
   ]

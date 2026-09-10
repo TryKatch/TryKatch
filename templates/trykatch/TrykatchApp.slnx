@@ -12,6 +12,9 @@
     <Project Path="src/TrykatchApp.Modules.Federation/TrykatchApp.Modules.Federation.csproj" />
     <Project Path="src/TrykatchApp.ServiceDefaults/TrykatchApp.ServiceDefaults.csproj" />
   </Folder>
+  <Folder Name="/modules/">
+    <Project Path="modules/documents/dotnet/Trykatch.Modules.Documents.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/TrykatchApp.IntegrationTests/TrykatchApp.IntegrationTests.csproj" />
     <Project Path="tests/TrykatchApp.UnitTests/TrykatchApp.UnitTests.csproj" />

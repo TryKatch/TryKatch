@@ -7,6 +7,7 @@ public sealed partial class ModuleWorkspace
 {
     public ModuleDoctorReport EjectPackage(string moduleId, string sourceBundleRoot, string expectedManifestSha256)
     {
+        using IDisposable mutationLock = AcquirePackageMutationLock();
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceBundleRoot);
         string bundleRoot = Path.GetFullPath(sourceBundleRoot);

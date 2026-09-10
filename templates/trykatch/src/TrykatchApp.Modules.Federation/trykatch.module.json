@@ -5,6 +5,7 @@
   "name": "Single sign-on",
   "version": "1.0.0",
   "description": "Generic OpenID Connect connection management and federation security policy.",
+  "publisher": "trykatch",
   "distribution": {
     "kind": "workspace",
     "license": "Apache-2.0"
@@ -16,6 +17,18 @@
   "requires": [],
   "optionalDependencies": [],
   "capabilities": ["api", "web", "data"],
+  "dataOwnership": {
+    "default": "platform",
+    "resources": [
+      {
+        "name": "federation-connections",
+        "schema": "identity",
+        "table": "federation_connections",
+        "ownership": "platform",
+        "accessRule": "identity-only"
+      }
+    ]
+  },
   "artifacts": {
     "dotnetProject": "src/TrykatchApp.Modules.Federation/TrykatchApp.Modules.Federation.csproj",
     "webPackage": "web/packages/module-federation/package.json"
