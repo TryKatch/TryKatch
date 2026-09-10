@@ -5,6 +5,15 @@ description: Install the Trykatch template package and generate a complete .NET 
 
 ## Install the template
 
+Install the Trykatch CLI once, then let it install the matching .NET and React project template with visible progress:
+
+```bash
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
+trykatch template install
+```
+
+The installer uses Microsoft's official .NET template engine underneath. In an interactive terminal it displays live progress; in CI it emits stable log lines. The direct command remains available for automation:
+
 ```bash
 dotnet new install Trykatch.Templates@0.1.0-preview.5
 ```
@@ -40,15 +49,15 @@ dotnet new trykatch -n Horizon \
 
 ## Explore available commands
 
-Install the optional lifecycle CLI and use its focused help commands:
+Use the CLI's focused help commands:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
 trykatch help
+trykatch template help
 trykatch module help
 ```
 
-`trykatch help` lists application-generation choices. `trykatch module help` lists every supported module lifecycle command.
+`trykatch help` lists application-generation choices. `trykatch template help` documents template installation and updates. `trykatch module help` lists every supported module lifecycle command.
 
 ## IDE installation
 
