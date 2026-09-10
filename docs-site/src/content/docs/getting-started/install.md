@@ -5,25 +5,44 @@ description: Install the Trykatch template package and generate a complete .NET 
 
 ## Install the template
 
-Install the Trykatch CLI once, then let it install the matching .NET and React project template with visible progress:
+Follow these steps in order.
+
+### 1. Install the Trykatch CLI
+
+Run this once on your computer:
 
 ```bash
 dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
+```
+
+This installs the `trykatch` command. It does not install the project template yet.
+
+### 2. Install the project template
+
+After Step 1 succeeds, run:
+
+```bash
 trykatch template install
 ```
 
-The installer uses Microsoft's official .NET template engine underneath. In an interactive terminal it displays live progress; in CI it emits stable log lines. The direct command remains available for automation:
+This installs the matching .NET and React template. The command uses Microsoft's official .NET template engine, displays live progress in an interactive terminal, and emits stable log lines in CI.
 
-```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.5
-```
+### 3. Create your application
 
-Generate a complete .NET 10 backend and React workspace with your product name:
+Replace `Horizon` with your product name:
 
 ```bash
 dotnet new trykatch -n Horizon
 cd Horizon
 ```
+
+:::note[Alternative: install without the Trykatch CLI]
+If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
+
+```bash
+dotnet new install Trykatch.Templates@0.1.0-preview.5
+```
+:::
 
 React is the default surface. The generated project contains the complete `web` workspace, including the React application, reusable UI and module packages, generated API client, tests, lockfile, and production container.
 
