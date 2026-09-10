@@ -49,6 +49,9 @@ assert_scope 'templates/trykatch/scripts/test-proxy-headers.sh' qualification tr
 assert_scope 'templates/trykatch/.template.config/template.json' qualification true
 assert_scope 'templates/trykatch/deploy/observability/tempo.yml' qualification false
 assert_scope 'scripts/test-generated-application.sh' qualification true
+assert_scope 'scripts/test-apphost-launch-profile.sh' packaging true
+assert_scope 'scripts/test-apphost-launch-profile.sh' qualification true
+assert_scope 'scripts/test-apphost-launch-profile.sh' template true
 assert_scope '.github/workflows/ci.yml' docs true
 assert_scope '.github/workflows/ci.yml' backend true
 assert_scope '.github/workflows/ci.yml' web true
