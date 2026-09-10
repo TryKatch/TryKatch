@@ -7,6 +7,12 @@ namespace TrykatchApp.UnitTests;
 public sealed class TemplatePackageInstallerTests
 {
     [TestMethod]
+    public void CurrentVersionMatchesTheCliPackageVersion()
+    {
+        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.5");
+    }
+
+    [TestMethod]
     public async Task InstallUsesTheOfficialTemplateEngineAndReportsCompletion()
     {
         RecordingTemplateEngine engine = new(new(0, "installed", string.Empty));

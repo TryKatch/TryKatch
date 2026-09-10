@@ -8,6 +8,13 @@ static Task<int> RunAsync(string[] arguments)
     if (arguments.Length == 0)
         return Task.FromResult(ShowHelp());
 
+    if (arguments.Length == 1
+        && string.Equals(arguments[0], "--version", StringComparison.Ordinal))
+    {
+        Console.WriteLine($"Trykatch CLI {TemplatePackageInstaller.CurrentVersion}");
+        return Task.FromResult(0);
+    }
+
     if (arguments.Length == 2
         && IsHelp(arguments[0])
         && string.Equals(arguments[1], "module", StringComparison.Ordinal))

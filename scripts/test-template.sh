@@ -60,6 +60,9 @@ grep -Fq 'Trykatch module lifecycle' <<<"$nested_help_output" ||
 template_help_output=$("$test_root/tools/trykatch" template help)
 grep -Fq 'trykatch template install [--version <version>] [--force]' <<<"$template_help_output" ||
   fail 'template help does not document installation options'
+cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'TrykatchApp.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
+test "$cli_informational_version" = 'Trykatch CLI 0.1.0-ci' ||
+  fail "packaged CLI reports '$cli_informational_version' instead of its package version"
 
 generate_and_build() {
   local name=$1
