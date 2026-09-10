@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?><Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OpenApiGenerateDocuments>true</OpenApiGenerateDocuments>
+    <OpenApiDocumentsDirectory Condition="'$(SelectedUi)' == 'react'">$(MSBuildProjectDirectory)/../../../web/packages/api-client/openapi</OpenApiDocumentsDirectory>
+    <OpenApiDocumentsDirectory Condition="'$(SelectedUi)' == 'none'">$(BaseIntermediateOutputPath)openapi</OpenApiDocumentsDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <PackageReference Include="OpenIddict.AspNetCore" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Common/Trykatch.Application/Trykatch.Application.csproj" />
+    <ProjectReference Include="../../Common/Trykatch.Infrastructure/Trykatch.Infrastructure.csproj" />
+    <ProjectReference Include="../../Common/Trykatch.Identity/Trykatch.Identity.csproj" />
+    <ProjectReference Include="../../Common/Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" />
+    <ProjectReference Include="../../Common/Trykatch.Modules.AspNetCore/Trykatch.Modules.AspNetCore.csproj" />
+    <ProjectReference Include="../../Common/Trykatch.ServiceDefaults/Trykatch.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../Modules/Projects/Trykatch.Modules.Projects.Infrastructure/Trykatch.Modules.Projects.Infrastructure.csproj" />
+    <ProjectReference Include="../../Modules/Documents/Trykatch.Modules.Documents.Infrastructure/Trykatch.Modules.Documents.Infrastructure.csproj" />
+    <ProjectReference Include="../../Modules/Federation/Trykatch.Modules.Federation.Infrastructure/Trykatch.Modules.Federation.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

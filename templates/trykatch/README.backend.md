@@ -1,8 +1,8 @@
-# TrykatchApp
+# Trykatch
 
 > Start secure. Build freely.
 
-TrykatchApp is a clean-room backend foundation for .NET 10, PostgreSQL, Aspire, and the open Grafana observability stack.
+Trykatch is a clean-room backend foundation for .NET 10, PostgreSQL, Aspire, and the open Grafana observability stack.
 
 ## Start locally
 
@@ -10,11 +10,11 @@ Prerequisites: .NET SDK 10.0.301+ and Docker.
 
 ```bash
 dotnet tool restore
-dotnet restore TrykatchApp.slnx
+dotnet restore Trykatch.slnx
 trykatch start
 ```
 
-If the Trykatch CLI is not installed, run `dotnet run --launch-profile https --project src/TrykatchApp.AppHost/TrykatchApp.AppHost.csproj`.
+If the Trykatch CLI is not installed, run `dotnet run --launch-profile https --project src/API/Trykatch.AppHost/Trykatch.AppHost.csproj`.
 
 Before the first API run, apply the migrations with the migrator role as described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 

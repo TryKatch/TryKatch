@@ -2,7 +2,7 @@
 set -euo pipefail
 
 application_root=${1:?"usage: test-apphost-launch-profile.sh <generated-application-root>"}
-apphost_project=$(find "$application_root/src" -mindepth 2 -maxdepth 2 -type f -name '*.AppHost.csproj' -print -quit)
+apphost_project=$(find "$application_root/src" -type f -name '*.AppHost.csproj' -print -quit)
 
 if [[ -z "$apphost_project" ]]; then
   printf 'AppHost launch-profile contract failed: no AppHost project found under %s/src\n' "$application_root" >&2

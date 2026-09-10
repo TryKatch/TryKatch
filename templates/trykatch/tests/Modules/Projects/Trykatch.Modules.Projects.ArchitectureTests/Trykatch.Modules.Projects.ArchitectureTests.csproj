@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="TngTech.ArchUnitNET" />
+    <ProjectReference Include="../../../../src/Common/Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" />
+    <ProjectReference Include="../../../../src/Modules/Projects/Trykatch.Modules.Projects.Domain/Trykatch.Modules.Projects.Domain.csproj" />
+    <ProjectReference Include="../../../../src/Modules/Projects/Trykatch.Modules.Projects.Application/Trykatch.Modules.Projects.Application.csproj" />
+    <ProjectReference Include="../../../../src/Modules/Projects/Trykatch.Modules.Projects.IntegrationEvents/Trykatch.Modules.Projects.IntegrationEvents.csproj" />
+    <ProjectReference Include="../../../../src/Modules/Projects/Trykatch.Modules.Projects.Presentation/Trykatch.Modules.Projects.Presentation.csproj" />
+    <ProjectReference Include="../../../../src/Modules/Projects/Trykatch.Modules.Projects.Infrastructure/Trykatch.Modules.Projects.Infrastructure.csproj" />
+    <Compile Include="../../../ArchitectureTestSettings.cs" Link="MSTestSettings.cs" />
+  </ItemGroup>
+</Project>

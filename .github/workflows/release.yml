@@ -32,13 +32,13 @@ jobs:
           cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
       - name: Prepare source module validation
         run: |
-          dotnet restore templates/trykatch/TrykatchApp.slnx
-          dotnet build templates/trykatch/TrykatchApp.slnx -c Release --no-restore
+          dotnet restore templates/trykatch/Trykatch.slnx
+          dotnet build templates/trykatch/Trykatch.slnx -c Release --no-restore
           pnpm --dir templates/trykatch/web install --frozen-lockfile
       - run: bash scripts/test-template.sh
       - run: bash scripts/test-federation-module.sh
       - run: dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
-      - run: dotnet pack templates/trykatch/tools/TrykatchApp.ModuleTool -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
+      - run: dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
       - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           path: templates/trykatch

@@ -6,7 +6,7 @@ COPY modules /workspace/modules
 RUN pnpm fetch --frozen-lockfile
 COPY web .
 RUN pnpm install --offline --frozen-lockfile
-RUN pnpm --filter @trykatchapp/web build
+RUN pnpm --filter @trykatch/web build
 
 FROM nginxinc/nginx-unprivileged:1.29.1-alpine3.22@sha256:27985295bdb22a1ef8f712863210bd5877c0f3006494a593e86b3fe0fa55467e AS final
 COPY --from=build /workspace/web/apps/web/dist /usr/share/nginx/html

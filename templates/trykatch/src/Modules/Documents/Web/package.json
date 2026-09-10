@@ -1,0 +1,30 @@
+{
+  "name": "@trykatch-modules/documents",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": { ".": "./src/index.tsx" },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@trykatch/api-client": "workspace:*",
+    "@trykatch/module-sdk": "workspace:*",
+    "@trykatch/ui": "workspace:*",
+    "@tanstack/react-query": "5.102.8",
+    "lucide-react": "1.42.0",
+    "react": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "jsdom": "27.0.0",
+    "react-dom": "19.2.8",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  },
+  "peerDependencies": { "react": "^19.0.0" }
+}

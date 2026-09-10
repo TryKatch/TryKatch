@@ -22,7 +22,7 @@ This gives Trykatch a deep, provider-neutral application interface without prema
 
 The current template already has the right foundations:
 
-- `TrykatchApp.AppHost` orchestrates PostgreSQL, the API, Vite, OpenTelemetry Collector, Loki, Tempo, Prometheus, and Grafana. It has no cache resource yet.
+- `Trykatch.AppHost` orchestrates PostgreSQL, the API, Vite, OpenTelemetry Collector, Loki, Tempo, Prometheus, and Grafana. It has no cache resource yet.
 - The template uses .NET 10, EF Core 10, Npgsql 10, Aspire 13, PostgreSQL RLS, a transactional outbox, audit events, and separate platform/application contexts.
 - Project, audit, organization, and platform-user lists currently use `ILIKE '%term%'`, `LongCountAsync`, and `Skip`/`Take` offset pagination.
 - Existing indexes cover several equality and ordering paths, including organization membership, role names, audit occurrence time, and active project names. There are no trigram or full-text indexes.

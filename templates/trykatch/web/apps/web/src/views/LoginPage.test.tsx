@@ -8,7 +8,7 @@ const api = vi.hoisted(() => ({
   setAntiforgeryToken: vi.fn(),
 }))
 
-vi.mock('@trykatchapp/api-client', () => api)
+vi.mock('@trykatch/api-client', () => api)
 
 describe('LoginPage', () => {
   afterEach(() => {

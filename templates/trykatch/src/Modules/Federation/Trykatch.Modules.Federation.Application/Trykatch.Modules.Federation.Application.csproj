@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Trykatch.Modules.Federation.Domain/Trykatch.Modules.Federation.Domain.csproj" />
+    <ProjectReference Include="../Trykatch.Modules.Federation.IntegrationEvents/Trykatch.Modules.Federation.IntegrationEvents.csproj" />
+  </ItemGroup>
+</Project>

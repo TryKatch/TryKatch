@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { DataTable, DeleteConfirmationDialog, RowActions, type DataTableColumn } from '@trykatchapp/ui'
+import { DataTable, DeleteConfirmationDialog, RowActions, type DataTableColumn } from '@trykatch/ui'
 import { describe, expect, it, vi } from 'vitest'
 
 interface Row { id: string; name: string; owner: string }

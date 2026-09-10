@@ -1,4 +1,4 @@
-import { Button, Dialog } from '@trykatchapp/ui'
+import { Button, Dialog } from '@trykatch/ui'
 import { LogOut } from 'lucide-react'
 import { useI18n } from '../i18n/I18nProvider'
 

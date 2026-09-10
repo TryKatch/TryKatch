@@ -7,7 +7,7 @@ import { ForgotPasswordPage } from './views/ForgotPasswordPage'
 import { ResetPasswordPage } from './views/ResetPasswordPage'
 import { LandingPage } from './views/LandingPage'
 import { workspaceModules } from './modules'
-import { TrykatchModuleProvider } from './module-system/ModuleExtensionSlot'
+import { ModuleProvider } from './module-system/ModuleExtensionSlot'
 
 const pages = () => import('./views/Pages')
 const DashboardPage = lazy(() => pages().then((module) => ({ default: module.DashboardPage })))
@@ -28,7 +28,7 @@ function withSuspense(Page: ElementType) {
   }
 }
 
-const rootRoute = createRootRoute({ component: () => <TrykatchModuleProvider catalog={workspaceModules}><Outlet /></TrykatchModuleProvider> })
+const rootRoute = createRootRoute({ component: () => <ModuleProvider catalog={workspaceModules}><Outlet /></ModuleProvider> })
 const landingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: LandingPage })
 const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login', component: LoginPage })
 const forgotPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/forgot-password', component: ForgotPasswordPage })

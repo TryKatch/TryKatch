@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>Trykatch.Modules.Documents</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Independent organization-owned documents module for Trykatch.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+    <IsCompositeModulePackage>true</IsCompositeModulePackage>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../Common/Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../../Common/Trykatch.Modules.AspNetCore/Trykatch.Modules.AspNetCore.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Trykatch.Modules.Documents.Application/Trykatch.Modules.Documents.Application.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Trykatch.Modules.Documents.Domain/Trykatch.Modules.Documents.Domain.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Trykatch.Modules.Documents.IntegrationEvents/Trykatch.Modules.Documents.IntegrationEvents.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Trykatch.Modules.Documents.Presentation/Trykatch.Modules.Documents.Presentation.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../try&#x6B;atch.module.json" Pack="true" PackagePath="content/try&#x6B;atch.module.json" />
+    <None Include="../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

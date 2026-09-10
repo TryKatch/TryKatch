@@ -7,8 +7,7 @@
   "name": "Trykatch enterprise multi-tenant application",
   "description": "A production-oriented .NET 10 and React solution with PostgreSQL tenant isolation, organization RBAC, secure identity, and open-source observability.",
   "shortName": "trykatch",
-  "defaultName": "TrykatchApp",
-  "sourceName": "TrykatchApp",
+  "defaultName": "Trykatch",
   "preferNameDirectory": true,
   "tags": {
     "language": "C#",
@@ -19,8 +18,8 @@
       "type": "derived",
       "valueSource": "name",
       "valueTransform": "namespaceName",
-      "replaces": "TrykatchApp",
-      "fileRename": "TrykatchApp",
+      "replaces": "Trykatch",
+      "fileRename": "Trykatch",
       "description": "A C#-safe namespace and project path derived from the requested name."
     },
     "slugSource": {
@@ -134,24 +133,24 @@
         },
         {
           "condition": "(!email)",
-          "exclude": ["src/TrykatchApp.Infrastructure/Optional/Email/**"]
+          "exclude": ["src/Common/Trykatch.Infrastructure/Optional/Email/**"]
         },
         {
           "condition": "(!storage)",
-          "exclude": ["src/TrykatchApp.Infrastructure/Optional/Storage/**"]
+          "exclude": ["src/Common/Trykatch.Infrastructure/Optional/Storage/**"]
         },
         {
           "condition": "(!documents)",
-          "exclude": ["src/TrykatchApp.Infrastructure/Optional/Documents/**"]
+          "exclude": ["src/Common/Trykatch.Infrastructure/Optional/Documents/**"]
         },
         {
           "condition": "(!images)",
-          "exclude": ["src/TrykatchApp.Infrastructure/Optional/Images/**"]
+          "exclude": ["src/Common/Trykatch.Infrastructure/Optional/Images/**"]
         }
       ]
     }
   ],
   "primaryOutputs": [
-    { "path": "TrykatchApp.slnx" }
+    { "path": "Trykatch.slnx" }
   ]
 }

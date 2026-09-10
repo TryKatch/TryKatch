@@ -28,7 +28,7 @@ dotnet pack "$repository_root/Trykatch.Templates.csproj" -c Release -o "$test_ro
 package_path=$(find "$test_root/package" -name 'Trykatch.Templates.*.nupkg' -print -quit)
 dotnet new --debug:custom-hive "$template_hive" install "$package_path" --force
 dotnet pack \
-  "$repository_root/templates/trykatch/tools/TrykatchApp.ModuleTool/TrykatchApp.ModuleTool.csproj" \
+  "$repository_root/templates/trykatch/tools/Trykatch.ModuleTool/Trykatch.ModuleTool.csproj" \
   -c Release \
   -o "$test_root/package" \
   -p:PackageVersion=0.1.0-ci
@@ -73,7 +73,7 @@ grep -Fq 'trykatch template uninstall' <<<"$template_help_output" ||
 start_help_output=$("$test_root/tools/trykatch" start --help)
 grep -Fq 'trykatch start [--root <path>]' <<<"$start_help_output" ||
   fail 'start help does not document AppHost discovery'
-cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'TrykatchApp.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
+cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'Trykatch.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
 test "$cli_informational_version" = 'Trykatch CLI 0.1.0-ci' ||
   fail "packaged CLI reports '$cli_informational_version' instead of its package version"
 

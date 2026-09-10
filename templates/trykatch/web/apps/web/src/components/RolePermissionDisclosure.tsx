@@ -1,5 +1,5 @@
-import type { PermissionModuleDto } from '@trykatchapp/api-client'
-import { Badge } from '@trykatchapp/ui'
+import type { PermissionModuleDto } from '@trykatch/api-client'
+import { Badge } from '@trykatch/ui'
 import { AlertTriangle, ChevronRight, ShieldCheck } from 'lucide-react'
 import { useMemo } from 'react'
 import { useI18n } from '../i18n/I18nProvider'

@@ -37,12 +37,12 @@ It therefore proves substantially more than a cosmetic feature module. At the sa
 
 Trykatch already has the right foundation:
 
-- `TrykatchApp.Identity/DependencyInjection.cs` configures ASP.NET Core Identity, secure `__Host-` cookies, confirmed email, lockout, security-stamp invalidation, PostgreSQL-backed Data Protection keys, and an OpenIddict server/validator.
+- `Trykatch.Identity/DependencyInjection.cs` configures ASP.NET Core Identity, secure `__Host-` cookies, confirmed email, lockout, security-stamp invalidation, PostgreSQL-backed Data Protection keys, and an OpenIddict server/validator.
 - The first-party React application receives only the HttpOnly application cookie and uses antiforgery protection.
 - `OrganizationScopeMiddleware` derives an authorized workspace context from the authenticated actor and server-protected workspace cookie before organization-scoped code runs.
 - The platform permission catalog already contains `platform.authentication.read` and `platform.authentication.manage`.
 - ADR 0011 makes organization resolution, RBAC, PostgreSQL RLS, auditing, and module validation a non-replaceable security kernel.
-- `ITrykatchModule` and the explicit backend/web catalogs provide build-time activation without arbitrary assembly loading.
+- `IModule` and the explicit backend/web catalogs provide build-time activation without arbitrary assembly loading.
 
 What is missing is the external OIDC **client** flow, provider configuration, explicit external-account links, federation policy, and SSO management UI. Trykatch currently uses OpenIddict as an authorization **server** for external clients; that is different from Trykatch acting as an OIDC relying party/client to an enterprise identity provider.
 

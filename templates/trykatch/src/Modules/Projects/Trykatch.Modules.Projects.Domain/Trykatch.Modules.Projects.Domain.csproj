@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../../Common/Trykatch.Domain/Trykatch.Domain.csproj" />
+    <ProjectReference Include="../../../Common/Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" />
+  </ItemGroup>
+</Project>
