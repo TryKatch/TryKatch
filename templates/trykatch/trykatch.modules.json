@@ -3,6 +3,10 @@
   "schemaVersion": 1,
   "hostVersion": "0.1.0",
   "lockFile": "trykatch.modules.lock.json",
+  "trustedPublishers": [
+    "trykatch"
+  ],
+  "publisherTrust": {},
   "outputs": {
     "backend": "src/TrykatchApp.Api/Modules/EnabledModules.cs",
     "backendNamespace": "TrykatchApp.Api.Modules",
@@ -22,6 +26,11 @@
       "id": "federation",
       "manifest": "src/TrykatchApp.Modules.Federation/trykatch.module.json",
       "enabled": false
+    },
+    {
+      "id": "documents",
+      "manifest": "modules/documents/trykatch.module.json",
+      "enabled": true
     }
   ]
 }

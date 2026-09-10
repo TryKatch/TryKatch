@@ -392,6 +392,7 @@ public sealed class OrganizationAdministration(
         Invitation? invitation = await store.FindInvitationByHashAsync(HashToken(token), cancellationToken);
         if (invitation is null || !invitation.IsUsable(DateTimeOffset.UtcNow))
             return Result.Failure<InvitationPreviewDto>("invalid_invitation", "Invitation is invalid or has expired.");
+        await using IOrganizationDataScope dataScope = await dataScopes.BeginAsync(invitation.OrganizationId, Guid.Empty, cancellationToken);
         Organization? organization = await store.FindOrganizationAsync(invitation.OrganizationId, cancellationToken);
         return organization is null || !organization.IsActive
             ? Result.Failure<InvitationPreviewDto>("invalid_invitation", "The destination workspace is not available.")

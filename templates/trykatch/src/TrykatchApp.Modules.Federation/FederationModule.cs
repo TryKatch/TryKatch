@@ -25,7 +25,19 @@ public sealed class FederationModule : ITrykatchModule, ITrykatchPlatformEndpoin
         [],
         [],
         TrykatchModuleCapabilities.Api | TrykatchModuleCapabilities.Web | TrykatchModuleCapabilities.Data,
-        []);
+        [])
+    {
+        DefaultDataOwnership = TrykatchDataOwnership.Platform,
+        DataResources =
+        [
+            new(
+                "federation-connections",
+                "identity",
+                "federation_connections",
+                TrykatchDataOwnership.Platform,
+                AccessRule: TrykatchDataAccessRule.IdentityOnly)
+        ]
+    };
 
     public IReadOnlyList<TrykatchModuleMigration> Migrations { get; } =
     [
@@ -54,8 +66,9 @@ public sealed class FederationModule : ITrykatchModule, ITrykatchPlatformEndpoin
 
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
-        string connectionString = configuration.GetConnectionString("trykatchdb")
-            ?? throw new InvalidOperationException("Connection string 'trykatchdb' is required by Federation.");
+        string connectionString = configuration.GetConnectionString("trykatch-identity")
+            ?? configuration.GetConnectionString("trykatchdb")
+            ?? throw new InvalidOperationException("Connection string 'trykatch-identity' is required by Federation.");
         services.AddSingleton<ITrykatchPlatformEndpointContributor>(this);
         services.AddSingleton(new FederationDatabaseOptions(connectionString));
         services.AddScoped<FederationConnectionStore>();

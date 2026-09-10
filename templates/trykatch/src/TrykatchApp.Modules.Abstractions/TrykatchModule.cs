@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 
 namespace TrykatchApp.Modules;
 
@@ -39,6 +40,94 @@ public enum TrykatchAssistantToolRisk
     Destructive
 }
 
+/// <summary>The host-enforced ownership class for one persistent module resource.</summary>
+public enum TrykatchDataOwnership
+{
+    Organization,
+    Platform,
+    Global,
+    Infrastructure
+}
+
+/// <summary>
+/// Declares one persistent relation owned by a module. Schema and table names are
+/// provider identifiers, not arbitrary SQL, and are inspected after migration.
+/// </summary>
+public sealed record TrykatchDataResourceDescriptor(
+    string Name,
+    string Schema,
+    string Table,
+    TrykatchDataOwnership Ownership,
+    string? EntityType = null,
+    string? IsolationPolicy = null,
+    TrykatchDataAccessRule? AccessRule = null);
+
+public enum TrykatchDataAccessRule
+{
+    PlatformOnly,
+    IdentityOnly,
+    GlobalReadOnly,
+    HostOnly,
+    OutboxAppendOnly
+}
+
+/// <summary>Declarative installed schema metadata; it never activates module code.</summary>
+public sealed record TrykatchInstalledDataResource(string ModuleId, TrykatchDataResourceDescriptor Resource);
+
+public sealed record TrykatchPermissionDescriptor(
+    string Key,
+    string Name,
+    string Description,
+    bool IsSensitive = false,
+    int Order = 0,
+    IReadOnlyList<string>? DefaultRoles = null);
+
+/// <summary>
+/// Contract implemented by every EF entity whose rows belong to an organization.
+/// The host uses it to install an automatic query filter and validate the model.
+/// </summary>
+public interface IOrganizationOwned
+{
+    Guid OrganizationId { get; }
+}
+
+/// <summary>Module-owned EF mapping seam composed by the host application context.</summary>
+public interface IApplicationModelContributor
+{
+    string ModuleId { get; }
+    void Configure(ModelBuilder modelBuilder);
+}
+
+/// <summary>
+/// Organization-scoped data interface supplied by the host. Query filters,
+/// connection routing, transactions, and RLS remain host-owned.
+/// </summary>
+public interface IOrganizationModuleData
+{
+    Guid OrganizationId { get; }
+    Guid ActorId { get; }
+    IQueryable<TEntity> Query<TEntity>() where TEntity : class;
+    void Add<TEntity>(TEntity entity) where TEntity : class;
+    void Remove<TEntity>(TEntity entity) where TEntity : class;
+    void RecordAudit(
+        string action,
+        string subjectType,
+        string subjectId,
+        string displayName,
+        IReadOnlyDictionary<string, string?>? details = null);
+    void Enqueue<TMessage>(TMessage message) where TMessage : notnull;
+    Task SaveChangesAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Host-owned authorization seam for module application use cases. HTTP policy
+/// metadata remains the first check; mutating use cases repeat it here.
+/// </summary>
+public interface IModulePermissionAuthorizer
+{
+    Task<bool> HasPermissionAsync(string permission, CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// An explicit, provider-neutral allowlist entry for exposing one API operation
 /// to an AI assistant. Authorization remains enforced by the API operation.
@@ -61,6 +150,10 @@ public sealed record TrykatchModuleDescriptor(
     IReadOnlyList<TrykatchExtensionPointDescriptor> ExtensionPoints)
 {
     public IReadOnlyList<TrykatchAssistantToolDescriptor> AssistantTools { get; init; } = [];
+    public TrykatchDataOwnership? DefaultDataOwnership { get; init; }
+    public IReadOnlyList<TrykatchDataResourceDescriptor> DataResources { get; init; } = [];
+    public string Publisher { get; init; } = "trykatch";
+    public IReadOnlyList<TrykatchPermissionDescriptor> Permissions { get; init; } = [];
 }
 
 /// <summary>
@@ -142,6 +235,16 @@ public sealed class TrykatchModuleCatalog
             if (!StableVersion.IsMatch(descriptor.Version))
                 throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' has invalid semantic version '{descriptor.Version}'.");
 
+            ValidateDataOwnership(descriptor);
+            EnsureUnique(descriptor.Permissions.Select(permission => permission.Key), descriptor.Id, "permission");
+            foreach (TrykatchPermissionDescriptor permission in descriptor.Permissions)
+            {
+                if (!StableContractId.IsMatch(permission.Key)
+                    || string.IsNullOrWhiteSpace(permission.Name)
+                    || string.IsNullOrWhiteSpace(permission.Description))
+                    throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' declares invalid permission '{permission.Key}'.");
+            }
+
             EnsureUnique(descriptor.Requires, descriptor.Id, "required dependency");
             EnsureUnique(descriptor.OptionalDependencies, descriptor.Id, "optional dependency");
             foreach (string dependency in descriptor.Requires.Concat(descriptor.OptionalDependencies))
@@ -206,6 +309,36 @@ public sealed class TrykatchModuleCatalog
             .FirstOrDefault(group => group.Count() > 1)?.Key;
         if (duplicateOperation is not null)
             throw new InvalidOperationException($"Multiple Trykatch assistant tools target operation '{duplicateOperation}'.");
+    }
+
+    private static void ValidateDataOwnership(TrykatchModuleDescriptor descriptor)
+    {
+        bool hasData = descriptor.Capabilities.HasFlag(TrykatchModuleCapabilities.Data);
+        if (hasData && descriptor.DefaultDataOwnership is null)
+            throw new InvalidOperationException($"Trykatch data module '{descriptor.Id}' must declare exactly one default data ownership class.");
+        if (!hasData && (descriptor.DefaultDataOwnership is not null || descriptor.DataResources.Count > 0))
+            throw new InvalidOperationException($"Trykatch module '{descriptor.Id}' declares data ownership without the Data capability.");
+        if (hasData && descriptor.DataResources.Count == 0)
+            throw new InvalidOperationException($"Trykatch data module '{descriptor.Id}' must declare every persistent resource.");
+
+        EnsureUnique(descriptor.DataResources.Select(resource => resource.Name), descriptor.Id, "data resource");
+        EnsureUnique(
+            descriptor.DataResources.Select(resource => $"{resource.Schema}.{resource.Table}"),
+            descriptor.Id,
+            "data relation");
+        foreach (TrykatchDataResourceDescriptor resource in descriptor.DataResources)
+        {
+            TrykatchDataResourceRules.Validate(resource);
+            if (!StableContractId.IsMatch(resource.Name)
+                || !StableId.IsMatch(resource.Schema)
+                || !StableId.IsMatch(resource.Table.Replace('_', '-')))
+                throw new InvalidOperationException(
+                    $"Trykatch module '{descriptor.Id}' declares invalid data resource '{resource.Name}' at '{resource.Schema}.{resource.Table}'.");
+            if (resource.Ownership == TrykatchDataOwnership.Organization
+                && string.IsNullOrWhiteSpace(resource.IsolationPolicy))
+                throw new InvalidOperationException(
+                    $"Trykatch organization resource '{descriptor.Id}/{resource.Name}' must declare its PostgreSQL isolation policy.");
+        }
     }
 
     private static void ValidateDependencies(IReadOnlyDictionary<string, ITrykatchModule> modules)

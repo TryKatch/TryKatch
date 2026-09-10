@@ -1,8 +1,9 @@
 using TrykatchApp.Domain.Common;
+using TrykatchApp.Modules;
 
 namespace TrykatchApp.Domain.Organizations;
 
-public sealed class AuditEntry : Entity
+public sealed class AuditEntry : Entity, IOrganizationOwned
 {
     private AuditEntry() : base(Guid.Empty) { }
 

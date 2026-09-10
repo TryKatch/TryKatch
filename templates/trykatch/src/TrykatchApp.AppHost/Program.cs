@@ -1,10 +1,38 @@
+using Aspire.Hosting.ApplicationModel;
+
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
+
+IResourceBuilder<ParameterResource> migratorPassword = builder.AddParameter("migrator-password", "local-migrator-only", secret: true);
+IResourceBuilder<ParameterResource> organizationPassword = builder.AddParameter("organization-runtime-password", "local-organization-only", secret: true);
+IResourceBuilder<ParameterResource> platformPassword = builder.AddParameter("platform-runtime-password", "local-platform-only", secret: true);
+IResourceBuilder<ParameterResource> identityPassword = builder.AddParameter("identity-runtime-password", "local-identity-only", secret: true);
+IResourceBuilder<ParameterResource> outboxPassword = builder.AddParameter("outbox-runtime-password", "local-outbox-only", secret: true);
 
 IResourceBuilder<PostgresServerResource> postgres = builder
     .AddPostgres("postgres")
     .WithImageTag("18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f")
+    .WithEnvironment("TRYKATCH_MIGRATOR_PASSWORD", migratorPassword)
+    .WithEnvironment("TRYKATCH_ORG_RUNTIME_PASSWORD", organizationPassword)
+    .WithEnvironment("TRYKATCH_PLATFORM_RUNTIME_PASSWORD", platformPassword)
+    .WithEnvironment("TRYKATCH_IDENTITY_RUNTIME_PASSWORD", identityPassword)
+    .WithEnvironment("TRYKATCH_OUTBOX_WORKER_PASSWORD", outboxPassword)
+    .WithBindMount("../../deploy/postgres/init", "/docker-entrypoint-initdb.d", isReadOnly: true)
     .WithDataVolume("trykatch-postgres-data");
-IResourceBuilder<PostgresDatabaseResource> database = postgres.AddDatabase("trykatchdb", "trykatch");
+IResourceBuilder<PostgresDatabaseResource> database = postgres
+    .AddDatabase("trykatchdb", "trykatch")
+    // Aspire creates named databases after the container init scripts finish.
+    // The creation script therefore has to assign the migrator as owner itself.
+    .WithCreationScript("CREATE DATABASE \"trykatch\" OWNER \"trykatch_migrator\"");
+ReferenceExpression migratorConnection = ReferenceExpression.Create(
+    $"{database.Resource.ConnectionStringExpression};Username=trykatch_migrator;Password={migratorPassword}");
+ReferenceExpression organizationConnection = ReferenceExpression.Create(
+    $"{database.Resource.ConnectionStringExpression};Username=trykatch_org_runtime;Password={organizationPassword}");
+ReferenceExpression platformConnection = ReferenceExpression.Create(
+    $"{database.Resource.ConnectionStringExpression};Username=trykatch_platform_runtime;Password={platformPassword}");
+ReferenceExpression identityConnection = ReferenceExpression.Create(
+    $"{database.Resource.ConnectionStringExpression};Username=trykatch_identity_runtime;Password={identityPassword}");
+ReferenceExpression outboxConnection = ReferenceExpression.Create(
+    $"{database.Resource.ConnectionStringExpression};Username=trykatch_outbox_worker;Password={outboxPassword}");
 
 IResourceBuilder<ContainerResource> collector = builder
     .AddContainer("otel-collector", "otel/opentelemetry-collector-contrib", "0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6")
@@ -16,12 +44,20 @@ IResourceBuilder<ContainerResource> collector = builder
 
 IResourceBuilder<ProjectResource> migrator = builder
     .AddProject<Projects.TemplateProjectIdentifier_Migrator>("migrator")
-    .WithReference(database)
+    .WithEnvironment("ConnectionStrings__trykatchdb", migratorConnection)
+    .WithEnvironment("Database__OrganizationRuntimeRole", "trykatch_org_runtime")
+    .WithEnvironment("Database__PlatformRuntimeRole", "trykatch_platform_runtime")
+    .WithEnvironment("Database__IdentityRuntimeRole", "trykatch_identity_runtime")
+    .WithEnvironment("Database__OutboxWorkerRole", "trykatch_outbox_worker")
     .WaitFor(database);
 
 IResourceBuilder<ProjectResource> api = builder
     .AddProject<Projects.TemplateProjectIdentifier_Api>("api")
-    .WithReference(database)
+    .WithEnvironment("ConnectionStrings__trykatch-organization", organizationConnection)
+    .WithEnvironment("ConnectionStrings__trykatch-platform", platformConnection)
+    .WithEnvironment("ConnectionStrings__trykatch-identity", identityConnection)
+    .WithEnvironment("ConnectionStrings__trykatch-outbox", outboxConnection)
+    .WaitFor(database)
     .WaitForCompletion(migrator)
     .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", collector.GetEndpoint("otlp-http"))
     .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")

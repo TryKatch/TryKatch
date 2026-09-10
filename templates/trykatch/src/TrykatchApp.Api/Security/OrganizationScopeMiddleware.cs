@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using TrykatchApp.Application.Organizations;
+using TrykatchApp.Domain.Organizations;
 using TrykatchApp.Infrastructure.Organizations;
 using TrykatchApp.Modules.AspNetCore;
 
@@ -11,7 +12,8 @@ public sealed class OrganizationScopeMiddleware(RequestDelegate next)
         HttpContext context,
         IWorkspaceContextCookie workspaceCookie,
         IOrganizationAccessResolver resolver,
-        IOrganizationContextInitializer initializer)
+        IOrganizationContextInitializer initializer,
+        IOrganizationDataPlacement dataPlacement)
     {
         if (context.GetEndpoint()?.Metadata.GetMetadata<ITrykatchOrganizationScopedMetadata>() is null)
         {
@@ -47,6 +49,35 @@ public sealed class OrganizationScopeMiddleware(RequestDelegate next)
         {
             workspaceCookie.Clear(context);
             await WriteProblemAsync(context, StatusCodes.Status403Forbidden, "Workspace access denied");
+            return;
+        }
+
+        OrganizationDataRoute route;
+        try
+        {
+            route = await dataPlacement.ResolveAsync(organizationId, context.RequestAborted);
+        }
+        catch (KeyNotFoundException)
+        {
+            OrganizationDataPlacementResult provisioned = await dataPlacement.ProvisionAsync(
+                new(organizationId, OrganizationDataPlacementKind.Shared),
+                context.RequestAborted);
+            if (!provisioned.IsReady)
+            {
+                await WriteProblemAsync(context, StatusCodes.Status503ServiceUnavailable, "Workspace data placement is not ready");
+                return;
+            }
+            route = provisioned.Route!;
+        }
+        catch (InvalidOperationException)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status503ServiceUnavailable, "Workspace data placement is not ready");
+            return;
+        }
+
+        if (route.Placement != OrganizationDataPlacementKind.Shared)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status503ServiceUnavailable, "Workspace data route is not available on this host");
             return;
         }
 

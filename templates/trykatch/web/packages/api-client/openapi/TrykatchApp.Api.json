@@ -6,6 +6,293 @@
     "version": "v1"
   },
   "paths": {
+    "/api/v1/documents": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "List documents",
+        "description": "List documents in the current workspace.",
+        "operationId": "Documents_List",
+        "parameters": [
+          {
+            "name": "lifecycle",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "active"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/documents/', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\nconsole.log(result);"
+          }
+        ],
+        "x-trykatch-module": "documents",
+        "x-trykatch-assistant-tool": {
+          "name": "trykatch_list_documents",
+          "description": "List documents in the current workspace.",
+          "risk": "read-only",
+          "requiresHumanConfirmation": false
+        }
+      },
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Create documents",
+        "description": "Create a document record in the current workspace.",
+        "operationId": "Documents_Create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/documents/', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\nconsole.log(result);"
+          }
+        ],
+        "x-trykatch-module": "documents",
+        "x-trykatch-assistant-tool": {
+          "name": "trykatch_create_document",
+          "description": "Create a document record in the current workspace.",
+          "risk": "mutating",
+          "requiresHumanConfirmation": true
+        }
+      }
+    },
+    "/api/v1/documents/{id}": {
+      "put": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Update documents",
+        "description": "Update document content in the current workspace.",
+        "operationId": "Documents_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/documents/{id:guid}', {\n  method: 'PUT',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\nconsole.log(result);"
+          }
+        ],
+        "x-trykatch-module": "documents",
+        "x-trykatch-assistant-tool": {
+          "name": "trykatch_update_document",
+          "description": "Update document content in the current workspace.",
+          "risk": "mutating",
+          "requiresHumanConfirmation": true
+        }
+      },
+      "delete": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Delete documents",
+        "operationId": "Documents_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/documents/{id:guid}', {\n  method: 'DELETE',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\nconsole.log(result);"
+          }
+        ],
+        "x-trykatch-module": "documents"
+      }
+    },
+    "/api/v1/documents/{id}/archive": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Archive documents",
+        "operationId": "Documents_Archive",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/documents/{id:guid}/archive', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\nconsole.log(result);"
+          }
+        ],
+        "x-trykatch-module": "documents"
+      }
+    },
+    "/api/v1/documents/{id}/restore": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Restore documents",
+        "operationId": "Documents_Restore",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/documents/{id:guid}/restore', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\nconsole.log(result);"
+          }
+        ],
+        "x-trykatch-module": "documents"
+      }
+    },
     "/api/v1/account": {
       "get": {
         "tags": [
@@ -4074,6 +4361,20 @@
           }
         }
       },
+      "DeleteDocumentRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "DeleteRecordCommand": {
         "required": [
           "reason"
@@ -4082,6 +4383,117 @@
         "properties": {
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "DocumentDto": {
+        "required": [
+          "id",
+          "title",
+          "content",
+          "createdAt",
+          "metadata",
+          "lifecycle"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/DocumentMetadataDto"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/DocumentLifecycleDto"
+          }
+        }
+      },
+      "DocumentLifecycleDto": {
+        "required": [
+          "status",
+          "archivedAt",
+          "archivedBy",
+          "deletedAt",
+          "deletedBy",
+          "deletionReason"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "archivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "archivedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "deletedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "deletedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "deletionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "DocumentMetadataDto": {
+        "required": [
+          "updatedAt",
+          "mediaType",
+          "characterCount"
+        ],
+        "type": "object",
+        "properties": {
+          "updatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "characterCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -4134,6 +4546,53 @@
           },
           "roleKey": {
             "type": "string"
+          }
+        }
+      },
+      "HttpValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -4991,6 +5450,24 @@
           }
         }
       },
+      "SaveDocumentRequest": {
+        "required": [
+          "title",
+          "content"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "SavePlatformRoleRequest": {
         "required": [
           "name",
@@ -5289,6 +5766,9 @@
   },
   "tags": [
     {
+      "name": "Documents"
+    },
+    {
       "name": "AccountProfile"
     },
     {
@@ -5332,6 +5812,18 @@
     {
       "id": "projects",
       "name": "Projects",
+      "version": "1.0.0",
+      "capabilities": [
+        "Api",
+        "Web",
+        "Data",
+        "BackgroundWork",
+        "Assistant"
+      ]
+    },
+    {
+      "id": "documents",
+      "name": "Documents",
       "version": "1.0.0",
       "capabilities": [
         "Api",

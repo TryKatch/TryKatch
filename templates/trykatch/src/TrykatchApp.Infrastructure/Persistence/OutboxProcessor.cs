@@ -19,13 +19,13 @@ internal sealed class OutboxProcessor(IServiceScopeFactory scopeFactory) : Backg
     private async Task ProcessBatchAsync(CancellationToken cancellationToken)
     {
         await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
-        ApplicationDbContext dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        OutboxDbContext dbContext = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         OutboxDelivery delivery = scope.ServiceProvider.GetRequiredService<OutboxDelivery>();
         IExecutionStrategy strategy = dbContext.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
             await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            OutboxMessage[] messages = await dbContext.OutboxMessages
+            OutboxMessage[] messages = await dbContext.Messages
                 .FromSqlRaw("""
                     SELECT * FROM platform.outbox_messages
                     WHERE "ProcessedAt" IS NULL AND "Attempts" < 10

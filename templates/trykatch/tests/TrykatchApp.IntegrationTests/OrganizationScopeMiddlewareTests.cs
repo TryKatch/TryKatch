@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using TrykatchApp.Api.Security;
 using TrykatchApp.Application.Organizations;
+using TrykatchApp.Domain.Organizations;
 using TrykatchApp.Infrastructure.Organizations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +24,7 @@ public sealed class OrganizationScopeMiddlewareTests
         OrganizationScopeMiddleware middleware = new(_ => { nextWasCalled = true; return Task.CompletedTask; });
         DefaultHttpContext context = AuthenticatedContext(actorId, scoped: true);
 
-        await middleware.InvokeAsync(context, new StubWorkspaceCookie(organizationId), resolver, initializer);
+        await middleware.InvokeAsync(context, new StubWorkspaceCookie(organizationId), resolver, initializer, new StubDataPlacement(organizationId));
 
         nextWasCalled.ShouldBeTrue();
         resolver.ResolvedOrganizationId.ShouldBe(organizationId);
@@ -36,7 +37,7 @@ public sealed class OrganizationScopeMiddlewareTests
         OrganizationScopeMiddleware middleware = new(_ => Task.CompletedTask);
         DefaultHttpContext context = AuthenticatedContext(Guid.CreateVersion7(), scoped: true);
 
-        await middleware.InvokeAsync(context, new StubWorkspaceCookie(null), new RecordingResolver(null), new RecordingInitializer());
+        await middleware.InvokeAsync(context, new StubWorkspaceCookie(null), new RecordingResolver(null), new RecordingInitializer(), new StubDataPlacement(Guid.Empty));
 
         context.Response.StatusCode.ShouldBe(StatusCodes.Status409Conflict);
     }
@@ -48,9 +49,49 @@ public sealed class OrganizationScopeMiddlewareTests
         OrganizationScopeMiddleware middleware = new(_ => { nextWasCalled = true; return Task.CompletedTask; });
         DefaultHttpContext context = AuthenticatedContext(Guid.CreateVersion7(), scoped: false);
 
-        await middleware.InvokeAsync(context, new StubWorkspaceCookie(null), new RecordingResolver(null), new RecordingInitializer());
+        await middleware.InvokeAsync(context, new StubWorkspaceCookie(null), new RecordingResolver(null), new RecordingInitializer(), new StubDataPlacement(Guid.Empty));
 
         nextWasCalled.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public void OrganizationContextCannotChangeAfterRequestInitialization()
+    {
+        OrganizationContext context = new();
+        context.Initialize(new(
+            Guid.CreateVersion7(),
+            "organization-a",
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            new HashSet<string>()));
+
+        Should.Throw<InvalidOperationException>(() => context.Initialize(new(
+            Guid.CreateVersion7(),
+            "organization-b",
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            new HashSet<string>())));
+    }
+
+    [TestMethod]
+    public async Task DedicatedRouteIsRejectedUntilThisHostCanActuallyRouteIt()
+    {
+        Guid actorId = Guid.CreateVersion7();
+        Guid organizationId = Guid.CreateVersion7();
+        OrganizationAccess access = new(organizationId, "acme", actorId, Guid.CreateVersion7(), new HashSet<string>());
+        bool nextWasCalled = false;
+        OrganizationScopeMiddleware middleware = new(_ => { nextWasCalled = true; return Task.CompletedTask; });
+        DefaultHttpContext context = AuthenticatedContext(actorId, scoped: true);
+
+        await middleware.InvokeAsync(
+            context,
+            new StubWorkspaceCookie(organizationId),
+            new RecordingResolver(access),
+            new RecordingInitializer(),
+            new StubDataPlacement(organizationId, OrganizationDataPlacementKind.Dedicated));
+
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status503ServiceUnavailable);
+        nextWasCalled.ShouldBeFalse();
     }
 
     private static DefaultHttpContext AuthenticatedContext(Guid actorId, bool scoped)
@@ -92,5 +133,26 @@ public sealed class OrganizationScopeMiddlewareTests
     {
         public OrganizationAccess? Access { get; private set; }
         public void Initialize(OrganizationAccess access) => Access = access;
+    }
+
+    private sealed class StubDataPlacement(
+        Guid organizationId,
+        OrganizationDataPlacementKind kind = OrganizationDataPlacementKind.Shared) : IOrganizationDataPlacement
+    {
+        public Task<OrganizationDataPlacementResult> ProvisionAsync(
+            OrganizationDataPlacementRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new OrganizationDataPlacementResult(OrganizationProvisioningState.Ready, Route(request.OrganizationId)));
+
+        public Task<OrganizationDataRoute> ResolveAsync(Guid requestedOrganizationId, CancellationToken cancellationToken) =>
+            Task.FromResult(Route(requestedOrganizationId));
+
+        private OrganizationDataRoute Route(Guid requestedOrganizationId) => new(
+            requestedOrganizationId == Guid.Empty ? organizationId : requestedOrganizationId,
+            kind,
+            "postgres",
+            "test",
+            "test",
+            "1.0.0");
     }
 }

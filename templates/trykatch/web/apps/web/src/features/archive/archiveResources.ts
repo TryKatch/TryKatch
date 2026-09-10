@@ -1,7 +1,9 @@
 import { customFetch, type RoleDto } from '@trykatchapp/api-client'
+import type { TrykatchArchiveResourceContribution } from '@trykatchapp/module-sdk'
 import type { RecordLifecycle } from '../../components/RecordLifecycle'
+import { workspaceModules } from '../../modules'
 
-export type ArchiveResourceKind = 'project' | 'member' | 'invitation' | 'role'
+export type ArchiveResourceKind = string
 
 export interface ArchiveItem {
   id: string
@@ -23,6 +25,8 @@ export interface ArchiveResourceDefinition {
   readPermission: string
   managePermission: string
   load(): Promise<ArchiveItem[]>
+  restore(id: string): Promise<unknown>
+  requestDeletion?(id: string, reason: string): Promise<unknown>
 }
 
 function encode(value: string) {
@@ -52,6 +56,10 @@ export const archiveResourceDefinitions: readonly ArchiveResourceDefinition[] = 
       return (await loadAllProjectPages()).map((record) =>
         asArchiveItem({ kind: 'project', typeLabel: 'Project' }, record, record.name, record.description || 'Organization project'))
     },
+    restore: (id) => customFetch<void>(`/api/v1/projects/${encode(id)}/restore`, { method: 'POST' }),
+    requestDeletion: (id, reason) => customFetch<void>(`/api/v1/projects/${encode(id)}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
+    }),
   },
   {
     kind: 'member',
@@ -62,6 +70,10 @@ export const archiveResourceDefinitions: readonly ArchiveResourceDefinition[] = 
       const records = await customFetch<MemberRecord[]>('/api/v1/members?lifecycle=recoverable', { method: 'GET' })
       return records.map((record) => asArchiveItem({ kind: 'member', typeLabel: 'Person' }, record, record.displayName || record.email, `${record.email} · ${record.roles.map((role) => role.name).join(', ') || 'No roles'}`))
     },
+    restore: (id) => customFetch<void>(`/api/v1/members/${encode(id)}/restore`, { method: 'POST' }),
+    requestDeletion: (id, reason) => customFetch<void>(`/api/v1/members/${encode(id)}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
+    }),
   },
   {
     kind: 'invitation',
@@ -72,6 +84,7 @@ export const archiveResourceDefinitions: readonly ArchiveResourceDefinition[] = 
       const records = await customFetch<InvitationRecord[]>('/api/v1/invitations?lifecycle=recoverable', { method: 'GET' })
       return records.map((record) => asArchiveItem({ kind: 'invitation', typeLabel: 'Invitation' }, record, record.email, `${record.status} · expires ${new Date(record.expiresAt).toLocaleDateString()}`))
     },
+    restore: (id) => customFetch<void>(`/api/v1/invitations/${encode(id)}/restore`, { method: 'POST' }),
   },
   {
     kind: 'role',
@@ -82,21 +95,51 @@ export const archiveResourceDefinitions: readonly ArchiveResourceDefinition[] = 
       const records = await customFetch<RoleDto[]>('/api/v1/roles?lifecycle=recoverable', { method: 'GET' })
       return records.map((record) => asArchiveItem({ kind: 'role', typeLabel: 'Role' }, { ...record, lifecycle: record.lifecycle as RecordLifecycle }, record.name, `${record.isSystem ? 'System' : 'Custom'} role · ${record.permissions.length} permission grants`))
     },
+    restore: (id) => customFetch<void>(`/api/v1/roles/${encode(id)}/restore`, { method: 'POST' }),
+    requestDeletion: (id, reason) => customFetch<void>(`/api/v1/roles/${encode(id)}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
+    }),
   },
 ] as const
 
+const moduleArchiveResources: readonly ArchiveResourceDefinition[] = workspaceModules.archiveResources.map(
+  (resource: TrykatchArchiveResourceContribution) => {
+    if (archiveResourceDefinitions.some((core) => core.kind === resource.kind)) {
+      throw new Error(`Module archive resource '${resource.kind}' conflicts with a host resource.`)
+    }
+    return {
+      ...resource,
+      async load() {
+        return (await resource.load()).map((item) => ({
+          ...item,
+          kind: resource.kind,
+          typeLabel: resource.typeLabel,
+          lifecycle: item.lifecycle as RecordLifecycle,
+        }))
+      },
+    }
+  },
+)
+
+export const allArchiveResourceDefinitions: readonly ArchiveResourceDefinition[] = [
+  ...archiveResourceDefinitions,
+  ...moduleArchiveResources,
+]
+
 export async function loadArchiveItems(permissions: readonly string[]) {
-  const readable = archiveResourceDefinitions.filter((definition) => permissions.includes(definition.readPermission))
+  const readable = allArchiveResourceDefinitions.filter((definition) => permissions.includes(definition.readPermission))
   const groups = await Promise.all(readable.map((definition) => definition.load()))
   return groups.flat().sort((left, right) => archiveTimestamp(right) - archiveTimestamp(left))
 }
 
 export function canRestoreArchiveItem(item: ArchiveItem, permissions: readonly string[]) {
-  return permissions.includes(archiveResourceDefinitions.find((definition) => definition.kind === item.kind)?.managePermission ?? '')
+  return permissions.includes(allArchiveResourceDefinitions.find((definition) => definition.kind === item.kind)?.managePermission ?? '')
 }
 
 export function canRequestArchiveItemDeletion(item: ArchiveItem, permissions: readonly string[]) {
-  return item.lifecycle.status === 'Archived' && item.kind !== 'invitation' && canRestoreArchiveItem(item, permissions)
+  return item.lifecycle.status === 'Archived'
+    && allArchiveResourceDefinitions.find((definition) => definition.kind === item.kind)?.requestDeletion !== undefined
+    && canRestoreArchiveItem(item, permissions)
 }
 
 export function archiveTimestamp(item: ArchiveItem) {
@@ -104,15 +147,13 @@ export function archiveTimestamp(item: ArchiveItem) {
 }
 
 export function restoreArchiveItem(item: ArchiveItem) {
-  const collection = item.kind === 'project' ? 'projects' : item.kind === 'member' ? 'members' : item.kind === 'invitation' ? 'invitations' : 'roles'
-  return customFetch<void>(`/api/v1/${collection}/${encode(item.id)}/restore`, { method: 'POST' })
+  const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
+  if (!definition) throw new Error(`Unknown archive resource '${item.kind}'.`)
+  return definition.restore(item.id)
 }
 
 export function requestArchiveItemDeletion(item: ArchiveItem, reason: string) {
-  const collection = item.kind === 'project' ? 'projects' : item.kind === 'member' ? 'members' : item.kind === 'invitation' ? 'invitations' : 'roles'
-  return customFetch<void>(`/api/v1/${collection}/${encode(item.id)}`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason }),
-  })
+  const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
+  if (!definition?.requestDeletion) throw new Error(`Archive resource '${item.kind}' cannot request deletion.`)
+  return definition.requestDeletion(item.id, reason)
 }

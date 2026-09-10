@@ -11,7 +11,7 @@ namespace TrykatchApp.Api.Controllers;
 [Authorize]
 [PlatformDataScoped]
 [Route("api/v1/me")]
-public sealed class MeController(IOrganizationDirectory organizations) : ControllerBase
+public sealed class MeController(IActorOrganizationDirectory organizations) : ControllerBase
 {
     [HttpGet("organizations", Name = "Me_ListOrganizations")]
     public async Task<ActionResult<IReadOnlyList<MyOrganizationDto>>> ListOrganizations(CancellationToken cancellationToken)

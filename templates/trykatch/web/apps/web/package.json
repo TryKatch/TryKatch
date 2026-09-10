@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b \u0026\u0026 vite build",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc -b --pretty false"
@@ -20,7 +20,8 @@
     "lucide-react": "1.42.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "zod": "4.5.4"
+    "zod": "4.5.4",
+    "@trykatch-modules/documents": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",

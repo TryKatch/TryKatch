@@ -1,5 +1,6 @@
 using TrykatchApp.Domain.Projects;
 using TrykatchApp.Infrastructure.Persistence;
+using TrykatchApp.Modules;
 using Microsoft.EntityFrameworkCore;
 
 namespace TrykatchApp.Infrastructure.Projects;
@@ -18,7 +19,7 @@ public sealed class ProjectsModelContributor : IApplicationModelContributor
             entity.Property(x => x.Description).HasMaxLength(2000);
             entity.HasIndex(x => new { x.OrganizationId, x.Name });
             entity.Property(x => x.DeletionReason).HasMaxLength(500);
-            entity.HasQueryFilter(x => x.ArchivedAt == null && x.DeletedAt == null);
+            entity.HasQueryFilter("LifecycleVisibility", x => x.ArchivedAt == null && x.DeletedAt == null);
         });
     }
 }

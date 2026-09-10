@@ -16,8 +16,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddTrykatchIdentity(this IServiceCollection services, IConfiguration configuration, bool isDevelopment, bool isOpenApiGeneration = false)
     {
-        string connectionString = configuration.GetConnectionString("trykatchdb")
-            ?? throw new InvalidOperationException("Connection string 'trykatchdb' is required.");
+        string connectionString = configuration.GetConnectionString("trykatch-identity")
+            ?? configuration.GetConnectionString("trykatchdb")
+            ?? throw new InvalidOperationException("Connection string 'trykatch-identity' is required.");
 
         services.AddDbContext<IdentityDbContext>(options =>
         {

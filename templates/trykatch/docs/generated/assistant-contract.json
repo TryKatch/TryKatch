@@ -17,6 +17,18 @@
         "BackgroundWork",
         "Assistant"
       ]
+    },
+    {
+      "id": "documents",
+      "name": "Documents",
+      "version": "1.0.0",
+      "capabilities": [
+        "Api",
+        "Web",
+        "Data",
+        "BackgroundWork",
+        "Assistant"
+      ]
     }
   ],
   "policy": {
@@ -25,6 +37,18 @@
     "writes": "Mutating and destructive tools require an explicit allowlist entry and human confirmation."
   },
   "tools": [
+    {
+      "type": "function",
+      "name": "trykatch_create_document",
+      "description": "Create a document record in the current workspace.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
     {
       "type": "function",
       "name": "trykatch_get_project",
@@ -40,6 +64,31 @@
         },
         "required": [
           "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "trykatch_list_documents",
+      "description": "List documents in the current workspace.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "lifecycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "lifecycle"
         ],
         "additionalProperties": false
       }
@@ -101,14 +150,53 @@
         ],
         "additionalProperties": false
       }
+    },
+    {
+      "type": "function",
+      "name": "trykatch_update_document",
+      "description": "Update document content in the current workspace.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
     }
   ],
   "bindings": {
+    "trykatch_create_document": {
+      "operationId": "Documents_Create",
+      "method": "POST",
+      "path": "/api/v1/documents",
+      "moduleId": "documents",
+      "risk": "mutating",
+      "requiresHumanConfirmation": true,
+      "authorization": "api-enforced",
+      "organizationContext": "request-derived"
+    },
     "trykatch_get_project": {
       "operationId": "Projects_Get",
       "method": "GET",
       "path": "/api/v1/projects/{id}",
       "moduleId": "projects",
+      "risk": "read-only",
+      "requiresHumanConfirmation": false,
+      "authorization": "api-enforced",
+      "organizationContext": "request-derived"
+    },
+    "trykatch_list_documents": {
+      "operationId": "Documents_List",
+      "method": "GET",
+      "path": "/api/v1/documents",
+      "moduleId": "documents",
       "risk": "read-only",
       "requiresHumanConfirmation": false,
       "authorization": "api-enforced",
@@ -121,6 +209,16 @@
       "moduleId": "projects",
       "risk": "read-only",
       "requiresHumanConfirmation": false,
+      "authorization": "api-enforced",
+      "organizationContext": "request-derived"
+    },
+    "trykatch_update_document": {
+      "operationId": "Documents_Update",
+      "method": "PUT",
+      "path": "/api/v1/documents/{id}",
+      "moduleId": "documents",
+      "risk": "mutating",
+      "requiresHumanConfirmation": true,
       "authorization": "api-enforced",
       "organizationContext": "request-derived"
     }

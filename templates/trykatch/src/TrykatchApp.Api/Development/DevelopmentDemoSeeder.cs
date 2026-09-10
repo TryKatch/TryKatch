@@ -28,7 +28,9 @@ internal static class DevelopmentDemoSeeder
         using IServiceScope scope = services.CreateScope();
         UserManager<ApplicationUser> users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         PlatformDbContext platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+        OrganizationControlPlaneDbContext organizationData = scope.ServiceProvider.GetRequiredService<OrganizationControlPlaneDbContext>();
         IOrganizationDirectory organizations = scope.ServiceProvider.GetRequiredService<IOrganizationDirectory>();
+        IOrganizationDataPlacement placement = scope.ServiceProvider.GetRequiredService<IOrganizationDataPlacement>();
         IPermissionCatalog permissionCatalog = scope.ServiceProvider.GetRequiredService<IPermissionCatalog>();
 
         ApplicationUser platformAdministrator = await EnsureUserAsync(
@@ -47,7 +49,6 @@ internal static class DevelopmentDemoSeeder
             isPlatformAdministrator: false);
 
         await using IDbContextTransaction transaction = await platform.Database.BeginTransactionAsync();
-        await platform.Database.ExecuteSqlRawAsync("SELECT set_config('app.platform_admin', 'true', true)");
 
         Organization? organization = await platform.Organizations.SingleOrDefaultAsync(x => x.Slug == organizationSlug);
         Guid ownerRoleId;
@@ -60,14 +61,21 @@ internal static class DevelopmentDemoSeeder
         }
         else
         {
-            ownerRoleId = await platform.Roles
-                .Where(x => x.OrganizationId == organization.Id && x.Name == "Owner" && x.IsSystem)
-                .Select(x => x.Id)
-                .SingleAsync();
+            ownerRoleId = await organizations.GetOwnerRoleIdAsync(organization.Id, CancellationToken.None);
         }
 
+        OrganizationDataPlacementResult placementResult = await placement.ProvisionAsync(
+            new(organization.Id, OrganizationDataPlacementKind.Shared), CancellationToken.None);
+        if (!placementResult.IsReady)
+            throw new InvalidOperationException("Development demo organization data placement is not ready.");
 
-        Role[] systemRoles = await platform.Roles
+        await transaction.CommitAsync();
+
+        await using IDbContextTransaction organizationTransaction = await organizationData.Database.BeginTransactionAsync();
+        await organizationData.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.organization_id', {organization.Id.ToString()}, true), set_config('app.actor_id', {tenantAdministrator.Id.ToString()}, true)");
+
+        Role[] systemRoles = await organizationData.Roles
             .Include(x => x.Permissions)
             .Where(x => x.OrganizationId == organization.Id && x.IsSystem)
             .ToArrayAsync();
@@ -84,7 +92,7 @@ internal static class DevelopmentDemoSeeder
             role.AddMissingPermissions(defaults);
         }
 
-        Membership? membership = await platform.Memberships
+        Membership? membership = await organizationData.Memberships
             .Include(x => x.Roles)
             .SingleOrDefaultAsync(x =>
                 x.OrganizationId == organization.Id
@@ -93,7 +101,7 @@ internal static class DevelopmentDemoSeeder
         {
             membership = Membership.Create(organization.Id, tenantAdministrator.Id);
             membership.AssignRole(ownerRoleId);
-            await organizations.AddMembershipAsync(membership, CancellationToken.None);
+            await organizationData.Memberships.AddAsync(membership, CancellationToken.None);
         }
         else
         {
@@ -101,8 +109,8 @@ internal static class DevelopmentDemoSeeder
             membership.AssignRole(ownerRoleId);
         }
 
-        await organizations.SaveChangesAsync(CancellationToken.None);
-        await transaction.CommitAsync();
+        await organizationData.SaveChangesAsync(CancellationToken.None);
+        await organizationTransaction.CommitAsync();
     }
 
     private static async Task<ApplicationUser> EnsureUserAsync(
