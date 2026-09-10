@@ -12,7 +12,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.6
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.7
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -40,13 +40,37 @@ cd Horizon
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.6
+dotnet new install Trykatch.Templates@0.1.0-preview.7
 ```
 :::
 
 React is the default surface. The generated project contains the complete `web` workspace, including the React application, reusable UI and module packages, generated API client, tests, lockfile, and production container.
 
 Names containing dots and hyphens are normalized for C# namespaces, directories, container names, and npm packages.
+
+## Update the template
+
+Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
+
+```bash
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.7
+trykatch update
+```
+
+`trykatch template update` is the explicit equivalent. Use `--version <version>` with either command when you need a particular release.
+
+Template updates affect projects generated in the future; they do not rewrite an existing application's source files.
+
+## Repair local HTTPS certificates
+
+The AppHost secures its dashboard and internal resource service with the ASP.NET Core development certificate. If Aspire reports a certificate name, trust, or TLS error on a development computer, stop the AppHost and recreate the local certificate:
+
+```bash
+dotnet dev-certs https --clean
+dotnet dev-certs https --trust
+```
+
+Then restart the AppHost. Trykatch pins every generated Aspire endpoint to `https://localhost` so the endpoint name matches that certificate.
 
 ## Choose the generated surface
 
@@ -72,6 +96,7 @@ Use the CLI's focused help commands:
 
 ```bash
 trykatch help
+trykatch update
 trykatch template help
 trykatch module help
 ```

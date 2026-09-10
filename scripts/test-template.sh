@@ -45,6 +45,8 @@ grep -Fq 'dotnet new trykatch -n <name> [options]' <<<"$help_output" ||
   fail 'CLI help does not show the application creation command'
 grep -Fq 'trykatch template install' <<<"$help_output" ||
   fail 'CLI help does not show the progress-aware template installer'
+grep -Fq 'trykatch update' <<<"$help_output" ||
+  fail 'CLI help does not show the template update command'
 grep -Fq -- '--ui <react|none>' <<<"$help_output" ||
   fail 'CLI help does not document the frontend choice'
 grep -Fq 'Module lifecycle:' <<<"$help_output" ||
@@ -60,6 +62,8 @@ grep -Fq 'Trykatch module lifecycle' <<<"$nested_help_output" ||
 template_help_output=$("$test_root/tools/trykatch" template help)
 grep -Fq 'trykatch template install [--version <version>] [--force]' <<<"$template_help_output" ||
   fail 'template help does not document installation options'
+grep -Fq 'trykatch template update [--version <version>]' <<<"$template_help_output" ||
+  fail 'template help does not document update options'
 cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'TrykatchApp.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
 test "$cli_informational_version" = 'Trykatch CLI 0.1.0-ci' ||
   fail "packaged CLI reports '$cli_informational_version' instead of its package version"

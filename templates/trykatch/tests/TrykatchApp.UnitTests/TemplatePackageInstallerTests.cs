@@ -9,7 +9,7 @@ public sealed class TemplatePackageInstallerTests
     [TestMethod]
     public void CurrentVersionMatchesTheCliPackageVersion()
     {
-        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.6");
+        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.7");
     }
 
     [TestMethod]
@@ -20,15 +20,48 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.InstallAsync("0.1.0-preview.6", force: true, CancellationToken.None);
+        int exitCode = await installer.InstallAsync("0.1.0-preview.7", force: true, CancellationToken.None);
 
         exitCode.ShouldBe(0);
-        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.6");
+        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.7");
         engine.Force.ShouldBeTrue();
-        output.ToString().ShouldContain("Installing Trykatch template 0.1.0-preview.6");
-        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.6 installed");
+        output.ToString().ShouldContain("Installing Trykatch template 0.1.0-preview.7");
+        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.7 installed");
         output.ToString().ShouldContain("dotnet new trykatch -n <name>");
         error.ToString().ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public async Task UpdateReplacesTheInstalledTemplateWithTheRequestedVersion()
+    {
+        RecordingTemplateEngine engine = new(new(0, "updated", string.Empty));
+        StringWriter output = new();
+        StringWriter error = new();
+        TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
+
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.7", CancellationToken.None);
+
+        exitCode.ShouldBe(0);
+        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.7");
+        engine.Force.ShouldBeTrue();
+        output.ToString().ShouldContain("Updating Trykatch template to 0.1.0-preview.7");
+        output.ToString().ShouldContain("Trykatch template updated to 0.1.0-preview.7");
+        error.ToString().ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public async Task UpdatePreservesTheTemplateEngineFailureDetails()
+    {
+        RecordingTemplateEngine engine = new(new(103, string.Empty, "The package does not exist."));
+        StringWriter error = new();
+        TemplatePackageInstaller installer = new(engine, TextWriter.Null, error, isInteractive: false);
+
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.99", CancellationToken.None);
+
+        exitCode.ShouldBe(103);
+        engine.Force.ShouldBeTrue();
+        error.ToString().ShouldContain("Could not update Trykatch template to 0.1.0-preview.99");
+        error.ToString().ShouldContain("The package does not exist.");
     }
 
     [TestMethod]
