@@ -1,5 +1,5 @@
-using TrykatchApp.ModuleTool;
 using System.Text.Json;
+using TrykatchApp.ModuleTool;
 
 return await RunAsync(args);
 
@@ -13,6 +13,11 @@ static Task<int> RunAsync(string[] arguments)
         && string.Equals(arguments[1], "module", StringComparison.Ordinal))
         return Task.FromResult(ShowModuleHelp());
 
+    if (arguments.Length == 2
+        && IsHelp(arguments[0])
+        && string.Equals(arguments[1], "template", StringComparison.Ordinal))
+        return Task.FromResult(ShowTemplateHelp());
+
     if (arguments.Length == 1 && IsHelp(arguments[0]))
         return Task.FromResult(ShowHelp());
 
@@ -20,6 +25,9 @@ static Task<int> RunAsync(string[] arguments)
         && string.Equals(arguments[0], "module", StringComparison.Ordinal)
         && (IsHelp(arguments[1]) || arguments.Skip(2).Any(IsHelpOption)))
         return Task.FromResult(ShowModuleHelp());
+
+    if (string.Equals(arguments[0], "template", StringComparison.Ordinal))
+        return RunTemplateAsync(arguments);
 
     if (arguments.Length < 2 || !string.Equals(arguments[0], "module", StringComparison.Ordinal))
         return Task.FromResult(ShowUnknownCommand(arguments[0]));
@@ -108,6 +116,54 @@ static Task<int> RunAsync(string[] arguments)
     }
 }
 
+static async Task<int> RunTemplateAsync(string[] arguments)
+{
+    if (arguments.Length == 1
+        || IsHelp(arguments[1])
+        || arguments.Skip(2).Any(IsHelpOption))
+        return ShowTemplateHelp(arguments.Length == 1 ? 1 : 0);
+
+    if (!string.Equals(arguments[1], "install", StringComparison.Ordinal))
+        return ShowTemplateHelp(1);
+
+    string version = TemplatePackageInstaller.CurrentVersion;
+    bool force = false;
+    for (int index = 2; index < arguments.Length; index++)
+    {
+        if (string.Equals(arguments[index], "--version", StringComparison.Ordinal))
+        {
+            if (++index >= arguments.Length)
+                return Fail("--version requires a semantic version.");
+            version = arguments[index];
+        }
+        else if (string.Equals(arguments[index], "--force", StringComparison.Ordinal))
+        {
+            force = true;
+        }
+        else
+        {
+            return Fail($"Unknown template option '{arguments[index]}'. Run 'trykatch template help'.");
+        }
+    }
+
+    try
+    {
+        TemplatePackageInstaller installer = new(
+            new DotnetTemplateEngine(),
+            Console.Out,
+            Console.Error,
+            !Console.IsOutputRedirected && !Console.IsErrorRedirected);
+        return await installer.InstallAsync(version, force, CancellationToken.None);
+    }
+    catch (Exception exception) when (exception is IOException
+        or UnauthorizedAccessException
+        or InvalidOperationException
+        or System.ComponentModel.Win32Exception)
+    {
+        return Fail(exception.Message);
+    }
+}
+
 static void PrintModules(IEnumerable<ModuleStatus> modules)
 {
     foreach (ModuleStatus module in modules.OrderBy(module => module.Id, StringComparer.Ordinal))
@@ -127,7 +183,7 @@ static int ShowHelp()
     Console.WriteLine("Trykatch application and module toolkit");
     Console.WriteLine();
     Console.WriteLine("Create an application:");
-    Console.WriteLine("  dotnet new install Trykatch.Templates");
+    Console.WriteLine("  trykatch template install");
     Console.WriteLine("  dotnet new trykatch -n <name> [options]");
     Console.WriteLine();
     Console.WriteLine("Application options:");
@@ -144,6 +200,21 @@ static int ShowHelp()
     Console.WriteLine();
     Console.WriteLine("Run 'dotnet new trykatch --help' for template-engine options.");
     return 0;
+}
+
+static int ShowTemplateHelp(int exitCode = 0)
+{
+    Console.WriteLine("Trykatch template installation");
+    Console.WriteLine();
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  trykatch template install [--version <version>] [--force]");
+    Console.WriteLine();
+    Console.WriteLine("Options:");
+    Console.WriteLine("  --version <version>  Install a specific Trykatch.Templates version.");
+    Console.WriteLine("  --force              Reinstall when the selected version is already present.");
+    Console.WriteLine();
+    Console.WriteLine("The command uses the official .NET template engine and shows installation progress.");
+    return exitCode;
 }
 
 static int ShowModuleHelp(int exitCode = 0)

@@ -5,6 +5,15 @@ description: Installez le modèle Trykatch et générez une solution .NET et Rea
 
 ## Installer le modèle
 
+Installez une seule fois la CLI Trykatch, puis laissez-la installer le modèle de projet .NET et React correspondant avec une progression visible :
+
+```bash
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
+trykatch template install
+```
+
+L’installateur utilise le moteur de modèles officiel de Microsoft. Dans un terminal interactif, il affiche une progression animée ; dans la CI, il produit des lignes de journal stables. La commande directe reste disponible pour l’automatisation :
+
 ```bash
 dotnet new install Trykatch.Templates@0.1.0-preview.5
 ```
@@ -38,15 +47,15 @@ dotnet new trykatch -n Horizon \
 
 ## Découvrir les commandes disponibles
 
-Installez la CLI optionnelle de gestion du cycle de vie, puis utilisez ses commandes d’aide ciblées :
+Utilisez les commandes d’aide ciblées de la CLI :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
 trykatch help
+trykatch template help
 trykatch module help
 ```
 
-`trykatch help` présente les choix de génération d’application. `trykatch module help` répertorie toutes les commandes prises en charge pour le cycle de vie des modules.
+`trykatch help` présente les choix de génération d’application. `trykatch template help` documente l’installation et la mise à jour du modèle. `trykatch module help` répertorie toutes les commandes prises en charge pour le cycle de vie des modules.
 
 ## Installation dans l’IDE
 

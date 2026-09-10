@@ -6,12 +6,19 @@ Trykatch is an Apache-2.0 enterprise application template for .NET 10, PostgreSQ
 
 ## Install and create
 
-`Trykatch.Templates` is the full-stack project generator. Install it once through the standard .NET template engine, then generate as many independent applications as needed. Every default generation includes the .NET solution and the complete React/TanStack frontend workspace:
+`Trykatch.Templates` is the full-stack project generator. The recommended installer uses the official .NET template engine underneath while adding clear progress and completion states. Every default generation includes the .NET solution and the complete React/TanStack frontend workspace:
+
+```bash
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
+trykatch template install
+dotnet new trykatch -n Horizon
+dotnet new trykatch -n Acme.Operations
+```
+
+For automation or IDE-managed environments, the direct Microsoft CLI command remains supported:
 
 ```bash
 dotnet new install Trykatch.Templates@0.1.0-preview.5
-dotnet new trykatch -n Horizon
-dotnet new trykatch -n Acme.Operations
 ```
 
 The default output includes `web/apps/web`, the reusable `web/packages/ui` component system, the generated TanStack Query API client, frontend tests, and the production web container. Create a backend-only solution only when it is explicitly requested with:
@@ -22,11 +29,12 @@ dotnet new trykatch -n Horizon --ui none
 
 Optional modules are enabled with `--email`, `--storage`, `--documents`, and `--images`.
 
-`Trykatch.Cli` is the optional module lifecycle tool. Every generated application also contains its source under `tools/<ApplicationName>.ModuleTool`, so developers can run it without a global installation. Installing the packaged command provides the shorter `trykatch` command:
+`Trykatch.Cli` installs or updates the project template and manages the module lifecycle. Every generated application also contains its source under `tools/<ApplicationName>.ModuleTool`, so developers can run module commands without a global installation:
 
 ```bash
 dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
 trykatch help
+trykatch template help
 trykatch module help
 trykatch module doctor --root ./Horizon
 ```
@@ -34,7 +42,7 @@ trykatch module doctor --root ./Horizon
 The two packages have separate responsibilities:
 
 - `Trykatch.Templates` creates a complete renamed .NET and React solution through `dotnet new`, Rider, or Visual Studio.
-- `Trykatch.Cli` validates and composes the generated application's enabled backend and React modules.
+- `Trykatch.Cli` installs the template with progress feedback, then validates and composes the generated application's enabled backend and React modules.
 
 ### Install from a local package
 
