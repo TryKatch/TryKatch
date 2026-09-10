@@ -6,6 +6,23 @@ test_root=$(mktemp -d "${TMPDIR:-/tmp}/trykatch-template.XXXXXX")
 test_root=$(cd "$test_root" && pwd -P)
 trap 'rm -rf "$test_root"' EXIT
 template_hive="$test_root/template-hive"
+template_manifest="$repository_root/templates/trykatch/.template.config/template.json"
+
+fail() {
+  printf 'Template contract failed: %s\n' "$1" >&2
+  exit 1
+}
+
+legacy_brand_pattern='([nN][aA][nN][oO].{0,24}[bB][oO][iI][lL][eE][rR][pP][lL][aA][tT][eE])|([aA][sS][pP].{0,12}[nN][aA][nN][oO])'
+if git -C "$repository_root" grep -n -I -E "$legacy_brand_pattern" -- .; then
+  fail 'tracked source contains legacy product branding'
+fi
+grep -Fq '"identity": "Trykatch.Templates.Enterprise"' "$template_manifest" ||
+  fail 'the template identity is not owned by Trykatch'
+grep -Fq '"groupIdentity": "Trykatch.Templates"' "$template_manifest" ||
+  fail 'the template group identity is not owned by Trykatch'
+grep -Fq '"author": "Trykatch contributors"' "$template_manifest" ||
+  fail 'the template author is not Trykatch contributors'
 
 dotnet pack "$repository_root/Trykatch.Templates.csproj" -c Release -o "$test_root/package"
 package_path=$(find "$test_root/package" -name 'Trykatch.Templates.*.nupkg' -print -quit)
@@ -21,6 +38,23 @@ dotnet tool install \
   --tool-path "$test_root/tools" \
   --add-source "$test_root/package"
 "$test_root/tools/trykatch" --help >/dev/null
+help_output=$("$test_root/tools/trykatch" help)
+grep -Fq 'Create an application:' <<<"$help_output" ||
+  fail 'CLI help does not explain application creation'
+grep -Fq 'dotnet new trykatch -n <name> [options]' <<<"$help_output" ||
+  fail 'CLI help does not show the application creation command'
+grep -Fq -- '--ui <react|none>' <<<"$help_output" ||
+  fail 'CLI help does not document the frontend choice'
+grep -Fq 'Module lifecycle:' <<<"$help_output" ||
+  fail 'CLI help does not document module lifecycle commands'
+module_help_output=$("$test_root/tools/trykatch" module help)
+grep -Fq 'trykatch module doctor' <<<"$module_help_output" ||
+  fail 'module help does not document workspace validation'
+grep -Fq 'trykatch module remove <id>' <<<"$module_help_output" ||
+  fail 'module help does not document the remove alias'
+nested_help_output=$("$test_root/tools/trykatch" module list --help)
+grep -Fq 'Trykatch module lifecycle' <<<"$nested_help_output" ||
+  fail 'nested module commands do not support --help'
 
 generate_and_build() {
   local name=$1

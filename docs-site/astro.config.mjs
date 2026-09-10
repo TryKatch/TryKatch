@@ -7,6 +7,7 @@ export default defineConfig({
     starlight({
       title: 'Trykatch',
       description: 'Build secure, modular .NET products on an enterprise application foundation.',
+      disable404Route: true,
       favicon: '/favicon.svg',
       logo: {
         dark: './src/assets/logo-on-dark.svg',
