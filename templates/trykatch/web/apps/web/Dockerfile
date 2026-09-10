@@ -2,7 +2,7 @@ FROM node:24.7.0-alpine3.22@sha256:be4d5e92ac68483ec71440bf5934865b4b7fcb93588f1
 RUN corepack enable
 WORKDIR /workspace/web
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
-COPY modules /workspace/modules
+COPY src/Modules /workspace/src/Modules
 RUN pnpm fetch --frozen-lockfile
 COPY web .
 RUN pnpm install --offline --frozen-lockfile
