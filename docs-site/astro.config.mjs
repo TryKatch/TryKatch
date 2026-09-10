@@ -38,7 +38,11 @@ export default defineConfig({
         {
           label: 'Architecture',
           translations: { fr: 'Architecture' },
-          items: ['architecture/overview', 'architecture/security-and-tenancy'],
+          items: [
+            'architecture/overview',
+            'architecture/security-and-tenancy',
+            'architecture/module-data-isolation',
+          ],
         },
         { label: 'Modules', translations: { fr: 'Modules' }, items: ['modules/authoring'] },
         {
