@@ -27,10 +27,10 @@ if ! jq -e '
     and (.environmentVariables | type == "object")
     and .environmentVariables.ASPNETCORE_ENVIRONMENT == "Development"
     and .environmentVariables.DOTNET_ENVIRONMENT == "Development"
-    and (.applicationUrl | startswith("https://localhost:"))
-    and (.environmentVariables.ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL | startswith("https://localhost:"))
-    and (.environmentVariables.ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL | startswith("https://localhost:"))
-    and (.environmentVariables.ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL | startswith("https://localhost:"))
+    and .applicationUrl == "https://localhost:17129"
+    and .environmentVariables.ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL == "https://localhost:21129"
+    and .environmentVariables.ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL == "https://localhost:22129"
+    and .environmentVariables.ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL == "https://localhost:23129"
 ' "$launch_settings" >/dev/null; then
   printf 'AppHost launch-profile contract failed: profiles.https must use secure localhost endpoints and both development environment variables\n' >&2
   exit 1
