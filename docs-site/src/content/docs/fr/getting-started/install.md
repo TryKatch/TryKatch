@@ -5,25 +5,44 @@ description: Installez le modèle Trykatch et générez une solution .NET et Rea
 
 ## Installer le modèle
 
-Installez une seule fois la CLI Trykatch, puis laissez-la installer le modèle de projet .NET et React correspondant avec une progression visible :
+Suivez ces étapes dans l’ordre.
+
+### 1. Installer la CLI Trykatch
+
+Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
 dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.5
+```
+
+Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
+
+### 2. Installer le modèle de projet
+
+Lorsque l’étape 1 a réussi, exécutez :
+
+```bash
 trykatch template install
 ```
 
-L’installateur utilise le moteur de modèles officiel de Microsoft. Dans un terminal interactif, il affiche une progression animée ; dans la CI, il produit des lignes de journal stables. La commande directe reste disponible pour l’automatisation :
+Cette commande installe le modèle .NET et React correspondant. Elle utilise le moteur de modèles officiel de Microsoft, affiche une progression animée dans un terminal interactif et produit des lignes de journal stables dans la CI.
 
-```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.5
-```
+### 3. Créer votre application
 
-Générez un backend .NET 10 et un espace de travail React complets avec le nom de votre produit :
+Remplacez `Horizon` par le nom de votre produit :
 
 ```bash
 dotnet new trykatch -n Horizon
 cd Horizon
 ```
+
+:::note[Alternative : installer sans la CLI Trykatch]
+Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
+
+```bash
+dotnet new install Trykatch.Templates@0.1.0-preview.5
+```
+:::
 
 Les noms contenant des points ou des tirets sont normalisés pour produire des espaces de noms C#, des répertoires, des noms de conteneurs et des packages npm valides.
 
