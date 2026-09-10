@@ -15,6 +15,7 @@ public sealed class PostgresRlsTests
     {
         await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
         await postgres.StartAsync();
+        await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(postgres.GetConnectionString());
         await using (PlatformDbContext platform = new(
             new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(postgres.GetConnectionString()).Options))
         {
@@ -48,8 +49,6 @@ public sealed class PostgresRlsTests
                   (@membership_a, @role_a), (@membership_b, @role_b);
                 INSERT INTO platform.role_permissions ("RoleId", "Permission") VALUES
                   (@role_a, 'projects.read'), (@role_b, 'projects.read');
-                CREATE ROLE trykatch_org_runtime LOGIN PASSWORD 'runtime-access-test' NOBYPASSRLS;
-                CREATE ROLE trykatch_platform_runtime LOGIN PASSWORD 'platform-access-test' NOBYPASSRLS;
                 GRANT USAGE ON SCHEMA platform TO trykatch_org_runtime, trykatch_platform_runtime;
                 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA platform TO trykatch_org_runtime, trykatch_platform_runtime;
                 """;
@@ -66,8 +65,8 @@ public sealed class PostgresRlsTests
 
         NpgsqlConnectionStringBuilder connectionBuilder = new(postgres.GetConnectionString())
         {
-            Username = "trykatch_org_runtime",
-            Password = "runtime-access-test"
+            Username = PostgresRuntimeRoleFixture.OrganizationRole,
+            Password = PostgresRuntimeRoleFixture.OrganizationPassword
         };
         await using NpgsqlConnection runtime = new(connectionBuilder.ConnectionString);
         await runtime.OpenAsync();
@@ -95,8 +94,8 @@ public sealed class PostgresRlsTests
 
         NpgsqlConnectionStringBuilder platformBuilder = new(postgres.GetConnectionString())
         {
-            Username = "trykatch_platform_runtime",
-            Password = "platform-access-test"
+            Username = PostgresRuntimeRoleFixture.PlatformRole,
+            Password = PostgresRuntimeRoleFixture.PlatformPassword
         };
         await using NpgsqlConnection platformRuntime = new(platformBuilder.ConnectionString);
         await platformRuntime.OpenAsync();

@@ -121,6 +121,7 @@ public sealed class OrganizationCreationIntentTests
             }
             CreationDatabase result = new(container, administrator);
             await result.ExecuteAsync($"CREATE DATABASE {result.databaseName}", administrator);
+            await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(result.connectionString);
             await using PlatformDbContext migration = result.CreateContext();
             await migration.Database.MigrateAsync();
             return result;

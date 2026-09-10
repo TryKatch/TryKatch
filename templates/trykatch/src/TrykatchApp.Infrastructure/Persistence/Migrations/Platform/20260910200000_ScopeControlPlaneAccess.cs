@@ -62,10 +62,10 @@ public sealed class ScopeControlPlaneAccess : Migration
 
             ALTER TABLE platform.organizations ENABLE ROW LEVEL SECURITY;
             ALTER TABLE platform.organizations FORCE ROW LEVEL SECURITY;
-            CREATE POLICY organizations_platform ON platform.organizations FOR ALL
+            CREATE POLICY organizations_platform ON platform.organizations FOR ALL TO trykatch_platform_runtime
               USING (CURRENT_USER = 'trykatch_platform_runtime')
               WITH CHECK (CURRENT_USER = 'trykatch_platform_runtime');
-            CREATE POLICY organizations_actor_read ON platform.organizations FOR SELECT
+            CREATE POLICY organizations_actor_read ON platform.organizations FOR SELECT TO trykatch_org_runtime
               USING ("Id" = NULLIF(current_setting('app.organization_id', true), '')::uuid
                 OR EXISTS (SELECT 1 FROM platform.memberships m WHERE m."OrganizationId" = organizations."Id"
                   AND m."UserId" = NULLIF(current_setting('app.actor_id', true), '')::uuid));

@@ -87,7 +87,8 @@ public static class PostgresIsolationInspector
             foreach (HostPostgresPolicyContracts.Policy contract in expected)
             {
                 Policy? actual = relation.Policies.SingleOrDefault(policy => policy.Name == contract.Name);
-                if (actual is null || actual.Command != contract.Command || !actual.Permissive || !actual.AppliesToPublic
+                if (actual is null || actual.Command != contract.Command || !actual.Permissive
+                    || !actual.Roles.SequenceEqual(contract.ExpectedRoles, StringComparer.Ordinal)
                     || NormalizePolicy(actual.Using, preserveParentheses: true) != NormalizePolicy(contract.Using, preserveParentheses: true)
                     || NormalizePolicy(actual.WithCheck, preserveParentheses: true) != NormalizePolicy(contract.WithCheck, preserveParentheses: true))
                     errors.Add($"Host policy '{relationName}/{contract.Name}' differs from the approved command, role or expression contract.");
@@ -116,7 +117,8 @@ public static class PostgresIsolationInspector
             }
             Policy policy = relation.Policies[0];
             if (!string.Equals(policy.Name, resource.IsolationPolicy, StringComparison.Ordinal)
-                || policy.Command != "*" || !policy.Permissive || !policy.AppliesToPublic)
+                || policy.Command != "*" || !policy.Permissive
+                || policy.Roles.Length != 1 || policy.Roles[0] != "PUBLIC")
                 errors.Add($"Organization relation '{key}' requires policy '{resource.IsolationPolicy}' FOR ALL TO PUBLIC.");
             if (!EnforcesOrganization(policy.Using) || !EnforcesOrganization(policy.WithCheck))
                 errors.Add($"Policy '{resource.IsolationPolicy}' on '{key}' must enforce app.organization_id in both USING and WITH CHECK.");
@@ -283,7 +285,9 @@ public static class PostgresIsolationInspector
         command.CommandText = $"""
             SELECT n.nspname, c.relname, c.relrowsecurity, c.relforcerowsecurity,
                    p.polname, pg_get_expr(p.polqual, p.polrelid), pg_get_expr(p.polwithcheck, p.polrelid),
-                   p.polcmd::text, p.polpermissive, p.polroles = ARRAY[0::oid]
+                   p.polcmd::text, p.polpermissive,
+                   ARRAY(SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC' ELSE role_oid::regrole::text END
+                     FROM unnest(p.polroles) role_oid ORDER BY 1)
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             LEFT JOIN pg_policy p ON p.polrelid = c.oid
@@ -306,7 +310,7 @@ public static class PostgresIsolationInspector
                     reader.GetString(4),
                     reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
                     reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
-                    reader.GetString(7), reader.GetBoolean(8), reader.GetBoolean(9)));
+                    reader.GetString(7), reader.GetBoolean(8), reader.GetFieldValue<string[]>(9)));
         }
         return relations;
     }
@@ -395,5 +399,5 @@ public static class PostgresIsolationInspector
 
     private sealed record RelationPolicy(bool RowSecurity, bool ForceRowSecurity, List<Policy> Policies);
     private sealed record SequenceInfo(string Relation, string? OwnedByRelation);
-    private sealed record Policy(string Name, string Using, string WithCheck, string Command, bool Permissive, bool AppliesToPublic);
+    private sealed record Policy(string Name, string Using, string WithCheck, string Command, bool Permissive, string[] Roles);
 }

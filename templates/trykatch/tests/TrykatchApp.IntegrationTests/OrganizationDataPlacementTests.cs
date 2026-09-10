@@ -19,6 +19,7 @@ public sealed class OrganizationDataPlacementTests
             "postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
         await postgres.StartAsync();
         string connectionString = postgres.GetConnectionString();
+        await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(connectionString);
         await using (PlatformDbContext migration = CreateContext(connectionString))
             await migration.Database.MigrateAsync();
 

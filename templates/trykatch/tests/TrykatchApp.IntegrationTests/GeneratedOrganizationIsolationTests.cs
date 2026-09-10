@@ -53,21 +53,11 @@ public sealed class GeneratedOrganizationIsolationTests
         Guid actorA = Guid.CreateVersion7();
         List<IsolationFixture> fixtures = [];
         Dictionary<(string Relation, Guid OrganizationId), FixtureRow> fixtureRows = [];
-        await using (NpgsqlConnection owner = new(ownerConnection))
-        {
-            await owner.OpenAsync();
-            await ExecuteAsync(owner, null, """
-                CREATE ROLE trykatch_org_runtime LOGIN PASSWORD 'organization-runtime-test' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-                CREATE ROLE trykatch_platform_runtime LOGIN PASSWORD 'platform-runtime-test' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-                CREATE ROLE trykatch_identity_runtime LOGIN PASSWORD 'identity-runtime-test' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-                CREATE ROLE trykatch_outbox_worker LOGIN PASSWORD 'outbox-runtime-test' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-                """);
-        }
         RuntimeDatabaseRoles runtimeRoles = new(
-            "trykatch_org_runtime",
-            "trykatch_platform_runtime",
-            "trykatch_identity_runtime",
-            "trykatch_outbox_worker");
+            PostgresRuntimeRoleFixture.OrganizationRole,
+            PostgresRuntimeRoleFixture.PlatformRole,
+            PostgresRuntimeRoleFixture.IdentityRole,
+            PostgresRuntimeRoleFixture.OutboxRole);
         await RuntimeRoleProvisioner.ProvisionAsync(ownerConnection, runtimeRoles);
         (await PostgresIsolationInspector.InspectAsync(ownerConnection, runtimeRoles, catalog.Descriptors))
             .ThrowIfInvalid();
@@ -90,8 +80,8 @@ public sealed class GeneratedOrganizationIsolationTests
 
         NpgsqlConnectionStringBuilder runtimeBuilder = new(ownerConnection)
         {
-            Username = "trykatch_org_runtime",
-            Password = "organization-runtime-test"
+            Username = PostgresRuntimeRoleFixture.OrganizationRole,
+            Password = PostgresRuntimeRoleFixture.OrganizationPassword
         };
         string runtimeConnection = runtimeBuilder.ConnectionString;
         await using NpgsqlConnection runtime = new(runtimeConnection);
@@ -250,6 +240,7 @@ public sealed class GeneratedOrganizationIsolationTests
         TrykatchModuleCatalog catalog,
         IReadOnlyList<IApplicationModelContributor> contributors)
     {
+        await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(connectionString);
         await using IdentityDbContext identity = new(
             new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(connectionString).Options);
         await identity.Database.MigrateAsync();

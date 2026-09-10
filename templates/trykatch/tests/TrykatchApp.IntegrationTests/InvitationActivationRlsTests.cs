@@ -30,12 +30,16 @@ public sealed class InvitationActivationRlsTests
     [TestMethod]
     public async Task FreshOwnerInvitationCanBeAcceptedThroughTheRuntimeRlsRole()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
-        await postgres.StartAsync();
-        string ownerConnection = postgres.GetConnectionString();
-        await ApplyMigrationsAsync(ownerConnection);
+        string? configuredPostgres = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
+        await using PostgreSqlContainer? postgres = string.IsNullOrWhiteSpace(configuredPostgres)
+            ? new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build()
+            : null;
+        if (postgres is not null) await postgres.StartAsync();
+        string ownerConnection = postgres?.GetConnectionString() ?? configuredPostgres!;
         (string organizationConnection, string platformConnection, string identityConnection, string outboxConnection) =
-            await CreateRuntimeRolesAsync(ownerConnection);
+            await EnsureRuntimeRolesAsync(ownerConnection);
+        await ApplyMigrationsAsync(ownerConnection);
+        await GrantRuntimeRolePrivilegesAsync(ownerConnection);
 
         await using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(webHost =>
@@ -161,72 +165,66 @@ public sealed class InvitationActivationRlsTests
         await InstalledSchemaCatalog.SynchronizeAsync(connectionString, installed);
     }
 
-    private static async Task<(string Organization, string Platform, string Identity, string Outbox)> CreateRuntimeRolesAsync(string ownerConnection)
+    private static async Task<(string Organization, string Platform, string Identity, string Outbox)> EnsureRuntimeRolesAsync(string ownerConnection)
     {
-        const string organizationRole = "trykatch_org_runtime";
-        const string organizationPassword = "organization-runtime-test-password";
-        const string platformRole = "trykatch_platform_runtime";
-        const string platformPassword = "platform-runtime-test-password";
-        const string identityRole = "trykatch_identity_runtime";
-        const string identityPassword = "identity-runtime-test-password";
-        const string outboxRole = "trykatch_outbox_worker";
-        const string outboxPassword = "outbox-runtime-test-password";
+        await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(ownerConnection);
+
+        string organizationConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
+        {
+            Username = PostgresRuntimeRoleFixture.OrganizationRole,
+            Password = PostgresRuntimeRoleFixture.OrganizationPassword
+        }.ConnectionString;
+        string platformConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
+        {
+            Username = PostgresRuntimeRoleFixture.PlatformRole,
+            Password = PostgresRuntimeRoleFixture.PlatformPassword
+        }.ConnectionString;
+        string identityConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
+        {
+            Username = PostgresRuntimeRoleFixture.IdentityRole,
+            Password = PostgresRuntimeRoleFixture.IdentityPassword
+        }.ConnectionString;
+        string outboxConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
+        {
+            Username = PostgresRuntimeRoleFixture.OutboxRole,
+            Password = PostgresRuntimeRoleFixture.OutboxPassword
+        }.ConnectionString;
+        return (organizationConnection, platformConnection, identityConnection, outboxConnection);
+    }
+
+    private static async Task GrantRuntimeRolePrivilegesAsync(string ownerConnection)
+    {
         await using NpgsqlConnection connection = new(ownerConnection);
         await connection.OpenAsync();
         await using NpgsqlCommand command = connection.CreateCommand();
         command.CommandText = $"""
-            CREATE ROLE {organizationRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{organizationPassword}';
-            CREATE ROLE {platformRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{platformPassword}';
-            CREATE ROLE {identityRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{identityPassword}';
-            CREATE ROLE {outboxRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{outboxPassword}';
             REVOKE ALL ON SCHEMA public FROM PUBLIC;
             REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
             REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
             REVOKE TEMPORARY ON DATABASE {QuoteIdentifier(connection.Database)} FROM PUBLIC;
-            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {organizationRole}, {platformRole}, {identityRole}, {outboxRole};
+            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {PostgresRuntimeRoleFixture.OrganizationRole}, {PostgresRuntimeRoleFixture.PlatformRole}, {PostgresRuntimeRoleFixture.IdentityRole}, {PostgresRuntimeRoleFixture.OutboxRole};
 
-            GRANT USAGE ON SCHEMA app, platform TO {organizationRole};
-            GRANT SELECT ON platform.organizations, platform.module_data_resources TO {organizationRole};
+            GRANT USAGE ON SCHEMA app, platform TO {PostgresRuntimeRoleFixture.OrganizationRole};
+            GRANT SELECT ON platform.organizations, platform.module_data_resources TO {PostgresRuntimeRoleFixture.OrganizationRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON platform.memberships, platform.roles,
-                platform.membership_roles, platform.role_permissions, platform.invitations TO {organizationRole};
-            GRANT SELECT, INSERT ON platform.audit_entries TO {organizationRole};
-            GRANT INSERT ON platform.outbox_messages TO {organizationRole};
-            GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects, app.documents TO {organizationRole};
+                platform.membership_roles, platform.role_permissions, platform.invitations TO {PostgresRuntimeRoleFixture.OrganizationRole};
+            GRANT SELECT, INSERT ON platform.audit_entries TO {PostgresRuntimeRoleFixture.OrganizationRole};
+            GRANT INSERT ON platform.outbox_messages TO {PostgresRuntimeRoleFixture.OrganizationRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects, app.documents TO {PostgresRuntimeRoleFixture.OrganizationRole};
 
-            GRANT USAGE ON SCHEMA platform TO {platformRole};
-            GRANT SELECT, INSERT, UPDATE, DELETE ON platform.organizations, platform.organization_data_placements TO {platformRole};
-            GRANT SELECT, INSERT ON platform.roles, platform.role_permissions, platform.invitations TO {platformRole};
+            GRANT USAGE ON SCHEMA platform TO {PostgresRuntimeRoleFixture.PlatformRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON platform.organizations,
+                platform.organization_data_placements, platform.organization_creation_intents TO {PostgresRuntimeRoleFixture.PlatformRole};
+            GRANT SELECT, INSERT ON platform.roles, platform.role_permissions, platform.invitations TO {PostgresRuntimeRoleFixture.PlatformRole};
 
-            GRANT USAGE ON SCHEMA identity TO {identityRole};
-            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity TO {identityRole};
-            GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity TO {identityRole};
+            GRANT USAGE ON SCHEMA identity TO {PostgresRuntimeRoleFixture.IdentityRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity TO {PostgresRuntimeRoleFixture.IdentityRole};
+            GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity TO {PostgresRuntimeRoleFixture.IdentityRole};
 
-            GRANT USAGE ON SCHEMA platform TO {outboxRole};
-            GRANT SELECT, UPDATE ON platform.outbox_messages TO {outboxRole};
+            GRANT USAGE ON SCHEMA platform TO {PostgresRuntimeRoleFixture.OutboxRole};
+            GRANT SELECT, UPDATE ON platform.outbox_messages TO {PostgresRuntimeRoleFixture.OutboxRole};
             """;
         await command.ExecuteNonQueryAsync();
-
-        string organizationConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
-        {
-            Username = organizationRole,
-            Password = organizationPassword
-        }.ConnectionString;
-        string platformConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
-        {
-            Username = platformRole,
-            Password = platformPassword
-        }.ConnectionString;
-        string identityConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
-        {
-            Username = identityRole,
-            Password = identityPassword
-        }.ConnectionString;
-        string outboxConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
-        {
-            Username = outboxRole,
-            Password = outboxPassword
-        }.ConnectionString;
-        return (organizationConnection, platformConnection, identityConnection, outboxConnection);
     }
 
     private static string QuoteIdentifier(string identifier) => $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";

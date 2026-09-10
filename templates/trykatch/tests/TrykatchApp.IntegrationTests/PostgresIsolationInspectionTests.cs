@@ -154,7 +154,12 @@ public sealed class PostgresIsolationInspectionTests
         await using PlatformDbContext owner = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(database.ConnectionString).Options);
         await database.ExecuteAsync(owner.Database.GenerateCreateScript());
         foreach (SqlOperation operation in new ScopeControlPlaneAccess().UpOperations.OfType<SqlOperation>())
-            await database.ExecuteAsync(operation.Sql);
+        {
+            string testRoles = operation.Sql
+                .Replace("trykatch_org_runtime", database.RuntimeRole, StringComparison.Ordinal)
+                .Replace("trykatch_platform_runtime", database.OwnerRole, StringComparison.Ordinal);
+            await database.ExecuteAsync(testRoles);
+        }
         await database.ExecuteAsync($"""
             GRANT SELECT ON platform.organizations TO {database.RuntimeRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON platform.roles, platform.memberships,
@@ -339,9 +344,14 @@ public sealed class PostgresIsolationInspectionTests
         private readonly string databaseName;
         private readonly string connectionString;
         public string ConnectionString => connectionString;
-        public string RuntimeConnection => new NpgsqlConnectionStringBuilder(connectionString) { Username = RuntimeRole }.ConnectionString;
+        public string RuntimeConnection => new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Username = RuntimeRole,
+            Password = runtimePassword
+        }.ConnectionString;
         public string RuntimeRole { get; }
         public string OwnerRole { get; }
+        private readonly string runtimePassword;
 
         private InspectionDatabase(PostgreSqlContainer? container, string administratorConnection)
         {
@@ -351,6 +361,7 @@ public sealed class PostgresIsolationInspectionTests
             databaseName = $"isolation_{suffix}";
             RuntimeRole = $"runtime_{suffix}";
             OwnerRole = $"owner_{suffix}";
+            runtimePassword = $"runtime-password-{suffix}";
             connectionString = new NpgsqlConnectionStringBuilder(administratorConnection) { Database = databaseName, Pooling = false }.ConnectionString;
         }
 
@@ -367,7 +378,8 @@ public sealed class PostgresIsolationInspectionTests
             InspectionDatabase result = new(container, administrator);
             await result.ExecuteAsync($"CREATE DATABASE {result.databaseName}", administrator);
             await result.ExecuteAsync($"""
-                CREATE ROLE {result.RuntimeRole} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+                CREATE ROLE {result.RuntimeRole} LOGIN PASSWORD '{result.runtimePassword}'
+                  NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
                 CREATE ROLE {result.OwnerRole} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
                 REVOKE TEMPORARY ON DATABASE {result.databaseName} FROM PUBLIC;
                 CREATE SCHEMA app;

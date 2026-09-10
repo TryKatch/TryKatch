@@ -419,6 +419,7 @@ public sealed class AuthenticationSecurityTests
 
     private static async Task ApplyMigrationsAsync(string connectionString)
     {
+        await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(connectionString);
         await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(connectionString).Options);
         await identity.Database.MigrateAsync();
         await using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(connectionString).Options);

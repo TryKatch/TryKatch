@@ -7,7 +7,15 @@ namespace TrykatchApp.Infrastructure.Organizations;
 /// </summary>
 internal static class HostPostgresPolicyContracts
 {
-    internal sealed record Policy(string Name, string Command, string Using, string WithCheck = "");
+    internal sealed record Policy(
+        string Name,
+        string Command,
+        string Using,
+        string WithCheck = "",
+        string[]? Roles = null)
+    {
+        public IReadOnlyList<string> ExpectedRoles => Roles ?? ["PUBLIC"];
+    }
 
     private const string Organization = "(\"OrganizationId\" = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)";
     private const string MembershipRole = """
@@ -44,13 +52,14 @@ internal static class HostPostgresPolicyContracts
         ],
         ["platform.organizations"] =
         [
-            new("organizations_platform", "*", "(CURRENT_USER = 'trykatch_platform_runtime'::name)", "(CURRENT_USER = 'trykatch_platform_runtime'::name)"),
+            new("organizations_platform", "*", "(CURRENT_USER = 'trykatch_platform_runtime'::name)",
+                "(CURRENT_USER = 'trykatch_platform_runtime'::name)", ["trykatch_platform_runtime"]),
             new("organizations_actor_read", "r", """
                 (("Id" = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)
                 OR (EXISTS ( SELECT 1 FROM platform.memberships m
                 WHERE ((m."OrganizationId" = organizations."Id")
                 AND (m."UserId" = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))))
-                """)
+                """, Roles: ["trykatch_org_runtime"])
         ]
     };
 }
