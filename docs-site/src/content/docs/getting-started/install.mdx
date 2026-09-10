@@ -5,6 +5,16 @@ description: Install the Trykatch template package and generate a complete .NET 
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
+## Prerequisites
+
+Install the .NET 10 SDK and a Docker-compatible container runtime before starting a generated application. Use Docker Desktop on macOS or Windows, or Docker Engine on Linux, and confirm that the daemon is available:
+
+```bash
+docker info
+```
+
+Docker is required for PostgreSQL and the complete local observability pipeline: the OpenTelemetry Collector, Prometheus, Loki, Tempo, and Grafana. The AppHost creates and coordinates these containers; installing only the Docker client is not sufficient—the Docker daemon must be running.
+
 ## Install the template
 
 Follow these steps in order.
@@ -128,7 +138,7 @@ trykatch module help
 
 ## Start the application
 
-Keep Docker running. Always start the AppHost—not the API project by itself—so PostgreSQL, migrations, runtime credentials, the API, and React start together.
+Keep Docker running. Always start the AppHost—not the API project by itself—so PostgreSQL, migrations, runtime credentials, the API, React, OpenTelemetry, and the observability services start together.
 
 <Tabs syncKey="start-method">
   <TabItem label="CLI" icon="terminal">
@@ -160,7 +170,7 @@ Confirm that the Docker daemon—not only the Docker application—is ready:
 docker info
 ```
 
-If that command fails, restart Docker Desktop and wait until its engine is running. Resume the engine if Docker Resource Saver paused it. Then stop and restart the AppHost. PostgreSQL cannot start while the container runtime is unhealthy, so the migrator and API correctly remain in **Waiting**.
+If that command fails, restart Docker Desktop and wait until its engine is running. Resume the engine if Docker Resource Saver paused it. Then stop and restart the AppHost. PostgreSQL and the local observability containers cannot start while the container runtime is unhealthy, so the migrator and API correctly remain in **Waiting** and Grafana, Loki, Tempo, Prometheus, and the OpenTelemetry Collector report **Runtime unhealthy**.
 
 ## IDE template installation
 
