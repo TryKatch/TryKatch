@@ -131,6 +131,10 @@ test ! -e "$test_root/Horizon/README.backend.md"
 bash "$repository_root/scripts/test-apphost-launch-profile.sh" "$test_root/Horizon"
 grep -Fq 'AddViteApp("web", "../../../web/apps/web")' "$test_root/Horizon/src/API/Horizon.AppHost/Program.cs" ||
   fail 'React template output does not register the Vite application with AppHost'
+grep -Fq 'WithDataVolume("horizon-postgres-data")' "$test_root/Horizon/src/API/Horizon.AppHost/Program.cs" ||
+  fail 'generated PostgreSQL volume is not scoped to the application name'
+grep -Fq 'WithVolume("horizon-otel-queue", "/var/lib/otelcol")' "$test_root/Horizon/src/API/Horizon.AppHost/Program.cs" ||
+  fail 'generated OpenTelemetry queue volume is not scoped to the application name'
 "$test_root/tools/trykatch" module doctor --root "$test_root/Horizon"
 generate_and_build Acme.Tools-Portal --ui none
 generate_and_build Trykatch --ui none

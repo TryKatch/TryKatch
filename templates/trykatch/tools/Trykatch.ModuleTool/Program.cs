@@ -252,7 +252,10 @@ static async Task<int> RunStartAsync(string[] arguments)
 
     try
     {
-        ApplicationStarter starter = new(new DotnetApplicationProcess(), Console.Out);
+        ApplicationStarter starter = new(
+            new DotnetApplicationProcess(),
+            new DockerContainerRuntimeProbe(),
+            Console.Out);
         return await starter.StartAsync(root, CancellationToken.None);
     }
     catch (Exception exception) when (exception is IOException
@@ -354,8 +357,8 @@ static int ShowStartHelp(int exitCode = 0)
     Console.WriteLine("Options:");
     Console.WriteLine("  --root <path>  Application directory or AppHost project. Defaults to the current directory.");
     Console.WriteLine();
-    Console.WriteLine("The command discovers the Aspire AppHost and runs its HTTPS launch profile.");
-    Console.WriteLine("Docker must be running. Press Ctrl+C to stop the application.");
+    Console.WriteLine("The command verifies Docker, discovers the Aspire AppHost, and runs its HTTPS launch profile.");
+    Console.WriteLine("Docker CLI 25.0 or newer and a running daemon are required. Press Ctrl+C to stop the application.");
     return exitCode;
 }
 

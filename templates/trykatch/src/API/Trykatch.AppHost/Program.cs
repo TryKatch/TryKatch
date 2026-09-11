@@ -17,7 +17,7 @@ IResourceBuilder<PostgresServerResource> postgres = builder
     .WithEnvironment("TRYKATCH_IDENTITY_RUNTIME_PASSWORD", identityPassword)
     .WithEnvironment("TRYKATCH_OUTBOX_WORKER_PASSWORD", outboxPassword)
     .WithBindMount("../../../deploy/postgres/init", "/docker-entrypoint-initdb.d", isReadOnly: true)
-    .WithDataVolume("app-postgres-data");
+    .WithDataVolume("trykatch-app-slug-postgres-data");
 IResourceBuilder<PostgresDatabaseResource> database = postgres
     .AddDatabase("database", "trykatch")
     // Aspire creates named databases after the container init scripts finish.
@@ -37,7 +37,7 @@ ReferenceExpression outboxConnection = ReferenceExpression.Create(
 IResourceBuilder<ContainerResource> collector = builder
     .AddDockerfile("otel-collector", "../../../deploy/observability", "otel-collector.Dockerfile")
     .WithBindMount("../../../deploy/observability/otel-collector.yml", "/etc/otelcol-contrib/config.yaml", isReadOnly: true)
-    .WithVolume("app-otel-queue", "/var/lib/otelcol")
+    .WithVolume("trykatch-app-slug-otel-queue", "/var/lib/otelcol")
     .WithHttpEndpoint(targetPort: 4318, name: "otlp-http")
     .WithHttpEndpoint(targetPort: 8888, name: "telemetry")
     .WithHttpEndpoint(targetPort: 8889, name: "prometheus");

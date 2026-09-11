@@ -69,8 +69,8 @@ export function ProjectsPage() {
     <PageHeader eyebrow={t('Application')} title={t('Projects')} description={t('Create, manage, archive, and recover organization-scoped projects.')} actions={<Button variant="primary" onClick={openCreate}><Plus size={14} /> {t('New project')}</Button>} />
     <Surface className="collection">
       {query.isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div> : query.isError ? <EmptyState title={t('Projects could not be loaded')} description={query.error.message} action={<Button onClick={() => query.refetch()}>{t('Try again')}</Button>} /> : <DataTable labels={dataTableLabels} ariaLabel={t('Projects')} data={query.data?.items ?? []} columns={columns} getRowId={(project) => project.id} searchPlaceholder={t('Search projects…')} initialSort={{ id: 'created', direction: 'desc' }} empty={<EmptyState title={t('No projects')} description={t('Create the first project to exercise organization-scoped RLS.')} action={<Button variant="primary" onClick={openCreate}>{t('Create project')}</Button>} />} />}
-      <ModuleExtensionSlot point="projects.list.after-table" context={{ resultCount: query.data?.items.length ?? 0 }} permissions={access.data?.permissions} />
     </Surface>
+    <ModuleExtensionSlot point="projects.list.after-table" context={{ resultCount: query.data?.items.length ?? 0 }} permissions={access.data?.permissions} />
     <Dialog open={editing !== undefined} onOpenChange={(open) => !open && setEditing(undefined)} title={t(editing ? 'Edit project' : 'Create project')} description={t('Changes are authorized in the application layer and isolated by PostgreSQL RLS.')}>
       <form className="dialog-form" onSubmit={submit}>
         <label>{t('Name')}<input name="name" defaultValue={editing?.name} maxLength={120} required autoFocus /></label>

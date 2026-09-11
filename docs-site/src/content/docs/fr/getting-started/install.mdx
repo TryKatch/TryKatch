@@ -13,7 +13,7 @@ Installez le SDK .NET 10 et un runtime de conteneurs compatible avec Docker avan
 docker info
 ```
 
-Docker est requis pour PostgreSQL et pour toute la chaîne d’observabilité locale : OpenTelemetry Collector, Prometheus, Loki, Tempo et Grafana. L’AppHost crée et coordonne ces conteneurs ; installer uniquement le client Docker ne suffit pas — le démon Docker doit être actif.
+Docker est requis pour PostgreSQL et pour toute la chaîne d’observabilité locale : OpenTelemetry Collector, Prometheus, Loki, Tempo et Grafana. L’AppHost crée et coordonne ces conteneurs ; installer uniquement le client Docker ne suffit pas — le démon Docker doit être actif. Aspire 13.5 nécessite Docker CLI 25.0 ou une version ultérieure ; vérifiez donc aussi la version du client avec `docker version`.
 
 ## Installer le modèle
 
@@ -156,7 +156,7 @@ Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seu
     trykatch start
     ```
 
-    La CLI détecte automatiquement l’AppHost généré. Depuis un autre répertoire, utilisez `trykatch start --root /chemin/vers/Horizon`.
+    La CLI détecte automatiquement l’AppHost généré. Elle vérifie le client et le démon Docker avant de lancer Aspire, laisse au runtime le temps de sortir du mode Resource Saver, puis s’arrête avec un message de résolution précis si Docker reste indisponible. Depuis un autre répertoire, utilisez `trykatch start --root /chemin/vers/Horizon`.
   </TabItem>
   <TabItem label="Rider">
     Ouvrez le fichier `Horizon.slnx` généré et laissez Rider restaurer la solution. Sélectionnez **`Horizon.AppHost: https`** dans les configurations d’exécution, puis choisissez **Run** ou **Debug**.
@@ -201,9 +201,12 @@ Vérifiez que le démon Docker — et pas uniquement l’application Docker — 
 
 ```bash
 docker info
+docker version
 ```
 
-Si cette commande échoue, redémarrez Docker Desktop et attendez que son moteur soit opérationnel. Réactivez le moteur si Docker Resource Saver l’a suspendu. Arrêtez ensuite l’AppHost, puis redémarrez-le. PostgreSQL et les conteneurs d’observabilité locale ne peuvent pas démarrer lorsque le runtime de conteneurs est défaillant ; le migrateur et l’API restent donc correctement dans l’état **Waiting**, tandis que Grafana, Loki, Tempo, Prometheus et OpenTelemetry Collector signalent **Runtime unhealthy**.
+Si `docker info` échoue, redémarrez Docker Desktop et attendez que son moteur soit opérationnel. Réactivez le moteur si Docker Resource Saver l’a suspendu. Si `docker version` indique un client antérieur à la version 25.0, mettez Docker Desktop à jour et vérifiez que Rider ou votre terminal utilise bien le nouvel exécutable `docker`. Arrêtez ensuite l’AppHost, puis redémarrez-le.
+
+PostgreSQL et les conteneurs d’observabilité locale ne peuvent pas démarrer lorsque le runtime de conteneurs est défaillant ; les ressources dépendantes restent donc correctement dans l’état **Waiting**. Le **migrateur** est un processus ponctuel : l’état **Finished** avec le code de sortie 0 indique un succès, pas une application arrêtée. Les ressources **api** et **web** doivent ensuite passer à l’état actif. Examinez la première ressource en échec ou défaillante au lieu de redémarrer chaque ressource séparément.
 
 ## Installation du modèle dans l’IDE
 

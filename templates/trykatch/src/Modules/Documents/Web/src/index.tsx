@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch, type DocumentDto } from '@trykatch/api-client'
-import { defineWebModule, ModuleExtensionSlot, type ArchiveLifecycle } from '@trykatch/module-sdk'
-import { Button, DataTable, EmptyState, PageHeader, Surface, type DataTableColumn } from '@trykatch/ui'
+import { defineWebModule, ModuleExtensionSlot, useModuleI18n, type ArchiveLifecycle } from '@trykatch/module-sdk'
+import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
 import { FileText, Plus } from 'lucide-react'
 import { useState } from 'react'
 
@@ -17,8 +17,18 @@ async function loadResult<T>(load: () => Promise<T>): Promise<LoadResult<T>> {
 }
 
 export function DocumentsPage() {
+  const { t, formatDate } = useModuleI18n()
+  const dataTableLabels = {
+    searchTable: t('Search table'), result: t('result'), results: t('results'), columns: t('Columns'), tableSettings: t('Table settings'),
+    closeTableSettings: t('Close table settings'), rowDensity: t('Row density'), compact: t('Compact'), comfortable: t('Comfortable'),
+    spacious: t('Spacious'), required: t('Required'), details: t('Details'), noMatchingResults: t('No matching results.'),
+    showDetails: (row: string) => t('Show details for {row}', { row }), hideDetails: (row: string) => t('Hide details for {row}', { row }),
+    showing: (start: number, end: number, total: number) => t('Showing {start}–{end} of {total}', { start, end, total }),
+    previous: t('Previous'), page: (page: number, count: number) => t('Page {page} of {count}', { page, count }), next: t('Next'),
+  }
   const client = useQueryClient()
-  const [editingId, setEditingId] = useState<string>()
+  const [editing, setEditing] = useState<DocumentDto | null | undefined>(undefined)
+  const [viewing, setViewing] = useState<DocumentDto>()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const documents = useQuery({
@@ -32,13 +42,13 @@ export function DocumentsPage() {
   const permissions = access.data?.permissions ?? []
   const canManage = permissions.includes('documents.manage')
   const save = useMutation({
-    mutationFn: () => customFetch<DocumentDto>(editingId ? `/api/v1/documents/${editingId}` : '/api/v1/documents/', {
-      method: editingId ? 'PUT' : 'POST',
+    mutationFn: () => customFetch<DocumentDto>(editing ? `/api/v1/documents/${editing.id}` : '/api/v1/documents/', {
+      method: editing ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, content }),
     }),
     onSuccess: async () => {
-      setEditingId(undefined)
+      setEditing(undefined)
       setTitle('')
       setContent('')
       await client.invalidateQueries({ queryKey: ['documents'] })
@@ -53,47 +63,75 @@ export function DocumentsPage() {
       ])
     },
   })
-  const edit = (document: DocumentDto) => {
-    setEditingId(document.id)
-    setTitle(document.title)
-    setContent(document.content)
-  }
-  const cancelEdit = () => {
-    setEditingId(undefined)
+  const openCreate = () => {
+    setEditing(null)
     setTitle('')
     setContent('')
   }
+  const openEdit = (document: DocumentDto) => {
+    setEditing(document)
+    setTitle(document.title)
+    setContent(document.content)
+  }
+  const closeEditor = () => {
+    setEditing(undefined)
+    setTitle('')
+    setContent('')
+  }
+  const actionsFor = (document: DocumentDto): RowAction[] => [
+    { label: t('View'), icon: 'view', onSelect: () => setViewing(document) },
+    ...(canManage ? [
+      { label: t('Edit'), icon: 'edit', onSelect: () => openEdit(document) },
+      { label: t('Archive'), icon: 'archive', disabled: archive.isPending, onSelect: () => archive.mutate(document.id) },
+    ] satisfies RowAction[] : []),
+  ]
   const columns: DataTableColumn<DocumentDto>[] = [
-    { id: 'title', header: 'Document', cell: (document) => <strong>{document.title}</strong>, sortValue: (document) => document.title, hideable: false },
-    { id: 'content', header: 'Content', cell: (document) => document.content || 'Empty document', searchValue: (document) => document.content },
-    { id: 'updated', header: 'Updated', cell: (document) => new Date(document.metadata.updatedAt ?? document.createdAt).toLocaleString(), sortValue: (document) => new Date(document.metadata.updatedAt ?? document.createdAt) },
-    ...(canManage ? [{ id: 'actions', header: '', cell: (document: DocumentDto) => <span><Button variant="ghost" onClick={() => edit(document)}>Edit</Button><Button variant="ghost" disabled={archive.isPending} onClick={() => archive.mutate(document.id)}>Archive</Button></span>, hideable: false, align: 'right' as const }] : []),
+    { id: 'title', header: t('Document'), cell: (document) => <div><strong>{document.title}</strong><small>{t('{count} characters', { count: document.metadata.characterCount })}</small></div>, sortValue: (document) => document.title, hideable: false },
+    { id: 'content', header: t('Content'), cell: (document) => document.content || t('Empty document'), searchValue: (document) => document.content },
+    { id: 'updated', header: t('Updated'), cell: (document) => formatDate(document.metadata.updatedAt ?? document.createdAt, { dateStyle: 'medium', timeStyle: 'short' }), sortValue: (document) => new Date(document.metadata.updatedAt ?? document.createdAt) },
+    { id: 'actions', header: '', cell: (document) => <RowActions label={t('Actions for {name}', { name: document.title })} actions={actionsFor(document)} />, hideable: false, align: 'right', width: 54 },
   ]
   const loadFailure = documents.data?.failure ?? access.error?.message ?? documents.error?.message
   const documentRecords = documents.data?.value ?? []
   return <>
-    <PageHeader eyebrow="Application" title="Documents" description="Organization-owned records from an independently installed module." />
+    <PageHeader eyebrow={t('Application')} title={t('Documents')} description={t('Create and manage organization documents.')} actions={canManage && <Button variant="primary" onClick={openCreate}><Plus size={14} /> {t('New document')}</Button>} />
     <Surface className="collection">
-      {canManage && <form onSubmit={(event) => { event.preventDefault(); save.mutate() }} className="inline-form">
-        <label>Document title<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required /></label>
-        <label>Content<textarea value={content} onChange={(event) => setContent(event.target.value)} /></label>
-        <Button type="submit" variant="primary" disabled={save.isPending}><Plus size={14} /> {editingId ? 'Save changes' : 'Create'}</Button>
-        {editingId && <Button type="button" variant="ghost" onClick={cancelEdit}>Cancel</Button>}
-      </form>}
-      {save.error && <div className="page-alert" role="alert">{save.error.message}</div>}
       {archive.error && <div className="page-alert" role="alert">{archive.error.message}</div>}
       {access.isLoading || documents.isLoading
-        ? <p role="status">Loading documents…</p>
+        ? <p role="status">{t('Loading documents…')}</p>
         : loadFailure
-          ? <EmptyState title="Documents could not be loaded" description={loadFailure} action={<Button onClick={() => { access.refetch(); documents.refetch() }}>Try again</Button>} />
-          : <DataTable ariaLabel="Documents" data={documentRecords} columns={columns} getRowId={(document) => document.id} empty={<EmptyState title="No documents" description={canManage ? 'Create the first isolated document.' : 'No documents are available in this workspace.'} />} />}
+          ? <EmptyState title={t('Documents could not be loaded')} description={loadFailure} action={<Button onClick={() => { access.refetch(); documents.refetch() }}>{t('Try again')}</Button>} />
+          : <DataTable labels={dataTableLabels} ariaLabel={t('Documents')} data={documentRecords} columns={columns} getRowId={(document) => document.id} searchPlaceholder={t('Search documents…')} initialSort={{ id: 'updated', direction: 'desc' }} empty={<EmptyState title={t('No documents')} description={t(canManage ? 'Create the first document for this workspace.' : 'No documents are available in this workspace.')} action={canManage ? <Button variant="primary" onClick={openCreate}>{t('Create document')}</Button> : undefined} />} />}
       <ModuleExtensionSlot point="documents.list.after-table" context={{ resultCount: documentRecords.length }} permissions={permissions} />
     </Surface>
+    <Dialog open={editing !== undefined} onOpenChange={(open) => !open && closeEditor()} title={t(editing ? 'Edit document' : 'Create document')} description={t('Keep the title clear and the content focused.')}>
+      <form onSubmit={(event) => { event.preventDefault(); save.mutate() }} className="dialog-form">
+        <label>{t('Document title')}<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required autoFocus /></label>
+        <label>{t('Content')}<textarea value={content} onChange={(event) => setContent(event.target.value)} rows={8} /></label>
+        {save.error && <div className="form-error" role="alert">{save.error.message}</div>}
+        <div className="dialog-actions">
+          <Button type="button" variant="ghost" onClick={closeEditor}>{t('Cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={save.isPending}>{t(save.isPending ? 'Saving…' : editing ? 'Save changes' : 'Create document')}</Button>
+        </div>
+      </form>
+    </Dialog>
+    <Dialog open={viewing !== undefined} onOpenChange={(open) => !open && setViewing(undefined)} title={viewing?.title ?? t('Document')} description={t('Document details and content.')}>
+      {viewing && <dl className="record-details document-details">
+        <div><dt>{t('Status')}</dt><dd>{t(viewing.lifecycle.status)}</dd></div>
+        <div><dt>{t('Updated')}</dt><dd>{formatDate(viewing.metadata.updatedAt ?? viewing.createdAt, { dateStyle: 'medium', timeStyle: 'short' })}</dd></div>
+        <div className="document-content"><dt>{t('Content')}</dt><dd>{viewing.content || t('Empty document')}</dd></div>
+      </dl>}
+    </Dialog>
   </>
 }
 
 function ProjectDocumentsExtension() {
-  return <aside aria-label="Documents module installed"><FileText size={16} /> Documents module is active.</aside>
+  const { t } = useModuleI18n()
+  return <Surface className="module-extension-strip" role="region" aria-label={t('Documents workspace')}>
+    <span className="module-extension-icon" aria-hidden><FileText size={17} /></span>
+    <span className="module-extension-copy"><strong>{t('Documents workspace')}</strong><small>{t('Manage organization documents without leaving this workspace.')}</small></span>
+    <Button asChild variant="ghost"><a href="/documents">{t('Open documents')}</a></Button>
+  </Surface>
 }
 
 export const documentsModule = defineWebModule({
