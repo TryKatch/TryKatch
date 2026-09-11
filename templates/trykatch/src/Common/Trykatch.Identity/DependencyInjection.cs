@@ -106,6 +106,8 @@ public static class DependencyInjection
         _ = openIddict;
         services.AddScoped<IUserDirectory, UserDirectory>();
         services.AddScoped<IPlatformAccessDirectory, PlatformAccessDirectory>();
+        services.AddScoped<IPlatformAuthorityReader, PlatformAuthorityReader>();
+        services.AddScoped<PlatformManagementAuthorization>();
         return services;
     }
 

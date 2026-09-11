@@ -31,7 +31,8 @@ public static class Permissions
 
 /// <summary>
 /// Stable role keys used only for module-owned default grants during organization setup.
-/// Runtime authorization continues to evaluate permission keys, never role names.
+/// Ordinary authorization evaluates permission keys. Management of the protected Owner
+/// role additionally requires current ownership authority.
 /// </summary>
 public static class DefaultOrganizationRoles
 {
