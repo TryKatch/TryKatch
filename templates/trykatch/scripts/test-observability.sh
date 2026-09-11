@@ -10,11 +10,32 @@ else
 fi
 template_root=$(cd "$template_root" && pwd -P)
 validation_root=$(mktemp -d "${TMPDIR:-/tmp}/trykatch-observability.XXXXXX")
-trap 'rm -rf "$validation_root"' EXIT
+compose_project="trykatch-observability-${GITHUB_RUN_ID:-local}-${RANDOM}"
+collector_runtime_started=false
+collector_runtime_container="${compose_project}-collector"
+collector_runtime_image="${compose_project}:test"
+collector_runtime_volume="${compose_project}-storage"
 
-export TRYKATCH_RELEASE_VERSION=ci-validation
-docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.yml" config --quiet
-docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.backend.yml" config --quiet
+cleanup() {
+  if [[ $collector_runtime_started == true ]]; then
+    docker container rm --force "$collector_runtime_container" >/dev/null 2>&1 || true
+    docker volume rm "$collector_runtime_volume" >/dev/null 2>&1 || true
+    docker image rm "$collector_runtime_image" >/dev/null 2>&1 || true
+  fi
+  rm -rf "$validation_root"
+}
+trap cleanup EXIT
+
+export TRYKATCH_RELEASE_VERSION='1.2.3+sha.abc/ref'
+for compose_file in compose.yml compose.backend.yml; do
+  rendered_compose=$(docker compose \
+    --env-file "$template_root/.env.example" \
+    -f "$template_root/$compose_file" \
+    config --format json)
+  jq --exit-status --arg release "$TRYKATCH_RELEASE_VERSION" \
+    'all(.services[]; ((.image // "") | contains($release) | not))' \
+    <<<"$rendered_compose" >/dev/null
+done
 docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.yml" -f "$template_root/compose.observability-tls.yml" config --quiet
 jq empty "$template_root/deploy/observability/grafana/dashboards/json/trykatch-overview.json"
 
@@ -71,3 +92,38 @@ docker run --rm \
   -v "$validation_root/server.key:/run/secrets/otel-server.key:ro" \
   -v "$validation_root/token:/run/secrets/otel-token:ro" \
   "$collector_image" validate --config=/etc/otelcol-contrib/config.yaml
+
+collector_runtime_started=true
+docker build \
+  --tag "$collector_runtime_image" \
+  --file "$template_root/deploy/observability/otel-collector.Dockerfile" \
+  "$template_root/deploy/observability"
+docker volume create "$collector_runtime_volume" >/dev/null
+docker run \
+  --detach \
+  --name "$collector_runtime_container" \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  --tmpfs /tmp \
+  --mount "type=bind,src=$template_root/deploy/observability/otel-collector.yml,dst=/etc/otelcol-contrib/config.yaml,readonly" \
+  --mount "type=volume,src=$collector_runtime_volume,dst=/var/lib/otelcol" \
+  "$collector_runtime_image" \
+  --config=/etc/otelcol-contrib/config.yaml >/dev/null
+
+for _ in {1..20}; do
+  collector_logs=$(docker logs "$collector_runtime_container" 2>&1)
+  if grep -Fq 'Everything is ready. Begin running and processing data.' <<<"$collector_logs"; then
+    break
+  fi
+  if grep -Fq 'permission denied' <<<"$collector_logs"; then
+    printf '%s\n' "$collector_logs" >&2
+    exit 1
+  fi
+  sleep 0.25
+done
+
+grep -Fq 'Everything is ready. Begin running and processing data.' <<<"$collector_logs" || {
+  printf 'Collector did not become ready with a fresh persistent queue volume.\n%s\n' "$collector_logs" >&2
+  exit 1
+}

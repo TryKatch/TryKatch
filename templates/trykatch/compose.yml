@@ -128,7 +128,9 @@ services:
 
   otel-collector:
     logging: *bounded-logging
-    image: otel/opentelemetry-collector-contrib:0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+    build:
+      context: ./deploy/observability
+      dockerfile: otel-collector.Dockerfile
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes: ["./deploy/observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro", collector-storage:/var/lib/otelcol]
     read_only: true

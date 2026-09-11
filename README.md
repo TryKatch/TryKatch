@@ -11,11 +11,16 @@ Trykatch is an Apache-2.0 enterprise application template for .NET 10, PostgreSQ
 ```bash
 dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.12
 trykatch template install
-dotnet new trykatch -n Horizon
-dotnet new trykatch -n Acme.Operations
+trykatch new Horizon
+trykatch new Acme.Operations
 cd Horizon
 trykatch start
 ```
+
+The recommended `trykatch new` command initializes each standalone application
+as a Git repository with `main` as its initial branch. If the output directory
+is already inside a Git worktree, Trykatch preserves the parent repository
+instead of creating a nested one.
 
 For automation or IDE-managed environments, the direct Microsoft CLI command remains supported:
 
@@ -26,7 +31,7 @@ dotnet new install Trykatch.Templates@0.1.0-preview.12
 The default output includes `web/apps/web`, the reusable `web/packages/ui` component system, the generated TanStack Query API client, frontend tests, and the production web container. Create a backend-only solution only when it is explicitly requested with:
 
 ```bash
-dotnet new trykatch -n Horizon --ui none
+trykatch new Horizon --ui none
 ```
 
 Optional modules are enabled with `--email`, `--storage`, `--documents`, and `--images`.
@@ -61,7 +66,7 @@ dotnet tool uninstall --global Trykatch.Cli
 dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages
 dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release -o artifacts/packages
 dotnet new install artifacts/packages/Trykatch.Templates.0.1.0-preview.12.nupkg --force
-dotnet new trykatch -n Horizon
+dotnet new trykatch -n Horizon --allow-scripts yes
 dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.12 --add-source artifacts/packages
 ```
 

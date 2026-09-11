@@ -18,15 +18,55 @@ public sealed class ApplicationStarterTests
         string nestedDirectory = Directory.CreateDirectory(
             Path.Combine(temporaryDirectory.Path, "src", "Horizon.Api", "Features")).FullName;
         RecordingApplicationProcess process = new();
+        RecordingContainerRuntimeProbe runtime = new(ContainerRuntimeStatus.Ready("28.4.0", "28.4.0"));
         StringWriter output = new();
-        ApplicationStarter starter = new(process, output);
+        ApplicationStarter starter = new(process, runtime, output);
 
         int exitCode = await starter.StartAsync(nestedDirectory, CancellationToken.None);
 
         exitCode.ShouldBe(0);
         process.ProjectPath.ShouldBe(appHostProject);
         process.WorkingDirectory.ShouldBe(temporaryDirectory.Path);
+        runtime.CheckCount.ShouldBe(1);
+        output.ToString().ShouldContain("Docker 28.4.0 is ready");
         output.ToString().ShouldContain("Starting Horizon through its Aspire AppHost");
+    }
+
+    [TestMethod]
+    public async Task StartStopsBeforeAspireWhenDockerIsUnavailable()
+    {
+        using TemporaryDirectory temporaryDirectory = new();
+        CreateAppHost(temporaryDirectory.Path, "Horizon");
+        RecordingApplicationProcess process = new();
+        RecordingContainerRuntimeProbe runtime = new(ContainerRuntimeStatus.Unavailable(
+            "Docker Desktop is installed, but its engine did not answer 'docker version'."));
+        StringWriter output = new();
+        ApplicationStarter starter = new(process, runtime, output);
+
+        int exitCode = await starter.StartAsync(temporaryDirectory.Path, CancellationToken.None);
+
+        exitCode.ShouldBe(2);
+        process.ProjectPath.ShouldBeNull();
+        output.ToString().ShouldContain("Trykatch stopped before Aspire");
+        output.ToString().ShouldContain("docker info");
+    }
+
+    [TestMethod]
+    public async Task StartRejectsADockerClientThatAspireDoesNotSupport()
+    {
+        using TemporaryDirectory temporaryDirectory = new();
+        CreateAppHost(temporaryDirectory.Path, "Horizon");
+        RecordingApplicationProcess process = new();
+        RecordingContainerRuntimeProbe runtime = new(ContainerRuntimeStatus.UnsupportedClient("23.0.6"));
+        StringWriter output = new();
+        ApplicationStarter starter = new(process, runtime, output);
+
+        int exitCode = await starter.StartAsync(temporaryDirectory.Path, CancellationToken.None);
+
+        exitCode.ShouldBe(2);
+        process.ProjectPath.ShouldBeNull();
+        output.ToString().ShouldContain("Docker CLI 25.0 or newer");
+        output.ToString().ShouldContain("23.0.6");
     }
 
     [TestMethod]
@@ -64,6 +104,22 @@ public sealed class ApplicationStarterTests
         startInfo.ArgumentList.ShouldBe(["run", "--launch-profile", "https", "--project", projectPath]);
     }
 
+    [TestMethod]
+    public void DockerProbeChecksBothTheClientAndDaemonVersions()
+    {
+        System.Diagnostics.ProcessStartInfo startInfo = DockerContainerRuntimeProbe.CreateStartInfo();
+
+        startInfo.FileName.ShouldBe("docker");
+        startInfo.UseShellExecute.ShouldBeFalse();
+        startInfo.RedirectStandardOutput.ShouldBeTrue();
+        startInfo.RedirectStandardError.ShouldBeTrue();
+        startInfo.ArgumentList.ShouldBe([
+            "version",
+            "--format",
+            "{{.Client.Version}}|{{.Server.Version}}"
+        ]);
+    }
+
     private static void CreateAppHost(string root, string name)
     {
         string directory = Directory.CreateDirectory(Path.Combine(root, "src", $"{name}.AppHost")).FullName;
@@ -84,6 +140,17 @@ public sealed class ApplicationStarterTests
             ProjectPath = projectPath;
             WorkingDirectory = workingDirectory;
             return Task.FromResult(0);
+        }
+    }
+
+    private sealed class RecordingContainerRuntimeProbe(ContainerRuntimeStatus result) : IContainerRuntimeProbe
+    {
+        public int CheckCount { get; private set; }
+
+        public Task<ContainerRuntimeStatus> CheckAsync(CancellationToken cancellationToken)
+        {
+            CheckCount++;
+            return Task.FromResult(result);
         }
     }
 

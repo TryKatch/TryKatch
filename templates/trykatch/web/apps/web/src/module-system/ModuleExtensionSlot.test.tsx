@@ -1,5 +1,5 @@
 import { WebModuleCatalog, defineWebModule } from '@trykatch/module-sdk'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ModuleProvider, ModuleExtensionSlot } from './ModuleExtensionSlot'
 import { workspaceModules } from '../modules'
@@ -50,7 +50,9 @@ describe('ModuleExtensionSlot', () => {
       <ModuleExtensionSlot point="projects.list.after-table" permissions={['documents.read']} />
     </ModuleProvider>)
 
-    expect(screen.getByText('Documents module is active.')).toBeInTheDocument()
+    const contribution = screen.getByRole('region', { name: 'Documents workspace' })
+    expect(within(contribution).getByText('Manage organization documents without leaving this workspace.')).toBeInTheDocument()
+    expect(within(contribution).getByRole('link', { name: 'Open documents' })).toHaveAttribute('href', '/documents')
   })
 
   it('hides the installed Documents contribution without its read permission', () => {
@@ -58,7 +60,7 @@ describe('ModuleExtensionSlot', () => {
       <ModuleExtensionSlot point="projects.list.after-table" permissions={['projects.read']} />
     </ModuleProvider>)
 
-    expect(screen.queryByText('Documents module is active.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Documents workspace' })).not.toBeInTheDocument()
   })
 
   it('registers Documents recovery in the central archive boundary', () => {

@@ -98,7 +98,7 @@ internal sealed class TemplatePackageInstaller(
         if (!force && await templateEngine.IsPackageInstalledAsync(packageId, version, cancellationToken))
         {
             await output.WriteLineAsync($"✓ Trykatch template {version} is already installed; no update is required.");
-            await output.WriteLineAsync("  Next: dotnet new trykatch -n <name>");
+            await output.WriteLineAsync("  Next: trykatch new <name>");
             return 0;
         }
 
@@ -126,7 +126,7 @@ internal sealed class TemplatePackageInstaller(
         if (isInteractive)
             await output.WriteAsync("\r");
         await output.WriteLineAsync($"✓ {completion} ({FormatElapsed(elapsed.Elapsed)}).");
-        await output.WriteLineAsync("  Next: dotnet new trykatch -n <name>");
+        await output.WriteLineAsync("  Next: trykatch new <name>");
         return 0;
     }
 

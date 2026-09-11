@@ -13,7 +13,7 @@ Installez le SDK .NET 10 et un runtime de conteneurs compatible avec Docker avan
 docker info
 ```
 
-Docker est requis pour PostgreSQL et pour toute la chaîne d’observabilité locale : OpenTelemetry Collector, Prometheus, Loki, Tempo et Grafana. L’AppHost crée et coordonne ces conteneurs ; installer uniquement le client Docker ne suffit pas — le démon Docker doit être actif.
+Docker est requis pour PostgreSQL et pour toute la chaîne d’observabilité locale : OpenTelemetry Collector, Prometheus, Loki, Tempo et Grafana. L’AppHost crée et coordonne ces conteneurs ; installer uniquement le client Docker ne suffit pas — le démon Docker doit être actif. Aspire 13.5 nécessite Docker CLI 25.0 ou une version ultérieure ; vérifiez donc aussi la version du client avec `docker version`.
 
 ## Installer le modèle
 
@@ -46,16 +46,26 @@ Vous pouvez relancer cette commande sans risque. Si cette version exacte est dé
 Remplacez `Horizon` par le nom de votre produit :
 
 ```bash
-dotnet new trykatch -n Horizon
+trykatch new Horizon
 cd Horizon
 ```
+
+La commande `trykatch new` génère l’application et l’initialise comme dépôt Git
+avec `main` comme branche initiale. Si le répertoire de sortie se trouve déjà
+dans un dépôt Git, Trykatch conserve le dépôt parent au lieu de créer un dépôt
+imbriqué.
 
 :::note[Alternative : installer sans la CLI Trykatch]
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
 dotnet new install Trykatch.Templates@0.1.0-preview.12
+dotnet new trykatch -n Horizon --allow-scripts yes
 ```
+
+`--allow-scripts yes` autorise l’action d’initialisation Git fournie avec le
+modèle. Sans cette option, le moteur de modèles .NET demande une confirmation
+interactive.
 :::
 
 Les noms contenant des points ou des tirets sont normalisés pour produire des espaces de noms C#, des répertoires, des noms de conteneurs et des packages npm valides.
@@ -107,13 +117,13 @@ Redémarrez ensuite l’AppHost. Trykatch fixe chaque point de terminaison Aspir
 React est inclus par défaut. Ne générez une solution limitée au backend que lorsque ce choix est intentionnel :
 
 ```bash
-dotnet new trykatch -n Horizon --ui none
+trykatch new Horizon --ui none
 ```
 
 Les modules gratuits optionnels sont désactivés par défaut :
 
 ```bash
-dotnet new trykatch -n Horizon \
+trykatch new Horizon \
   --email true \
   --storage true \
   --documents true \
@@ -146,7 +156,7 @@ Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seu
     trykatch start
     ```
 
-    La CLI détecte automatiquement l’AppHost généré. Depuis un autre répertoire, utilisez `trykatch start --root /chemin/vers/Horizon`.
+    La CLI détecte automatiquement l’AppHost généré. Elle vérifie le client et le démon Docker avant de lancer Aspire, laisse au runtime le temps de sortir du mode Resource Saver, puis s’arrête avec un message de résolution précis si Docker reste indisponible. Depuis un autre répertoire, utilisez `trykatch start --root /chemin/vers/Horizon`.
   </TabItem>
   <TabItem label="Rider">
     Ouvrez le fichier `Horizon.slnx` généré et laissez Rider restaurer la solution. Sélectionnez **`Horizon.AppHost: https`** dans les configurations d’exécution, puis choisissez **Run** ou **Debug**.
@@ -160,15 +170,43 @@ Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seu
 
 La commande .NET directe équivalente est `dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj`.
 
+## Examiner le backend
+
+Après le démarrage de l’AppHost, ouvrez le tableau de bord Aspire et sélectionnez la ressource **api**. Utilisez son URL HTTPS comme `<URL API>` ci-dessous :
+
+- `<URL API>/health/live` confirme que le processus API est actif.
+- `<URL API>/health/ready` confirme que l’API et ses dépendances requises sont prêtes.
+- `<URL API>/docs` ouvre la référence API interactive Scalar en environnement Development.
+- `<URL API>/openapi/v1.json` renvoie le document OpenAPI en environnement Development.
+
+Trykatch utilise Scalar plutôt que Swagger UI. Lorsque l’API est lancée directement avec son profil HTTPS versionné, `<URL API>` vaut `https://localhost:7268`. Le démarrage par l’AppHost reste recommandé, car Aspire fournit PostgreSQL et les chaînes de connexion d’exécution.
+
+### Si l’application React signale un client généré manquant
+
+Les modèles actuels incluent le client généré et le vérifient lors de la création du paquet. La commande de développement répare également un client manquant avant le démarrage de Vite. Pour un projet créé avec une ancienne préversion, effectuez la réparation une fois, puis revenez à la racine de l’application et démarrez l’application Aspire complète :
+
+```bash
+cd /chemin/vers/Horizon/web
+corepack pnpm install --frozen-lockfile
+corepack pnpm generate
+cd ..
+trykatch start
+```
+
+N’exécutez pas `corepack pnpm dev` depuis la racine de la solution : l’espace de travail pnpm et son script `dev` se trouvent dans `web`. Cette commande lancée depuis `web` démarre volontairement uniquement le serveur de développement React ; utilisez `trykatch start` lorsque l’authentification, PostgreSQL, les migrations, l’API et l’observabilité sont nécessaires.
+
 ### Si Aspire affiche « Container runtime unhealthy »
 
 Vérifiez que le démon Docker — et pas uniquement l’application Docker — est prêt :
 
 ```bash
 docker info
+docker version
 ```
 
-Si cette commande échoue, redémarrez Docker Desktop et attendez que son moteur soit opérationnel. Réactivez le moteur si Docker Resource Saver l’a suspendu. Arrêtez ensuite l’AppHost, puis redémarrez-le. PostgreSQL et les conteneurs d’observabilité locale ne peuvent pas démarrer lorsque le runtime de conteneurs est défaillant ; le migrateur et l’API restent donc correctement dans l’état **Waiting**, tandis que Grafana, Loki, Tempo, Prometheus et OpenTelemetry Collector signalent **Runtime unhealthy**.
+Si `docker info` échoue, redémarrez Docker Desktop et attendez que son moteur soit opérationnel. Réactivez le moteur si Docker Resource Saver l’a suspendu. Si `docker version` indique un client antérieur à la version 25.0, mettez Docker Desktop à jour et vérifiez que Rider ou votre terminal utilise bien le nouvel exécutable `docker`. Arrêtez ensuite l’AppHost, puis redémarrez-le.
+
+PostgreSQL et les conteneurs d’observabilité locale ne peuvent pas démarrer lorsque le runtime de conteneurs est défaillant ; les ressources dépendantes restent donc correctement dans l’état **Waiting**. Le **migrateur** est un processus ponctuel : l’état **Finished** avec le code de sortie 0 indique un succès, pas une application arrêtée. Les ressources **api** et **web** doivent ensuite passer à l’état actif. Examinez la première ressource en échec ou défaillante au lieu de redémarrer chaque ressource séparément.
 
 ## Installation du modèle dans l’IDE
 

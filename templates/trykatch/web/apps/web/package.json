@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "pnpm --filter @trykatch/api-client ensure-generated",
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b \u0026\u0026 vite build",
     "test": "vitest run",
