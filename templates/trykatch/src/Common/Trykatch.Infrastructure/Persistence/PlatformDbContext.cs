@@ -1,5 +1,6 @@
-using Trykatch.Domain.Organizations;
 using Microsoft.EntityFrameworkCore;
+using Trykatch.Application.Auditing;
+using Trykatch.Domain.Organizations;
 
 namespace Trykatch.Infrastructure.Persistence;
 
@@ -14,6 +15,9 @@ public class PlatformDbContext : DbContext
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<OrganizationCreationIntent> OrganizationCreationIntents => Set<OrganizationCreationIntent>();
     public DbSet<OrganizationDataPlacementRecord> OrganizationDataPlacements => Set<OrganizationDataPlacementRecord>();
+    public DbSet<AuditIntent> AuditIntents => Set<AuditIntent>();
+    public DbSet<OutboxReplayRequest> OutboxReplayRequests => Set<OutboxReplayRequest>();
+    public DbSet<OutboxRecoveryEvent> OutboxRecoveryEvents => Set<OutboxRecoveryEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -102,6 +106,39 @@ public class PlatformDbContext : DbContext
             entity.HasIndex(x => x.InvitationId).IsUnique();
             entity.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Invitation>().WithMany().HasForeignKey(x => x.InvitationId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AuditIntent>(entity =>
+        {
+            entity.ToTable("audit_intents");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Operation).HasMaxLength(120);
+            entity.Property(x => x.SubjectType).HasMaxLength(120);
+            entity.Property(x => x.SubjectId).HasMaxLength(160);
+            entity.Property(x => x.SubjectDisplayName).HasMaxLength(240);
+            entity.Property(x => x.Details).HasColumnType("jsonb").HasMaxLength(2048);
+            entity.HasIndex(x => new { x.OrganizationId, x.OccurredAt, x.Id });
+        });
+
+        modelBuilder.Entity<OutboxReplayRequest>(entity =>
+        {
+            entity.ToTable("outbox_replay_requests", table => table.ExcludeFromMigrations());
+            entity.HasKey(x => x.RequestId);
+            entity.Property(x => x.RequestedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(x => new { x.RequestedAt, x.RequestId });
+        });
+
+        modelBuilder.Entity<OutboxRecoveryEvent>(entity =>
+        {
+            entity.ToTable("outbox_recovery_events", table => table.ExcludeFromMigrations());
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Outcome).HasMaxLength(40);
+            entity.Property(x => x.FailureCode).HasMaxLength(80);
+            entity.Property(x => x.FailureType).HasMaxLength(240);
+            entity.HasIndex(x => x.RequestId).IsUnique().HasFilter("\"RequestId\" IS NOT NULL");
+            entity.HasIndex(x => new { x.MessageId, x.ReplayGeneration, x.Outcome }).IsUnique()
+                .HasFilter("\"Outcome\" = 'terminal'");
+            entity.HasIndex(x => new { x.OccurredAt, x.MessageId, x.ReplayGeneration });
         });
     }
 }

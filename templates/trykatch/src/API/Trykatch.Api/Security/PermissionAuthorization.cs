@@ -3,10 +3,31 @@ using Trykatch.Application.Identity;
 using Trykatch.Application.Organizations;
 using Trykatch.Identity;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.Extensions.Options;
 using OpenIddict.Validation.AspNetCore;
 
 namespace Trykatch.Api.Security;
+
+public sealed class ApiAuthorizationMiddlewareResultHandler : IAuthorizationMiddlewareResultHandler
+{
+    private readonly AuthorizationMiddlewareResultHandler fallback = new();
+
+    public Task HandleAsync(
+        RequestDelegate next,
+        HttpContext context,
+        AuthorizationPolicy policy,
+        PolicyAuthorizationResult authorizeResult)
+    {
+        if (!authorizeResult.Succeeded && context.User.Identities.Any(identity => identity.IsAuthenticated))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+
+        return fallback.HandleAsync(next, context, policy, authorizeResult);
+    }
+}
 
 public sealed record PermissionRequirement(string Permission) : IAuthorizationRequirement;
 public sealed record PlatformPermissionRequirement(string Permission) : IAuthorizationRequirement;
@@ -27,19 +48,22 @@ public sealed class PermissionAuthorizationHandler(IOrganizationContext organiza
     }
 }
 
-public sealed class PlatformPermissionAuthorizationHandler
+public sealed class PlatformPermissionAuthorizationHandler(IPlatformAccessDirectory platformAccess)
     : AuthorizationHandler<PlatformPermissionRequirement>
 {
-    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, PlatformPermissionRequirement requirement)
+    protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PlatformPermissionRequirement requirement)
     {
-        if (PlatformPermissions.All.Contains(requirement.Permission)
-            && (context.User.HasClaim("platform_permission", requirement.Permission)
-                || context.User.HasClaim("platform_admin", "true")))
+        string? subject = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? context.User.FindFirst("sub")?.Value;
+        if (!PlatformPermissions.All.Contains(requirement.Permission)
+            || !Guid.TryParse(subject, out Guid userId))
         {
-            context.Succeed(requirement);
+            return;
         }
 
-        return Task.CompletedTask;
+        EffectivePlatformAccess access = await platformAccess.ResolveEffectiveAccessAsync(userId);
+        if (access.HasPermission(requirement.Permission))
+            context.Succeed(requirement);
     }
 }
 

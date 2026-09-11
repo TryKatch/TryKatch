@@ -7,5 +7,6 @@
  */
 
 export interface MfaCodeRequest {
+  enrollmentId: string;
   code: string;
 }

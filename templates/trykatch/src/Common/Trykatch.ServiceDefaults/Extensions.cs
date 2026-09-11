@@ -38,6 +38,7 @@ public static class Extensions
                 .AddRuntimeInstrumentation()
                 .AddNpgsqlInstrumentation()
                 .AddMeter("Trykatch.Outbox")
+                .AddMeter("Trykatch.AuditProjection")
                 .AddView(instrument => ObservabilityPolicy.MetricView(instrument)))
             .WithTracing(traces => traces
                 .SetSampler(policy.Sampler)

@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Trykatch.Api.Controllers;
 using Trykatch.Identity;
 using Trykatch.Infrastructure.Modules;
 using Trykatch.Infrastructure.Persistence;
@@ -94,6 +95,56 @@ public sealed class AuthenticationSecurityTests
         await AssertPasswordResetAsync(factory);
         await AssertMultiFactorAndRecoveryCodeAsync(factory);
         await AssertOpenIdConnectGrantPolicyAsync(factory);
+        await AssertPlatformSuspensionRevokesExistingAndFreshSessionsAsync(factory);
+    }
+
+    private static async Task AssertPlatformSuspensionRevokesExistingAndFreshSessionsAsync(WebApplicationFactory<Program> factory)
+    {
+        using HttpClient anonymous = CreateClient(factory);
+        (await anonymous.GetAsync("/api/v1/platform-users")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        using HttpClient existingSession = CreateClient(factory);
+        string antiforgery = await GetAntiforgeryTokenAsync(existingSession);
+        HttpResponseMessage signedIn = await PostWithAntiforgeryAsync(existingSession, "/api/v1/auth/login", antiforgery, new
+        {
+            email = AdministratorEmail,
+            password = AdministratorPassword,
+            rememberMe = false
+        });
+        signedIn.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await existingSession.GetAsync("/api/v1/platform-users")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        using (IServiceScope scope = factory.Services.CreateScope())
+        {
+            UserManager<ApplicationUser> users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser administrator = await users.FindByEmailAsync(AdministratorEmail)
+                ?? throw new InvalidOperationException("The platform administrator was not persisted.");
+            administrator.IsPlatformAccessSuspended = true;
+            (await users.UpdateAsync(administrator)).Succeeded.ShouldBeTrue();
+        }
+
+        HttpResponseMessage existingSessionState = await existingSession.GetAsync("/api/v1/auth/session");
+        existingSessionState.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await existingSession.GetAsync("/api/v1/me/organizations")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        HttpResponseMessage stalePlatformRequest = await existingSession.GetAsync("/api/v1/platform-users");
+        stalePlatformRequest.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await stalePlatformRequest.Content.ReadAsStringAsync());
+
+        using HttpClient freshSession = CreateClient(factory);
+        antiforgery = await GetAntiforgeryTokenAsync(freshSession);
+        HttpResponseMessage freshSignIn = await PostWithAntiforgeryAsync(freshSession, "/api/v1/auth/login", antiforgery, new
+        {
+            email = AdministratorEmail,
+            password = AdministratorPassword,
+            rememberMe = false
+        });
+        freshSignIn.StatusCode.ShouldBe(HttpStatusCode.OK);
+        SessionResponse? session = await freshSignIn.Content.ReadFromJsonAsync<SessionResponse>();
+        session.ShouldNotBeNull();
+        session.IsPlatformAdministrator.ShouldBeFalse();
+        session.HasPlatformAccess.ShouldBeFalse();
+        session.PlatformRole.ShouldBeNull();
+        session.PlatformPermissions.ShouldBeEmpty();
+        (await freshSession.GetAsync("/api/v1/platform-users")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     private static async Task AssertJsonNullabilityBoundaryAsync(HttpClient client, string antiforgery)

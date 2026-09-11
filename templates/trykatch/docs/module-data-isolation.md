@@ -26,9 +26,9 @@ Production uses four named connections with different PostgreSQL roles:
 | Connection | Required role | Scope |
 |---|---|---|
 | `trykatch-organization` | `trykatch_org_runtime` | declared module data; tenant/actor-scoped RBAC and directory; declared global reads; append audit and outbox |
-| `trykatch-platform` | `trykatch_platform_runtime` | organization/placement control plane; scoped role/invitation provisioning, no membership grants |
+| `trykatch-platform` | `trykatch_platform_runtime` | organization/placement control plane; immutable replay requests and recovery-event reads; no outbox-message access |
 | `trykatch-identity` | `trykatch_identity_runtime` | identity and OpenIddict records |
-| `trykatch-outbox` | `trykatch_outbox_worker` | select and update outbox records |
+| `trykatch-outbox` | `trykatch_outbox_worker` | select/update outbox records; read replay requests and insert/read recovery outcomes; project audit intents |
 
 Production startup rejects a missing connection, a reused role, or a role name outside this contract. Organization authorization and administration resolve through the organization connection, including tenant-owned control-plane tables. Organization request middleware sets only transaction-local organization and actor context. Platform permission endpoints use the fixed platform role but receive no tenant RBAC policy bypass; there is no user-controlled or session-variable platform bypass.
 

@@ -34,6 +34,8 @@ The default React production path is covered by this gate. Backend-only and opti
 
 ## Delivery plan
 
+The [enterprise foundation hardening plan](plans/enterprise-foundation-hardening-plan.md) translates the 2026-09-11 audit into 16 trackable PRs with dependencies, implementation requirements, regression tests and release gates. Its open audit findings qualify earlier completion statements in this document; historical passing checks do not close newly identified defects.
+
 The mandatory module ownership, tenant data-placement, PostgreSQL isolation, runtime-role separation, signed-module distribution, and independent reference-module work is specified in [the module and tenant data-isolation implementation plan](plans/module-data-isolation-plan.md). Its release criteria are required security gates for the phases below.
 
 ### 0. Repository and release governance

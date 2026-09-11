@@ -16,6 +16,11 @@ output/
 *.snupkg
 *.trx
 *.log
-.env
-.env.*
+**/.env
+**/.env.*
 !.env.example
+**/secrets/
+**/*.pfx
+**/*.p12
+**/*.pem
+**/*.key

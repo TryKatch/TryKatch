@@ -14,6 +14,8 @@ public static class PlatformPermissions
     public const string InvitationsManage = "platform.invitations.manage";
     public const string AuthenticationRead = "platform.authentication.read";
     public const string AuthenticationManage = "platform.authentication.manage";
+    public const string OutboxRead = "platform.outbox.read";
+    public const string OutboxReplay = "platform.outbox.replay";
 
     public static readonly IReadOnlyList<PlatformPermissionModuleDefinition> Modules =
     [
@@ -40,6 +42,11 @@ public static class PlatformPermissions
         [
             new(AuthenticationRead, "View authentication", "View authentication policy and provider status.", false),
             new(AuthenticationManage, "Manage authentication", "Change security-sensitive authentication settings.", true)
+        ]),
+        new("outbox", "Outbox recovery", "Inspect terminal deliveries and request controlled replay.",
+        [
+            new(OutboxRead, "View outbox failures", "View bounded terminal delivery metadata.", false),
+            new(OutboxReplay, "Replay outbox failures", "Request replay of a terminal delivery generation.", true)
         ])
     ];
 
@@ -78,7 +85,8 @@ public static class PlatformRoles
             PlatformPermissions.UsersRead,
             PlatformPermissions.InvitationsRead,
             PlatformPermissions.InvitationsManage,
-            PlatformPermissions.AuthenticationRead
+            PlatformPermissions.AuthenticationRead,
+            PlatformPermissions.OutboxRead
         }.ToFrozenSet(StringComparer.Ordinal)),
         new(Auditor, "Auditor", "Read-only visibility across platform operations and security posture.", 30, new[]
         {
@@ -86,7 +94,8 @@ public static class PlatformRoles
             PlatformPermissions.TenantsRead,
             PlatformPermissions.UsersRead,
             PlatformPermissions.InvitationsRead,
-            PlatformPermissions.AuthenticationRead
+            PlatformPermissions.AuthenticationRead,
+            PlatformPermissions.OutboxRead
         }.ToFrozenSet(StringComparer.Ordinal))
     ];
 
@@ -120,20 +129,32 @@ public sealed record GrantPlatformAccessCommand(string Email, string DisplayName
 public sealed record PlatformAccessGrant(PlatformAccessUser User, string? ActivationToken);
 public sealed record ActivatePlatformAccessCommand(Guid UserId, string Token, string Password);
 public sealed record SavePlatformRoleCommand(string Name, string Description, IReadOnlyCollection<string> Permissions);
+public sealed record EffectivePlatformAccess(
+    bool IsActive,
+    bool IsAdministrator,
+    string? RoleKey,
+    IReadOnlySet<string> Permissions)
+{
+    public static EffectivePlatformAccess None { get; } = new(false, false, null, FrozenSet<string>.Empty);
+
+    public bool HasPermission(string permission) =>
+        IsActive && (IsAdministrator || Permissions.Contains(permission));
+}
 
 public interface IPlatformAccessDirectory
 {
     Task<IReadOnlyList<PlatformRoleDefinition>> ListRolesAsync(CancellationToken cancellationToken = default);
     Task<PlatformRoleDefinition?> FindRoleAsync(string roleKey, CancellationToken cancellationToken = default);
-    Task<Result<PlatformRoleDefinition>> CreateRoleAsync(SavePlatformRoleCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
-    Task<Result<PlatformRoleDefinition>> UpdateRoleAsync(string roleKey, SavePlatformRoleCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
-    Task<Result<bool>> DeleteRoleAsync(string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
+    Task<Result<PlatformRoleDefinition>> CreateRoleAsync(Guid actorId, SavePlatformRoleCommand command, CancellationToken cancellationToken = default);
+    Task<Result<PlatformRoleDefinition>> UpdateRoleAsync(Guid actorId, string roleKey, SavePlatformRoleCommand command, CancellationToken cancellationToken = default);
+    Task<Result<bool>> DeleteRoleAsync(Guid actorId, string roleKey, CancellationToken cancellationToken = default);
     Task<PagedResult<PlatformAccessUser>> ListAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<Result<PlatformAccessUser>> GetAsync(Guid userId, CancellationToken cancellationToken = default);
-    Task<Result<PlatformAccessGrant>> GrantAsync(GrantPlatformAccessCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
-    Task<Result<PlatformAccessUser>> ChangeRoleAsync(Guid actorId, Guid userId, string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default);
+    Task<Result<PlatformAccessGrant>> GrantAsync(Guid actorId, GrantPlatformAccessCommand command, CancellationToken cancellationToken = default);
+    Task<Result<PlatformAccessUser>> ChangeRoleAsync(Guid actorId, Guid userId, string roleKey, CancellationToken cancellationToken = default);
     Task<Result<PlatformAccessUser>> SetStatusAsync(Guid actorId, Guid userId, bool isActive, CancellationToken cancellationToken = default);
-    Task<Result<string>> CreateActivationTokenAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<Result<string>> CreateActivationTokenAsync(Guid actorId, Guid userId, CancellationToken cancellationToken = default);
     Task<Result<bool>> RevokeAsync(Guid actorId, Guid userId, CancellationToken cancellationToken = default);
     Task<Result<bool>> ActivateAsync(ActivatePlatformAccessCommand command, CancellationToken cancellationToken = default);
+    Task<EffectivePlatformAccess> ResolveEffectiveAccessAsync(Guid userId, CancellationToken cancellationToken = default);
 }

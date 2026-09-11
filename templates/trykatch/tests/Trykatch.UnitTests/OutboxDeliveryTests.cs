@@ -1,8 +1,8 @@
-using Trykatch.Application.Outbox;
-using Trykatch.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
+using Trykatch.Application.Outbox;
+using Trykatch.Infrastructure.Persistence;
 
 namespace Trykatch.UnitTests;
 
@@ -31,8 +31,9 @@ public sealed class OutboxDeliveryTests
     public async Task RetriesKeepTheIdempotencyKeyAndProcessedMessagesAreNotRepublished()
     {
         DateTimeOffset completedAt = new(2026, 9, 8, 9, 0, 0, TimeSpan.Zero);
-        RecordingTransport transport = new() { Failure = new InvalidOperationException("temporary failure") };
-        OutboxDelivery delivery = new(transport, new FixedTimeProvider(completedAt), NullLogger<OutboxDelivery>.Instance);
+        const string plantedSecret = "password=temporary-failure-secret";
+        RecordingTransport transport = new() { Failure = new InvalidOperationException(plantedSecret) };
+        OutboxDelivery delivery = new(transport, new FixedTimeProvider(completedAt), new OutboxWorkerState(), NullLogger<OutboxDelivery>.Instance);
         OutboxMessage message = new()
         {
             Id = Guid.CreateVersion7(),
@@ -41,16 +42,20 @@ public sealed class OutboxDeliveryTests
             OccurredAt = completedAt.AddMinutes(-1)
         };
 
-        (await delivery.DeliverAsync(message, CancellationToken.None)).ShouldBeFalse();
+        (await delivery.DeliverAsync(message, TimeSpan.FromSeconds(30), CancellationToken.None)).ShouldBeFalse();
         message.Attempts.ShouldBe(1);
         message.ProcessedAt.ShouldBeNull();
-        message.LastError.ShouldBe("temporary failure");
+        message.LastErrorCode.ShouldBe("transport_failure");
+        message.LastErrorType.ShouldBe(typeof(InvalidOperationException).FullName);
+        message.LastErrorCode!.ShouldNotContain(plantedSecret);
+        message.LastErrorType!.ShouldNotContain(plantedSecret);
 
         transport.Failure = null;
-        (await delivery.DeliverAsync(message, CancellationToken.None)).ShouldBeTrue();
+        (await delivery.DeliverAsync(message, TimeSpan.FromSeconds(30), CancellationToken.None)).ShouldBeTrue();
         message.ProcessedAt.ShouldBe(completedAt);
-        message.LastError.ShouldBeNull();
-        (await delivery.DeliverAsync(message, CancellationToken.None)).ShouldBeFalse();
+        message.LastErrorCode.ShouldBeNull();
+        message.LastErrorType.ShouldBeNull();
+        (await delivery.DeliverAsync(message, TimeSpan.FromSeconds(30), CancellationToken.None)).ShouldBeFalse();
 
         transport.Envelopes.Count.ShouldBe(2);
         transport.Envelopes.Select(envelope => envelope.MessageId).Distinct().ShouldHaveSingleItem().ShouldBe(message.Id);
@@ -65,6 +70,7 @@ public sealed class OutboxDeliveryTests
         OutboxDelivery delivery = new(
             new RecordingTransport { Failure = new InvalidOperationException(plantedSecret) },
             TimeProvider.System,
+            new OutboxWorkerState(),
             logger);
         OutboxMessage message = new()
         {
@@ -74,11 +80,97 @@ public sealed class OutboxDeliveryTests
             OccurredAt = DateTimeOffset.UtcNow
         };
 
-        (await delivery.DeliverAsync(message, CancellationToken.None)).ShouldBeFalse();
+        (await delivery.DeliverAsync(message, TimeSpan.FromSeconds(30), CancellationToken.None)).ShouldBeFalse();
         logger.Exception.ShouldBeNull();
         logger.StateText.ShouldNotContain(plantedSecret);
         logger.StateText.ShouldContain(typeof(InvalidOperationException).FullName!);
     }
+
+    [TestMethod]
+    public async Task SynchronousTransportFailureUsesTheSameDurableSafeFailureBoundary()
+    {
+        OutboxMessage message = Message();
+        RecordingLogger logger = new();
+        OutboxDelivery delivery = new(new SynchronousFailureTransport(), TimeProvider.System,
+            new OutboxWorkerState(), logger);
+
+        (await delivery.DeliverAsync(message, TimeSpan.FromSeconds(30), CancellationToken.None)).ShouldBeFalse();
+
+        message.Attempts.ShouldBe(1);
+        message.ProcessedAt.ShouldBeNull();
+        message.LastErrorCode.ShouldBe("transport_unavailable");
+        logger.Exception.ShouldBeNull();
+        logger.StateText.ShouldNotContain("synchronous-secret");
+    }
+
+    [TestMethod]
+    public async Task TimeoutReturnsBoundedFailureAndPreventsOverlappingPublication()
+    {
+        HangingTransport transport = new();
+        OutboxWorkerState state = new();
+        OutboxDelivery delivery = new(transport, TimeProvider.System, state, NullLogger<OutboxDelivery>.Instance);
+        OutboxMessage message = Message();
+
+        Task<bool> attempt = delivery.DeliverAsync(message, TimeSpan.FromMilliseconds(20), CancellationToken.None);
+        (await attempt.WaitAsync(TimeSpan.FromSeconds(2))).ShouldBeFalse();
+        transport.Calls.ShouldBe(1);
+        state.Read().TransportInvocationBlocked.ShouldBeTrue();
+        Task<bool> next = delivery.DeliverAsync(Message(), TimeSpan.FromSeconds(5), CancellationToken.None);
+        next.IsCompleted.ShouldBeFalse();
+        transport.Calls.ShouldBe(1);
+        transport.Complete();
+        (await next.WaitAsync(TimeSpan.FromSeconds(2))).ShouldBeTrue();
+        transport.Calls.ShouldBe(2);
+        state.Read().TransportInvocationBlocked.ShouldBeFalse();
+        message.LastErrorCode.ShouldBe("transport_timeout");
+    }
+
+    [TestMethod]
+    public async Task ShutdownDoesNotWaitForCancellationIgnoringTransportOrRecordFailure()
+    {
+        HangingTransport transport = new();
+        OutboxWorkerState state = new();
+        OutboxDelivery delivery = new(transport, TimeProvider.System, state, NullLogger<OutboxDelivery>.Instance);
+        OutboxMessage message = Message();
+        using CancellationTokenSource shutdown = new();
+        Task<bool> attempt = delivery.DeliverAsync(message, TimeSpan.FromSeconds(30), shutdown.Token);
+        shutdown.Cancel();
+
+        try
+        {
+            await Should.ThrowAsync<OperationCanceledException>(() => attempt.WaitAsync(TimeSpan.FromSeconds(2)));
+            message.Attempts.ShouldBe(0);
+            message.LastErrorCode.ShouldBeNull();
+            state.Read().TransportInvocationBlocked.ShouldBeTrue();
+        }
+        finally
+        {
+            transport.Complete();
+        }
+    }
+
+    [TestMethod]
+    public async Task HostShutdownIsNotPersistedAsTransportTimeout()
+    {
+        HangingTransport transport = new() { HonorsCancellation = true };
+        OutboxDelivery delivery = new(transport, TimeProvider.System, new OutboxWorkerState(), NullLogger<OutboxDelivery>.Instance);
+        OutboxMessage message = Message();
+        using CancellationTokenSource shutdown = new(TimeSpan.FromMilliseconds(20));
+
+        await Should.ThrowAsync<OperationCanceledException>(() =>
+            delivery.DeliverAsync(message, TimeSpan.FromSeconds(5), shutdown.Token));
+
+        message.Attempts.ShouldBe(0);
+        message.LastErrorCode.ShouldBeNull();
+    }
+
+    private static OutboxMessage Message() => new()
+    {
+        Id = Guid.CreateVersion7(),
+        Type = "Trykatch.ProjectChanged",
+        Payload = "{}",
+        OccurredAt = DateTimeOffset.UtcNow
+    };
 
     private sealed class RecordingTransport : IOutboxTransport
     {
@@ -93,9 +185,29 @@ public sealed class OutboxDeliveryTests
         }
     }
 
+    private sealed class SynchronousFailureTransport : IOutboxTransport
+    {
+        public Task PublishAsync(OutboxEnvelope envelope, CancellationToken cancellationToken) =>
+            throw new HttpRequestException("password=synchronous-secret");
+    }
+
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class HangingTransport : IOutboxTransport
+    {
+        private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Calls { get; private set; }
+        public bool HonorsCancellation { get; init; }
+        public Task PublishAsync(OutboxEnvelope envelope, CancellationToken cancellationToken)
+        {
+            Calls++;
+            if (HonorsCancellation) cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+            return completion.Task;
+        }
+        public void Complete() => completion.TrySetResult();
     }
 
     private sealed class RecordingLogger : ILogger<OutboxDelivery>

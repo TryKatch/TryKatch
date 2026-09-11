@@ -9,6 +9,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/API/Trykatch.Api/Trykatch.Api.csproj" />
+    <ProjectReference Include="../../src/API/Trykatch.Migrator/Trykatch.Migrator.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../src/Common/Trykatch.ServiceDefaults/Trykatch.ServiceDefaults.csproj" />
     <ProjectReference Include="../../src/Modules/Documents/Trykatch.Modules.Documents.Domain/Trykatch.Modules.Documents.Domain.csproj" />
     <ProjectReference Include="../../src/Modules/Projects/Trykatch.Modules.Projects.Domain/Trykatch.Modules.Projects.Domain.csproj" />

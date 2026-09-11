@@ -49,6 +49,9 @@ public sealed record UpdateMembershipCommand(Guid MembershipId, IReadOnlyList<Gu
 
 public interface IOrganizationAdministrationStore
 {
+    Task AcquireManagementLockAsync(Guid organizationId, CancellationToken cancellationToken);
+    Task<Membership?> FindMembershipForUserAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
+    Task<bool> HasOtherActiveOwnerAsync(Guid organizationId, Guid exceptMembershipId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Role>> ListRolesAsync(Guid organizationId, RecordLifecycleFilter lifecycle, CancellationToken cancellationToken);
     Task<Role?> FindRoleAsync(Guid organizationId, Guid roleId, CancellationToken cancellationToken);
     Task<bool> RoleNameExistsAsync(Guid organizationId, string name, Guid? exceptRoleId, CancellationToken cancellationToken);
@@ -84,8 +87,9 @@ public sealed class OrganizationAdministration(
     IUserDirectory users,
     IOrganizationContext context,
     IPermissionAuthorizer authorizer,
+    OrganizationManagementAuthorization managementAuthorization,
     IPermissionCatalog permissionCatalog,
-    IAuditWriter auditWriter)
+    IAuditIntentWriter auditWriter)
 {
     public async Task<Result<IReadOnlyList<RoleDto>>> ListRolesAsync(RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
     {
@@ -122,8 +126,9 @@ public sealed class OrganizationAdministration(
 
     public async Task<Result<RoleDto>> SaveRoleAsync(SaveRoleCommand command, CancellationToken cancellationToken)
     {
-        if (!await authorizer.HasPermissionAsync(Permissions.RolesManage, cancellationToken))
-            return Forbidden<RoleDto>("Roles cannot be changed by this membership.");
+        Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.RolesManage, cancellationToken);
+        if (!authorization.IsSuccess) return Result.Failure<RoleDto>(authorization.ErrorCode!, authorization.ErrorMessage!);
+        OrganizationManagementAuthority authority = authorization.Value!;
         if (string.IsNullOrWhiteSpace(command.Name) || command.Name.Trim().Length > 80)
             return Result.Failure<RoleDto>("validation", "Role names must contain 1-80 characters.");
         if ((command.Description ?? string.Empty).Trim().Length > 240)
@@ -133,7 +138,7 @@ public sealed class OrganizationAdministration(
             return Result.Failure<RoleDto>("validation", "Permission grants must be unique.");
         if (requestedPermissions.Any(permission => !permissionCatalog.Contains(permission)))
             return Result.Failure<RoleDto>("validation", "The role contains an unknown permission.");
-        if (requestedPermissions.Any(permission => !context.Permissions.Contains(permission)))
+        if (requestedPermissions.Any(permission => !authority.Permissions.Contains(permission)))
             return Forbidden<RoleDto>("You cannot grant a permission that you do not hold.");
         if (await store.RoleNameExistsAsync(context.OrganizationId, command.Name.Trim(), command.Id, cancellationToken))
             return Result.Failure<RoleDto>("conflict", "A role with that name already exists.");
@@ -144,11 +149,11 @@ public sealed class OrganizationAdministration(
             Role? existingRole = await store.FindRoleAsync(context.OrganizationId, roleId, cancellationToken);
             if (existingRole is null) return Result.Failure<RoleDto>("not_found", "Role was not found.");
             role = existingRole;
+            if (!authority.CanManage([role]))
+                return Forbidden<RoleDto>("You cannot change a role containing authority that you do not hold.");
             if (role.IsSystem) return Result.Failure<RoleDto>("conflict", "System roles are immutable.");
             if (role.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Active)
                 return Result.Failure<RoleDto>("conflict", "Restore the role before editing it.");
-            if (role.Permissions.Any(grant => !context.Permissions.Contains(grant.Permission)))
-                return Forbidden<RoleDto>("You cannot change a role containing permissions that you do not hold.");
             role.Rename(command.Name);
             role.Describe(command.Description ?? string.Empty);
         }
@@ -164,7 +169,6 @@ public sealed class OrganizationAdministration(
             new AuditTarget("Role", role.Id.ToString(), role.Name),
             new Dictionary<string, string?> { ["permissionCount"] = requestedPermissions.Count.ToString(CultureInfo.InvariantCulture) });
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(ToRoleDto(role));
     }
 
@@ -210,23 +214,22 @@ public sealed class OrganizationAdministration(
 
     public async Task<Result<MemberDto>> UpdateMembershipAsync(UpdateMembershipCommand command, CancellationToken cancellationToken)
     {
-        if (!await authorizer.HasPermissionAsync(Permissions.MembersManage, cancellationToken))
-            return Forbidden<MemberDto>("Members cannot be changed by this membership.");
-        if (command.MembershipId == context.MembershipId)
-            return Result.Failure<MemberDto>("conflict", "You cannot change your own membership or assigned roles.");
+        Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.MembersManage, cancellationToken);
+        if (!authorization.IsSuccess) return Result.Failure<MemberDto>(authorization.ErrorCode!, authorization.ErrorMessage!);
+        OrganizationManagementAuthority authority = authorization.Value!;
         if (command.RoleIds.Count == 0)
             return Result.Failure<MemberDto>("validation", "At least one role is required.");
 
         Membership? membership = await store.FindMembershipAsync(context.OrganizationId, command.MembershipId, cancellationToken);
         if (membership is null) return Result.Failure<MemberDto>("not_found", "Membership was not found.");
-        if (membership.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Active)
-            return Result.Failure<MemberDto>("conflict", "Restore the membership before editing it.");
         IReadOnlyList<Role> roles = await store.ListRolesAsync(context.OrganizationId, RecordLifecycleFilter.Active, cancellationToken);
         if (command.RoleIds.Distinct().Any(id => roles.All(role => role.Id != id)))
             return Result.Failure<MemberDto>("validation", "Every role must belong to this organization.");
         Role[] selectedRoles = roles.Where(role => command.RoleIds.Contains(role.Id)).ToArray();
-        if (selectedRoles.SelectMany(role => role.Permissions).Any(grant => !context.Permissions.Contains(grant.Permission)))
-            return Forbidden<MemberDto>("You cannot assign a role containing permissions that you do not hold.");
+        Result<bool> decision = await managementAuthorization.AuthorizeMembershipChangeAsync(authority, membership, selectedRoles, command.IsActive, cancellationToken);
+        if (!decision.IsSuccess) return Result.Failure<MemberDto>(decision.ErrorCode!, decision.ErrorMessage!);
+        if (membership.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Active)
+            return Result.Failure<MemberDto>("conflict", "Restore the membership before editing it.");
 
         membership.SetRoles(command.RoleIds);
         if (command.IsActive) membership.Activate(); else membership.Suspend();
@@ -238,10 +241,9 @@ public sealed class OrganizationAdministration(
             new Dictionary<string, string?>
             {
                 ["status"] = membership.Status.ToString(),
-                ["roles"] = string.Join(", ", selectedRoles.Select(x => x.Name).Order())
+                ["roleCount"] = selectedRoles.Length.ToString(CultureInfo.InvariantCulture)
             });
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(ToMemberDto(membership, roles, profile));
     }
 
@@ -271,8 +273,8 @@ public sealed class OrganizationAdministration(
 
     public async Task<Result<CreateInvitationResult>> CreateInvitationAsync(CreateInvitationCommand command, CancellationToken cancellationToken)
     {
-        if (!await authorizer.HasPermissionAsync(Permissions.MembersManage, cancellationToken))
-            return Forbidden<CreateInvitationResult>("Invitations cannot be created by this membership.");
+        Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.MembersManage, cancellationToken);
+        if (!authorization.IsSuccess) return Result.Failure<CreateInvitationResult>(authorization.ErrorCode!, authorization.ErrorMessage!);
         string email = command.Email.Trim().ToLowerInvariant();
         if (!email.Contains('@', StringComparison.Ordinal) || email.Length > 320 || command.ExpiresInDays is < 1 or > 30)
             return Result.Failure<CreateInvitationResult>("validation", "Provide a valid email and an expiry between 1 and 30 days.");
@@ -285,6 +287,8 @@ public sealed class OrganizationAdministration(
 
         Role? memberRole = (await store.ListRolesAsync(context.OrganizationId, RecordLifecycleFilter.Active, cancellationToken)).SingleOrDefault(x => x.Name == "Member" && x.IsSystem);
         if (memberRole is null) return Result.Failure<CreateInvitationResult>("configuration", "The organization Member role is missing.");
+        if (!authorization.Value!.CanManage([memberRole]))
+            return Forbidden<CreateInvitationResult>("You cannot invite a member whose access exceeds your authority.");
         Organization? organization = await store.FindOrganizationAsync(context.OrganizationId, cancellationToken);
         if (organization is null || !organization.IsActive)
             return Result.Failure<CreateInvitationResult>("configuration", "The destination workspace is not available.");
@@ -293,18 +297,19 @@ public sealed class OrganizationAdministration(
         await store.AddInvitationAsync(invitation, cancellationToken);
         auditWriter.Record(AuditActions.InvitationCreated, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email));
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), organization.Name, token));
     }
 
     public async Task<Result<InvitationDto>> UpdateInvitationAsync(Guid invitationId, UpdateInvitationCommand command, CancellationToken cancellationToken)
     {
-        if (!await authorizer.HasPermissionAsync(Permissions.MembersManage, cancellationToken))
-            return Forbidden<InvitationDto>("Invitations cannot be changed by this membership.");
+        Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.MembersManage, cancellationToken);
+        if (!authorization.IsSuccess) return Result.Failure<InvitationDto>(authorization.ErrorCode!, authorization.ErrorMessage!);
         if (command.ExpiresInDays is < 1 or > 30)
             return Result.Failure<InvitationDto>("validation", "Invitation expiry must be between 1 and 30 days.");
         Invitation? invitation = await store.FindInvitationAsync(context.OrganizationId, invitationId, cancellationToken);
         if (invitation is null) return Result.Failure<InvitationDto>("not_found", "Invitation was not found.");
+        if (!authorization.Value!.CanManageInvitation(invitation))
+            return Forbidden<InvitationDto>("You cannot manage this invitation's authority.");
         DateTimeOffset now = DateTimeOffset.UtcNow;
         if (!invitation.IsUsable(now)) return Result.Failure<InvitationDto>("conflict", "Only a pending invitation can be updated.");
         invitation.Reschedule(now, now.AddDays(command.ExpiresInDays));
@@ -313,21 +318,21 @@ public sealed class OrganizationAdministration(
             new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email),
             new Dictionary<string, string?> { ["expiresAt"] = invitation.ExpiresAt.ToString("O", CultureInfo.InvariantCulture) });
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(ToInvitationDto(invitation));
     }
 
     public async Task<Result<bool>> RevokeInvitationAsync(Guid invitationId, CancellationToken cancellationToken)
     {
-        if (!await authorizer.HasPermissionAsync(Permissions.MembersManage, cancellationToken))
-            return Forbidden<bool>("Invitations cannot be changed by this membership.");
+        Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.MembersManage, cancellationToken);
+        if (!authorization.IsSuccess) return Result.Failure<bool>(authorization.ErrorCode!, authorization.ErrorMessage!);
         Invitation? invitation = await store.FindInvitationAsync(context.OrganizationId, invitationId, cancellationToken);
         if (invitation is null) return Result.Failure<bool>("not_found", "Invitation was not found.");
+        if (!authorization.Value!.CanManageInvitation(invitation))
+            return Forbidden<bool>("You cannot manage this invitation's authority.");
         if (invitation.AcceptedAt is not null) return Result.Failure<bool>("conflict", "An accepted invitation cannot be revoked.");
         invitation.Revoke(DateTimeOffset.UtcNow);
         auditWriter.Record(AuditActions.InvitationRevoked, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email));
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(true);
     }
 
@@ -368,6 +373,11 @@ public sealed class OrganizationAdministration(
             return Result.Failure<Guid>("invalid_invitation", "Invitation is invalid, expired, or belongs to another account.");
 
         await using IOrganizationDataScope dataScope = await dataScopes.BeginAsync(invitation.OrganizationId, userId, cancellationToken);
+        await store.AcquireManagementLockAsync(invitation.OrganizationId, cancellationToken);
+        invitation = await store.FindInvitationAsync(invitation.OrganizationId, invitation.Id, cancellationToken);
+        if (invitation is null || !invitation.IsUsable(DateTimeOffset.UtcNow)
+            || invitation.TokenHash != HashToken(token) || !string.Equals(invitation.Email, email.Trim(), StringComparison.OrdinalIgnoreCase))
+            return Result.Failure<Guid>("invalid_invitation", "Invitation is invalid, expired, or belongs to another account.");
         if (await store.MembershipExistsAsync(invitation.OrganizationId, userId, cancellationToken))
             return Result.Failure<Guid>("conflict", "The account is already a member.");
         Role? invitedRole = await store.FindRoleAsync(invitation.OrganizationId, invitation.RoleId, cancellationToken);
@@ -400,13 +410,13 @@ public sealed class OrganizationAdministration(
 
     private async Task<Result<bool>> ChangeRoleLifecycleAsync(Guid roleId, string operation, string? reason, CancellationToken cancellationToken)
     {
-        if (!await authorizer.HasPermissionAsync(Permissions.RolesManage, cancellationToken))
-            return Forbidden<bool>("Roles cannot be changed by this membership.");
+        Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.RolesManage, cancellationToken);
+        if (!authorization.IsSuccess) return Result.Failure<bool>(authorization.ErrorCode!, authorization.ErrorMessage!);
         Role? role = await store.FindRoleAsync(context.OrganizationId, roleId, cancellationToken);
         if (role is null) return Result.Failure<bool>("not_found", "Role was not found.");
+        if (!authorization.Value!.CanManage([role]))
+            return Forbidden<bool>("You cannot change a role containing authority that you do not hold.");
         if (role.IsSystem) return Result.Failure<bool>("conflict", "System roles cannot be archived or deleted.");
-        if (role.Permissions.Any(grant => !context.Permissions.Contains(grant.Permission)))
-            return Forbidden<bool>("You cannot change a role containing permissions that you do not hold.");
         if ((operation is "archive" or "delete") && await store.RoleIsAssignedAsync(context.OrganizationId, roleId, cancellationToken))
             return Result.Failure<bool>("conflict", "Remove this role from every member before archiving or deleting it.");
         if (operation == "delete" && role.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Archived)
@@ -429,28 +439,26 @@ public sealed class OrganizationAdministration(
             "restore" => AuditActions.RoleRestored,
             _ => AuditActions.RoleDeleted
         };
-        auditWriter.Record(action, new AuditTarget("Role", role.Id.ToString(), role.Name), operation == "delete" ? new Dictionary<string, string?> { ["reason"] = role.DeletionReason } : null);
+        auditWriter.Record(action, new AuditTarget("Role", role.Id.ToString(), role.Name), operation == "delete" ? AuditDetails.ReasonProvided(role.DeletionReason) : null);
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(true);
     }
 
     private async Task<Result<bool>> ChangeMembershipLifecycleAsync(Guid membershipId, string operation, string? reason, CancellationToken cancellationToken)
     {
-        if (!await authorizer.HasPermissionAsync(Permissions.MembersManage, cancellationToken))
-            return Forbidden<bool>("Members cannot be changed by this membership.");
-        if (membershipId == context.MembershipId)
-            return Result.Failure<bool>("conflict", "You cannot archive or delete your own membership.");
+        Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.MembersManage, cancellationToken);
+        if (!authorization.IsSuccess) return Result.Failure<bool>(authorization.ErrorCode!, authorization.ErrorMessage!);
+        OrganizationManagementAuthority authority = authorization.Value!;
         Membership? membership = await store.FindMembershipAsync(context.OrganizationId, membershipId, cancellationToken);
         if (membership is null) return Result.Failure<bool>("not_found", "Membership was not found.");
+        Role[] assignedRoles = authority.Roles.Where(role => membership.Roles.Any(link => link.RoleId == role.Id)).ToArray();
+        Result<bool> decision = await managementAuthorization.AuthorizeMembershipChangeAsync(
+            authority, membership, assignedRoles, operation == "restore" && membership.Status == MembershipStatus.Active, cancellationToken);
+        if (!decision.IsSuccess) return decision;
         if (operation == "delete" && membership.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Archived)
             return Result.Failure<bool>("conflict", "Archive the membership before requesting deletion.");
         if (operation == "delete" && RecordLifecycle.ValidateDeletionReason(reason) is string validationError)
             return Result.Failure<bool>("validation", validationError);
-        IReadOnlyList<Role> roles = await store.ListRolesAsync(context.OrganizationId, RecordLifecycleFilter.All, cancellationToken);
-        Role[] assignedRoles = roles.Where(role => membership.Roles.Any(link => link.RoleId == role.Id)).ToArray();
-        if (assignedRoles.SelectMany(role => role.Permissions).Any(grant => !context.Permissions.Contains(grant.Permission)))
-            return Forbidden<bool>("You cannot change a member whose access exceeds your permission boundary.");
         UserSummary? profile = (await users.GetUsersAsync([membership.UserId], cancellationToken)).GetValueOrDefault(membership.UserId);
         string displayName = profile?.DisplayName ?? profile?.Email ?? $"Member {membership.Id.ToString()[..8]}";
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -468,18 +476,19 @@ public sealed class OrganizationAdministration(
             "restore" => AuditActions.MembershipRestored,
             _ => AuditActions.MembershipDeleted
         };
-        auditWriter.Record(action, new AuditTarget("Membership", membership.Id.ToString(), displayName), operation == "delete" ? new Dictionary<string, string?> { ["reason"] = membership.DeletionReason } : null);
+        auditWriter.Record(action, new AuditTarget("Membership", membership.Id.ToString(), displayName), operation == "delete" ? AuditDetails.ReasonProvided(membership.DeletionReason) : null);
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(true);
     }
 
     private async Task<Result<bool>> ChangeInvitationLifecycleAsync(Guid invitationId, string operation, string? reason, CancellationToken cancellationToken)
     {
-        if (!await authorizer.HasPermissionAsync(Permissions.MembersManage, cancellationToken))
-            return Forbidden<bool>("Invitations cannot be changed by this membership.");
+        Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.MembersManage, cancellationToken);
+        if (!authorization.IsSuccess) return Result.Failure<bool>(authorization.ErrorCode!, authorization.ErrorMessage!);
         Invitation? invitation = await store.FindInvitationAsync(context.OrganizationId, invitationId, cancellationToken);
         if (invitation is null) return Result.Failure<bool>("not_found", "Invitation was not found.");
+        if (!authorization.Value!.CanManageInvitation(invitation))
+            return Forbidden<bool>("You cannot manage this invitation's authority.");
         if (operation == "delete" && RecordLifecycle.ValidateDeletionReason(reason) is string validationError)
             return Result.Failure<bool>("validation", validationError);
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -495,9 +504,8 @@ public sealed class OrganizationAdministration(
             "restore" => AuditActions.InvitationRestored,
             _ => AuditActions.InvitationDeleted
         };
-        auditWriter.Record(action, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email), operation == "delete" ? new Dictionary<string, string?> { ["reason"] = invitation.DeletionReason } : null);
+        auditWriter.Record(action, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email), operation == "delete" ? AuditDetails.ReasonProvided(invitation.DeletionReason) : null);
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(true);
     }
 

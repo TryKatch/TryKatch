@@ -1,63 +1,92 @@
-using Trykatch.Identity;
-using Microsoft.AspNetCore.Antiforgery;
+using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
+using Trykatch.Api.Security;
+using Trykatch.Application.Common;
+using Trykatch.Application.Identity;
+using Trykatch.Identity;
 
 namespace Trykatch.Api.Controllers;
 
 [ApiController]
-[Authorize(AuthenticationSchemes = AuthenticationSchemes.ApplicationCookie)]
+[Authorize(AuthenticationSchemes = Trykatch.Identity.AuthenticationSchemes.ApplicationCookie)]
+[EnableRateLimiting("account-security")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("api/v1/account/security")]
-public sealed class AccountSecurityController(UserManager<ApplicationUser> users, IAntiforgery antiforgery) : ControllerBase
+public sealed class AccountSecurityController(IAccountSecurity security, SignInManager<ApplicationUser> signIn, IOptions<IdentityOptions> identityOptions) : ControllerBase
 {
-    [HttpPost("mfa/setup", Name = "AccountSecurity_SetupMfa")]
-    public async Task<ActionResult<MfaSetupResponse>> SetupMfa()
-    {
-        await antiforgery.ValidateRequestAsync(HttpContext);
-        ApplicationUser user = await GetUserAsync();
-        string? key = await users.GetAuthenticatorKeyAsync(user);
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            await users.ResetAuthenticatorKeyAsync(user);
-            key = await users.GetAuthenticatorKeyAsync(user);
-        }
+    [HttpPost("reauthenticate", Name = "AccountSecurity_Reauthenticate")]
+    [CookieAntiforgery]
+    public async Task<ActionResult<RecentAssuranceGrant>> Reauthenticate(ReauthenticationRequest request, CancellationToken cancellationToken) =>
+        Respond(await security.ReauthenticateAsync(await GetContextAsync(), new(request.Purpose, request.Password, request.Code, request.IsRecoveryCode), cancellationToken));
 
-        string email = user.Email ?? user.UserName ?? user.Id.ToString();
-        string uri = $"otpauth://totp/{Uri.EscapeDataString("Trykatch:" + email)}?secret={key}&issuer=Trykatch&digits=6";
-        return Ok(new MfaSetupResponse(key ?? string.Empty, uri));
-    }
+    [HttpPost("mfa/setup", Name = "AccountSecurity_SetupMfa")]
+    [CookieAntiforgery]
+    public async Task<ActionResult<PendingMfaSetup>> SetupMfa(MfaGrantRequest request, CancellationToken cancellationToken) =>
+        Respond(await security.BeginEnrollmentAsync(await GetContextAsync(), request.Grant, cancellationToken));
 
     [HttpPost("mfa/enable", Name = "AccountSecurity_EnableMfa")]
-    public async Task<ActionResult<RecoveryCodesResponse>> EnableMfa(MfaCodeRequest request)
+    [CookieAntiforgery]
+    public async Task<ActionResult<MfaRecoveryCodes>> EnableMfa(MfaCodeRequest request, CancellationToken cancellationToken)
     {
-        await antiforgery.ValidateRequestAsync(HttpContext);
-        ApplicationUser user = await GetUserAsync();
-        bool valid = await users.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, Normalize(request.Code));
-        if (!valid) return Problem(statusCode: 400, title: "Invalid authenticator code");
-        await users.SetTwoFactorEnabledAsync(user, true);
-        await users.UpdateSecurityStampAsync(user);
-        IEnumerable<string>? recoveryCodes = await users.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
-        return Ok(new RecoveryCodesResponse(recoveryCodes?.ToArray() ?? []));
+        Result<MfaRecoveryCodes> result = await security.ConfirmEnrollmentAsync(await GetContextAsync(), request.EnrollmentId, request.Code, cancellationToken);
+        if (result.IsSuccess) await signIn.SignOutAsync();
+        return Respond(result);
+    }
+
+    [HttpPost("mfa/cancel", Name = "AccountSecurity_CancelMfaEnrollment")]
+    [CookieAntiforgery]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> CancelMfaEnrollment(MfaEnrollmentRequest request, CancellationToken cancellationToken)
+    {
+        Result<bool> result = await security.CancelEnrollmentAsync(await GetContextAsync(), request.EnrollmentId, cancellationToken);
+        return result.IsSuccess ? NoContent() : ToProblem(result);
     }
 
     [HttpPost("mfa/recovery-codes", Name = "AccountSecurity_RegenerateRecoveryCodes")]
-    public async Task<ActionResult<RecoveryCodesResponse>> RegenerateRecoveryCodes()
+    [CookieAntiforgery]
+    public async Task<ActionResult<MfaRecoveryCodes>> RegenerateRecoveryCodes(MfaGrantRequest request, CancellationToken cancellationToken)
     {
-        await antiforgery.ValidateRequestAsync(HttpContext);
-        ApplicationUser user = await GetUserAsync();
-        if (!await users.GetTwoFactorEnabledAsync(user)) return Problem(statusCode: 409, title: "MFA is not enabled");
-        IEnumerable<string>? recoveryCodes = await users.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
-        await users.UpdateSecurityStampAsync(user);
-        return Ok(new RecoveryCodesResponse(recoveryCodes?.ToArray() ?? []));
+        Result<MfaRecoveryCodes> result = await security.RegenerateRecoveryCodesAsync(await GetContextAsync(), request.Grant, cancellationToken);
+        if (result.IsSuccess) await signIn.SignOutAsync();
+        return Respond(result);
     }
 
-    private async Task<ApplicationUser> GetUserAsync() =>
-        await users.GetUserAsync(User) ?? throw new InvalidOperationException("Authenticated user no longer exists.");
+    [HttpPost("mfa/disable", Name = "AccountSecurity_DisableMfa")]
+    [CookieAntiforgery]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> DisableMfa(MfaGrantRequest request, CancellationToken cancellationToken)
+    {
+        Result<bool> result = await security.DisableAsync(await GetContextAsync(), request.Grant, cancellationToken);
+        if (!result.IsSuccess) return ToProblem(result);
+        await signIn.SignOutAsync();
+        return NoContent();
+    }
 
-    private static string Normalize(string code) => code.Replace(" ", string.Empty, StringComparison.Ordinal).Replace("-", string.Empty, StringComparison.Ordinal);
+    private async Task<AccountSecurityContext> GetContextAsync()
+    {
+        AuthenticateResult authentication = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+        string session = authentication.Properties?.Items.TryGetValue(AccountSecuritySession.PropertyName, out string? sessionId) == true ? sessionId ?? "" : "";
+        return new(Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId) ? userId : Guid.Empty,
+            session, User.FindFirstValue(identityOptions.Value.ClaimsIdentity.SecurityStampClaimType) ?? "");
+    }
+
+    private ActionResult<T> Respond<T>(Result<T> result) => result.IsSuccess ? Ok(result.Value) : ToProblem(result);
+    private ObjectResult ToProblem<T>(Result<T> result) => Problem(statusCode: result.ErrorCode switch
+    {
+        "enrollment_conflict" => StatusCodes.Status409Conflict,
+        "reauthentication_unsupported" => StatusCodes.Status422UnprocessableEntity,
+        "identity_validation" => StatusCodes.Status400BadRequest,
+        _ => StatusCodes.Status403Forbidden
+    }, title: result.ErrorCode, detail: result.ErrorMessage);
 }
 
-public sealed record MfaCodeRequest(string Code);
-public sealed record MfaSetupResponse(string SharedKey, string AuthenticatorUri);
-public sealed record RecoveryCodesResponse(IReadOnlyList<string> Codes);
+public sealed record ReauthenticationRequest([Required, MaxLength(64)] string Purpose, [Required, MaxLength(1024)] string Password, [MaxLength(128)] string? Code = null, bool IsRecoveryCode = false);
+public sealed record MfaGrantRequest([MaxLength(128)] string? Grant = null);
+public sealed record MfaCodeRequest(Guid EnrollmentId, [Required, MaxLength(32)] string Code);
+public sealed record MfaEnrollmentRequest(Guid EnrollmentId);

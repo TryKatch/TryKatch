@@ -248,7 +248,7 @@ public sealed class OrganizationAdministrationController(
     }
 
     private ObjectResult ProblemResult(string? code, string? detail) =>
-        Problem(statusCode: code switch { "forbidden" => 403, "not_found" => 404, "conflict" => 409, _ => 400 }, title: code, detail: detail);
+        Problem(statusCode: code switch { "forbidden" => 403, "not_found" => 404, "conflict" or "last_owner" => 409, _ => 400 }, title: code, detail: detail);
 }
 
 public sealed record CreateInvitationResponse(InvitationDto Invitation, string InvitationUrl, bool EmailDelivered);

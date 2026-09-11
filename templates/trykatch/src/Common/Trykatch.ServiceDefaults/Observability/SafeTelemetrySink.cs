@@ -14,13 +14,15 @@ internal sealed class SafeTelemetrySink : ILogEventSink, IDisposable
     private static readonly HashSet<string> AllowedProperties = new(StringComparer.Ordinal)
     {
         "EventId", "EventName", "SourceContext", "RequestMethod", "RouteTemplate", "StatusCode",
-        "ElapsedMilliseconds", "MessageId", "MessageType", "DeliveryAttempt", "ExceptionType"
+        "ElapsedMilliseconds", "MessageId", "MessageType", "DeliveryAttempt", "ExceptionType", "Outcome"
     };
     private static readonly HashSet<string> ApprovedTemplates = new(StringComparer.Ordinal)
     {
         "HTTP request {RequestMethod} {RouteTemplate} responded {StatusCode} in {ElapsedMilliseconds:0.0000} ms",
         "Outbox message {MessageId} ({MessageType}) published on attempt {DeliveryAttempt}",
-        "Outbox message {MessageId} failed on attempt {DeliveryAttempt} with {ExceptionType}"
+        "Outbox message {MessageId} failed on attempt {DeliveryAttempt} with {ExceptionType}",
+        "Outbox transport completed late with {ExceptionType}",
+        "Outbox database cycle failed with {ExceptionType} classified as {Outcome}"
     };
     private readonly Logger sink;
 

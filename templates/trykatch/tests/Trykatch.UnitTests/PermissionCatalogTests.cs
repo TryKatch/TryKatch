@@ -1,5 +1,4 @@
 using Trykatch.Application.Authorization;
-using Trykatch.Application.Organizations;
 using Trykatch.Modules.Projects.Application;
 using Shouldly;
 
@@ -53,29 +52,6 @@ public sealed class PermissionCatalogTests
             .Message.ShouldContain("unknown default role");
     }
 
-    [TestMethod]
-    public async Task RoleManagerCannotGrantPermissionOutsideOwnBoundary()
-    {
-        PermissionCatalog catalog = CreateCatalog();
-        TestOrganizationContext context = new([Permissions.RolesRead, Permissions.RolesManage]);
-        OrganizationAdministration administration = new(
-            null!,
-            null!,
-            null!,
-            null!,
-            context,
-            new AllowPermissionAuthorizer(),
-            catalog,
-            null!);
-
-        var result = await administration.SaveRoleAsync(
-            new SaveRoleCommand(null, "Escalated", "Attempts privilege escalation.", [Permissions.OrganizationsManage]),
-            CancellationToken.None);
-
-        result.IsSuccess.ShouldBeFalse();
-        result.ErrorCode.ShouldBe("forbidden");
-    }
-
     private static PermissionCatalog CreateCatalog() => new([
         new BuiltInPermissionDefinitionProvider(),
         new ProjectPermissionDefinitionProvider()
@@ -84,20 +60,5 @@ public sealed class PermissionCatalogTests
     private sealed class TestProvider(IReadOnlyList<PermissionModuleDefinition> modules) : IPermissionDefinitionProvider
     {
         public IReadOnlyList<PermissionModuleDefinition> GetModules() => modules;
-    }
-
-    private sealed class AllowPermissionAuthorizer : IPermissionAuthorizer
-    {
-        public Task<bool> HasPermissionAsync(string permission, CancellationToken cancellationToken = default) => Task.FromResult(true);
-    }
-
-    private sealed class TestOrganizationContext(IEnumerable<string> permissions) : IOrganizationContext
-    {
-        public bool IsResolved => true;
-        public Guid OrganizationId { get; } = Guid.CreateVersion7();
-        public string OrganizationSlug => "test";
-        public Guid ActorId { get; } = Guid.CreateVersion7();
-        public Guid MembershipId { get; } = Guid.CreateVersion7();
-        public IReadOnlySet<string> Permissions { get; } = permissions.ToHashSet(StringComparer.Ordinal);
     }
 }

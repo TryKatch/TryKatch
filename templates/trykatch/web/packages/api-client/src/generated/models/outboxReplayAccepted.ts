@@ -6,7 +6,10 @@
  * OpenAPI spec version: v1
  */
 
-export interface MfaSetupResponse {
-  sharedKey: string;
-  authenticatorUri: string;
+export interface OutboxReplayAccepted {
+  requestId: string;
+  messageId: string;
+  /** @pattern ^-?(?:0|[1-9]\d*)$ */
+  expectedFailedGeneration: number | string;
+  requestedAt: string;
 }

@@ -68,6 +68,10 @@
       "description": "Include SMTP email and Mailpit development support.",
       "defaultValue": "false"
     },
+    "TRYKATCH_EMAIL": {
+      "type": "computed",
+      "value": "(email)"
+    },
     "storage": {
       "type": "parameter",
       "datatype": "bool",
@@ -114,15 +118,30 @@
         "**/obj/**",
         "**/node_modules/**",
         "**/dist/**",
-        ".env.local",
-        ".env.*.local",
+        "**/.env",
+        "**/.env.*",
+        "**/secrets/**",
+        "**/*.pfx",
+        "**/*.p12",
+        "**/*.pem",
+        "**/*.key",
+        ".git/**",
         ".idea/**",
+        ".vscode/**",
         ".vercel/**",
         "**/.playwright-cli/**",
+        "artifacts/**",
         "output/**",
+        "**/coverage/**",
+        "**/playwright-report/**",
+        "**/test-results/**",
         "**/*.tsbuildinfo",
         "**/packages.lock.json",
         "**/*.user",
+        "**/*.trx",
+        "**/*.log",
+        "**/*.nupkg",
+        "**/*.snupkg",
         "**/.DS_Store"
       ],
       "modifiers": [
@@ -134,6 +153,7 @@
             ".github/workflows/web.yml",
             ".vercelignore",
             "vercel.json",
+            "package.json",
             "compose.yml",
             "README.md"
           ],
@@ -166,6 +186,12 @@
           "exclude": ["src/Common/Trykatch.Infrastructure/Optional/Images/**"]
         }
       ]
+    },
+    {
+      "source": "./",
+      "target": "./",
+      "include": [".env.example"],
+      "exclude": [".template.config/**/*"]
     }
   ],
   "primaryOutputs": [

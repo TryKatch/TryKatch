@@ -1,6 +1,11 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
+using Microsoft.AspNetCore.Identity;
+using OpenIddict.Validation.AspNetCore;
+using Scalar.AspNetCore;
 using Trykatch.Api.Development;
 using Trykatch.Api.Modules;
 using Trykatch.Api.OpenApi;
@@ -11,10 +16,6 @@ using Trykatch.Infrastructure;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 using Trykatch.Modules.AspNetCore;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
-using OpenIddict.Validation.AspNetCore;
-using Scalar.AspNetCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Host.UseDefaultServiceProvider(options =>
@@ -35,10 +36,15 @@ else if (!builder.Environment.IsDevelopment())
 
 builder.AddServiceDefaults();
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment(), isOpenApiGeneration);
 ModuleCatalog moduleCatalog = builder.Services.AddModules(builder.Configuration, EnabledModules.All);
 builder.Services.AddIdentity(builder.Configuration, builder.Environment.IsDevelopment(), isOpenApiGeneration);
 builder.Services.AddProblemDetails();
+builder.Services.AddOptions<AtomicMutationResponseOptions>()
+    .BindConfiguration(AtomicMutationResponseOptions.SectionName)
+    .Validate(options => options.MaximumBytes is >= 1_024 and <= 8_388_608,
+        "Atomic mutation response limit must be between 1 KiB and 8 MiB.")
+    .ValidateOnStart();
 builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
 builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
 builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();
@@ -70,11 +76,16 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("PlatformAdministrator", policy => policy.RequireClaim("platform_admin", "true"));
 });
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, PlatformPermissionAuthorizationHandler>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("account-security", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
     options.AddPolicy("account-recovery", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
@@ -82,6 +93,15 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 5,
                 Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0
+            }));
+    options.AddPolicy("outbox-replay", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(5),
                 QueueLimit = 0
             }));
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
@@ -103,6 +123,7 @@ builder.Services.AddHealthChecks()
 WebApplication app = builder.Build();
 if (!isOpenApiGeneration)
 {
+    if (!app.Environment.IsDevelopment()) await app.Services.ValidateIdentityKeyRingAsync();
     await IdentitySeeder.SeedPlatformAdministratorAsync(app.Services, app.Configuration);
     if (app.Environment.IsDevelopment())
     {

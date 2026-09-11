@@ -1,14 +1,18 @@
-using Trykatch.Application.Identity;
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
+using Trykatch.Application.Identity;
 
 namespace Trykatch.Identity;
 
@@ -27,9 +31,35 @@ public static class DependencyInjection
         });
 
         IDataProtectionBuilder dataProtection = services.AddDataProtection().SetApplicationName("Trykatch");
+        IdentityCertificates? certificates = null;
         if (!isOpenApiGeneration)
         {
             dataProtection.PersistKeysToDbContext<IdentityDbContext>();
+        }
+        if (!isDevelopment && !isOpenApiGeneration)
+        {
+            services.AddOptions<IdentityDataProtectionOptions>()
+                .Bind(configuration.GetSection("DataProtection"))
+                .Validate(options => !string.IsNullOrWhiteSpace(options.Certificate.Path), "DataProtection:Certificate:Path is required outside Development.")
+                .ValidateOnStart();
+            services.AddOptions<OpenIddictCertificateOptions>().Bind(configuration.GetSection("OpenIddict"));
+            // Validate and load before any seeding or network-facing host startup.
+            certificates = IdentityCertificates.Load(configuration);
+            services.AddSingleton(_ => certificates);
+            services.AddSingleton<IdentityKeyRingValidation>();
+            services.AddHostedService(provider => provider.GetRequiredService<IdentityKeyRingValidation>());
+            services.AddSingleton<ProductionDataProtectionXmlRepository>();
+            services.AddSingleton(provider => new CertificateXmlEncryptor(certificates.Active, provider.GetRequiredService<ILoggerFactory>()));
+            services.AddOptions<KeyManagementOptions>()
+                .Configure<ProductionDataProtectionXmlRepository, CertificateXmlEncryptor>((options, repository, encryptor) =>
+                {
+                    options.XmlRepository = repository;
+                    options.XmlEncryptor = encryptor;
+                }).ValidateOnStart();
+            // Validation runs after every Configure/PostConfigure registration, including
+            // registrations added later by a module. Ordering cannot silently replace this boundary.
+            services.AddSingleton<IValidateOptions<KeyManagementOptions>, ProductionKeyManagementPolicy>();
+            dataProtection.UnprotectKeysWithAnyCertificate([certificates.Active, .. certificates.Retired]);
         }
 
         services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
@@ -61,6 +91,13 @@ public static class DependencyInjection
             // continue to invalidate existing application cookies.
             options.Events.OnRedirectToLogin = context => RejectRedirect(context, StatusCodes.Status401Unauthorized);
             options.Events.OnRedirectToAccessDenied = context => RejectRedirect(context, StatusCodes.Status403Forbidden);
+            options.Events.OnSigningIn = context =>
+            {
+                // Ticket properties survive sliding renewal; an independent sign-in
+                // receives a fresh ID. Legacy cookies must sign in again for step-up.
+                context.Properties.Items.TryAdd(AccountSecuritySession.PropertyName, Guid.NewGuid().ToString("N"));
+                return Task.CompletedTask;
+            };
         });
         services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(5));
 
@@ -85,16 +122,8 @@ public static class DependencyInjection
                 }
                 else
                 {
-                    string signingPath = configuration["OpenIddict:SigningCertificate:Path"]
-                        ?? throw new InvalidOperationException("OpenIddict signing certificate path is required in production.");
-                    string encryptionPath = configuration["OpenIddict:EncryptionCertificate:Path"]
-                        ?? throw new InvalidOperationException("OpenIddict encryption certificate path is required in production.");
-                    options.AddSigningCertificate(X509CertificateLoader.LoadPkcs12FromFile(
-                        signingPath,
-                        configuration["OpenIddict:SigningCertificate:Password"]));
-                    options.AddEncryptionCertificate(X509CertificateLoader.LoadPkcs12FromFile(
-                        encryptionPath,
-                        configuration["OpenIddict:EncryptionCertificate:Password"]));
+                    options.AddSigningCertificate(certificates!.Signing);
+                    options.AddEncryptionCertificate(certificates.Encryption);
                 }
             })
             .AddValidation(options =>
@@ -106,6 +135,10 @@ public static class DependencyInjection
         _ = openIddict;
         services.AddScoped<IUserDirectory, UserDirectory>();
         services.AddScoped<IPlatformAccessDirectory, PlatformAccessDirectory>();
+        services.AddScoped<IPlatformAuthorityReader, PlatformAuthorityReader>();
+        services.AddScoped<PlatformManagementAuthorization>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IAccountSecurity, AccountSecurityService>();
         return services;
     }
 
@@ -114,4 +147,7 @@ public static class DependencyInjection
         context.Response.StatusCode = statusCode;
         return Task.CompletedTask;
     }
+
+    public static Task ValidateIdentityKeyRingAsync(this IServiceProvider services, CancellationToken cancellationToken = default) =>
+        services.GetRequiredService<IdentityKeyRingValidation>().StartAsync(cancellationToken);
 }

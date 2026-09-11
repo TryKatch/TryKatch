@@ -1,19 +1,19 @@
-using Npgsql;
-using Shouldly;
-using Testcontainers.PostgreSql;
-using Trykatch.Infrastructure.Modules;
-using Trykatch.Infrastructure.Organizations;
-using Trykatch.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using Shouldly;
+using Testcontainers.PostgreSql;
 using Trykatch.Application;
 using Trykatch.Application.Organizations;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure;
+using Trykatch.Infrastructure.Modules;
+using Trykatch.Infrastructure.Organizations;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Infrastructure.Persistence.Migrations.Platform;
+using Trykatch.Modules;
 using Trykatch.Modules.Documents.Infrastructure;
 
 namespace Trykatch.IntegrationTests;
@@ -22,6 +22,16 @@ namespace Trykatch.IntegrationTests;
 [TestCategory("Integration")]
 public sealed class PostgresIsolationInspectionTests
 {
+    [TestMethod]
+    public async Task CleanFixtureSatisfiesExactHostPoliciesAndOrganizationPrivileges()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+
+        PostgresIsolationInspection inspection = await database.InspectAsync();
+
+        inspection.IsValid.ShouldBeTrue(string.Join(Environment.NewLine, inspection.Errors));
+    }
+
     [TestMethod]
     [DataRow("projects", "projects", "Horizon.Modules.Projects.Domain.Project", "Horizon.Domain.Projects.Project")]
     [DataRow("projects", "projects", "Northwind.Crm.Modules.Projects.Domain.Project", "Northwind.Crm.Domain.Projects.Project")]
@@ -170,6 +180,13 @@ public sealed class PostgresIsolationInspectionTests
             CREATE ROLE {outbox} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             GRANT USAGE ON SCHEMA platform TO {outbox};
             GRANT SELECT, UPDATE ON platform.outbox_messages TO {outbox};
+            GRANT SELECT ON platform.audit_intents TO {outbox};
+            GRANT SELECT, INSERT ON platform.audit_entries TO {outbox};
+            GRANT SELECT ON platform.outbox_replay_requests TO {outbox};
+            GRANT SELECT, INSERT ON platform.outbox_recovery_events TO {outbox};
+            GRANT USAGE ON SCHEMA platform TO {platform};
+            GRANT SELECT, INSERT ON platform.outbox_replay_requests TO {platform};
+            GRANT SELECT ON platform.outbox_recovery_events TO {platform};
             """);
         try
         {
@@ -209,7 +226,8 @@ public sealed class PostgresIsolationInspectionTests
         await database.ExecuteAsync("CREATE TABLE platform.reports (id int)");
         ModuleDescriptor platform = new ProjectsModule().Descriptor with
         {
-            Id = "reporting", DefaultDataOwnership = ModuleDataOwnership.Platform,
+            Id = "reporting",
+            DefaultDataOwnership = ModuleDataOwnership.Platform,
             DataResources = [new("reports", "platform", "reports", ModuleDataOwnership.Platform, AccessRule: ModuleDataAccessRule.PlatformOnly)]
         };
         ModuleDescriptor[] modules = [new ProjectsModule().Descriptor, platform];
@@ -222,7 +240,10 @@ public sealed class PostgresIsolationInspectionTests
     public async Task OrganizationAuthorizationUsesTenantPoolAndRejectsCrossOrganizationRoleAttachment()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        (await database.InspectAsync()).IsValid.ShouldBeTrue();
         await using PlatformDbContext owner = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(database.ConnectionString).Options);
+        // This behavior test replaces the inspector's minimal stub with the full control-plane model.
+        await database.ExecuteAsync("DROP TABLE platform.audit_intents");
         await database.ExecuteAsync(owner.Database.GenerateCreateScript());
         foreach (SqlOperation operation in new ScopeControlPlaneAccess().UpOperations.OfType<SqlOperation>())
         {
@@ -265,8 +286,9 @@ public sealed class PostgresIsolationInspectionTests
         (await resolver.ResolveAsync(actor, organizationB.Id)).ShouldBeNull();
         await resolver.ResolveAsync(actor, organizationA.Id);
         tenant.Roles.Select(role => role.OrganizationId).Distinct().ToArray().ShouldBe([organizationA.Id]);
-        await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlInterpolatedAsync(
+        PostgresException denied = await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO platform.membership_roles (\"MembershipId\", \"RoleId\") VALUES ({membershipA.Id}, {roleB.Id})"));
+        denied.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
     }
 
     [TestMethod]
@@ -359,6 +381,73 @@ public sealed class PostgresIsolationInspectionTests
     }
 
     [TestMethod]
+    public async Task RejectsPrivilegedCatalogFunctionWhenCompatibilityFunctionIsAbsent()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync(
+            $"GRANT EXECUTE ON FUNCTION pg_catalog.pg_read_file(text) TO {database.RuntimeRole}");
+
+        PostgresIsolationInspection inspection = await database.InspectAsync();
+
+        inspection.IsValid.ShouldBeFalse();
+        inspection.Errors.ShouldContain(error => error.Contains("privileged function", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task AcceptsOnlyTheExactHostOwnedLegacyOutboxRedactionFunction()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync($"""
+            ALTER TABLE platform.outbox_messages
+              ADD COLUMN "LastError" text NULL,
+              ADD COLUMN "LastErrorCode" character varying(80) NULL,
+              ADD COLUMN "LastErrorType" character varying(500) NULL;
+            CREATE FUNCTION platform.redact_legacy_outbox_error()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            SECURITY INVOKER
+            SET search_path = pg_catalog
+            AS $function$
+            BEGIN
+              IF NEW."LastError" IS NOT NULL THEN
+                NEW."LastErrorCode" := COALESCE(NEW."LastErrorCode", 'legacy_unclassified');
+                NEW."LastErrorType" := COALESCE(NEW."LastErrorType", 'legacy_exception');
+                NEW."LastError" := NULL;
+              END IF;
+              RETURN NEW;
+            END
+            $function$;
+            REVOKE ALL ON FUNCTION platform.redact_legacy_outbox_error() FROM PUBLIC;
+            GRANT EXECUTE ON FUNCTION platform.redact_legacy_outbox_error() TO {database.RuntimeRole};
+            CREATE TRIGGER redact_legacy_outbox_error
+            BEFORE INSERT OR UPDATE OF "LastError" ON platform.outbox_messages
+            FOR EACH ROW
+            EXECUTE FUNCTION platform.redact_legacy_outbox_error();
+            """);
+
+        (await database.InspectAsync()).IsValid.ShouldBeTrue();
+
+        await database.ExecuteAsync("ALTER TABLE platform.outbox_messages DISABLE TRIGGER redact_legacy_outbox_error");
+        PostgresIsolationInspection disabled = await database.InspectAsync();
+        disabled.IsValid.ShouldBeFalse();
+        disabled.Errors.ShouldContain(error => error.Contains("differs from its approved", StringComparison.Ordinal));
+        await database.ExecuteAsync("ALTER TABLE platform.outbox_messages ENABLE TRIGGER redact_legacy_outbox_error");
+
+        await database.ExecuteAsync("""
+            CREATE OR REPLACE FUNCTION platform.redact_legacy_outbox_error()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            SECURITY INVOKER
+            SET search_path = pg_catalog
+            AS 'BEGIN RETURN NEW; END';
+            """);
+
+        PostgresIsolationInspection tampered = await database.InspectAsync();
+        tampered.IsValid.ShouldBeFalse();
+        tampered.Errors.ShouldContain(error => error.Contains("differs from its approved", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task RejectsPublicSequencePrivilegesInCustomSchemas()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
@@ -448,6 +537,7 @@ public sealed class PostgresIsolationInspectionTests
             }
             InspectionDatabase result = new(container, administrator);
             await result.ExecuteAsync($"CREATE DATABASE {result.databaseName}", administrator);
+            await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(administrator);
             await result.ExecuteAsync($"""
                 CREATE ROLE {result.RuntimeRole} LOGIN PASSWORD '{result.runtimePassword}'
                   NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
@@ -471,11 +561,53 @@ public sealed class PostgresIsolationInspectionTests
                   USING ("OrganizationId" = NULLIF(current_setting('app.organization_id', true), '')::uuid)
                   WITH CHECK ("OrganizationId" = NULLIF(current_setting('app.organization_id', true), '')::uuid
                     AND "ActorId" = NULLIF(current_setting('app.actor_id', true), '')::uuid);
+                CREATE POLICY audit_projection_worker_read ON platform.audit_entries FOR SELECT TO trykatch_outbox_worker
+                  USING (current_user = 'trykatch_outbox_worker');
+                CREATE TABLE platform.audit_intents (
+                  "Id" uuid PRIMARY KEY,
+                  "OrganizationId" uuid NOT NULL,
+                  "ActorId" uuid NOT NULL);
+                ALTER TABLE platform.audit_intents ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE platform.audit_intents FORCE ROW LEVEL SECURITY;
+                CREATE POLICY audit_intents_append ON platform.audit_intents FOR INSERT TO trykatch_org_runtime
+                  WITH CHECK (
+                    "OrganizationId" = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                    AND "ActorId" = NULLIF(current_setting('app.actor_id', true), '')::uuid);
+                CREATE POLICY audit_intents_worker_read ON platform.audit_intents FOR SELECT TO trykatch_outbox_worker
+                  USING (current_user = 'trykatch_outbox_worker');
                 CREATE TABLE platform.outbox_messages ("Id" uuid);
+                CREATE TABLE platform.outbox_replay_requests (
+                  "RequestId" uuid PRIMARY KEY, "MessageId" uuid NOT NULL,
+                  "ExpectedFailedGeneration" integer NOT NULL, "ActorId" uuid NOT NULL, "RequestedAt" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP);
+                ALTER TABLE platform.outbox_replay_requests ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE platform.outbox_replay_requests FORCE ROW LEVEL SECURITY;
+                CREATE POLICY outbox_replay_requests_platform_read ON platform.outbox_replay_requests FOR SELECT TO trykatch_platform_runtime
+                  USING (current_user = 'trykatch_platform_runtime');
+                CREATE POLICY outbox_replay_requests_platform_insert ON platform.outbox_replay_requests FOR INSERT TO trykatch_platform_runtime
+                  WITH CHECK (current_user = 'trykatch_platform_runtime' AND "ActorId" = NULLIF(current_setting('app.actor_id', true), '')::uuid AND "RequestedAt" = CURRENT_TIMESTAMP);
+                CREATE POLICY outbox_replay_requests_worker_read ON platform.outbox_replay_requests FOR SELECT TO trykatch_outbox_worker
+                  USING (current_user = 'trykatch_outbox_worker');
+                CREATE TABLE platform.outbox_recovery_events (
+                  "Id" uuid PRIMARY KEY, "MessageId" uuid NOT NULL, "ReplayGeneration" integer NOT NULL, "Outcome" text NOT NULL,
+                  "FailureCode" text NULL, "FailureType" text NULL, "OccurredAt" timestamptz NOT NULL,
+                  "RequestId" uuid NULL, "ActorId" uuid NULL);
+                ALTER TABLE platform.outbox_recovery_events ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE platform.outbox_recovery_events FORCE ROW LEVEL SECURITY;
+                CREATE POLICY outbox_recovery_events_platform_read ON platform.outbox_recovery_events FOR SELECT TO trykatch_platform_runtime
+                  USING (current_user = 'trykatch_platform_runtime');
+                CREATE POLICY outbox_recovery_events_worker_read ON platform.outbox_recovery_events FOR SELECT TO trykatch_outbox_worker
+                  USING (current_user = 'trykatch_outbox_worker');
+                CREATE POLICY outbox_recovery_events_worker_insert ON platform.outbox_recovery_events FOR INSERT TO trykatch_outbox_worker
+                  WITH CHECK (current_user = 'trykatch_outbox_worker');
                 GRANT USAGE ON SCHEMA app, platform TO {result.RuntimeRole}, {result.OwnerRole};
                 GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON platform.audit_entries TO {result.RuntimeRole};
+                GRANT INSERT ON platform.audit_intents TO {result.RuntimeRole};
                 GRANT INSERT ON platform.outbox_messages TO {result.RuntimeRole};
+                GRANT SELECT, INSERT ON platform.outbox_replay_requests TO trykatch_platform_runtime;
+                GRANT SELECT ON platform.outbox_recovery_events TO trykatch_platform_runtime;
+                GRANT SELECT ON platform.outbox_replay_requests TO trykatch_outbox_worker;
+                GRANT SELECT, INSERT ON platform.outbox_recovery_events TO trykatch_outbox_worker;
                 """);
             return result;
         }

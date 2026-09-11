@@ -194,6 +194,8 @@ jobs:
       - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
       - name: Verify disabled and enabled Federation composition
         run: bash scripts/test-federation-module.sh
+      - name: Verify distributable artifact boundaries
+        run: bash scripts/test-artifact-boundaries.sh --runtime
       - run: bash scripts/test-template.sh
 
   verify-generated-application:

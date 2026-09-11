@@ -28,13 +28,32 @@ public static partial class RuntimeRoleProvisioner
         await connection.OpenAsync(cancellationToken);
         foreach (string roleName in roleNames)
             await VerifyRoleAsync(connection, roleName, cancellationToken);
+        if (roles.Platform != "trykatch_platform_runtime")
+            throw new InvalidOperationException("Platform role must match the host policy contract: trykatch_platform_runtime.");
 
         string organization = QuoteIdentifier(roles.Organization);
         string platform = QuoteIdentifier(roles.Platform);
         string identity = QuoteIdentifier(roles.Identity);
         string outbox = QuoteIdentifier(roles.Outbox);
-        if (roles.Platform != "trykatch_platform_runtime")
-            throw new InvalidOperationException("Platform role must match the host policy contract: trykatch_platform_runtime.");
+        bool hostFunctionExists = await HostFunctionExistsAsync(connection, cancellationToken);
+        if (hostFunctionExists)
+        {
+            await using NpgsqlCommand quarantineFunction = new($"""
+                REVOKE ALL ON FUNCTION platform.redact_legacy_outbox_error()
+                FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
+                """, connection);
+            await quarantineFunction.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        List<string> hostFunctionErrors = [];
+        await PostgresIsolationInspector.InspectHostFunctionContractsAsync(
+            connection,
+            hostFunctionErrors,
+            cancellationToken);
+        if (hostFunctionErrors.Count > 0)
+            throw new InvalidOperationException(
+                "PostgreSQL host function validation failed:" + Environment.NewLine
+                + string.Join(Environment.NewLine, hostFunctionErrors));
 
         IReadOnlyList<string> userSchemas = await ReadUserSchemasAsync(connection, cancellationToken);
         foreach (string schema in userSchemas)
@@ -83,6 +102,14 @@ public static partial class RuntimeRoleProvisioner
                     $"GRANT {string.Join(", ", permissions)} ON {QuoteIdentifier(schema)}.{QuoteIdentifier(table)} TO {quotedRole}", connection);
                 await tableGrant.ExecuteNonQueryAsync(cancellationToken);
             }
+        }
+
+        if (hostFunctionExists)
+        {
+            await using NpgsqlCommand functionGrant = new($"""
+                GRANT EXECUTE ON FUNCTION platform.redact_legacy_outbox_error() TO {organization}, {outbox};
+                """, connection);
+            await functionGrant.ExecuteNonQueryAsync(cancellationToken);
         }
     }
 
@@ -137,6 +164,18 @@ public static partial class RuntimeRoleProvisioner
         List<(string Schema, string Table)> result = [];
         while (await reader.ReadAsync(cancellationToken)) result.Add((reader.GetString(0), reader.GetString(1)));
         return result;
+    }
+
+    private static async Task<bool> HostFunctionExistsAsync(
+        NpgsqlConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await using NpgsqlCommand command = new(
+            "SELECT to_regprocedure(@function) IS NOT NULL", connection);
+        command.Parameters.AddWithValue(
+            "function",
+            HostPostgresFunctionContracts.RedactLegacyOutboxError);
+        return await command.ExecuteScalarAsync(cancellationToken) is true;
     }
 
     private static string QuoteIdentifier(string identifier) =>

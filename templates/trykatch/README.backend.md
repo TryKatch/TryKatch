@@ -6,6 +6,8 @@ Trykatch is a clean-room backend foundation for .NET 10, PostgreSQL, Aspire, and
 
 ## Start locally
 
+For deployment, first read [production identity](docs/production-identity.md): three certificate/password pairs are required, and an existing plaintext key ring needs an explicit privileged dry-run/apply before the API can start.
+
 Prerequisites: .NET SDK 10.0.301+ and Docker.
 
 ```bash

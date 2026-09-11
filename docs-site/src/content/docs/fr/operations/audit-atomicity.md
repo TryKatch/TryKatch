@@ -1,0 +1,12 @@
+---
+title: Atomicité des mutations et de l’audit
+description: Exploiter la validation avant succès et la projection différée des intentions d’audit.
+---
+
+Les modules métier d’une organisation valident données, audit et outbox dans une seule transaction avec le rôle de l’organisation. L’administration des accès traverse une autre frontière de schéma : la modification d’un rôle, membre ou invitation ajoute dans la même transaction une intention d’audit immuable, ensuite projetée vers le journal d’audit par un worker restreint. La réponse HTTP de succès n’est pas observable avant la validation de la transaction métier et de l’intention.
+
+Seules les réponses authentifiées et contextualisées aux méthodes `POST`, `PUT`, `PATCH` et `DELETE` sont mises en attente, avec une limite par défaut de 1 Mio. Les lectures et flux ne sont pas tamponnés. Une annulation, un dépassement de taille ou une erreur de validation de transaction supprime le succès préparé. Le pipeline HTTP n’est jamais relancé. Les créations ordinaires de rôles, projets et documents ne sont pas idempotentes : réconciliez manuellement un résultat ambigu avant toute nouvelle tentative.
+
+L’intention contient un identifiant d’événement stable, l’acteur, l’organisation, l’opération, des métadonnées de sujet bornées, l’horodatage et uniquement des détails textuels bornés autorisés. Les motifs de suppression saisis par l’utilisateur sont exclus des détails ; les noms d’affichage, notamment les noms de rôle, restent des métadonnées d’audit bornées. Les contraintes PostgreSQL et la RLS forcée refusent les clés de détail arbitraires et les champs d’identifiants secrets. Le rôle d’organisation peut seulement insérer une intention. Le worker peut lire les intentions et insérer/lire les événements, sans modifier les intentions ; il rétablit l’acteur et l’organisation dans chaque transaction et déduplique sur l’identifiant d’événement.
+
+La visibilité est différée, normalement dans les cinq secondes. Configurez `AuditProjection:BatchSize`, `PollInterval`, `BacklogWarningCount` et `BacklogWarningAge`. L’état ready devient dégradé après un échec de lecture ou un dépassement durable ; surveillez `trykatch.audit.projections`, `trykatch.audit.projection.lag` et les jauges `trykatch.audit.projection.backlog.count` / `trykatch.audit.projection.backlog.age`. Appliquez les deux migrations avant l’API émettrice et reprovisionnez les rôles runtime. Conservez les intentions pendant reprise/rollback ; la rétention et la capacité relèvent du gate de reprise de la release.

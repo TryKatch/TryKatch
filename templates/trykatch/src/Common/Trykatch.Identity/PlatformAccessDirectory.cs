@@ -12,7 +12,8 @@ namespace Trykatch.Identity;
 internal sealed class PlatformAccessDirectory(
     IdentityDbContext database,
     UserManager<ApplicationUser> users,
-    RoleManager<IdentityRole<Guid>> roles) : IPlatformAccessDirectory
+    RoleManager<IdentityRole<Guid>> roles,
+    PlatformManagementAuthorization managementAuthorization) : IPlatformAccessDirectory
 {
     private const string CustomRolePrefix = "platform-custom-";
     private const string DisplayNameClaim = "platform_role_name";
@@ -43,53 +44,56 @@ internal sealed class PlatformAccessDirectory(
         return role is null ? null : await ToCustomDefinitionAsync(role);
     }
 
-    public async Task<Result<PlatformRoleDefinition>> CreateRoleAsync(SavePlatformRoleCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default)
+    public Task<Result<PlatformRoleDefinition>> CreateRoleAsync(Guid actorId, SavePlatformRoleCommand command, CancellationToken cancellationToken = default) =>
+        ExecuteWithAdministrationLockAsync(() => CreateRoleCoreAsync(actorId, command, cancellationToken), cancellationToken);
+
+    private async Task<Result<PlatformRoleDefinition>> CreateRoleCoreAsync(Guid actorId, SavePlatformRoleCommand command, CancellationToken cancellationToken)
     {
-        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, null, grantBoundary, cancellationToken);
+        Result<EffectivePlatformAccess> authority = await managementAuthorization.AuthorizeAsync(actorId, PlatformManagementOperation.ManageRole, null, null, cancellationToken);
+        if (!authority.IsSuccess) return Result.Failure<PlatformRoleDefinition>(authority.ErrorCode!, authority.ErrorMessage!);
+        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, null, authority.Value!.Permissions, cancellationToken);
         if (!normalized.IsSuccess) return Result.Failure<PlatformRoleDefinition>(normalized.ErrorCode!, normalized.ErrorMessage!);
 
-        return await database.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
-        {
-            IdentityRole<Guid> role = new($"{CustomRolePrefix}{Guid.CreateVersion7():N}") { Id = Guid.CreateVersion7() };
-            await using IDbContextTransaction transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-            IdentityResult created = await roles.CreateAsync(role);
-            if (!created.Succeeded) return IdentityFailure<PlatformRoleDefinition>(created);
-            Result<bool> claimsResult = await ReplaceCustomRoleClaimsAsync(role, normalized.Value!, cancellationToken);
-            if (!claimsResult.IsSuccess) return Result.Failure<PlatformRoleDefinition>(claimsResult.ErrorCode!, claimsResult.ErrorMessage!);
-            await transaction.CommitAsync(cancellationToken);
-            return Result.Success(await ToCustomDefinitionAsync(role));
-        });
+        IdentityRole<Guid> role = new($"{CustomRolePrefix}{Guid.CreateVersion7():N}") { Id = Guid.CreateVersion7() };
+        IdentityResult created = await roles.CreateAsync(role);
+        if (!created.Succeeded) return IdentityFailure<PlatformRoleDefinition>(created);
+        Result<bool> claimsResult = await ReplaceCustomRoleClaimsAsync(role, normalized.Value!, cancellationToken);
+        if (!claimsResult.IsSuccess) return Result.Failure<PlatformRoleDefinition>(claimsResult.ErrorCode!, claimsResult.ErrorMessage!);
+        return Result.Success(await ToCustomDefinitionAsync(role));
     }
 
-    public async Task<Result<PlatformRoleDefinition>> UpdateRoleAsync(string roleKey, SavePlatformRoleCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default)
+    public Task<Result<PlatformRoleDefinition>> UpdateRoleAsync(Guid actorId, string roleKey, SavePlatformRoleCommand command, CancellationToken cancellationToken = default) =>
+        ExecuteWithAdministrationLockAsync(() => UpdateRoleCoreAsync(actorId, roleKey, command, cancellationToken), cancellationToken);
+
+    private async Task<Result<PlatformRoleDefinition>> UpdateRoleCoreAsync(Guid actorId, string roleKey, SavePlatformRoleCommand command, CancellationToken cancellationToken)
     {
-        if (!IsCustomRole(roleKey)) return Result.Failure<PlatformRoleDefinition>("system_role", "Built-in platform roles cannot be changed.");
+        PlatformRoleDefinition? current = await FindRoleAsync(roleKey, cancellationToken);
+        if (current is null) return Result.Failure<PlatformRoleDefinition>("not_found", "Platform role was not found.");
+        Result<EffectivePlatformAccess> authority = await managementAuthorization.AuthorizeAsync(actorId, PlatformManagementOperation.ManageRole, null, current, cancellationToken);
+        if (!authority.IsSuccess) return Result.Failure<PlatformRoleDefinition>(authority.ErrorCode!, authority.ErrorMessage!);
+        if (current.IsSystem) return Result.Failure<PlatformRoleDefinition>("system_role", "Built-in platform roles cannot be changed.");
         IdentityRole<Guid>? role = await roles.FindByNameAsync(roleKey);
         if (role is null) return Result.Failure<PlatformRoleDefinition>("not_found", "Platform role was not found.");
-        PlatformRoleDefinition current = await ToCustomDefinitionAsync(role);
-        if (!PlatformAccessRules.CanAssign(current, grantBoundary))
-            return Result.Failure<PlatformRoleDefinition>("grant_boundary", "You cannot change a role containing permissions that you do not hold.");
-        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, roleKey, grantBoundary, cancellationToken);
+        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, roleKey, authority.Value!.Permissions, cancellationToken);
         if (!normalized.IsSuccess) return Result.Failure<PlatformRoleDefinition>(normalized.ErrorCode!, normalized.ErrorMessage!);
 
-        return await database.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
-        {
-            await using IDbContextTransaction transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-            Result<bool> claimsResult = await ReplaceCustomRoleClaimsAsync(role, normalized.Value!, cancellationToken);
-            if (!claimsResult.IsSuccess) return Result.Failure<PlatformRoleDefinition>(claimsResult.ErrorCode!, claimsResult.ErrorMessage!);
-            await InvalidateRoleMembersAsync(role.Id, cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return Result.Success(await ToCustomDefinitionAsync(role));
-        });
+        Result<bool> claimsResult = await ReplaceCustomRoleClaimsAsync(role, normalized.Value!, cancellationToken);
+        if (!claimsResult.IsSuccess) return Result.Failure<PlatformRoleDefinition>(claimsResult.ErrorCode!, claimsResult.ErrorMessage!);
+        return Result.Success(await ToCustomDefinitionAsync(role));
     }
 
-    public async Task<Result<bool>> DeleteRoleAsync(string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default)
+    public Task<Result<bool>> DeleteRoleAsync(Guid actorId, string roleKey, CancellationToken cancellationToken = default) =>
+        ExecuteWithAdministrationLockAsync(() => DeleteRoleCoreAsync(actorId, roleKey, cancellationToken), cancellationToken);
+
+    private async Task<Result<bool>> DeleteRoleCoreAsync(Guid actorId, string roleKey, CancellationToken cancellationToken)
     {
-        if (!IsCustomRole(roleKey)) return Result.Failure<bool>("system_role", "Built-in platform roles cannot be deleted.");
+        PlatformRoleDefinition? current = await FindRoleAsync(roleKey, cancellationToken);
+        if (current is null) return Result.Failure<bool>("not_found", "Platform role was not found.");
+        Result<EffectivePlatformAccess> authority = await managementAuthorization.AuthorizeAsync(actorId, PlatformManagementOperation.ManageRole, null, current, cancellationToken);
+        if (!authority.IsSuccess) return Result.Failure<bool>(authority.ErrorCode!, authority.ErrorMessage!);
+        if (current.IsSystem) return Result.Failure<bool>("system_role", "Built-in platform roles cannot be deleted.");
         IdentityRole<Guid>? role = await roles.FindByNameAsync(roleKey);
         if (role is null) return Result.Failure<bool>("not_found", "Platform role was not found.");
-        if (!PlatformAccessRules.CanAssign(await ToCustomDefinitionAsync(role), grantBoundary))
-            return Result.Failure<bool>("grant_boundary", "You cannot delete a role containing permissions that you do not hold.");
         if (await database.UserRoles.AnyAsync(item => item.RoleId == role.Id, cancellationToken))
             return Result.Failure<bool>("role_in_use", "Move people to another role before deleting this role.");
         IdentityResult deleted = await roles.DeleteAsync(role);
@@ -131,12 +135,35 @@ internal sealed class PlatformAccessDirectory(
             : Result.Success(ToUser(row, roleMap));
     }
 
-    public async Task<Result<PlatformAccessGrant>> GrantAsync(GrantPlatformAccessCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default)
+    public async Task<EffectivePlatformAccess> ResolveEffectiveAccessAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        ApplicationUser? user = await users.FindByIdAsync(userId.ToString());
+        if (user is null || user.IsPlatformAccessSuspended)
+            return EffectivePlatformAccess.None;
+
+        string? roleKey = await FindAssignedPlatformRoleAsync(user, cancellationToken);
+        PlatformRoleDefinition? role = roleKey is null ? null : await FindRoleAsync(roleKey, cancellationToken);
+        if (role is null && user.IsPlatformAdministrator)
+            role = PlatformRoles.Find(PlatformRoles.Administrator);
+
+        return role is null
+            ? EffectivePlatformAccess.None
+            : new EffectivePlatformAccess(
+                true,
+                role.Key == PlatformRoles.Administrator,
+                role.Key,
+                role.Permissions);
+    }
+
+    public Task<Result<PlatformAccessGrant>> GrantAsync(Guid actorId, GrantPlatformAccessCommand command, CancellationToken cancellationToken = default) =>
+        ExecuteWithAdministrationLockAsync(() => GrantCoreAsync(actorId, command, cancellationToken), cancellationToken);
+
+    private async Task<Result<PlatformAccessGrant>> GrantCoreAsync(Guid actorId, GrantPlatformAccessCommand command, CancellationToken cancellationToken)
     {
         PlatformRoleDefinition? role = await FindRoleAsync(command.RoleKey, cancellationToken);
         if (role is null) return Result.Failure<PlatformAccessGrant>("invalid_role", "Choose a supported platform role.");
-        if (!PlatformAccessRules.CanAssign(role, grantBoundary))
-            return Result.Failure<PlatformAccessGrant>("grant_boundary", "You cannot assign a platform role containing permissions that you do not hold.");
+        Result<EffectivePlatformAccess> authority = await managementAuthorization.AuthorizeAsync(actorId, PlatformManagementOperation.Grant, null, role, cancellationToken);
+        if (!authority.IsSuccess) return Result.Failure<PlatformAccessGrant>(authority.ErrorCode!, authority.ErrorMessage!);
 
         string email = command.Email.Trim();
         string displayName = command.DisplayName.Trim();
@@ -180,7 +207,8 @@ internal sealed class PlatformAccessDirectory(
             return IdentityFailure<PlatformAccessGrant>(roleResult);
         }
 
-        await users.UpdateSecurityStampAsync(user);
+        IdentityResult rotated = await users.UpdateSecurityStampAsync(user);
+        if (!rotated.Succeeded) return IdentityFailure<PlatformAccessGrant>(rotated);
         string? activationToken = null;
         if (!user.EmailConfirmed || !await users.HasPasswordAsync(user))
         {
@@ -192,29 +220,23 @@ internal sealed class PlatformAccessDirectory(
         return Result.Success(new PlatformAccessGrant(platformUser, activationToken));
     }
 
-    public Task<Result<PlatformAccessUser>> ChangeRoleAsync(Guid actorId, Guid userId, string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default) =>
-        ExecuteWithAdministrationLockAsync(() => ChangeRoleCoreAsync(actorId, userId, roleKey, grantBoundary, cancellationToken));
+    public Task<Result<PlatformAccessUser>> ChangeRoleAsync(Guid actorId, Guid userId, string roleKey, CancellationToken cancellationToken = default) =>
+        ExecuteWithAdministrationLockAsync(() => ChangeRoleCoreAsync(actorId, userId, roleKey, cancellationToken), cancellationToken);
 
-    private async Task<Result<PlatformAccessUser>> ChangeRoleCoreAsync(Guid actorId, Guid userId, string roleKey, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken)
+    private async Task<Result<PlatformAccessUser>> ChangeRoleCoreAsync(Guid actorId, Guid userId, string roleKey, CancellationToken cancellationToken)
     {
-        await using IDbContextTransaction transaction = await BeginAdministrationTransactionAsync(cancellationToken);
         PlatformRoleDefinition? nextRole = await FindRoleAsync(roleKey, cancellationToken);
         if (nextRole is null) return Result.Failure<PlatformAccessUser>("invalid_role", "Choose a supported platform role.");
-        if (!PlatformAccessRules.CanAssign(nextRole, grantBoundary))
-            return Result.Failure<PlatformAccessUser>("grant_boundary", "You cannot assign a platform role containing permissions that you do not hold.");
+        Result<EffectivePlatformAccess> authority = await managementAuthorization.AuthorizeAsync(actorId, PlatformManagementOperation.ChangeRole, userId, nextRole, cancellationToken);
+        if (!authority.IsSuccess) return Result.Failure<PlatformAccessUser>(authority.ErrorCode!, authority.ErrorMessage!);
         ApplicationUser? user = await users.FindByIdAsync(userId.ToString());
         if (user is null) return Result.Failure<PlatformAccessUser>("not_found", "Platform user was not found.");
 
         string? currentRole = await FindAssignedPlatformRoleAsync(user, cancellationToken);
         if (currentRole is null) return Result.Failure<PlatformAccessUser>("not_found", "Platform user was not found.");
-        if (actorId == userId && currentRole != roleKey)
-            return Result.Failure<PlatformAccessUser>("self_change", "You cannot change your own platform role.");
-        if (currentRole == PlatformRoles.Administrator && roleKey != PlatformRoles.Administrator && await IsLastActiveAdministratorAsync(userId, cancellationToken))
-            return Result.Failure<PlatformAccessUser>("last_administrator", "At least one active platform administrator is required.");
         if (currentRole == roleKey)
         {
             Result<PlatformAccessUser> unchanged = await GetAsync(userId, cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
             return unchanged;
         }
 
@@ -225,48 +247,44 @@ internal sealed class PlatformAccessDirectory(
         user.IsPlatformAdministrator = roleKey == PlatformRoles.Administrator;
         IdentityResult updateResult = await users.UpdateAsync(user);
         if (!updateResult.Succeeded) return IdentityFailure<PlatformAccessUser>(updateResult);
-        await users.UpdateSecurityStampAsync(user);
+        IdentityResult rotated = await users.UpdateSecurityStampAsync(user);
+        if (!rotated.Succeeded) return IdentityFailure<PlatformAccessUser>(rotated);
         Result<PlatformAccessUser> changed = await GetAsync(userId, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         return changed;
     }
 
     public Task<Result<PlatformAccessUser>> SetStatusAsync(Guid actorId, Guid userId, bool isActive, CancellationToken cancellationToken = default) =>
-        ExecuteWithAdministrationLockAsync(() => SetStatusCoreAsync(actorId, userId, isActive, cancellationToken));
+        ExecuteWithAdministrationLockAsync(() => SetStatusCoreAsync(actorId, userId, isActive, cancellationToken), cancellationToken);
 
     private async Task<Result<PlatformAccessUser>> SetStatusCoreAsync(Guid actorId, Guid userId, bool isActive, CancellationToken cancellationToken)
     {
-        await using IDbContextTransaction transaction = await BeginAdministrationTransactionAsync(cancellationToken);
+        Result<EffectivePlatformAccess> authority = await managementAuthorization.AuthorizeAsync(actorId,
+            isActive ? PlatformManagementOperation.Reactivate : PlatformManagementOperation.Suspend, userId, null, cancellationToken);
+        if (!authority.IsSuccess) return Result.Failure<PlatformAccessUser>(authority.ErrorCode!, authority.ErrorMessage!);
         ApplicationUser? user = await users.FindByIdAsync(userId.ToString());
         if (user is null || await FindAssignedPlatformRoleAsync(user, cancellationToken) is null)
             return Result.Failure<PlatformAccessUser>("not_found", "Platform user was not found.");
-        if (actorId == userId && !isActive)
-            return Result.Failure<PlatformAccessUser>("self_change", "You cannot suspend your own platform access.");
-        if (!isActive && await users.IsInRoleAsync(user, PlatformRoles.Administrator) && await IsLastActiveAdministratorAsync(userId, cancellationToken))
-            return Result.Failure<PlatformAccessUser>("last_administrator", "At least one active platform administrator is required.");
 
         user.IsPlatformAccessSuspended = !isActive;
         IdentityResult result = await users.UpdateAsync(user);
         if (!result.Succeeded) return IdentityFailure<PlatformAccessUser>(result);
-        await users.UpdateSecurityStampAsync(user);
+        IdentityResult rotated = await users.UpdateSecurityStampAsync(user);
+        if (!rotated.Succeeded) return IdentityFailure<PlatformAccessUser>(rotated);
         Result<PlatformAccessUser> changed = await GetAsync(userId, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         return changed;
     }
 
     public Task<Result<bool>> RevokeAsync(Guid actorId, Guid userId, CancellationToken cancellationToken = default) =>
-        ExecuteWithAdministrationLockAsync(() => RevokeCoreAsync(actorId, userId, cancellationToken));
+        ExecuteWithAdministrationLockAsync(() => RevokeCoreAsync(actorId, userId, cancellationToken), cancellationToken);
 
     private async Task<Result<bool>> RevokeCoreAsync(Guid actorId, Guid userId, CancellationToken cancellationToken)
     {
-        await using IDbContextTransaction transaction = await BeginAdministrationTransactionAsync(cancellationToken);
+        Result<EffectivePlatformAccess> authority = await managementAuthorization.AuthorizeAsync(actorId, PlatformManagementOperation.Revoke, userId, null, cancellationToken);
+        if (!authority.IsSuccess) return Result.Failure<bool>(authority.ErrorCode!, authority.ErrorMessage!);
         ApplicationUser? user = await users.FindByIdAsync(userId.ToString());
         if (user is null) return Result.Failure<bool>("not_found", "Platform user was not found.");
         string[] currentRoles = await FindAssignedPlatformRolesAsync(user, cancellationToken);
         if (currentRoles.Length == 0) return Result.Failure<bool>("not_found", "Platform user was not found.");
-        if (actorId == userId) return Result.Failure<bool>("self_change", "You cannot remove your own platform access.");
-        if (currentRoles.Contains(PlatformRoles.Administrator, StringComparer.Ordinal) && await IsLastActiveAdministratorAsync(userId, cancellationToken))
-            return Result.Failure<bool>("last_administrator", "At least one active platform administrator is required.");
 
         IdentityResult removeResult = await users.RemoveFromRolesAsync(user, currentRoles);
         if (!removeResult.Succeeded) return IdentityFailure<bool>(removeResult);
@@ -274,13 +292,18 @@ internal sealed class PlatformAccessDirectory(
         user.IsPlatformAccessSuspended = false;
         IdentityResult updateResult = await users.UpdateAsync(user);
         if (!updateResult.Succeeded) return IdentityFailure<bool>(updateResult);
-        await users.UpdateSecurityStampAsync(user);
-        await transaction.CommitAsync(cancellationToken);
+        IdentityResult rotated = await users.UpdateSecurityStampAsync(user);
+        if (!rotated.Succeeded) return IdentityFailure<bool>(rotated);
         return Result.Success(true);
     }
 
-    public async Task<Result<string>> CreateActivationTokenAsync(Guid userId, CancellationToken cancellationToken = default)
+    public Task<Result<string>> CreateActivationTokenAsync(Guid actorId, Guid userId, CancellationToken cancellationToken = default) =>
+        ExecuteWithAdministrationLockAsync(() => CreateActivationTokenCoreAsync(actorId, userId, cancellationToken), cancellationToken);
+
+    private async Task<Result<string>> CreateActivationTokenCoreAsync(Guid actorId, Guid userId, CancellationToken cancellationToken)
     {
+        Result<EffectivePlatformAccess> authority = await managementAuthorization.AuthorizeAsync(actorId, PlatformManagementOperation.IssueActivationToken, userId, null, cancellationToken);
+        if (!authority.IsSuccess) return Result.Failure<string>(authority.ErrorCode!, authority.ErrorMessage!);
         ApplicationUser? user = await users.FindByIdAsync(userId.ToString());
         if (user is null || await FindAssignedPlatformRoleAsync(user, cancellationToken) is null)
             return Result.Failure<string>("not_found", "Platform invitation was not found.");
@@ -291,10 +314,13 @@ internal sealed class PlatformAccessDirectory(
         return Result.Success(EncodeToken(token));
     }
 
-    public async Task<Result<bool>> ActivateAsync(ActivatePlatformAccessCommand command, CancellationToken cancellationToken = default)
+    public Task<Result<bool>> ActivateAsync(ActivatePlatformAccessCommand command, CancellationToken cancellationToken = default) =>
+        ExecuteWithAdministrationLockAsync(() => ActivateCoreAsync(command, cancellationToken), cancellationToken);
+
+    private async Task<Result<bool>> ActivateCoreAsync(ActivatePlatformAccessCommand command, CancellationToken cancellationToken)
     {
         ApplicationUser? user = await users.FindByIdAsync(command.UserId.ToString());
-        if (user is null || await FindAssignedPlatformRoleAsync(user, cancellationToken) is null)
+        if (user is null || user.IsPlatformAccessSuspended || await FindAssignedPlatformRoleAsync(user, cancellationToken) is null)
             return Result.Failure<bool>("invalid_activation", "This activation link is invalid or has expired.");
 
         string token;
@@ -357,7 +383,6 @@ internal sealed class PlatformAccessDirectory(
 
     private async Task<Result<bool>> ReplaceCustomRoleClaimsAsync(IdentityRole<Guid> role, NormalizedRoleInput input, CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
         IList<System.Security.Claims.Claim> existing = await roles.GetClaimsAsync(role);
         foreach (System.Security.Claims.Claim claim in existing.Where(claim => claim.Type is DisplayNameClaim or DescriptionClaim or PermissionClaim))
         {
@@ -376,7 +401,7 @@ internal sealed class PlatformAccessDirectory(
             IdentityResult added = await roles.AddClaimAsync(role, claim);
             if (!added.Succeeded) return IdentityFailure<bool>(added);
         }
-        return Result.Success(true);
+        return await InvalidateRoleMembersAsync(role.Id, cancellationToken);
     }
 
     private async Task<PlatformRoleDefinition> ToCustomDefinitionAsync(IdentityRole<Guid> role)
@@ -409,38 +434,58 @@ internal sealed class PlatformAccessDirectory(
         return assigned.Any(known.Contains);
     }
 
-    private async Task InvalidateRoleMembersAsync(Guid roleId, CancellationToken cancellationToken)
+    private async Task<Result<bool>> InvalidateRoleMembersAsync(Guid roleId, CancellationToken cancellationToken)
     {
         Guid[] userIds = await database.UserRoles.Where(item => item.RoleId == roleId).Select(item => item.UserId).ToArrayAsync(cancellationToken);
         foreach (Guid userId in userIds)
         {
             ApplicationUser? user = await users.FindByIdAsync(userId.ToString());
-            if (user is not null) await users.UpdateSecurityStampAsync(user);
+            if (user is not null)
+            {
+                IdentityResult rotated = await users.UpdateSecurityStampAsync(user);
+                if (!rotated.Succeeded) return IdentityFailure<bool>(rotated);
+            }
         }
+        return Result.Success(true);
     }
 
     private static bool IsCustomRole(string roleKey) => roleKey.StartsWith(CustomRolePrefix, StringComparison.Ordinal);
 
-    private async Task<bool> IsLastActiveAdministratorAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        long otherActiveAdministrators = await (
-            from user in database.Users.AsNoTracking()
-            join userRole in database.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
-            join role in database.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-            where role.Name == PlatformRoles.Administrator && !user.IsPlatformAccessSuspended && user.Id != userId
-            select user.Id).Distinct().LongCountAsync(cancellationToken);
-        return otherActiveAdministrators == 0;
-    }
-
     private async Task<IDbContextTransaction> BeginAdministrationTransactionAsync(CancellationToken cancellationToken)
     {
-        IDbContextTransaction transaction = await database.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-        await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(734001)", cancellationToken);
-        return transaction;
+        IDbContextTransaction transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        try
+        {
+            await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(734001)", cancellationToken);
+            // The request's authentication phase may already have tracked an actor. Decisions
+            // must see the committed authority after any previous lock holder has finished.
+            database.ChangeTracker.Clear();
+            return transaction;
+        }
+        catch
+        {
+            await transaction.DisposeAsync();
+            throw;
+        }
     }
 
-    private Task<Result<T>> ExecuteWithAdministrationLockAsync<T>(Func<Task<Result<T>>> operation) =>
-        database.Database.CreateExecutionStrategy().ExecuteAsync(operation);
+    private Task<Result<T>> ExecuteWithAdministrationLockAsync<T>(Func<Task<Result<T>>> operation, CancellationToken cancellationToken) =>
+        database.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using IDbContextTransaction transaction = await BeginAdministrationTransactionAsync(cancellationToken);
+            try
+            {
+                Result<T> result = await operation();
+                if (result.IsSuccess) await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            finally
+            {
+                // Failed Identity operations may leave tracked changes even after rollback.
+                // A reused application scope must not carry them into its next operation.
+                database.ChangeTracker.Clear();
+            }
+        });
 
     private static PlatformAccessUser ToUser(PlatformAccessRow row, Dictionary<string, PlatformRoleDefinition> roleMap)
     {

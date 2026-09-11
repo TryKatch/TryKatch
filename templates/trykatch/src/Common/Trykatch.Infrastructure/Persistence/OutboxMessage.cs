@@ -8,6 +8,8 @@ public sealed class OutboxMessage
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ProcessedAt { get; set; }
     public int Attempts { get; set; }
-    public string? LastError { get; set; }
+    public string? LastErrorCode { get; set; }
+    public string? LastErrorType { get; set; }
+    public DateTimeOffset? ExhaustedAt { get; set; }
+    public int ReplayGeneration { get; set; }
 }
-

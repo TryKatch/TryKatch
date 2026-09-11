@@ -47,9 +47,19 @@ services:
       OTEL_TRACES_SAMPLER: parentbased_traceidratio
       OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-0.10}
       OpenIddict__SigningCertificate__Path: /run/secrets/signing.pfx
-      OpenIddict__SigningCertificate__Password: ${TRYKATCH_SIGNING_CERTIFICATE_PASSWORD}
+      OpenIddict__SigningCertificate__PasswordFile: /run/secrets/signing.password
       OpenIddict__EncryptionCertificate__Path: /run/secrets/encryption.pfx
-      OpenIddict__EncryptionCertificate__Password: ${TRYKATCH_ENCRYPTION_CERTIFICATE_PASSWORD}
+      OpenIddict__EncryptionCertificate__PasswordFile: /run/secrets/encryption.password
+      DataProtection__Certificate__Path: /run/secrets/data-protection.pfx
+      DataProtection__Certificate__PasswordFile: /run/secrets/data-protection.password
+      #if (email)
+      Email__Host: ${TRYKATCH_SMTP_HOST:-}
+      Email__Port: ${TRYKATCH_SMTP_PORT:-587}
+      Email__From: ${TRYKATCH_SMTP_FROM:-}
+      Email__Security: ${TRYKATCH_SMTP_SECURITY:-StartTls}
+      Email__Username: ${TRYKATCH_SMTP_USERNAME:-}
+      Email__PasswordFile: ${TRYKATCH_SMTP_PASSWORD_FILE:-}
+      #endif
       Bootstrap__PlatformAdminEmail: ${TRYKATCH_BOOTSTRAP_ADMIN_EMAIL:-}
       Bootstrap__PlatformAdminPassword: ${TRYKATCH_BOOTSTRAP_ADMIN_PASSWORD:-}
       ReverseProxy__KnownProxies__0: ${TRYKATCH_WEB_PROXY_IP:-172.30.250.10}
@@ -61,6 +71,10 @@ services:
     volumes:
       - ${TRYKATCH_SECRETS_PATH:-./secrets}/signing.pfx:/run/secrets/signing.pfx:ro
       - ${TRYKATCH_SECRETS_PATH:-./secrets}/encryption.pfx:/run/secrets/encryption.pfx:ro
+      - ${TRYKATCH_SECRETS_PATH:-./secrets}/signing.password:/run/secrets/signing.password:ro
+      - ${TRYKATCH_SECRETS_PATH:-./secrets}/encryption.password:/run/secrets/encryption.password:ro
+      - ${TRYKATCH_SECRETS_PATH:-./secrets}/data-protection.pfx:/run/secrets/data-protection.pfx:ro
+      - ${TRYKATCH_SECRETS_PATH:-./secrets}/data-protection.password:/run/secrets/data-protection.password:ro
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     restart: unless-stopped

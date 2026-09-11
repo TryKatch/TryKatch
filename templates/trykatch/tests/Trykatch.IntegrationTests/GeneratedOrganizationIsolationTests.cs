@@ -18,6 +18,58 @@ namespace Trykatch.IntegrationTests;
 public sealed class GeneratedOrganizationIsolationTests
 {
     [TestMethod]
+    public async Task TamperedHostFunctionNeverReceivesRuntimeExecuteGrants()
+    {
+        await using DatabaseServer server = await DatabaseServer.StartAsync();
+        ModuleCatalog catalog = new(EnabledModules.All);
+        ServiceCollection moduleServices = new();
+        IConfiguration configuration = new ConfigurationBuilder().Build();
+        foreach (IModule module in catalog.Modules)
+            module.Register(moduleServices, configuration);
+        await using ServiceProvider moduleProvider = moduleServices.BuildServiceProvider();
+        IApplicationModelContributor[] contributors = moduleProvider.GetServices<IApplicationModelContributor>().ToArray();
+        await MigrateAsync(server.ConnectionString, catalog, contributors);
+        await InstalledSchemaCatalog.SynchronizeAsync(
+            server.ConnectionString,
+            catalog.Descriptors.SelectMany(module => module.DataResources
+                .Select(resource => new InstalledDataResource(module.Id, resource))));
+
+        await using NpgsqlConnection owner = new(server.ConnectionString);
+        await owner.OpenAsync();
+        await ExecuteAsync(owner, null, """
+            CREATE OR REPLACE FUNCTION platform.redact_legacy_outbox_error()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            SECURITY INVOKER
+            SET search_path = pg_catalog
+            AS 'BEGIN RETURN NEW; END';
+            """);
+        RuntimeDatabaseRoles runtimeRoles = new(
+            PostgresRuntimeRoleFixture.OrganizationRole,
+            PostgresRuntimeRoleFixture.PlatformRole,
+            PostgresRuntimeRoleFixture.IdentityRole,
+            PostgresRuntimeRoleFixture.OutboxRole);
+        await ExecuteAsync(owner, null, $"""
+            GRANT EXECUTE ON FUNCTION platform.redact_legacy_outbox_error()
+            TO {PostgresRuntimeRoleFixture.OrganizationRole}, {PostgresRuntimeRoleFixture.OutboxRole};
+            """);
+
+        await Should.ThrowAsync<InvalidOperationException>(() =>
+            RuntimeRoleProvisioner.ProvisionAsync(server.ConnectionString, runtimeRoles));
+
+        await using NpgsqlCommand privileges = new("""
+            SELECT has_function_privilege(@organization, 'platform.redact_legacy_outbox_error()', 'EXECUTE'),
+                   has_function_privilege(@outbox, 'platform.redact_legacy_outbox_error()', 'EXECUTE')
+            """, owner);
+        privileges.Parameters.AddWithValue("organization", PostgresRuntimeRoleFixture.OrganizationRole);
+        privileges.Parameters.AddWithValue("outbox", PostgresRuntimeRoleFixture.OutboxRole);
+        await using NpgsqlDataReader reader = await privileges.ExecuteReaderAsync();
+        (await reader.ReadAsync()).ShouldBeTrue();
+        reader.GetBoolean(0).ShouldBeFalse();
+        reader.GetBoolean(1).ShouldBeFalse();
+    }
+
+    [TestMethod]
     public async Task EveryDeclaredOrganizationRelationIsDefaultDenyUnderTheRealRuntimeRole()
     {
         await using DatabaseServer server = await DatabaseServer.StartAsync();

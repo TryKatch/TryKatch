@@ -30,10 +30,10 @@ test.describe('generated production application', () => {
     await test.step('a platform administrator cannot suspend their own access', async () => {
       const response = await mutate(platformRequest, 'POST', `/api/v1/platform-users/${platformSession.userId}/suspend`)
       expect(response.status()).toBe(409)
-      await expectProblem(response, 'self_change')
+      await expectProblem(response, 'last_administrator')
     })
 
-    await test.step('a delegated access manager cannot suspend the final platform administrator', async () => {
+    await test.step('a delegated access manager cannot suspend a platform administrator', async () => {
       const roleResponse = await mutate(platformRequest, 'POST', '/api/v1/platform-users/roles', {
         name: 'Access manager',
         description: 'Manages platform access without holding platform-administrator status.',
@@ -65,8 +65,8 @@ test.describe('generated production application', () => {
         })).status()).toBe(200)
 
         const response = await mutate(managerContext.request, 'POST', `/api/v1/platform-users/${platformSession.userId}/suspend`)
-        expect(response.status()).toBe(409)
-        await expectProblem(response, 'last_administrator')
+        expect(response.status()).toBe(403)
+        await expectProblem(response, 'grant_boundary')
       } finally {
         await managerContext.close()
       }

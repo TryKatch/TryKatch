@@ -130,7 +130,7 @@ public sealed class DocumentsUseCases(
     private void RecordChange(DocumentRecord document, string operation)
     {
         IReadOnlyDictionary<string, string?>? details = operation == "deleted"
-            ? new Dictionary<string, string?> { ["reason"] = document.DeletionReason }
+            ? new Dictionary<string, string?> { ["reasonProvided"] = "True" }
             : null;
         context.RecordAudit($"document.{operation}", "Document", document.Id.ToString(), document.Title, details);
         context.Enqueue(new DocumentChanged(document.Id, document.OrganizationId, operation, context.ActorId,

@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Trykatch.Modules;
 using Trykatch.Infrastructure.Modules;
 #if TRYKATCH_EMAIL
@@ -25,7 +26,7 @@ namespace Trykatch.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration, bool isDevelopment = false, bool isOpenApiGeneration = false)
     {
         string platformConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Platform);
         string organizationConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Organization);
@@ -38,7 +39,13 @@ public static class DependencyInjection
         // connections. Retrying an entire HTTP transaction could replay downstream
         // side effects, therefore these contexts deliberately avoid EF retries.
         services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(organizationConnection));
-        services.AddDbContext<OutboxDbContext>(options => options.UseNpgsql(outboxConnection));
+        services.AddOptions<OutboxRecoveryOptions>()
+            .BindConfiguration(OutboxRecoveryOptions.SectionName)
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<OutboxRecoveryOptions>, OutboxRecoveryOptionsValidator>();
+        services.AddDbContext<OutboxDbContext>((provider, options) =>
+            options.UseNpgsql(outboxConnection, npgsql => npgsql.CommandTimeout(
+                checked((int)Math.Ceiling(provider.GetRequiredService<IOptions<OutboxRecoveryOptions>>().Value.DatabaseCommandTimeout.TotalSeconds)))));
 
         services.AddScoped<OrganizationContext>();
         services.AddScoped<IOrganizationContext>(provider => provider.GetRequiredService<OrganizationContext>());
@@ -60,14 +67,29 @@ public static class DependencyInjection
         services.AddScoped<IAuditReader, AuditReader>();
         services.AddScoped<IWorkspaceOverviewReader, WorkspaceOverviewReader>();
         services.AddScoped<IAuditWriter, AuditWriter>();
+        services.AddScoped<IAuditIntentWriter, AuditIntentWriter>();
         services.AddScoped<IOutboxWriter, OutboxWriter>();
+        services.AddScoped<IOutboxRecoveryDirectory, OutboxRecoveryDirectory>();
         services.AddScoped<IOrganizationModuleData, OrganizationModuleData>();
         services.TryAddSingleton<IOutboxTransport, LoggingOutboxTransport>();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<AuditProjectionOptions>()
+            .BindConfiguration(AuditProjectionOptions.SectionName)
+            .Validate(options => options.BatchSize is >= 1 and <= 500, "Audit projection batch size must be between 1 and 500.")
+            .Validate(options => options.PollInterval >= TimeSpan.FromMilliseconds(100) && options.PollInterval <= TimeSpan.FromMinutes(5), "Audit projection poll interval must be between 100 milliseconds and 5 minutes.")
+            .Validate(options => options.BacklogWarningCount >= 1, "Audit projection backlog warning count must be positive.")
+            .Validate(options => options.BacklogWarningAge >= TimeSpan.FromSeconds(1), "Audit projection backlog warning age must be at least one second.")
+            .ValidateOnStart();
+        services.AddSingleton<AuditProjectionBacklogState>();
+        services.AddHealthChecks().AddCheck<AuditProjectionHealthCheck>("audit-projection", tags: ["ready"]);
+        services.AddHostedService<AuditIntentProjectionWorker>();
+        services.AddSingleton<OutboxWorkerState>();
+        services.AddHealthChecks().AddCheck<OutboxHealthCheck>("outbox", tags: ["ready"]);
         services.AddScoped<OutboxDelivery>();
+        services.AddScoped<OutboxBatchProcessor>();
         services.AddHostedService<OutboxProcessor>();
 #if TRYKATCH_EMAIL
-        services.AddEmailModule();
+        services.AddEmailModule(configuration, isDevelopment, isOpenApiGeneration);
 #else
         services.AddSingleton<IAccountRecoveryNotifier, NoOpAccountRecoveryNotifier>();
         services.AddSingleton<IInvitationNotifier, NoOpInvitationNotifier>();
