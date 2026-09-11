@@ -1,18 +1,36 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Npgsql;
 using Trykatch.Identity;
 using Trykatch.Infrastructure.Organizations;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Migrator;
 using Trykatch.Migrator.Modules;
 using Trykatch.Modules;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Npgsql;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 string connectionString = builder.Configuration.GetConnectionString("trykatchdb")
     ?? throw new InvalidOperationException("Connection string 'trykatchdb' is required.");
+
+if (builder.Configuration["data-protection-keys"] is { } keyMaintenance)
+{
+    try
+    {
+        if (keyMaintenance is not ("dry-run" or "apply") || (keyMaintenance == "apply" && builder.Configuration["confirm-key-backup"] != "true"))
+            throw new InvalidOperationException("Use --data-protection-keys dry-run or apply; apply also requires --confirm-key-backup true after a protected backup and quiescing API writers.");
+        KeyMaintenanceResult result = await DataProtectionKeyMaintenance.RunAsync(connectionString, builder.Configuration, keyMaintenance == "apply");
+        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)));
+    }
+    catch (Exception failure) when (failure is InvalidOperationException or Microsoft.Extensions.Options.OptionsValidationException)
+    {
+        // Maintenance errors are deliberately value-free; never emit XML or an inner exception.
+        Console.Error.WriteLine(failure.Message);
+        Environment.ExitCode = 1;
+    }
+    return;
+}
 
 DbContextOptions<PlatformDbContext> platformOptions = new DbContextOptionsBuilder<PlatformDbContext>()
     .UseNpgsql(connectionString)

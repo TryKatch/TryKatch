@@ -401,7 +401,7 @@ public sealed class AccountSecurityStepUpTests
     private static async Task<JsonElement> StartEnrollmentAsync(HttpClient client, string purpose = "mfa.enroll", string? code = null) =>
         await SuccessAsync(client, "/mfa/setup", new { grant = await GrantAsync(client, purpose, code) });
 
-    private static string Totp(string key, DateTimeOffset? now = null)
+    internal static string Totp(string key, DateTimeOffset? now = null)
     {
         const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
         string bits = string.Concat(key.Select(character => Convert.ToString(alphabet.IndexOf(character, StringComparison.Ordinal), 2).PadLeft(5, '0')));
@@ -416,7 +416,7 @@ public sealed class AccountSecurityStepUpTests
         return (value % 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
     }
 
-    private static async Task<HttpResponseMessage> PostAsync(HttpClient client, string path, object body)
+    internal static async Task<HttpResponseMessage> PostAsync(HttpClient client, string path, object body)
     {
         JsonElement antiforgery = await client.GetFromJsonAsync<JsonElement>("/api/v1/auth/antiforgery");
         using HttpRequestMessage request = new(HttpMethod.Post, path.StartsWith("/api/", StringComparison.Ordinal) ? path : "/api/v1/account/security" + path)
@@ -445,14 +445,14 @@ public sealed class AccountSecurityStepUpTests
         problem.TryGetProperty("codes", out _).ShouldBeFalse();
     }
 
-    private sealed class TestClock : TimeProvider
+    internal sealed class TestClock : TimeProvider
     {
         private long ticks = DateTimeOffset.UtcNow.UtcTicks;
         public override DateTimeOffset GetUtcNow() => new(Interlocked.Read(ref ticks), TimeSpan.Zero);
         public void Advance(TimeSpan duration) => Interlocked.Add(ref ticks, duration.Ticks);
     }
 
-    private sealed class SecurityHost(WebApplicationFactory<Program> factory, PostgreSqlContainer? postgres, string ownerConnection, string? maintenanceConnection, string? databaseName, TestClock clock) : IAsyncDisposable
+    internal sealed class SecurityHost(WebApplicationFactory<Program> factory, PostgreSqlContainer? postgres, string ownerConnection, string? maintenanceConnection, string? databaseName, TestClock clock, Dictionary<string, string?> settings) : IAsyncDisposable
     {
         public const string Email = "security-admin@trykatch.test";
         public const string Password = "Local-only!Security-Password-42";
@@ -460,6 +460,27 @@ public sealed class AccountSecurityStepUpTests
         public const string LegacyRecoveryCode = "ABCD2-EFGH3";
         public TestClock Clock => clock;
         public IServiceProvider Services => factory.Services;
+        public string OwnerConnection => ownerConnection;
+
+        public async Task RestartAsync(IReadOnlyDictionary<string, string?> overrides, string environment = "Production", Action<IServiceCollection>? configureServices = null)
+        {
+            await factory.DisposeAsync();
+            foreach ((string key, string? value) in overrides) settings[key] = value;
+            factory = CreateFactory(settings, clock, environment, configureServices);
+        }
+
+        private static WebApplicationFactory<Program> CreateFactory(Dictionary<string, string?> settings, TestClock clock, string environment, Action<IServiceCollection>? configureServices = null) =>
+            new WebApplicationFactory<Program>().WithWebHostBuilder(webHost =>
+            {
+                webHost.UseEnvironment(environment);
+                foreach ((string key, string? value) in settings) webHost.UseSetting(key, value);
+                webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
+                webHost.ConfigureTestServices(services =>
+                {
+                    services.AddSingleton<TimeProvider>(clock);
+                    configureServices?.Invoke(services);
+                });
+            });
 
         public static async Task<SecurityHost> StartAsync(bool legacyMfa = false)
         {
@@ -540,14 +561,8 @@ public sealed class AccountSecurityStepUpTests
                     ["DevelopmentDemo:Enabled"] = "false"
                 };
                 TestClock clock = new();
-                WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>().WithWebHostBuilder(webHost =>
-                {
-                    webHost.UseEnvironment("Development");
-                    foreach ((string key, string? value) in settings) webHost.UseSetting(key, value);
-                    webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
-                    webHost.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(clock));
-                });
-                return new(factory, postgres, ownerConnection, configured, databaseName, clock);
+                WebApplicationFactory<Program> factory = CreateFactory(settings, clock, "Development");
+                return new(factory, postgres, ownerConnection, configured, databaseName, clock, settings);
             }
             catch
             {
@@ -557,12 +572,17 @@ public sealed class AccountSecurityStepUpTests
             }
         }
 
-        public HttpClient CreateClient() => factory.CreateClient(new WebApplicationFactoryClientOptions
+        public HttpClient CreateClient(string? cookie = null)
         {
-            BaseAddress = new Uri("https://localhost"),
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+            HttpClient client = factory.CreateClient(new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false,
+                HandleCookies = cookie is null
+            });
+            if (cookie is not null) client.DefaultRequestHeaders.Add("Cookie", cookie);
+            return client;
+        }
 
         public async Task<HttpClient> SignInAsync()
         {

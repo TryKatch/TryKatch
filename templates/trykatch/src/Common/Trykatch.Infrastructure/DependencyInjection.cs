@@ -25,7 +25,7 @@ namespace Trykatch.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration, bool isDevelopment = false, bool isOpenApiGeneration = false)
     {
         string platformConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Platform);
         string organizationConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Organization);
@@ -67,7 +67,7 @@ public static class DependencyInjection
         services.AddScoped<OutboxDelivery>();
         services.AddHostedService<OutboxProcessor>();
 #if TRYKATCH_EMAIL
-        services.AddEmailModule();
+        services.AddEmailModule(configuration, isDevelopment, isOpenApiGeneration);
 #else
         services.AddSingleton<IAccountRecoveryNotifier, NoOpAccountRecoveryNotifier>();
         services.AddSingleton<IInvitationNotifier, NoOpInvitationNotifier>();

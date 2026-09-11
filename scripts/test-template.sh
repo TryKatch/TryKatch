@@ -97,6 +97,29 @@ generate_and_build() {
   TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file "$output/.env.example" -f "$output/compose.yml" config --quiet
   test -f "$output/deploy/observability/otel-collector.tls.yml"
   test -f "$output/compose.observability-tls.yml"
+  test -f "$output/compose.identity-maintenance.yml"
+  test -f "$output/docs/production-identity.md"
+  grep -Fq 'DataProtection__Certificate__PasswordFile: /run/secrets/data-protection.password' "$output/compose.yml" ||
+    fail "generated application '$name' is missing production key encryption"
+  grep -Fq 'OpenIddict__SigningCertificate__PasswordFile:' "$output/compose.yml" ||
+    fail "generated application '$name' is missing certificate password-file configuration"
+  if [[ -d "$output/src/Common/$namespace_name.Infrastructure/Optional/Email" ]]; then
+    grep -Fq 'services.AddEmailModule(configuration, isDevelopment, isOpenApiGeneration)' "$output/src/Common/$namespace_name.Infrastructure/DependencyInjection.cs" ||
+      fail "generated email application '$name' does not wire the SMTP adapter"
+    grep -Fq 'Email__Security' "$output/src/API/$namespace_name.AppHost/Program.cs" ||
+      fail "generated email application '$name' does not wire Mailpit transport security"
+    grep -Fq 'RealSmtpDeliveryUsesConfiguredTransport' "$output/tests/$namespace_name.IntegrationTests/SmtpTransportTests.cs" ||
+      fail "generated email application '$name' omits its SMTP tests"
+    grep -Fq 'Email__Security:' "$output/compose.yml" ||
+      fail "generated email application '$name' omits production SMTP configuration"
+    dotnet test "$output/tests/$namespace_name.IntegrationTests" --no-build --filter FullyQualifiedName~SmtpTransportTests
+  else
+    if grep -Fq 'services.AddEmailModule(' "$output/src/Common/$namespace_name.Infrastructure/DependencyInjection.cs" ||
+      grep -Fq 'RealSmtpDeliveryUsesConfiguredTransport' "$output/tests/$namespace_name.IntegrationTests/SmtpTransportTests.cs" ||
+      grep -Fq 'Email__Security:' "$output/compose.yml"; then
+      fail "generated no-email application '$name' includes SMTP wiring, tests, or production configuration"
+    fi
+  fi
   test -f "$output/scripts/test-observability.sh"
   if [[ -f "$output/web/package.json" ]]; then
     test -f "$output/package.json" ||

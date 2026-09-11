@@ -1,0 +1,9 @@
+# Explicit operator-only operation. Never add this command to API startup.
+services:
+  migrator:
+    environment:
+      DataProtection__Certificate__Path: /run/secrets/data-protection.pfx
+      DataProtection__Certificate__PasswordFile: /run/secrets/data-protection.password
+    volumes:
+      - ${TRYKATCH_SECRETS_PATH:-./secrets}/data-protection.pfx:/run/secrets/data-protection.pfx:ro
+      - ${TRYKATCH_SECRETS_PATH:-./secrets}/data-protection.password:/run/secrets/data-protection.password:ro

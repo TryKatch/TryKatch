@@ -75,14 +75,19 @@ if (builder.ExecutionContext.IsRunMode)
 }
 
 #if TRYKATCH_EMAIL
-IResourceBuilder<ContainerResource> mailpit = builder
-    .AddContainer("mailpit", "axllent/mailpit", "v1.30.4@sha256:5a49a77c5bdbe7c5474450b4f46348d09949df3695257729c93a30369382d4f6")
-    .WithEndpoint(targetPort: 1025, name: "smtp")
-    .WithHttpEndpoint(targetPort: 8025, name: "inbox")
-    .WithExternalHttpEndpoints();
-api.WithEnvironment("Email__Host", "mailpit")
-    .WithEnvironment("Email__Port", "1025")
-    .WaitFor(mailpit);
+if (builder.ExecutionContext.IsRunMode)
+{
+    IResourceBuilder<ContainerResource> mailpit = builder
+        .AddContainer("mailpit", "axllent/mailpit", "v1.30.4@sha256:5a49a77c5bdbe7c5474450b4f46348d09949df3695257729c93a30369382d4f6")
+        .WithEndpoint(targetPort: 1025, name: "smtp")
+        .WithHttpEndpoint(targetPort: 8025, name: "inbox")
+        .WithExternalHttpEndpoints();
+    api.WithEnvironment("Email__Host", mailpit.GetEndpoint("smtp").Property(EndpointProperty.Host))
+        .WithEnvironment("Email__Port", mailpit.GetEndpoint("smtp").Property(EndpointProperty.Port))
+        .WithEnvironment("Email__Security", "None")
+        .WithEnvironment("Email__From", "Trykatch <noreply@localhost>")
+        .WaitFor(mailpit);
+}
 #endif
 
 builder.AddContainer("loki", "grafana/loki", "3.7.2@sha256:191d4fdfb7264f16989f0a57f320872620a5a7c2ceeec6229212c4190ec49b86")
