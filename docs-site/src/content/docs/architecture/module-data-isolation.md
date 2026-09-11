@@ -39,7 +39,9 @@ Modules receive a narrow organization-data interface instead of a host `DbContex
 
 Shared PostgreSQL is the default. It combines organization identifiers, EF Core filters, forced RLS, restricted runtime roles, and automated cross-organization tests.
 
-The control plane can record an organization as `Shared` or `Dedicated`, but dedicated placement fails closed until the deployment supplies a provisioner. A provisioner must create the database, retain only a secret reference, run migrations and isolation inspection, and return verified readiness before traffic is routed to it. The template does not pretend that a dedicated database exists when no provider has been configured.
+The public tenant-creation API currently accepts only `shared`; omitting the placement also selects shared PostgreSQL. Any other value returns HTTP `422` with the stable error code `unsupported_tenant_placement`, before an organization or invitation is created.
+
+`Dedicated` remains an internal, fail-closed extension point. Existing dedicated records return HTTP `503` with `unsupported_tenant_placement`; they are never routed to the shared database as a fallback. A future dedicated-placement provider must create the database, retain only a secret reference, run migrations and isolation inspection, and report verified readiness before the API and UI can expose that option.
 
 ## Package trust
 

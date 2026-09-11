@@ -1,11 +1,11 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Trykatch.Api.Security;
 using Trykatch.Application.Common;
 using Trykatch.Application.Identity;
 using Trykatch.Application.Organizations;
-using Trykatch.Api.Security;
 using Trykatch.Domain.Organizations;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace Trykatch.Api.Controllers;
 
@@ -40,10 +40,31 @@ public sealed class OrganizationsController(
         string? subject = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
         if (!Guid.TryParse(subject, out Guid actorId))
             return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Authenticated subject is invalid");
-        CreateOrganizationCommand command = new(request.Name, request.Slug, request.AdministratorEmail, actorId);
+        if (!TryParsePlacement(request.Placement, out OrganizationDataPlacementKind placement))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status422UnprocessableEntity,
+                title: "unsupported_tenant_placement",
+                detail: "Only shared PostgreSQL placement is available in this release. No tenant was created.");
+        }
+
+        CreateOrganizationCommand command = new(
+            request.Name,
+            request.Slug,
+            request.AdministratorEmail,
+            actorId,
+            placement);
         Result<CreateOrganizationResult> result = await createOrganization.HandleAsync(command, cancellationToken);
         return !result.IsSuccess || result.Value is null
-            ? Problem(statusCode: result.ErrorCode == "slug_conflict" ? 409 : 400, title: result.ErrorCode, detail: result.ErrorMessage)
+            ? Problem(
+                statusCode: result.ErrorCode switch
+                {
+                    "slug_conflict" => StatusCodes.Status409Conflict,
+                    "unsupported_tenant_placement" => StatusCodes.Status422UnprocessableEntity,
+                    _ => StatusCodes.Status400BadRequest
+                },
+                title: result.ErrorCode,
+                detail: result.ErrorMessage)
             : CreatedAtAction(nameof(Get), new { organizationId = result.Value.Organization.Id }, result.Value);
     }
 
@@ -81,7 +102,26 @@ public sealed class OrganizationsController(
                 statusCode: result.ErrorCode == "not_found" ? StatusCodes.Status404NotFound : StatusCodes.Status400BadRequest,
                 title: result.ErrorCode,
                 detail: result.ErrorMessage);
+
+    private static bool TryParsePlacement(
+        string? value,
+        out OrganizationDataPlacementKind placement)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || string.Equals(value, "shared", StringComparison.OrdinalIgnoreCase))
+        {
+            placement = OrganizationDataPlacementKind.Shared;
+            return true;
+        }
+
+        placement = default;
+        return false;
+    }
 }
 
-public sealed record CreateOrganizationRequest(string Name, string Slug, string AdministratorEmail);
+public sealed record CreateOrganizationRequest(
+    string Name,
+    string Slug,
+    string AdministratorEmail,
+    string? Placement = null);
 public sealed record UpdateOrganizationRequest(string Name);

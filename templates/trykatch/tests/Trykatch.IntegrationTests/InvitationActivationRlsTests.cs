@@ -1,13 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Trykatch.Identity;
-using Trykatch.Infrastructure.Modules;
-using Trykatch.Infrastructure.Organizations;
-using Trykatch.Infrastructure.Persistence;
-using Trykatch.Modules;
-using Trykatch.Modules.Documents.Infrastructure;
-using Trykatch.Modules.Projects.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +8,13 @@ using Microsoft.Extensions.Configuration;
 using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
+using Trykatch.Identity;
+using Trykatch.Infrastructure.Modules;
+using Trykatch.Infrastructure.Organizations;
+using Trykatch.Infrastructure.Persistence;
+using Trykatch.Modules;
+using Trykatch.Modules.Documents.Infrastructure;
+using Trykatch.Modules.Projects.Infrastructure;
 
 namespace Trykatch.IntegrationTests;
 
@@ -73,11 +73,24 @@ public sealed class InvitationActivationRlsTests
         login.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         antiforgery = await GetAntiforgeryTokenAsync(client);
+        HttpResponseMessage unsupported = await PostWithAntiforgeryAsync(client, "/api/v1/tenants", antiforgery, new
+        {
+            name = "Unsupported dedicated workspace",
+            slug = "unsupported-dedicated-workspace",
+            administratorEmail = OwnerEmail,
+            placement = "dedicated"
+        });
+        unsupported.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        using (JsonDocument unsupportedProblem = JsonDocument.Parse(await unsupported.Content.ReadAsStringAsync()))
+            unsupportedProblem.RootElement.GetProperty("title").GetString().ShouldBe("unsupported_tenant_placement");
+
+        antiforgery = await GetAntiforgeryTokenAsync(client);
         HttpResponseMessage provision = await PostWithAntiforgeryAsync(client, "/api/v1/tenants", antiforgery, new
         {
             name = "RLS Workspace",
             slug = "rls-workspace",
-            administratorEmail = OwnerEmail
+            administratorEmail = OwnerEmail,
+            placement = "shared"
         });
         provision.StatusCode.ShouldBe(HttpStatusCode.Created, await provision.Content.ReadAsStringAsync());
         using JsonDocument provisioned = JsonDocument.Parse(await provision.Content.ReadAsStringAsync());

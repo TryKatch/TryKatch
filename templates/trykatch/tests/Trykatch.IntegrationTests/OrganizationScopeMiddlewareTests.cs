@@ -1,11 +1,12 @@
 using System.Security.Claims;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using Trykatch.Api.Security;
 using Trykatch.Application.Organizations;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure.Organizations;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Shouldly;
 
 namespace Trykatch.IntegrationTests;
 
@@ -91,6 +92,9 @@ public sealed class OrganizationScopeMiddlewareTests
             new StubDataPlacement(organizationId, OrganizationDataPlacementKind.Dedicated));
 
         context.Response.StatusCode.ShouldBe(StatusCodes.Status503ServiceUnavailable);
+        context.Response.Body.Position = 0;
+        using JsonDocument problem = await JsonDocument.ParseAsync(context.Response.Body);
+        problem.RootElement.GetProperty("title").GetString().ShouldBe("unsupported_tenant_placement");
         nextWasCalled.ShouldBeFalse();
     }
 

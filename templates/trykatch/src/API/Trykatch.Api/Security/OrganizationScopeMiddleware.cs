@@ -77,7 +77,11 @@ public sealed class OrganizationScopeMiddleware(RequestDelegate next)
 
         if (route.Placement != OrganizationDataPlacementKind.Shared)
         {
-            await WriteProblemAsync(context, StatusCodes.Status503ServiceUnavailable, "Workspace data route is not available on this host");
+            await WriteProblemAsync(
+                context,
+                StatusCodes.Status503ServiceUnavailable,
+                "unsupported_tenant_placement",
+                "This workspace uses dedicated database placement, which this host cannot route. No shared database fallback was attempted.");
             return;
         }
 
@@ -85,6 +89,10 @@ public sealed class OrganizationScopeMiddleware(RequestDelegate next)
         await next(context);
     }
 
-    private static Task WriteProblemAsync(HttpContext context, int statusCode, string title) =>
-        Results.Problem(statusCode: statusCode, title: title).ExecuteAsync(context);
+    private static Task WriteProblemAsync(
+        HttpContext context,
+        int statusCode,
+        string title,
+        string? detail = null) =>
+        Results.Problem(statusCode: statusCode, title: title, detail: detail).ExecuteAsync(context);
 }
