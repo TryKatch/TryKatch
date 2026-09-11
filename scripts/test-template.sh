@@ -99,6 +99,10 @@ generate_and_build() {
   test -f "$output/compose.observability-tls.yml"
   test -f "$output/scripts/test-observability.sh"
   if [[ -f "$output/web/package.json" ]]; then
+    test -f "$output/package.json" ||
+      fail "generated application '$name' is missing its root package-manager contract"
+    test "$(jq -r '.packageManager' "$output/package.json")" = "$(jq -r '.packageManager' "$output/web/package.json")" ||
+      fail "generated application '$name' has inconsistent root and web pnpm versions"
     test -f "$output/web/packages/api-client/src/generated/client.ts" ||
       fail "generated application '$name' is missing the API client entry point"
     test -f "$output/web/packages/api-client/src/generated/models/index.ts" ||
@@ -107,10 +111,10 @@ generate_and_build() {
       fail "generated application '$name' does not repair its API client on the AppHost Vite path"
     bash "$output/scripts/test-proxy-headers.sh"
     (
-      cd "$output/web"
-      corepack pnpm install --frozen-lockfile
-      corepack pnpm typecheck
-      corepack pnpm build
+      cd "$output"
+      corepack pnpm --dir web install --frozen-lockfile
+      corepack pnpm --dir web typecheck
+      corepack pnpm --dir web build
     )
   fi
   if [[ $namespace_name == Horizon || $namespace_name == Trykatch ]]; then
@@ -145,6 +149,7 @@ grep -Fq 'WithVolume("horizon-otel-queue", "/var/lib/otelcol")' "$test_root/Hori
 generate_and_build Acme.Tools-Portal --ui none
 generate_and_build Trykatch --ui none
 test ! -e "$test_root/Acme.Tools.Portal/web"
+test ! -e "$test_root/Acme.Tools.Portal/package.json"
 test ! -e "$test_root/Acme.Tools.Portal/.github/workflows/web.yml"
 test ! -e "$test_root/Acme.Tools.Portal/.vercelignore"
 test ! -e "$test_root/Acme.Tools.Portal/vercel.json"

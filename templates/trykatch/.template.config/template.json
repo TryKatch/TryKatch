@@ -134,6 +134,7 @@
             ".github/workflows/web.yml",
             ".vercelignore",
             "vercel.json",
+            "package.json",
             "compose.yml",
             "README.md"
           ],

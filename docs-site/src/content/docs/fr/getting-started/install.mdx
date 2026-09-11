@@ -206,6 +206,12 @@ dotnet run --launch-profile https --project src/API/Horizon.AppHost/Horizon.AppH
     corepack pnpm install --frozen-lockfile
     ```
 
+    Les applications existantes générées avec `0.1.0-preview.12` ou une version antérieure ne possèdent pas encore le contrat de version pnpm à la racine. Si `pnpm --dir web ...` signale `ERR_PNPM_BAD_PM_VERSION`, exécutez la commande depuis le dossier `web` comme ci-dessus, ou fixez explicitement la version depuis la racine de la solution :
+
+    ```bash
+    corepack pnpm@10.17.1 --dir web install --frozen-lockfile
+    ```
+
     Sous macOS ou Linux (Bash/Zsh) :
 
     ```bash

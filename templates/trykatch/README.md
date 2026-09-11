@@ -6,12 +6,12 @@ Trykatch is a clean-room enterprise application foundation for .NET 10, PostgreS
 
 ## Start locally
 
-Prerequisites: .NET SDK 10.0.301+, Docker, Node.js 24+, and pnpm 10.
+Prerequisites: .NET SDK 10.0.301+, Docker, Node.js 24+, and Corepack. The generated root `package.json` pins pnpm 10.17.1, so the same package-manager version is selected on every machine.
 
 ```bash
 dotnet tool restore
 dotnet restore Trykatch.slnx
-pnpm --dir web install --frozen-lockfile
+corepack pnpm --dir web install --frozen-lockfile
 trykatch start
 ```
 
@@ -67,13 +67,13 @@ dotnet restore Trykatch.slnx
 dotnet build Trykatch.slnx --no-restore
 dotnet test tests/Trykatch.UnitTests
 dotnet test tests/Trykatch.ArchitectureTests
-pnpm --dir web generate
-pnpm --dir web typecheck
-pnpm --dir web test
-pnpm --dir web build
+corepack pnpm --dir web generate
+corepack pnpm --dir web typecheck
+corepack pnpm --dir web test
+corepack pnpm --dir web build
 ```
 
-Generated files under `web/packages/api-client/src/generated` are machine-owned. Change API contracts, rebuild the API, and run `pnpm --dir web generate`; never hand-edit those files.
+Generated files under `web/packages/api-client/src/generated` are machine-owned. Change API contracts, rebuild the API, and run `corepack pnpm --dir web generate`; never hand-edit those files.
 
 Development API documentation is available at `/docs`, backed by the generated OpenAPI 3.1 contract at `/openapi/v1.json`. The same generation step produces the deny-by-default, provider-neutral AI tool contract in `docs/generated/assistant-contract.json`. See [AI-assisted development](docs/ai-assisted-development.md).
 
