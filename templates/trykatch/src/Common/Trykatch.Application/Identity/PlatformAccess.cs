@@ -14,6 +14,8 @@ public static class PlatformPermissions
     public const string InvitationsManage = "platform.invitations.manage";
     public const string AuthenticationRead = "platform.authentication.read";
     public const string AuthenticationManage = "platform.authentication.manage";
+    public const string OutboxRead = "platform.outbox.read";
+    public const string OutboxReplay = "platform.outbox.replay";
 
     public static readonly IReadOnlyList<PlatformPermissionModuleDefinition> Modules =
     [
@@ -40,6 +42,11 @@ public static class PlatformPermissions
         [
             new(AuthenticationRead, "View authentication", "View authentication policy and provider status.", false),
             new(AuthenticationManage, "Manage authentication", "Change security-sensitive authentication settings.", true)
+        ]),
+        new("outbox", "Outbox recovery", "Inspect terminal deliveries and request controlled replay.",
+        [
+            new(OutboxRead, "View outbox failures", "View bounded terminal delivery metadata.", false),
+            new(OutboxReplay, "Replay outbox failures", "Request replay of a terminal delivery generation.", true)
         ])
     ];
 
@@ -78,7 +85,8 @@ public static class PlatformRoles
             PlatformPermissions.UsersRead,
             PlatformPermissions.InvitationsRead,
             PlatformPermissions.InvitationsManage,
-            PlatformPermissions.AuthenticationRead
+            PlatformPermissions.AuthenticationRead,
+            PlatformPermissions.OutboxRead
         }.ToFrozenSet(StringComparer.Ordinal)),
         new(Auditor, "Auditor", "Read-only visibility across platform operations and security posture.", 30, new[]
         {
@@ -86,7 +94,8 @@ public static class PlatformRoles
             PlatformPermissions.TenantsRead,
             PlatformPermissions.UsersRead,
             PlatformPermissions.InvitationsRead,
-            PlatformPermissions.AuthenticationRead
+            PlatformPermissions.AuthenticationRead,
+            PlatformPermissions.OutboxRead
         }.ToFrozenSet(StringComparer.Ordinal))
     ];
 

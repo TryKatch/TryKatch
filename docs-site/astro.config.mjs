@@ -48,7 +48,7 @@ export default defineConfig({
         {
           label: 'Operations',
           translations: { fr: 'Exploitation' },
-          items: ['operations/observability', 'operations/audit-atomicity', 'operations/production-identity'],
+          items: ['operations/observability', 'operations/audit-atomicity', 'operations/outbox-recovery', 'operations/production-identity'],
         },
         {
           label: 'Reference',

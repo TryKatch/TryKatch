@@ -182,6 +182,11 @@ public sealed class PostgresIsolationInspectionTests
             GRANT SELECT, UPDATE ON platform.outbox_messages TO {outbox};
             GRANT SELECT ON platform.audit_intents TO {outbox};
             GRANT SELECT, INSERT ON platform.audit_entries TO {outbox};
+            GRANT SELECT ON platform.outbox_replay_requests TO {outbox};
+            GRANT SELECT, INSERT ON platform.outbox_recovery_events TO {outbox};
+            GRANT USAGE ON SCHEMA platform TO {platform};
+            GRANT SELECT, INSERT ON platform.outbox_replay_requests TO {platform};
+            GRANT SELECT ON platform.outbox_recovery_events TO {platform};
             """);
         try
         {
@@ -571,11 +576,38 @@ public sealed class PostgresIsolationInspectionTests
                 CREATE POLICY audit_intents_worker_read ON platform.audit_intents FOR SELECT TO trykatch_outbox_worker
                   USING (current_user = 'trykatch_outbox_worker');
                 CREATE TABLE platform.outbox_messages ("Id" uuid);
+                CREATE TABLE platform.outbox_replay_requests (
+                  "RequestId" uuid PRIMARY KEY, "MessageId" uuid NOT NULL,
+                  "ExpectedFailedGeneration" integer NOT NULL, "ActorId" uuid NOT NULL, "RequestedAt" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP);
+                ALTER TABLE platform.outbox_replay_requests ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE platform.outbox_replay_requests FORCE ROW LEVEL SECURITY;
+                CREATE POLICY outbox_replay_requests_platform_read ON platform.outbox_replay_requests FOR SELECT TO trykatch_platform_runtime
+                  USING (current_user = 'trykatch_platform_runtime');
+                CREATE POLICY outbox_replay_requests_platform_insert ON platform.outbox_replay_requests FOR INSERT TO trykatch_platform_runtime
+                  WITH CHECK (current_user = 'trykatch_platform_runtime' AND "ActorId" = NULLIF(current_setting('app.actor_id', true), '')::uuid AND "RequestedAt" = CURRENT_TIMESTAMP);
+                CREATE POLICY outbox_replay_requests_worker_read ON platform.outbox_replay_requests FOR SELECT TO trykatch_outbox_worker
+                  USING (current_user = 'trykatch_outbox_worker');
+                CREATE TABLE platform.outbox_recovery_events (
+                  "Id" uuid PRIMARY KEY, "MessageId" uuid NOT NULL, "ReplayGeneration" integer NOT NULL, "Outcome" text NOT NULL,
+                  "FailureCode" text NULL, "FailureType" text NULL, "OccurredAt" timestamptz NOT NULL,
+                  "RequestId" uuid NULL, "ActorId" uuid NULL);
+                ALTER TABLE platform.outbox_recovery_events ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE platform.outbox_recovery_events FORCE ROW LEVEL SECURITY;
+                CREATE POLICY outbox_recovery_events_platform_read ON platform.outbox_recovery_events FOR SELECT TO trykatch_platform_runtime
+                  USING (current_user = 'trykatch_platform_runtime');
+                CREATE POLICY outbox_recovery_events_worker_read ON platform.outbox_recovery_events FOR SELECT TO trykatch_outbox_worker
+                  USING (current_user = 'trykatch_outbox_worker');
+                CREATE POLICY outbox_recovery_events_worker_insert ON platform.outbox_recovery_events FOR INSERT TO trykatch_outbox_worker
+                  WITH CHECK (current_user = 'trykatch_outbox_worker');
                 GRANT USAGE ON SCHEMA app, platform TO {result.RuntimeRole}, {result.OwnerRole};
                 GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON platform.audit_entries TO {result.RuntimeRole};
                 GRANT INSERT ON platform.audit_intents TO {result.RuntimeRole};
                 GRANT INSERT ON platform.outbox_messages TO {result.RuntimeRole};
+                GRANT SELECT, INSERT ON platform.outbox_replay_requests TO trykatch_platform_runtime;
+                GRANT SELECT ON platform.outbox_recovery_events TO trykatch_platform_runtime;
+                GRANT SELECT ON platform.outbox_replay_requests TO trykatch_outbox_worker;
+                GRANT SELECT, INSERT ON platform.outbox_recovery_events TO trykatch_outbox_worker;
                 """);
             return result;
         }

@@ -1,5 +1,5 @@
-using Trykatch.Application.Identity;
 using Shouldly;
+using Trykatch.Application.Identity;
 
 namespace Trykatch.UnitTests;
 
@@ -26,12 +26,16 @@ public sealed class PlatformAccessTests
         role.Permissions.ShouldContain(PlatformPermissions.InvitationsManage);
         role.Permissions.ShouldNotContain(PlatformPermissions.UsersManage);
         role.Permissions.ShouldNotContain(PlatformPermissions.AuthenticationManage);
+        role.Permissions.ShouldContain(PlatformPermissions.OutboxRead);
+        role.Permissions.ShouldNotContain(PlatformPermissions.OutboxReplay);
     }
 
     [TestMethod]
     public void AuditorIsReadOnly()
     {
         PlatformRoleDefinition role = PlatformRoles.Find(PlatformRoles.Auditor).ShouldNotBeNull();
+        role.Permissions.ShouldContain(PlatformPermissions.OutboxRead);
+        role.Permissions.ShouldNotContain(PlatformPermissions.OutboxReplay);
 
         role.Permissions.ShouldAllBe(permission => permission.EndsWith(".read", StringComparison.Ordinal));
     }

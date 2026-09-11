@@ -28,7 +28,21 @@ public static class ApplicationModelIsolationValidator
             "outbox_messages",
             ModuleDataOwnership.Infrastructure,
             typeof(OutboxMessage).FullName,
-            AccessRule: ModuleDataAccessRule.OutboxAppendOnly)
+            AccessRule: ModuleDataAccessRule.OutboxAppendOnly),
+        new(
+            "outbox-replay-requests",
+            "platform",
+            "outbox_replay_requests",
+            ModuleDataOwnership.Infrastructure,
+            typeof(OutboxReplayRequest).FullName,
+            AccessRule: ModuleDataAccessRule.HostOnly),
+        new(
+            "outbox-recovery-events",
+            "platform",
+            "outbox_recovery_events",
+            ModuleDataOwnership.Infrastructure,
+            typeof(OutboxRecoveryEvent).FullName,
+            AccessRule: ModuleDataAccessRule.HostOnly)
     ];
 
     public static void Validate(IReadOnlyModel model, IReadOnlyList<ModuleDescriptor> modules)

@@ -10,4 +10,6 @@ public sealed class OutboxMessage
     public int Attempts { get; set; }
     public string? LastErrorCode { get; set; }
     public string? LastErrorType { get; set; }
+    public DateTimeOffset? ExhaustedAt { get; set; }
+    public int ReplayGeneration { get; set; }
 }

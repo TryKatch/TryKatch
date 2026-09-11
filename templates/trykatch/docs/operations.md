@@ -14,7 +14,7 @@ The React Compose profile binds port 8080 to loopback by default. That published
 
 The base telemetry transport is plaintext only inside one controlled Docker host and its private Compose network. Collector, Loki, Tempo, and Prometheus publish no host ports. Grafana binds to `127.0.0.1` by default, requires a non-default password, and should be exposed only through an authenticated HTTPS operational ingress. The React proxy must not expose `/health`; backend-only deployments publish API port 8080 directly and must deny `/health/*` at their ingress while retaining container health checks. Any telemetry hop leaving the host or trust domain requires authenticated TLS.
 
-The API depends on PostgreSQL migration completion, not on the Collector or a telemetry backend. An unavailable Collector must not prevent business startup or change `/health/ready`, which depends only on PostgreSQL. `/health/live` is process-only. Successful operational probes are excluded from request logs, ASP.NET request metrics, and server spans; failed probes remain visible. Aggregate runtime, process, and pool metrics are not attributable to individual probes.
+The API depends on PostgreSQL migration completion, not on the Collector or a telemetry backend. An unavailable Collector must not prevent business startup or change `/health/ready`, which checks PostgreSQL and the database-backed audit/outbox workers. `/health/live` is process-only. Successful operational probes are excluded from request logs, ASP.NET request metrics, and server spans; failed probes remain visible. Aggregate runtime, process, and pool metrics are not attributable to individual probes.
 
 ## Identity, export, and sampling
 
@@ -86,6 +86,14 @@ Scope by service/environment and require the minimum traffic guard. Use sanitize
 ### Outbox
 
 Check the bounded `outcome` metric and database outbox state. Do not log payloads or exception messages. Downstream adapters must preserve and deduplicate the message ID.
+
+Readiness is unhealthy for database/permanent faults and while a cancellation-ignoring transport invocation remains outstanding. Terminal count and oldest pending age are exported independently of message identifiers. Terminal metadata is readable by Platform Operator, Auditor, and Administrator; only Administrator has the sensitive replay permission. Replay is asynchronous and requires a stable request ID plus the observed failed generation. Reusing the request ID for the same tuple is idempotent; another tuple is a conflict. Never edit payloads or assign a new message ID.
+
+For recovery schema deployment, first quiesce every outbox worker, take and verify a backup, apply migrations, provision and inspect exact runtime grants/RLS, then deploy the new worker/API together. Mixed old/new workers are unsupported. Existing unprocessed rows with ten or more attempts become terminal at migration time; processed rows remain processed. A downgrade never deletes replay or recovery history.
+
+Consumers must atomically deduplicate `MessageId` with their business effect. Publish success followed by rollback or an uncertain commit can redeliver the same ID; this is at-least-once delivery, not exactly once.
+
+A transport deadline records a safe failure and releases the batch transaction. If an adapter ignores cancellation, readiness stays unhealthy and this process starts no further publication until that invocation completes; shutdown does not wait indefinitely for it. The process observes its eventual fault without logging error text. This does not forcibly terminate arbitrary adapter code or prevent another replica from delivering the same logical message, so consumer deduplication remains mandatory. Replay processing serializes each logical message and re-reads the immutable completion marker before changing its generation; request-ID idempotency includes the authenticated actor.
 
 ## Verification, rollback, and deployment-owned qualification
 

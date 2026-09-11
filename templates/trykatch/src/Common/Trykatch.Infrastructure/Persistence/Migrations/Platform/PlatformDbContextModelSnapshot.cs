@@ -70,6 +70,36 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                     b.ToTable("audit_intents", "platform");
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxReplayRequest", b =>
+                {
+                    b.Property<Guid>("RequestId").HasColumnType("uuid");
+                    b.Property<Guid>("ActorId").HasColumnType("uuid");
+                    b.Property<int>("ExpectedFailedGeneration").HasColumnType("integer");
+                    b.Property<Guid>("MessageId").HasColumnType("uuid");
+                    b.Property<DateTimeOffset>("RequestedAt").ValueGeneratedOnAdd().HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
+                    b.HasKey("RequestId");
+                    b.HasIndex("RequestedAt", "RequestId");
+                    b.ToTable("outbox_replay_requests", "platform", t => t.ExcludeFromMigrations());
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxRecoveryEvent", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
+                    b.Property<Guid>("MessageId").HasColumnType("uuid");
+                    b.Property<int>("ReplayGeneration").HasColumnType("integer");
+                    b.Property<string>("Outcome").IsRequired().HasMaxLength(40).HasColumnType("character varying(40)");
+                    b.Property<Guid?>("ActorId").HasColumnType("uuid");
+                    b.Property<string>("FailureCode").HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<string>("FailureType").HasMaxLength(240).HasColumnType("character varying(240)");
+                    b.Property<DateTimeOffset>("OccurredAt").HasColumnType("timestamp with time zone");
+                    b.Property<Guid?>("RequestId").HasColumnType("uuid");
+                    b.HasKey("Id");
+                    b.HasIndex("MessageId", "ReplayGeneration", "Outcome").IsUnique().HasFilter("\"Outcome\" = 'terminal'");
+                    b.HasIndex("OccurredAt", "MessageId", "ReplayGeneration");
+                    b.HasIndex("RequestId").IsUnique().HasFilter("\"RequestId\" IS NOT NULL");
+                    b.ToTable("outbox_recovery_events", "platform", t => t.ExcludeFromMigrations());
+                });
+
             modelBuilder.Entity("Trykatch.Domain.Organizations.Invitation", b =>
                 {
                     b.Property<Guid>("Id")

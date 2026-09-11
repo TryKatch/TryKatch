@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Trykatch.Modules;
 using Trykatch.Infrastructure.Modules;
 #if TRYKATCH_EMAIL
@@ -38,7 +39,13 @@ public static class DependencyInjection
         // connections. Retrying an entire HTTP transaction could replay downstream
         // side effects, therefore these contexts deliberately avoid EF retries.
         services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(organizationConnection));
-        services.AddDbContext<OutboxDbContext>(options => options.UseNpgsql(outboxConnection));
+        services.AddOptions<OutboxRecoveryOptions>()
+            .BindConfiguration(OutboxRecoveryOptions.SectionName)
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<OutboxRecoveryOptions>, OutboxRecoveryOptionsValidator>();
+        services.AddDbContext<OutboxDbContext>((provider, options) =>
+            options.UseNpgsql(outboxConnection, npgsql => npgsql.CommandTimeout(
+                checked((int)Math.Ceiling(provider.GetRequiredService<IOptions<OutboxRecoveryOptions>>().Value.DatabaseCommandTimeout.TotalSeconds)))));
 
         services.AddScoped<OrganizationContext>();
         services.AddScoped<IOrganizationContext>(provider => provider.GetRequiredService<OrganizationContext>());
@@ -62,6 +69,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IAuditIntentWriter, AuditIntentWriter>();
         services.AddScoped<IOutboxWriter, OutboxWriter>();
+        services.AddScoped<IOutboxRecoveryDirectory, OutboxRecoveryDirectory>();
         services.AddScoped<IOrganizationModuleData, OrganizationModuleData>();
         services.TryAddSingleton<IOutboxTransport, LoggingOutboxTransport>();
         services.TryAddSingleton(TimeProvider.System);
@@ -75,7 +83,10 @@ public static class DependencyInjection
         services.AddSingleton<AuditProjectionBacklogState>();
         services.AddHealthChecks().AddCheck<AuditProjectionHealthCheck>("audit-projection", tags: ["ready"]);
         services.AddHostedService<AuditIntentProjectionWorker>();
+        services.AddSingleton<OutboxWorkerState>();
+        services.AddHealthChecks().AddCheck<OutboxHealthCheck>("outbox", tags: ["ready"]);
         services.AddScoped<OutboxDelivery>();
+        services.AddScoped<OutboxBatchProcessor>();
         services.AddHostedService<OutboxProcessor>();
 #if TRYKATCH_EMAIL
         services.AddEmailModule(configuration, isDevelopment, isOpenApiGeneration);

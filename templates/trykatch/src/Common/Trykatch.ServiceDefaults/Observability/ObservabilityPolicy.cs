@@ -100,6 +100,7 @@ internal sealed class ObservabilityPolicy
         string[] tagKeys = instrument.Meter.Name switch
         {
             "Trykatch.Outbox" when instrument.Name == "trykatch.outbox.dispatches" => ["outcome"],
+            "Trykatch.Outbox" when instrument.Name is "trykatch.outbox.database.cycles" or "trykatch.outbox.recovery" => ["outcome"],
             "Trykatch.Outbox" => [],
             "Trykatch.AuditProjection" when instrument.Name == "trykatch.audit.projections" => ["outcome"],
             "Trykatch.AuditProjection" => [],
@@ -170,7 +171,10 @@ internal sealed class ObservabilityPolicy
 
     private static string NormalizeEnvironment(string value) => value.Trim().ToLowerInvariant() switch
     {
-        "development" => "development", "staging" => "staging", "production" => "production", _ => "other"
+        "development" => "development",
+        "staging" => "staging",
+        "production" => "production",
+        _ => "other"
     };
 
     private static string ValidateIdentity(string value, string key)
