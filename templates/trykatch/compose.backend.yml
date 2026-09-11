@@ -100,7 +100,6 @@ services:
 
   otel-collector:
     logging: *bounded-logging
-    image: trykatch/otel-collector:${TRYKATCH_RELEASE_VERSION:-local}
     build:
       context: ./deploy/observability
       dockerfile: otel-collector.Dockerfile

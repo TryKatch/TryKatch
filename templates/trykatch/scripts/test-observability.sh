@@ -30,6 +30,16 @@ export TRYKATCH_RELEASE_VERSION=ci-validation
 docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.yml" config --quiet
 docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.backend.yml" config --quiet
 docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.yml" -f "$template_root/compose.observability-tls.yml" config --quiet
+
+# The collector is a Compose-local build. Release identifiers remain telemetry
+# metadata and must never be interpolated into Docker tags (SemVer build metadata
+# and Git refs can contain characters that Docker tags reject).
+if grep -Fq 'trykatch/otel-collector:${TRYKATCH_RELEASE_VERSION' \
+  "$template_root/compose.yml" "$template_root/compose.backend.yml"; then
+  printf 'Release identifiers must not be used as collector image tags.\n' >&2
+  exit 1
+fi
+
 jq empty "$template_root/deploy/observability/grafana/dashboards/json/trykatch-overview.json"
 
 grep -Fq 'processors: [memory_limiter, transform/privacy, redaction/privacy, batch]' "$template_root/deploy/observability/otel-collector.yml"
