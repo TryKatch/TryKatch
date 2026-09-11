@@ -65,7 +65,13 @@ import type {
   OrganizationAccessResponse,
   OrganizationDto,
   OrganizationsListParams,
+  OutboxListFailuresParams,
+  OutboxReplayAccepted,
+  OutboxReplayOutcome,
+  OutboxReplayPending,
+  OutboxReplayRequestBody,
   PagedResultOfOrganizationDto,
+  PagedResultOfOutboxFailure,
   PagedResultOfPlatformAccessUser,
   PagedResultOfProjectDto,
   PendingMfaSetup,
@@ -76,6 +82,7 @@ import type {
   PlatformPermissionModuleDefinition,
   PlatformRoleDefinition,
   PlatformUsersListParams,
+  ProblemDetails,
   ProjectDto,
   ProjectsListParams,
   ReauthenticationRequest,
@@ -6961,6 +6968,402 @@ export const useOrganizationsReactivate = <TError = unknown,
       > => {
       return useMutation(getOrganizationsReactivateMutationOptions(options), queryClient);
     }
+
+export type outboxListFailuresResponse200TextPlain = {
+  data: PagedResultOfOutboxFailure
+  status: 200
+}
+
+export type outboxListFailuresResponse200ApplicationJson = {
+  data: PagedResultOfOutboxFailure
+  status: 200
+}
+
+export type outboxListFailuresResponse200TextJson = {
+  data: PagedResultOfOutboxFailure
+  status: 200
+}
+
+export type outboxListFailuresResponseSuccess = (outboxListFailuresResponse200TextPlain | outboxListFailuresResponse200ApplicationJson | outboxListFailuresResponse200TextJson) & {
+  headers: Headers;
+};
+;
+
+export type outboxListFailuresResponse = (outboxListFailuresResponseSuccess)
+
+export const getOutboxListFailuresUrl = (params?: OutboxListFailuresParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/platform/outbox/failures?${stringifiedParams}` : `/api/v1/platform/outbox/failures`
+}
+
+/**
+ * @summary List failures outbox
+ */
+export const outboxListFailures = async (params?: OutboxListFailuresParams, options?: Parameters<typeof customFetch>[1]): Promise<outboxListFailuresResponse> => {
+
+  return customFetch<outboxListFailuresResponse>(getOutboxListFailuresUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getOutboxListFailuresQueryKey = (params?: OutboxListFailuresParams,) => {
+    return [
+    `/api/v1/platform/outbox/failures`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getOutboxListFailuresQueryOptions = <TData = Awaited<ReturnType<typeof outboxListFailures>>, TError = unknown>(params?: OutboxListFailuresParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListFailures>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getOutboxListFailuresQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof outboxListFailures>>> = ({ signal }) => outboxListFailures(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof outboxListFailures>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type OutboxListFailuresQueryResult = NonNullable<Awaited<ReturnType<typeof outboxListFailures>>>
+export type OutboxListFailuresQueryError = unknown
+
+
+export function useOutboxListFailures<TData = Awaited<ReturnType<typeof outboxListFailures>>, TError = unknown>(
+ params: undefined |  OutboxListFailuresParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListFailures>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof outboxListFailures>>,
+          TError,
+          Awaited<ReturnType<typeof outboxListFailures>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOutboxListFailures<TData = Awaited<ReturnType<typeof outboxListFailures>>, TError = unknown>(
+ params?: OutboxListFailuresParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListFailures>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof outboxListFailures>>,
+          TError,
+          Awaited<ReturnType<typeof outboxListFailures>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOutboxListFailures<TData = Awaited<ReturnType<typeof outboxListFailures>>, TError = unknown>(
+ params?: OutboxListFailuresParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListFailures>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List failures outbox
+ */
+
+export function useOutboxListFailures<TData = Awaited<ReturnType<typeof outboxListFailures>>, TError = unknown>(
+ params?: OutboxListFailuresParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListFailures>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getOutboxListFailuresQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type outboxRequestReplayResponse202TextPlain = {
+  data: OutboxReplayAccepted
+  status: 202
+}
+
+export type outboxRequestReplayResponse202ApplicationJson = {
+  data: OutboxReplayAccepted
+  status: 202
+}
+
+export type outboxRequestReplayResponse202TextJson = {
+  data: OutboxReplayAccepted
+  status: 202
+}
+
+export type outboxRequestReplayResponse409TextPlain = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type outboxRequestReplayResponse409ApplicationJson = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type outboxRequestReplayResponse409TextJson = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type outboxRequestReplayResponseSuccess = (outboxRequestReplayResponse202TextPlain | outboxRequestReplayResponse202ApplicationJson | outboxRequestReplayResponse202TextJson) & {
+  headers: Headers;
+};
+export type outboxRequestReplayResponseError = (outboxRequestReplayResponse409TextPlain | outboxRequestReplayResponse409ApplicationJson | outboxRequestReplayResponse409TextJson) & {
+  headers: Headers;
+};
+
+export type outboxRequestReplayResponse = (outboxRequestReplayResponseSuccess | outboxRequestReplayResponseError)
+
+export const getOutboxRequestReplayUrl = (messageId: string,) => {
+
+
+
+
+  return `/api/v1/platform/outbox/${messageId}/replay`
+}
+
+/**
+ * @summary Request replay outbox
+ */
+export const outboxRequestReplay = async (messageId: string,
+    outboxReplayRequestBody: OutboxReplayRequestBody, options?: Parameters<typeof customFetch>[1]): Promise<outboxRequestReplayResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<outboxRequestReplayResponse>(getOutboxRequestReplayUrl(messageId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(outboxReplayRequestBody)
+  }
+);}
+
+
+
+
+
+export const getOutboxRequestReplayMutationKey = () => ['outboxRequestReplay'] as const;
+
+export const getOutboxRequestReplayMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof outboxRequestReplay>>, TError,OutboxRequestReplayMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof outboxRequestReplay>>, TError,OutboxRequestReplayMutationVariables, TContext> => {
+
+const mutationKey = getOutboxRequestReplayMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof outboxRequestReplay>>, OutboxRequestReplayMutationVariables> = (props) => {
+          const {messageId,data} = props ?? {};
+
+          return  outboxRequestReplay(messageId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OutboxRequestReplayMutationResult = NonNullable<Awaited<ReturnType<typeof outboxRequestReplay>>>
+    export type OutboxRequestReplayMutationBody = OutboxReplayRequestBody
+    export type OutboxRequestReplayMutationError = ProblemDetails
+    export type OutboxRequestReplayMutationVariables = {messageId: string;data: OutboxReplayRequestBody}
+
+    /**
+ * @summary Request replay outbox
+ */
+export const useOutboxRequestReplay = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof outboxRequestReplay>>, TError,OutboxRequestReplayMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof outboxRequestReplay>>,
+        TError,
+        OutboxRequestReplayMutationVariables,
+        TContext
+      > => {
+      return useMutation(getOutboxRequestReplayMutationOptions(options), queryClient);
+    }
+
+export type outboxGetReplayOutcomeResponse200TextPlain = {
+  data: OutboxReplayOutcome
+  status: 200
+}
+
+export type outboxGetReplayOutcomeResponse200ApplicationJson = {
+  data: OutboxReplayOutcome
+  status: 200
+}
+
+export type outboxGetReplayOutcomeResponse200TextJson = {
+  data: OutboxReplayOutcome
+  status: 200
+}
+
+export type outboxGetReplayOutcomeResponse202TextPlain = {
+  data: OutboxReplayPending
+  status: 202
+}
+
+export type outboxGetReplayOutcomeResponse202ApplicationJson = {
+  data: OutboxReplayPending
+  status: 202
+}
+
+export type outboxGetReplayOutcomeResponse202TextJson = {
+  data: OutboxReplayPending
+  status: 202
+}
+
+export type outboxGetReplayOutcomeResponseSuccess = (outboxGetReplayOutcomeResponse200TextPlain | outboxGetReplayOutcomeResponse200ApplicationJson | outboxGetReplayOutcomeResponse200TextJson | outboxGetReplayOutcomeResponse202TextPlain | outboxGetReplayOutcomeResponse202ApplicationJson | outboxGetReplayOutcomeResponse202TextJson) & {
+  headers: Headers;
+};
+;
+
+export type outboxGetReplayOutcomeResponse = (outboxGetReplayOutcomeResponseSuccess)
+
+export const getOutboxGetReplayOutcomeUrl = (requestId: string,) => {
+
+
+
+
+  return `/api/v1/platform/outbox/replay-requests/${requestId}`
+}
+
+/**
+ * @summary Get replay outcome outbox
+ */
+export const outboxGetReplayOutcome = async (requestId: string, options?: Parameters<typeof customFetch>[1]): Promise<outboxGetReplayOutcomeResponse> => {
+
+  return customFetch<outboxGetReplayOutcomeResponse>(getOutboxGetReplayOutcomeUrl(requestId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getOutboxGetReplayOutcomeQueryKey = (requestId: string,) => {
+    return [
+    `/api/v1/platform/outbox/replay-requests/${requestId}`
+    ] as const;
+    }
+
+
+export const getOutboxGetReplayOutcomeQueryOptions = <TData = Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError = unknown>(requestId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getOutboxGetReplayOutcomeQueryKey(requestId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof outboxGetReplayOutcome>>> = ({ signal }) => outboxGetReplayOutcome(requestId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: requestId !== null && requestId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type OutboxGetReplayOutcomeQueryResult = NonNullable<Awaited<ReturnType<typeof outboxGetReplayOutcome>>>
+export type OutboxGetReplayOutcomeQueryError = unknown
+
+
+export function useOutboxGetReplayOutcome<TData = Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError = unknown>(
+ requestId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof outboxGetReplayOutcome>>,
+          TError,
+          Awaited<ReturnType<typeof outboxGetReplayOutcome>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOutboxGetReplayOutcome<TData = Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError = unknown>(
+ requestId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof outboxGetReplayOutcome>>,
+          TError,
+          Awaited<ReturnType<typeof outboxGetReplayOutcome>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOutboxGetReplayOutcome<TData = Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError = unknown>(
+ requestId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get replay outcome outbox
+ */
+
+export function useOutboxGetReplayOutcome<TData = Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError = unknown>(
+ requestId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxGetReplayOutcome>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getOutboxGetReplayOutcomeQueryOptions(requestId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export type platformUsersListResponse200TextPlain = {
   data: PagedResultOfPlatformAccessUser

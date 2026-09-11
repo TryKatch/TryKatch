@@ -1,52 +1,68 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Trykatch.Infrastructure.Persistence;
 
-internal sealed class OutboxProcessor(IServiceScopeFactory scopeFactory) : BackgroundService
+internal sealed partial class OutboxProcessor(
+    IServiceScopeFactory scopeFactory,
+    IOptions<OutboxRecoveryOptions> options,
+    OutboxWorkerState state,
+    TimeProvider timeProvider,
+    ILogger<OutboxProcessor> logger) : BackgroundService
 {
+    private static readonly Meter Meter = new("Trykatch.Outbox");
+    private static readonly Counter<long> DatabaseCounter = Meter.CreateCounter<long>("trykatch.outbox.database.cycles");
+    private readonly ObservableGauge<long> pendingGauge = Meter.CreateObservableGauge(
+        "trykatch.outbox.pending.count", () => state.Read().Pending);
+    private readonly ObservableGauge<long> terminalGauge = Meter.CreateObservableGauge(
+        "trykatch.outbox.terminal.count", () => state.Read().Terminal);
+    private readonly ObservableGauge<double> oldestGauge = Meter.CreateObservableGauge(
+        "trykatch.outbox.oldest.age", () => state.Read().Oldest is { } oldest
+            ? Math.Max(0, (timeProvider.GetUtcNow() - oldest).TotalSeconds) : 0, "s");
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using PeriodicTimer timer = new(TimeSpan.FromSeconds(5));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        OutboxRetryBackoff backoff = new(options.Value);
+        while (!stoppingToken.IsCancellationRequested)
         {
-            await ProcessBatchAsync(stoppingToken);
+            try
+            {
+                await state.WaitForTransportAsync(stoppingToken);
+                await using (AsyncServiceScope scope = scopeFactory.CreateAsyncScope())
+                {
+                    OutboxBatchProcessor processor = scope.ServiceProvider.GetRequiredService<OutboxBatchProcessor>();
+                    await processor.ProcessAsync(stoppingToken);
+                }
+                DatabaseCounter.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
+                backoff.Reset();
+                await Task.Delay(options.Value.PollInterval, timeProvider, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                string type = exception.GetType().FullName ?? exception.GetType().Name;
+                OutboxDatabaseFaultKind kind = OutboxDatabaseFaultClassifier.Classify(exception);
+                state.DatabaseFailure(type, kind == OutboxDatabaseFaultKind.Permanent, timeProvider.GetUtcNow());
+                DatabaseCounter.Add(1, new KeyValuePair<string, object?>("outcome",
+                    kind == OutboxDatabaseFaultKind.Permanent ? "permanent_failure" : "transient_failure"));
+                LogDatabaseFailure(logger, type, kind.ToString().ToLowerInvariant());
+                if (kind == OutboxDatabaseFaultKind.Permanent)
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, timeProvider, stoppingToken);
+                    break;
+                }
+                await Task.Delay(backoff.NextDelay(), timeProvider, stoppingToken);
+            }
         }
     }
 
-    private async Task ProcessBatchAsync(CancellationToken cancellationToken)
-    {
-        await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
-        OutboxDbContext dbContext = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
-        OutboxDelivery delivery = scope.ServiceProvider.GetRequiredService<OutboxDelivery>();
-        IExecutionStrategy strategy = dbContext.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
-        {
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            OutboxMessage[] messages = await dbContext.Messages
-                .FromSqlRaw("""
-                    SELECT * FROM platform.outbox_messages
-                    WHERE "ProcessedAt" IS NULL AND "Attempts" < 10
-                    ORDER BY "OccurredAt"
-                    FOR UPDATE SKIP LOCKED
-                    LIMIT 50
-                    """)
-                .ToArrayAsync(cancellationToken);
-
-            foreach (OutboxMessage message in messages)
-            {
-                await delivery.DeliverAsync(message, cancellationToken);
-            }
-
-            if (messages.Length > 0)
-            {
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-        });
-    }
-
+    [LoggerMessage(EventId = 4210, Level = LogLevel.Error,
+        Message = "Outbox database cycle failed with {ExceptionType} classified as {Outcome}")]
+    private static partial void LogDatabaseFailure(ILogger logger, string exceptionType, string outcome);
 }

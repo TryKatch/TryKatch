@@ -150,7 +150,7 @@ groups:
           - refId: Query
             relativeTimeRange: {from: 600, to: 0}
             datasourceUid: prometheus
-            model: {editorMode: code, expr: 'sum by (service_name, deployment_environment_name) (increase(trykatch_outbox_dispatches_total{outcome="failure",deployment_environment_name=~"staging|production"}[5m]))', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+            model: {editorMode: code, expr: 'sum by (service_name, deployment_environment_name) (increase(trykatch_outbox_dispatches_total{outcome=~"transport_.*",deployment_environment_name=~"staging|production"}[5m]))', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
           - refId: Threshold
             relativeTimeRange: {from: 0, to: 0}
             datasourceUid: __expr__
@@ -164,6 +164,28 @@ groups:
         execErrState: Alerting
         for: 2m
         annotations: {summary: One or more outbox dispatches failed, runbook: 'docs/operations.md#outbox'}
+        labels: {severity: warning, service: api, environment: staging-production}
+      - uid: trykatch-outbox-terminal
+        title: Outbox terminal backlog present
+        condition: Threshold
+        data:
+          - refId: Query
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model: {editorMode: code, expr: 'max by (service_name, deployment_environment_name) (trykatch_outbox_terminal_count{deployment_environment_name=~"staging|production"})', instant: true, intervalMs: 1000, maxDataPoints: 43200, refId: Query}
+          - refId: Threshold
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: Query
+              conditions: [{evaluator: {params: [0], type: gt}, operator: {type: and}, query: {params: [Threshold]}, reducer: {params: [], type: last}, type: query}]
+              refId: Threshold
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        annotations: {summary: Terminal outbox messages require operator review, runbook: 'docs/operations.md#outbox'}
         labels: {severity: warning, service: api, environment: staging-production}
       - uid: trykatch-audit-projection-lag
         title: Audit projection lag above two minutes

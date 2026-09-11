@@ -3188,6 +3188,230 @@
         ]
       }
     },
+    "/api/v1/platform/outbox/failures": {
+      "get": {
+        "tags": [
+          "OutboxRecovery"
+        ],
+        "summary": "List failures outbox",
+        "operationId": "Outbox_ListFailures",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfOutboxFailure"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfOutboxFailure"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfOutboxFailure"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/outbox/failures', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/outbox/{messageId}/replay": {
+      "post": {
+        "tags": [
+          "OutboxRecovery"
+        ],
+        "summary": "Request replay outbox",
+        "operationId": "Outbox_RequestReplay",
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboxReplayRequestBody"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboxReplayRequestBody"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboxReplayRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReplayAccepted"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReplayAccepted"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReplayAccepted"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/outbox/{messageId}/replay', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/outbox/replay-requests/{requestId}": {
+      "get": {
+        "tags": [
+          "OutboxRecovery"
+        ],
+        "summary": "Get replay outcome outbox",
+        "operationId": "Outbox_GetReplayOutcome",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReplayOutcome"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReplayOutcome"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReplayOutcome"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReplayPending"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReplayPending"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxReplayPending"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/outbox/replay-requests/{requestId}', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/platform-users": {
       "get": {
         "tags": [
@@ -5125,6 +5349,143 @@
           }
         }
       },
+      "OutboxFailure": {
+        "required": [
+          "messageId",
+          "replayGeneration",
+          "failureCode",
+          "failureType",
+          "exhaustedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "replayGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "failureType": {
+            "type": "string"
+          },
+          "exhaustedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OutboxReplayAccepted": {
+        "required": [
+          "requestId",
+          "messageId",
+          "expectedFailedGeneration",
+          "requestedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedFailedGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OutboxReplayOutcome": {
+        "required": [
+          "requestId",
+          "messageId",
+          "replayGeneration",
+          "outcome",
+          "occurredAt"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "replayGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OutboxReplayPending": {
+        "required": [
+          "requestId",
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        }
+      },
+      "OutboxReplayRequestBody": {
+        "required": [
+          "requestId",
+          "expectedFailedGeneration"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedFailedGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "PagedResultOfOrganizationDto": {
         "required": [
           "items",
@@ -5138,6 +5499,47 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/OrganizationDto"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "PagedResultOfOutboxFailure": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutboxFailure"
             }
           },
           "page": {
@@ -5502,6 +5904,44 @@
           "canAssign": {
             "type": "boolean",
             "default": true
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -6023,6 +6463,9 @@
     },
     {
       "name": "Organizations"
+    },
+    {
+      "name": "OutboxRecovery"
     },
     {
       "name": "PlatformUsers"

@@ -95,6 +95,15 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(15),
                 QueueLimit = 0
             }));
+    options.AddPolicy("outbox-replay", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(5),
+                QueueLimit = 0
+            }));
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",

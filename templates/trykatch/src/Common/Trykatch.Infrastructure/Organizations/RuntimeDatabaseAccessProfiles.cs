@@ -52,6 +52,8 @@ public static class RuntimeDatabaseAccessProfiles
         "platform.audit_intents",
         "platform.audit_entries",
         "platform.outbox_messages",
+        "platform.outbox_replay_requests",
+        "platform.outbox_recovery_events",
         "platform.module_data_resources",
         "platform.module_migrations",
         "public.__EFMigrationsHistory",
@@ -87,6 +89,8 @@ public static class RuntimeDatabaseAccessProfiles
             RuntimeDatabaseRoleKind.Outbox when relation == "platform.outbox_messages" => SelectUpdate,
             RuntimeDatabaseRoleKind.Outbox when relation == "platform.audit_intents" => Select,
             RuntimeDatabaseRoleKind.Outbox when relation == "platform.audit_entries" => SelectInsert,
+            RuntimeDatabaseRoleKind.Outbox when relation == "platform.outbox_replay_requests" => Select,
+            RuntimeDatabaseRoleKind.Outbox when relation == "platform.outbox_recovery_events" => SelectInsert,
             _ => None
         };
     }
@@ -119,6 +123,8 @@ public static class RuntimeDatabaseAccessProfiles
             "platform.organizations" or "platform.organization_data_placements"
                 or "platform.organization_creation_intents" => Crud,
             "platform.roles" or "platform.role_permissions" or "platform.invitations" => SelectInsert,
+            "platform.outbox_replay_requests" => SelectInsert,
+            "platform.outbox_recovery_events" => Select,
             _ when resource?.AccessRule == ModuleDataAccessRule.PlatformOnly => Crud,
             _ => None
         };

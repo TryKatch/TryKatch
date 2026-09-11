@@ -8,8 +8,8 @@
       "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }, "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 }
     },
     {
-      "type": "stat", "title": "Outbox failures (1h)", "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "sum(increase(trykatch_outbox_dispatches_total{service_name=~\"$service\",deployment_environment_name=~\"$environment\",outcome=\"failure\"}[1h])) or vector(0)", "refId": "A" }],
+      "type": "stat", "title": "Outbox terminal backlog", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "max(trykatch_outbox_terminal_count{service_name=~\"$service\",deployment_environment_name=~\"$environment\"}) or vector(0)", "refId": "A" }],
       "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 }
     },
     {

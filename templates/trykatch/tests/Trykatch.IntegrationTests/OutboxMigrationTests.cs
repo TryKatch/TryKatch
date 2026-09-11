@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+using NpgsqlTypes;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Trykatch.Identity;
@@ -17,6 +18,17 @@ namespace Trykatch.IntegrationTests;
 public sealed class OutboxMigrationTests
 {
     private const string PreviousMigration = "20260907201519_AddRecoverableLifecycle";
+
+    [TestMethod]
+    public void RecoveryMigrationSnapshotsMatchProductionModelsWithoutOpeningADatabase()
+    {
+        const string unavailable = "Host=127.0.0.1;Port=1;Database=never-open;Username=none;Password=none";
+        using ApplicationDbContext application = CreateContext(unavailable);
+        using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(unavailable).Options);
+
+        application.Database.HasPendingModelChanges().ShouldBeFalse();
+        platform.Database.HasPendingModelChanges().ShouldBeFalse();
+    }
 
     [TestMethod]
     public async Task ClassificationMigrationPurgesLegacyExceptionMessagesWithoutLosingDeliveryState()
@@ -42,6 +54,22 @@ public sealed class OutboxMigrationTests
         Guid messageId = Guid.CreateVersion7();
         const string secret = "password=legacy-secret-must-not-survive";
         await InsertLegacyFailureAsync(connectionString, messageId, secret);
+        Guid exhaustedId = Guid.CreateVersion7();
+        Guid processedId = Guid.CreateVersion7();
+        await InsertLegacyFailureAsync(connectionString, exhaustedId, "password=terminal-secret", attempts: 10);
+        await InsertLegacyFailureAsync(connectionString, processedId, "password=completed-secret", attempts: 10,
+            processedAt: DateTimeOffset.UtcNow);
+
+        await using (ApplicationDbContext context = CreateContext(connectionString))
+            await context.GetService<IMigrator>().MigrateAsync("20260911133245_ClassifyOutboxFailures");
+        await using (NpgsqlConnection connection = new(connectionString))
+        {
+            await connection.OpenAsync();
+            await using NpgsqlCommand command = new("UPDATE platform.outbox_messages SET \"LastErrorType\" = @type WHERE \"Id\" = @id", connection);
+            command.Parameters.AddWithValue("type", new string('T', 500));
+            command.Parameters.AddWithValue("id", exhaustedId);
+            await command.ExecuteNonQueryAsync();
+        }
 
         await using (ApplicationDbContext context = CreateContext(connectionString))
             await context.Database.MigrateAsync();
@@ -56,6 +84,19 @@ public sealed class OutboxMigrationTests
 
         string storedRow = $"{errorCode} {errorType} {legacyError}";
         storedRow.ShouldNotContain(secret);
+        (bool exhausted, long recoveryEvents) = await ReadRecoveryStateAsync(connectionString, exhaustedId);
+        exhausted.ShouldBeTrue();
+        recoveryEvents.ShouldBe(1);
+        await using (NpgsqlConnection connection = new(connectionString))
+        {
+            await connection.OpenAsync();
+            await using NpgsqlCommand command = new("SELECT \"FailureType\" FROM platform.outbox_recovery_events WHERE \"MessageId\" = @id", connection);
+            command.Parameters.AddWithValue("id", exhaustedId);
+            ((string)(await command.ExecuteScalarAsync())!).ShouldBe(new string('T', 240));
+        }
+        (bool processedExhausted, long processedRecoveryEvents) = await ReadRecoveryStateAsync(connectionString, processedId);
+        processedExhausted.ShouldBeFalse();
+        processedRecoveryEvents.ShouldBe(0);
 
         Guid rollingDeploymentMessageId = Guid.CreateVersion7();
         const string rollingDeploymentSecret = "token=old-worker-secret-must-not-survive";
@@ -75,7 +116,9 @@ public sealed class OutboxMigrationTests
     private static async Task InsertLegacyFailureAsync(
         string connectionString,
         Guid messageId,
-        string error)
+        string error,
+        int attempts = 3,
+        DateTimeOffset? processedAt = null)
     {
         await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync();
@@ -84,15 +127,32 @@ public sealed class OutboxMigrationTests
             INSERT INTO platform.outbox_messages
                 ("Id", "Type", "Payload", "OccurredAt", "ProcessedAt", "Attempts", "LastError")
             VALUES
-                (@id, @type, @payload::jsonb, @occurredAt, NULL, @attempts, @error);
+                (@id, @type, @payload::jsonb, @occurredAt, @processedAt, @attempts, @error);
             """;
         command.Parameters.AddWithValue("id", messageId);
         command.Parameters.AddWithValue("type", "Trykatch.Security.ContractTest");
         command.Parameters.AddWithValue("payload", "{}");
         command.Parameters.AddWithValue("occurredAt", DateTimeOffset.UtcNow);
-        command.Parameters.AddWithValue("attempts", 3);
+        command.Parameters.Add("processedAt", NpgsqlDbType.TimestampTz).Value = (object?)processedAt ?? DBNull.Value;
+        command.Parameters.AddWithValue("attempts", attempts);
         command.Parameters.AddWithValue("error", error);
         await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<(bool Exhausted, long RecoveryEvents)> ReadRecoveryStateAsync(string connectionString, Guid messageId)
+    {
+        await using NpgsqlConnection connection = new(connectionString);
+        await connection.OpenAsync();
+        await using NpgsqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT message."ExhaustedAt" IS NOT NULL,
+              (SELECT count(*) FROM platform.outbox_recovery_events event WHERE event."MessageId" = message."Id")
+            FROM platform.outbox_messages message WHERE message."Id" = @id
+            """;
+        command.Parameters.AddWithValue("id", messageId);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync();
+        (await reader.ReadAsync()).ShouldBeTrue();
+        return (reader.GetBoolean(0), reader.GetInt64(1));
     }
 
     private static async Task<(int Attempts, string? ErrorCode, string? ErrorType, string? LegacyError)> ReadMigratedFailureAsync(

@@ -20,6 +20,8 @@ internal static class HostPostgresPolicyContracts
     private const string Organization = "(\"OrganizationId\" = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)";
     private const string Actor = "(\"ActorId\" = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)";
     private const string OutboxWorker = "(CURRENT_USER = 'trykatch_outbox_worker'::name)";
+    private const string PlatformRuntime = "(CURRENT_USER = 'trykatch_platform_runtime'::name)";
+    private const string RequestedTime = "(\"RequestedAt\" = CURRENT_TIMESTAMP)";
     private const string MembershipRole = """
         (EXISTS ( SELECT 1
         FROM (platform.memberships m JOIN platform.roles r ON ((r."OrganizationId" = m."OrganizationId")))
@@ -43,6 +45,18 @@ internal static class HostPostgresPolicyContracts
         [
             new("audit_intents_append", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
             new("audit_intents_worker_read", "r", OutboxWorker, Roles: ["trykatch_outbox_worker"])
+        ],
+        ["platform.outbox_replay_requests"] =
+        [
+            new("outbox_replay_requests_platform_read", "r", PlatformRuntime, Roles: ["trykatch_platform_runtime"]),
+            new("outbox_replay_requests_platform_insert", "a", "", $"({PlatformRuntime} AND {Actor} AND {RequestedTime})", ["trykatch_platform_runtime"]),
+            new("outbox_replay_requests_worker_read", "r", OutboxWorker, Roles: ["trykatch_outbox_worker"])
+        ],
+        ["platform.outbox_recovery_events"] =
+        [
+            new("outbox_recovery_events_platform_read", "r", PlatformRuntime, Roles: ["trykatch_platform_runtime"]),
+            new("outbox_recovery_events_worker_read", "r", OutboxWorker, Roles: ["trykatch_outbox_worker"]),
+            new("outbox_recovery_events_worker_insert", "a", "", OutboxWorker, ["trykatch_outbox_worker"])
         ],
         ["platform.memberships"] =
         [
