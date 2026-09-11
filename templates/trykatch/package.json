@@ -1,0 +1,12 @@
+{
+  "name": "trykatch-app-slug",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "dev": "pnpm --dir web dev",
+    "generate": "pnpm --dir web generate",
+    "typecheck": "pnpm --dir web typecheck",
+    "test": "pnpm --dir web test",
+    "build": "pnpm --dir web build"
+  }
+}
