@@ -30,7 +30,7 @@ test.describe('generated production application', () => {
     await test.step('a platform administrator cannot suspend their own access', async () => {
       const response = await mutate(platformRequest, 'POST', `/api/v1/platform-users/${platformSession.userId}/suspend`)
       expect(response.status()).toBe(409)
-      await expectProblem(response, 'self_change')
+      await expectProblem(response, 'last_administrator')
     })
 
     await test.step('a delegated access manager cannot suspend the final platform administrator', async () => {
