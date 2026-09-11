@@ -113,6 +113,8 @@ jobs:
       - run: pnpm --dir templates/trykatch/web typecheck
       - run: pnpm --dir templates/trykatch/web test
       - run: pnpm --dir templates/trykatch/web build
+      - name: Verify Vercel includes full-stack module packages
+        run: bash scripts/test-vercel-deployment.sh
       - name: Exclude unrelated Google Chrome apt feed
         run: |
           for chrome_source in /etc/apt/sources.list.d/google-chrome.*; do

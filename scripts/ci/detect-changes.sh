@@ -32,6 +32,9 @@ classify_path() {
     Trykatch.Templates.csproj|scripts/test-template.sh|scripts/test-apphost-launch-profile.sh|templates/trykatch/.template.config/*|templates/trykatch/.github/*|templates/trykatch/LICENSE)
       packaging=true
       ;;
+    scripts/test-vercel-deployment.sh)
+      web=true
+      ;;
     scripts/test-generated-application.sh)
       backend=true
       web=true

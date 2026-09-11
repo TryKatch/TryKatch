@@ -55,6 +55,9 @@ assert_scope 'scripts/test-generated-application.sh' qualification true
 assert_scope 'scripts/test-apphost-launch-profile.sh' packaging true
 assert_scope 'scripts/test-apphost-launch-profile.sh' qualification true
 assert_scope 'scripts/test-apphost-launch-profile.sh' template true
+assert_scope 'scripts/test-vercel-deployment.sh' web true
+assert_scope 'scripts/test-vercel-deployment.sh' backend false
+assert_scope 'scripts/test-vercel-deployment.sh' qualification true
 assert_scope '.github/workflows/ci.yml' docs true
 assert_scope '.github/workflows/ci.yml' backend true
 assert_scope '.github/workflows/ci.yml' web true
