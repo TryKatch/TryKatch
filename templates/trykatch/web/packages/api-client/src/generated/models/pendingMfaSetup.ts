@@ -6,7 +6,9 @@
  * OpenAPI spec version: v1
  */
 
-export interface MfaCodeRequest {
+export interface PendingMfaSetup {
   enrollmentId: string;
-  code: string;
+  sharedKey: string;
+  authenticatorUri: string;
+  expiresAt: string;
 }

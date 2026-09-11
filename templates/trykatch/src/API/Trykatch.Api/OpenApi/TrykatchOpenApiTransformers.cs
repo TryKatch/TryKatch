@@ -1,9 +1,9 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Trykatch.Modules;
-using Trykatch.Modules.AspNetCore;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
+using Trykatch.Modules;
+using Trykatch.Modules.AspNetCore;
 
 namespace Trykatch.Api.OpenApi;
 
@@ -126,7 +126,8 @@ public sealed partial class ModuleOpenApiOperationTransformer(ModuleCatalog cata
         lines.Add(string.Empty);
         lines.Add("if (!response.ok) throw new Error(`Request failed: ${response.status}`);");
         lines.Add("const result: unknown = response.status === 204 ? undefined : await response.json();");
-        lines.Add("console.log(result);");
+        lines.Add("// Handle result in memory; never log response bodies, which may contain credentials or personal data.");
+        lines.Add("console.log({ status: response.status });");
 
         operation.AddExtension(
             "x-codeSamples",

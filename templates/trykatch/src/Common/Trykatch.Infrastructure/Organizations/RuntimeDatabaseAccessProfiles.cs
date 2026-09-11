@@ -56,6 +56,9 @@ public static class RuntimeDatabaseAccessProfiles
         "public.__EFMigrationsHistory",
         "identity.AspNetUsers",
         "identity.data_protection_keys",
+        "identity.recent_assurance_grants",
+        "identity.pending_mfa_enrollments",
+        "identity.account_security_events",
         "identity.AspNetRoles",
         "identity.AspNetRoleClaims",
         "identity.AspNetUserClaims",
@@ -78,6 +81,7 @@ public static class RuntimeDatabaseAccessProfiles
         {
             RuntimeDatabaseRoleKind.Organization => OrganizationPermissions(relation, resource),
             RuntimeDatabaseRoleKind.Platform => PlatformPermissions(relation, resource),
+            RuntimeDatabaseRoleKind.Identity when relation == "identity.account_security_events" => SelectInsert,
             RuntimeDatabaseRoleKind.Identity when relation.StartsWith("identity.", StringComparison.Ordinal) => Crud,
             RuntimeDatabaseRoleKind.Outbox when relation == "platform.outbox_messages" => SelectUpdate,
             _ => None
@@ -94,26 +98,26 @@ public static class RuntimeDatabaseAccessProfiles
 
     private static IReadOnlySet<string> OrganizationPermissions(
         string relation, DataResourceDescriptor? resource) => relation switch
-    {
-        "platform.organizations" or "platform.module_data_resources" => Select,
-        "platform.memberships" or "platform.roles" or "platform.membership_roles"
-            or "platform.role_permissions" or "platform.invitations" => Crud,
-        "platform.audit_entries" => SelectInsert,
-        "platform.outbox_messages" => Insert,
-        _ when resource?.Ownership == ModuleDataOwnership.Organization => Crud,
-        _ when resource?.AccessRule == ModuleDataAccessRule.GlobalReadOnly => Select,
-        _ => None
-    };
+        {
+            "platform.organizations" or "platform.module_data_resources" => Select,
+            "platform.memberships" or "platform.roles" or "platform.membership_roles"
+                or "platform.role_permissions" or "platform.invitations" => Crud,
+            "platform.audit_entries" => SelectInsert,
+            "platform.outbox_messages" => Insert,
+            _ when resource?.Ownership == ModuleDataOwnership.Organization => Crud,
+            _ when resource?.AccessRule == ModuleDataAccessRule.GlobalReadOnly => Select,
+            _ => None
+        };
 
     private static IReadOnlySet<string> PlatformPermissions(
         string relation, DataResourceDescriptor? resource) => relation switch
-    {
-        "platform.organizations" or "platform.organization_data_placements"
-            or "platform.organization_creation_intents" => Crud,
-        "platform.roles" or "platform.role_permissions" or "platform.invitations" => SelectInsert,
-        _ when resource?.AccessRule == ModuleDataAccessRule.PlatformOnly => Crud,
-        _ => None
-    };
+        {
+            "platform.organizations" or "platform.organization_data_placements"
+                or "platform.organization_creation_intents" => Crud,
+            "platform.roles" or "platform.role_permissions" or "platform.invitations" => SelectInsert,
+            _ when resource?.AccessRule == ModuleDataAccessRule.PlatformOnly => Crud,
+            _ => None
+        };
 
     private static readonly IReadOnlySet<string> None = new HashSet<string>(StringComparer.Ordinal);
     private static readonly IReadOnlySet<string> Select = Set("SELECT");

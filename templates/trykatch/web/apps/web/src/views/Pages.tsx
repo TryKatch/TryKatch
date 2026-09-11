@@ -5,6 +5,7 @@ import { Badge, Button, DataTable, DeleteConfirmationDialog, Dialog, EmptyState,
 import { Activity, ArrowUpRight, Building2, CheckCircle2, Clock3, Copy, FolderKanban, KeyRound, Mail, Plus, ShieldCheck, UserPlus, Users } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { RoleEditorDialog } from '../components/RoleEditorDialog'
+import { AccountSecurityPanel } from '../components/AccountSecurityPanel'
 import { RolePermissionDisclosure } from '../components/RolePermissionDisclosure'
 import { formatRecordDate, LifecycleBadge, RecordDetailsDialog, type RecordLifecycle } from '../components/RecordLifecycle'
 import { ProductLogo } from '../components/ProductLogo'
@@ -345,8 +346,6 @@ export function ProfilePage() {
   const { t } = useI18n()
   const client = useQueryClient()
   const profile = useQuery({ queryKey: ['account', 'profile'], queryFn: () => customFetch<AccountProfile>('/api/v1/account', { method: 'GET' }) })
-  const [setup, setSetup] = useState<{ sharedKey: string; authenticatorUri: string }>()
-  const [recoveryCodes, setRecoveryCodes] = useState<string[]>()
   const [passwordError, setPasswordError] = useState<string>()
   const updateProfile = useMutation({
     mutationFn: (displayName: string) => customFetch<AccountProfile>('/api/v1/account', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName }) }),
@@ -359,10 +358,6 @@ export function ProfilePage() {
     mutationFn: (input: { currentPassword: string; newPassword: string }) => customFetch<void>('/api/v1/account/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }),
     onSuccess: () => window.location.assign('/login'),
   })
-  const beginMfa = useMutation({ mutationFn: () => customFetch<{ sharedKey: string; authenticatorUri: string }>('/api/v1/account/security/mfa/setup', { method: 'POST' }), onSuccess: setSetup })
-  const enableMfa = useMutation({ mutationFn: (code: string) => customFetch<{ codes: string[] }>('/api/v1/account/security/mfa/enable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) }), onSuccess: async (result) => { setRecoveryCodes(result.codes); setSetup(undefined); await client.invalidateQueries({ queryKey: ['account', 'profile'] }) } })
-  const regenerateCodes = useMutation({ mutationFn: () => customFetch<{ codes: string[] }>('/api/v1/account/security/mfa/recovery-codes', { method: 'POST' }), onSuccess: (result) => setRecoveryCodes(result.codes) })
-  function enable(event: FormEvent<HTMLFormElement>) { event.preventDefault(); enableMfa.mutate(String(new FormData(event.currentTarget).get('code'))) }
   function saveProfile(event: FormEvent<HTMLFormElement>) { event.preventDefault(); updateProfile.mutate(String(new FormData(event.currentTarget).get('displayName'))) }
   function savePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -402,10 +397,7 @@ export function ProfilePage() {
           <div className="form-actions form-span"><Button type="submit" variant="secondary" disabled={changePassword.isPending}>{t(changePassword.isPending ? 'Changing…' : 'Change password')}</Button></div>
         </form>
       </Surface>
-      <Surface className="profile-card">
-        <div className="profile-card-heading"><div><h2>{t('Two-factor authentication')}</h2><p>{t('Add a time-based one-time password to protect your account.')}</p></div><Badge tone={profile.data?.twoFactorEnabled ? 'success' : 'warning'}>{t(profile.data?.twoFactorEnabled ? 'Enabled' : 'Not enabled')}</Badge></div>
-        <div className="security-panel">{recoveryCodes ? <div className="token-result"><p>Store these recovery codes securely. Each code can be used once.</p><code>{recoveryCodes.join('\n')}</code><Button variant="secondary" onClick={() => navigator.clipboard.writeText(recoveryCodes.join('\n'))}>Copy recovery codes</Button></div> : setup ? <form className="dialog-form" onSubmit={enable}><p>Enter this key in your authenticator: <code>{setup.sharedKey}</code></p><label>Six-digit code<input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" required /></label>{enableMfa.error && <div className="form-error" role="alert">{enableMfa.error.message}</div>}<div className="form-actions"><Button variant="ghost" type="button" onClick={() => setSetup(undefined)}>Cancel</Button><Button variant="primary" type="submit" disabled={enableMfa.isPending}>Enable MFA</Button></div></form> : profile.data?.twoFactorEnabled ? <div className="security-status"><div><ShieldCheck size={18} /><span><strong>Authenticator app is active</strong><small>Recovery codes provide emergency account access.</small></span></div><Button variant="secondary" disabled={regenerateCodes.isPending} onClick={() => regenerateCodes.mutate()}>Regenerate recovery codes</Button></div> : <div className="security-status"><div><ShieldCheck size={18} /><span><strong>Protect your account</strong><small>Use any standards-based TOTP authenticator.</small></span></div><Button variant="primary" disabled={beginMfa.isPending} onClick={() => beginMfa.mutate()}>Set up MFA</Button></div>}</div>
-      </Surface>
+      <AccountSecurityPanel twoFactorEnabled={profile.data?.twoFactorEnabled ?? false} disabled={!profile.data} />
     </div>
   </>
 }

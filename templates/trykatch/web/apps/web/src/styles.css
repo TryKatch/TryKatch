@@ -363,6 +363,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .saved-state { display: flex; align-items: center; gap: 5px; color: #25895b; font-size: 11px; }
 .security-panel { padding: 16px; }
+.account-security-card .security-status { align-items: flex-start; flex-direction: column; }
+.account-security-card .form-actions { flex-wrap: wrap; }
+.account-security-card .dialog-form > code { display: block; overflow-wrap: anywhere; user-select: all; }
+.account-security-completion { width: min(40rem, 100%); margin: 10vh auto; padding: 1.5rem; }
 .security-status { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .security-status > div { display: flex; align-items: center; gap: 10px; }.security-status > div > span { display: flex; flex-direction: column; }.security-status small { color: var(--muted); }
 .token-result { display: grid; gap: 12px; }

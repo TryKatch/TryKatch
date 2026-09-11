@@ -6,7 +6,10 @@
  * OpenAPI spec version: v1
  */
 
-export interface MfaCodeRequest {
-  enrollmentId: string;
-  code: string;
+export interface ReauthenticationRequest {
+  purpose: string;
+  password: string;
+  /** @nullable */
+  code?: string | null;
+  isRecoveryCode?: boolean;
 }

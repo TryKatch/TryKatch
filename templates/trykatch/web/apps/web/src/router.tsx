@@ -8,6 +8,7 @@ import { ResetPasswordPage } from './views/ResetPasswordPage'
 import { LandingPage } from './views/LandingPage'
 import { workspaceModules } from './modules'
 import { ModuleProvider } from './module-system/ModuleExtensionSlot'
+import { AccountSecurityCompletionBoundary } from './components/AccountSecurityCompletion'
 
 const pages = () => import('./views/Pages')
 const DashboardPage = lazy(() => pages().then((module) => ({ default: module.DashboardPage })))
@@ -28,7 +29,7 @@ function withSuspense(Page: ElementType) {
   }
 }
 
-const rootRoute = createRootRoute({ component: () => <ModuleProvider catalog={workspaceModules}><Outlet /></ModuleProvider> })
+const rootRoute = createRootRoute({ component: () => <ModuleProvider catalog={workspaceModules}><AccountSecurityCompletionBoundary><Outlet /></AccountSecurityCompletionBoundary></ModuleProvider> })
 const landingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: LandingPage })
 const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login', component: LoginPage })
 const forgotPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/forgot-password', component: ForgotPasswordPage })

@@ -6,6 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-export interface RecoveryCodesResponse {
-  codes: string[];
+export interface MfaGrantRequest {
+  /** @nullable */
+  grant?: string | null;
 }
