@@ -39,7 +39,9 @@ Les modules reçoivent une interface étroite d’accès aux données d’organi
 
 PostgreSQL partagé est le choix par défaut. Il associe les identifiants d’organisation, les filtres EF Core, la RLS forcée, des rôles d’exécution restreints et des tests inter-organisation automatisés.
 
-Le plan de contrôle peut enregistrer une organisation en mode `Shared` ou `Dedicated`, mais le placement dédié échoue de manière sûre tant que le déploiement ne fournit pas de mécanisme de provisionnement. Celui-ci doit créer la base, ne conserver qu’une référence au secret, exécuter les migrations et l’inspection d’isolation, puis confirmer l’état prêt avant tout routage. Le modèle ne prétend jamais qu’une base dédiée existe sans fournisseur configuré.
+L’API publique de création d’un tenant accepte actuellement uniquement `shared` ; l’absence de valeur sélectionne également PostgreSQL partagé. Toute autre valeur renvoie une réponse HTTP `422` avec le code d’erreur stable `unsupported_tenant_placement`, avant la création d’une organisation ou d’une invitation.
+
+`Dedicated` reste un point d’extension interne qui échoue de manière sûre. Les enregistrements dédiés existants renvoient HTTP `503` avec `unsupported_tenant_placement` ; ils ne sont jamais redirigés vers la base partagée comme solution de repli. Un futur fournisseur de placement dédié devra créer la base, ne conserver qu’une référence au secret, exécuter les migrations et l’inspection d’isolation, puis confirmer l’état prêt avant que l’API et l’interface puissent proposer cette option.
 
 ## Confiance des packages
 

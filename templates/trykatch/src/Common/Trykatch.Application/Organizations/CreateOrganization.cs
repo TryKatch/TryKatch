@@ -1,8 +1,8 @@
-using Trykatch.Application.Common;
-using Trykatch.Domain.Organizations;
-using FluentValidation;
 using System.Security.Cryptography;
 using System.Text;
+using FluentValidation;
+using Trykatch.Application.Common;
+using Trykatch.Domain.Organizations;
 
 namespace Trykatch.Application.Organizations;
 
@@ -10,7 +10,8 @@ public sealed record CreateOrganizationCommand(
     string Name,
     string Slug,
     string AdministratorEmail,
-    Guid InitiatingActorId);
+    Guid InitiatingActorId,
+    OrganizationDataPlacementKind Placement = OrganizationDataPlacementKind.Shared);
 public sealed record OrganizationDto(Guid Id, string Name, string Slug, bool IsActive, DateTimeOffset CreatedAt);
 public sealed record CreateOrganizationResult(OrganizationDto Organization, string AdministratorEmail, string InvitationToken);
 
@@ -34,6 +35,13 @@ public sealed class CreateOrganization(
 {
     public async Task<Result<CreateOrganizationResult>> HandleAsync(CreateOrganizationCommand command, CancellationToken cancellationToken)
     {
+        if (command.Placement != OrganizationDataPlacementKind.Shared)
+        {
+            return Result.Failure<CreateOrganizationResult>(
+                "unsupported_tenant_placement",
+                "Dedicated database placement is not available in this release. No tenant was created.");
+        }
+
         var validation = await validator.ValidateAsync(command, cancellationToken);
         if (!validation.IsValid)
         {
@@ -45,7 +53,7 @@ public sealed class CreateOrganization(
             command.Slug,
             command.InitiatingActorId,
             command.AdministratorEmail,
-            OrganizationDataPlacementKind.Shared,
+            command.Placement,
             cancellationToken);
         if (!prepared.IsPrepared || prepared.Preparation is null)
             return Result.Failure<CreateOrganizationResult>(
@@ -57,7 +65,7 @@ public sealed class CreateOrganization(
         Guid ownerRoleId = prepared.Preparation.OwnerRoleId;
 
         OrganizationDataPlacementResult placement = await dataPlacement.ProvisionAsync(
-            new(organization.Id, OrganizationDataPlacementKind.Shared),
+            new(organization.Id, command.Placement),
             cancellationToken);
         if (!placement.IsReady)
             return Result.Failure<CreateOrganizationResult>(

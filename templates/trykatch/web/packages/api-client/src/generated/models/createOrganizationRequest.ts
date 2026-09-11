@@ -10,4 +10,6 @@ export interface CreateOrganizationRequest {
   name: string;
   slug: string;
   administratorEmail: string;
+  /** @nullable */
+  placement?: string | null;
 }
