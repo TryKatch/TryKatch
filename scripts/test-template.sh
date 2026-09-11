@@ -103,6 +103,8 @@ generate_and_build() {
       fail "generated application '$name' is missing the API client entry point"
     test -f "$output/web/packages/api-client/src/generated/models/index.ts" ||
       fail "generated application '$name' is missing the generated API models"
+    grep -Fq '"predev": "pnpm --filter @trykatch/api-client ensure-generated"' "$output/web/apps/web/package.json" ||
+      fail "generated application '$name' does not repair its API client on the AppHost Vite path"
     bash "$output/scripts/test-proxy-headers.sh"
     (
       cd "$output/web"
