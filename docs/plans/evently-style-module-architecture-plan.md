@@ -426,7 +426,7 @@ The work is complete when:
 
 ## Delivery Status
 
-The structural migration shipped in `0.1.0-preview.11`. The completion hardening described below is targeted for the next preview release.
+The structural migration shipped in `0.1.0-preview.11`. The completion hardening described below shipped in `0.1.0-preview.12`.
 
 The delivered structure uses explicit build-time composition and the product-neutral `IModule` contract. Projects, Documents, and Federation each own Domain, Application, IntegrationEvents, Presentation, Infrastructure, and Web artifacts inside their module directory. Application projects depend on explicit persistence and external-provider ports; EF Core and network adapters remain in Infrastructure. Presentation projects depend on Application and the shared ASP.NET module contract, never on module Domain or Infrastructure projects. The host references module Infrastructure entry points through generated build-time registration without runtime assembly scanning.
 
