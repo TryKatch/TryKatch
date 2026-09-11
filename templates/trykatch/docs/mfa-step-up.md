@@ -1,5 +1,7 @@
 # MFA recent-assurance and enrollment
 
+Pending MFA secrets use the same durable Data Protection ring as cookies and antiforgery. [Production identity maintenance](production-identity.md) preserves that ciphertext across restart and certificate rotation; retain required private certificates and do not reset the ring. Existing enrollment expiry still applies.
+
 Account security is owned by the `IAccountSecurity` application boundary and its Identity implementation. Controllers supply the authenticated user, the protected cookie ticket's session identifier, and the cookie security stamp; request JSON cannot supply that authority. Browser requests require the application cookie and antiforgery token. Bearer tokens are not accepted for these flows.
 
 ## Verification and lifecycle

@@ -1,5 +1,7 @@
 # PostgreSQL security model
 
+Data Protection key records require explicit owner-only encryption maintenance when upgrading a plaintext ring; this is not an automatic EF migration. See [production identity](production-identity.md) for the transactional dry-run/apply and backup/rotation contract.
+
 Trykatch uses three core PostgreSQL schemas and five operational roles. Modules may additionally declare reference or infrastructure resources under explicit access profiles. The migration role owns schema objects. Four mutually distinct runtime roles isolate organization, platform, identity, and outbox capabilities; none may receive role memberships, `BYPASSRLS`, or object ownership. See [Module data isolation](module-data-isolation.md) for the executable ownership and inspection contract.
 
 Create the migration owner outside application startup, with its password supplied by your secret manager:

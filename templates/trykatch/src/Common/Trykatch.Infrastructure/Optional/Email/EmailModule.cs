@@ -1,8 +1,11 @@
 using MailKit.Net.Smtp;
-using Trykatch.Application.Identity;
+using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using MimeKit;
+using Trykatch.Application.Identity;
 
 namespace Trykatch.Infrastructure.Modules.Email;
 
@@ -13,26 +16,53 @@ public interface IEmailSender
     Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default);
 }
 
-internal sealed class SmtpEmailSender(IConfiguration configuration) : IEmailSender
+/// <summary>External SMTP-client boundary. Production uses MailKit's normal TLS validation.</summary>
+public interface ISmtpClientFactory
+{
+    SmtpClient CreateClient();
+}
+
+internal sealed class SmtpClientFactory : ISmtpClientFactory
+{
+    public SmtpClient CreateClient() => new() { Timeout = 30_000 };
+}
+
+public sealed class EmailDeliveryException() : Exception("Email delivery failed.");
+
+internal sealed class SmtpEmailSender(IOptions<SmtpOptions> options, ISmtpClientFactory clients) : IEmailSender
 {
     public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
-        MimeMessage mail = new();
-        mail.From.Add(MailboxAddress.Parse(configuration["Email:From"] ?? "Trykatch <noreply@localhost>"));
+        SmtpOptions settings = options.Value;
+        using MimeMessage mail = new();
+        mail.From.Add(MailboxAddress.Parse(settings.From));
         mail.To.Add(MailboxAddress.Parse(message.Recipient));
         mail.Subject = message.Subject;
         mail.Body = new BodyBuilder { TextBody = message.TextBody, HtmlBody = message.HtmlBody }.ToMessageBody();
 
-        using SmtpClient client = new();
-        await client.ConnectAsync(configuration["Email:Host"] ?? "localhost", configuration.GetValue("Email:Port", 1025), false, cancellationToken);
-        string? username = configuration["Email:Username"];
-        if (!string.IsNullOrWhiteSpace(username))
+        using SmtpClient client = clients.CreateClient();
+        try
         {
-            await client.AuthenticateAsync(username, configuration["Email:Password"] ?? string.Empty, cancellationToken);
+            SecureSocketOptions security = settings.Security switch
+            {
+                SmtpTransportSecurity.StartTls => SecureSocketOptions.StartTls,
+                SmtpTransportSecurity.SslOnConnect => SecureSocketOptions.SslOnConnect,
+                SmtpTransportSecurity.None => SecureSocketOptions.None,
+                _ => throw new InvalidOperationException("Invalid email transport security.")
+            };
+            await client.ConnectAsync(settings.Host, settings.Port, security, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(settings.Username))
+                await client.AuthenticateAsync(settings.Username, settings.Password!, cancellationToken);
+            await client.SendAsync(mail, cancellationToken);
+            await client.DisconnectAsync(true, cancellationToken);
         }
-
-        await client.SendAsync(mail, cancellationToken);
-        await client.DisconnectAsync(true, cancellationToken);
+        catch (Exception failure) when (failure is IOException or System.Net.Sockets.SocketException or MailKit.CommandException or MailKit.ProtocolException or
+            MailKit.Security.AuthenticationException or System.Security.Authentication.AuthenticationException or SslHandshakeException or NotSupportedException)
+        {
+            // SMTP replies and MIME bodies can contain credentials or recovery links.
+            // Do not propagate the remote reply/inner exception to application logging.
+            throw new EmailDeliveryException();
+        }
     }
 }
 
@@ -80,8 +110,19 @@ internal sealed class SmtpInvitationNotifier(IEmailSender emailSender) : IInvita
 
 public static class EmailModule
 {
-    public static IServiceCollection AddEmailModule(this IServiceCollection services)
+    public static IServiceCollection AddEmailModule(this IServiceCollection services, IConfiguration configuration, bool isDevelopment = false, bool isOpenApiGeneration = false)
     {
+        services.AddOptions<SmtpOptions>().Configure(options =>
+        {
+            SmtpOptions configured = SmtpOptions.Load(configuration, isDevelopment || isOpenApiGeneration);
+            options.Host = configured.Host;
+            options.Port = configured.Port;
+            options.From = configured.From;
+            options.Security = configured.Security;
+            options.Username = configured.Username;
+            options.Password = configured.Password;
+        }).ValidateOnStart();
+        services.TryAddSingleton<ISmtpClientFactory, SmtpClientFactory>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IAccountRecoveryNotifier, SmtpAccountRecoveryNotifier>();
         services.AddScoped<IInvitationNotifier, SmtpInvitationNotifier>();

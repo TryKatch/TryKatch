@@ -124,6 +124,8 @@ create_certificate() {
   # is an ephemeral CI asset in a private temporary directory and is mounted
   # read-only, so it must be readable by that container user.
   chmod 0644 "$generated_root/secrets/$name.pfx"
+  printf '%s' "$password" >"$generated_root/secrets/$name.password"
+  chmod 0644 "$generated_root/secrets/$name.password"
 }
 
 create_ingress_certificate() {
@@ -155,6 +157,7 @@ migrator_password="$(openssl rand -hex 24)"
 runtime_password="$(openssl rand -hex 24)"
 signing_certificate_password="$(openssl rand -hex 24)"
 encryption_certificate_password="$(openssl rand -hex 24)"
+data_protection_certificate_password="$(openssl rand -hex 24)"
 
 mkdir -p "$artifact_parent" "$test_root/package"
 artifact_root=$(mktemp -d "$artifact_parent/run.XXXXXX")
@@ -188,6 +191,7 @@ test "$(git -C "$generated_root" branch --show-current)" = main
 mkdir -p "$generated_root/secrets"
 create_certificate signing "$signing_certificate_password"
 create_certificate encryption "$encryption_certificate_password"
+create_certificate data-protection "$data_protection_certificate_password"
 create_ingress_certificate
 
 cat >"$test_root/acceptance-tls.conf" <<'EOF'
@@ -241,8 +245,6 @@ TRYKATCH_NETWORK_GATEWAY=$network_prefix.1
 TRYKATCH_INGRESS_PROXY_IP=$network_prefix.2
 TRYKATCH_WEB_PROXY_IP=$network_prefix.10
 TRYKATCH_SECRETS_PATH=$generated_root/secrets
-TRYKATCH_SIGNING_CERTIFICATE_PASSWORD=$signing_certificate_password
-TRYKATCH_ENCRYPTION_CERTIFICATE_PASSWORD=$encryption_certificate_password
 TRYKATCH_BOOTSTRAP_ADMIN_EMAIL=$platform_admin_email
 TRYKATCH_BOOTSTRAP_ADMIN_PASSWORD=$platform_admin_password
 TRYKATCH_ENVIRONMENT=Production

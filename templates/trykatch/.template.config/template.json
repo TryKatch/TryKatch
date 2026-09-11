@@ -68,6 +68,10 @@
       "description": "Include SMTP email and Mailpit development support.",
       "defaultValue": "false"
     },
+    "TRYKATCH_EMAIL": {
+      "type": "computed",
+      "value": "(email)"
+    },
     "storage": {
       "type": "parameter",
       "datatype": "bool",

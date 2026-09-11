@@ -6,6 +6,8 @@ Trykatch is a clean-room enterprise application foundation for .NET 10, PostgreS
 
 ## Start locally
 
+For deployment, first read [production identity](docs/production-identity.md): three certificate/password pairs are required, and an existing plaintext key ring needs an explicit privileged dry-run/apply before the API can start.
+
 Prerequisites: .NET SDK 10.0.301+, Docker, Node.js 24+, and Corepack. The generated root `package.json` pins pnpm 10.17.1, so the same package-manager version is selected on every machine.
 
 ```bash

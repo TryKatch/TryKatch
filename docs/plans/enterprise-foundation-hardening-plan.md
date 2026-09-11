@@ -253,7 +253,7 @@ Promote reviewed `develop` to protected `main`, qualify package bytes and publis
 - [ ] 02: target privilege boundaries and final administrators protected.
 - [ ] 03: MFA secrets and sensitive operations require verified assurance.
 - [ ] 04: credentials excluded from logs, persistence and artifacts.
-- [ ] 05: production keys encrypted and mail TLS enforced.
+- [x] 05: production keys encrypted and mail TLS enforced.
 - [ ] 06: business state and audit intent atomic before success.
 - [ ] 07: outbox recovers safely with documented replay semantics.
 - [ ] 08: races/concurrency controlled and queries bounded.

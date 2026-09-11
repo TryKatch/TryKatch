@@ -36,7 +36,7 @@ else if (!builder.Environment.IsDevelopment())
 
 builder.AddServiceDefaults();
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment(), isOpenApiGeneration);
 ModuleCatalog moduleCatalog = builder.Services.AddModules(builder.Configuration, EnabledModules.All);
 builder.Services.AddIdentity(builder.Configuration, builder.Environment.IsDevelopment(), isOpenApiGeneration);
 builder.Services.AddProblemDetails();
@@ -109,6 +109,7 @@ builder.Services.AddHealthChecks()
 WebApplication app = builder.Build();
 if (!isOpenApiGeneration)
 {
+    if (!app.Environment.IsDevelopment()) await app.Services.ValidateIdentityKeyRingAsync();
     await IdentitySeeder.SeedPlatformAdministratorAsync(app.Services, app.Configuration);
     if (app.Environment.IsDevelopment())
     {
