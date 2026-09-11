@@ -566,7 +566,10 @@ public sealed class ModuleWorkspaceTests
         {
             string packageId = Path.GetFileName(versionOnePackage)[..^".1.0.0.nupkg".Length];
             string moduleName = packageId["Trykatch.Modules.".Length..];
-            string moduleId = moduleName.ToLowerInvariant();
+            string sourceManifest = Path.Combine(moduleSourceRoot, moduleName, "try" + "katch.module.json");
+            using JsonDocument sourceManifestDocument = JsonDocument.Parse(File.ReadAllText(sourceManifest));
+            string moduleId = sourceManifestDocument.RootElement.GetProperty("id").GetString()
+                ?? throw new InvalidOperationException($"Module manifest '{sourceManifest}' has no id.");
             string versionTwoPackage = Path.Combine(versionTwoRoot, $"{packageId}.1.1.0.nupkg");
             File.Exists(versionTwoPackage).ShouldBeTrue($"upgrade package missing for {moduleName}");
 
@@ -592,7 +595,7 @@ public sealed class ModuleWorkspaceTests
             upgraded.Modules.Single(module => module.Id == moduleId).Version.ShouldBe("1.1.0");
 
             string sourceBundle = temporary.WriteCompositeSourceBundle(moduleId, moduleName, "1.1.0", moduleSourceRoot);
-            string sourceManifest = Path.Combine(sourceBundle, "try" + "katch.module.json");
+            string ejectionManifest = Path.Combine(sourceBundle, "try" + "katch.module.json");
             string guardedSource = Directory.GetFiles(
                 Path.Combine(sourceBundle, "src", "Modules", moduleName),
                 "*.csproj",
@@ -600,10 +603,10 @@ public sealed class ModuleWorkspaceTests
             byte[] reviewedSource = File.ReadAllBytes(guardedSource);
             File.AppendAllText(guardedSource, "<!-- tampered -->");
             Should.Throw<InvalidOperationException>(() =>
-                workspace.EjectPackage(moduleId, sourceBundle, Sha256(sourceManifest)))
+                workspace.EjectPackage(moduleId, sourceBundle, Sha256(ejectionManifest)))
                 .Message.ShouldContain("tree integrity");
             File.WriteAllBytes(guardedSource, reviewedSource);
-            ModuleDoctorReport ejected = workspace.EjectPackage(moduleId, sourceBundle, Sha256(sourceManifest));
+            ModuleDoctorReport ejected = workspace.EjectPackage(moduleId, sourceBundle, Sha256(ejectionManifest));
 
             ejected.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, ejected.Errors));
             ejected.Modules.Single(module => module.Id == moduleId).ManifestPath.ShouldContain("src/Modules");

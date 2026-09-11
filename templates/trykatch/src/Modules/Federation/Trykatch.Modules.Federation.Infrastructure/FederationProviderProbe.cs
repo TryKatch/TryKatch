@@ -114,11 +114,13 @@ internal sealed class FederationProviderProbe(
 
 internal static class FederationNetworkGuard
 {
+    private static readonly TimeSpan ConnectionTimeout = TimeSpan.FromSeconds(5);
+
     public static SocketsHttpHandler CreateHandler(bool allowInsecureLoopbackIssuer) => new()
     {
         AllowAutoRedirect = false,
         UseProxy = false,
-        ConnectTimeout = TimeSpan.FromSeconds(5),
+        ConnectTimeout = Timeout.InfiniteTimeSpan,
         PooledConnectionLifetime = TimeSpan.FromMinutes(5),
         ConnectCallback = (context, cancellationToken) =>
             ConnectAsync(context, allowInsecureLoopbackIssuer, cancellationToken)
@@ -177,25 +179,64 @@ internal static class FederationNetworkGuard
         IPAddress[] addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
         EnsureAddressesAreAllowed(addresses, explicitLoopbackException);
 
+        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(ConnectionTimeout);
+        List<Task<Socket>> attempts = addresses
+            .Distinct()
+            .Select(address => ConnectAddressAsync(address, context.DnsEndPoint.Port, deadline.Token))
+            .ToList();
         Exception? lastFailure = null;
-        foreach (IPAddress address in addresses)
+        while (attempts.Count > 0)
         {
-            Socket socket = new(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            Task<Socket> completed = await Task.WhenAny(attempts);
+            attempts.Remove(completed);
             try
             {
-                await socket.ConnectAsync(new IPEndPoint(address, context.DnsEndPoint.Port), cancellationToken);
-                return new NetworkStream(socket, ownsSocket: true);
+                Socket connected = await completed;
+                deadline.Cancel();
+                foreach (Task<Socket> remaining in attempts)
+                    await DisposeConnectionResultAsync(remaining);
+                return new NetworkStream(connected, ownsSocket: true);
             }
             catch (Exception exception) when (exception is SocketException or OperationCanceledException)
             {
-                socket.Dispose();
                 lastFailure = exception;
-                if (exception is OperationCanceledException)
+                if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
                     throw;
             }
         }
 
-        throw new SocketException((lastFailure as SocketException)?.ErrorCode ?? (int)SocketError.HostUnreachable);
+        throw new SocketException((lastFailure as SocketException)?.ErrorCode ?? (int)SocketError.TimedOut);
+    }
+
+    private static async Task<Socket> ConnectAddressAsync(
+        IPAddress address,
+        int port,
+        CancellationToken cancellationToken)
+    {
+        Socket socket = new(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        try
+        {
+            await socket.ConnectAsync(new IPEndPoint(address, port), cancellationToken);
+            return socket;
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+    }
+
+    private static async Task DisposeConnectionResultAsync(Task<Socket> attempt)
+    {
+        try
+        {
+            (await attempt).Dispose();
+        }
+        catch (Exception exception) when (exception is SocketException or OperationCanceledException)
+        {
+            // Failed and cancelled attempts dispose their own sockets.
+        }
     }
 }
 
