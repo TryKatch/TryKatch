@@ -131,6 +131,26 @@ internal sealed class PlatformAccessDirectory(
             : Result.Success(ToUser(row, roleMap));
     }
 
+    public async Task<EffectivePlatformAccess> ResolveEffectiveAccessAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        ApplicationUser? user = await users.FindByIdAsync(userId.ToString());
+        if (user is null || user.IsPlatformAccessSuspended)
+            return EffectivePlatformAccess.None;
+
+        string? roleKey = await FindAssignedPlatformRoleAsync(user, cancellationToken);
+        PlatformRoleDefinition? role = roleKey is null ? null : await FindRoleAsync(roleKey, cancellationToken);
+        if (role is null && user.IsPlatformAdministrator)
+            role = PlatformRoles.Find(PlatformRoles.Administrator);
+
+        return role is null
+            ? EffectivePlatformAccess.None
+            : new EffectivePlatformAccess(
+                true,
+                role.Key == PlatformRoles.Administrator,
+                role.Key,
+                role.Permissions);
+    }
+
     public async Task<Result<PlatformAccessGrant>> GrantAsync(GrantPlatformAccessCommand command, IReadOnlySet<string> grantBoundary, CancellationToken cancellationToken = default)
     {
         PlatformRoleDefinition? role = await FindRoleAsync(command.RoleKey, cancellationToken);

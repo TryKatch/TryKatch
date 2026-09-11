@@ -120,6 +120,17 @@ public sealed record GrantPlatformAccessCommand(string Email, string DisplayName
 public sealed record PlatformAccessGrant(PlatformAccessUser User, string? ActivationToken);
 public sealed record ActivatePlatformAccessCommand(Guid UserId, string Token, string Password);
 public sealed record SavePlatformRoleCommand(string Name, string Description, IReadOnlyCollection<string> Permissions);
+public sealed record EffectivePlatformAccess(
+    bool IsActive,
+    bool IsAdministrator,
+    string? RoleKey,
+    IReadOnlySet<string> Permissions)
+{
+    public static EffectivePlatformAccess None { get; } = new(false, false, null, FrozenSet<string>.Empty);
+
+    public bool HasPermission(string permission) =>
+        IsActive && (IsAdministrator || Permissions.Contains(permission));
+}
 
 public interface IPlatformAccessDirectory
 {
@@ -136,4 +147,5 @@ public interface IPlatformAccessDirectory
     Task<Result<string>> CreateActivationTokenAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<Result<bool>> RevokeAsync(Guid actorId, Guid userId, CancellationToken cancellationToken = default);
     Task<Result<bool>> ActivateAsync(ActivatePlatformAccessCommand command, CancellationToken cancellationToken = default);
+    Task<EffectivePlatformAccess> ResolveEffectiveAccessAsync(Guid userId, CancellationToken cancellationToken = default);
 }
