@@ -1,6 +1,11 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
+using Microsoft.AspNetCore.Identity;
+using OpenIddict.Validation.AspNetCore;
+using Scalar.AspNetCore;
 using Trykatch.Api.Development;
 using Trykatch.Api.Modules;
 using Trykatch.Api.OpenApi;
@@ -11,11 +16,6 @@ using Trykatch.Infrastructure;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 using Trykatch.Modules.AspNetCore;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Authorization.Policy;
-using Microsoft.AspNetCore.Identity;
-using OpenIddict.Validation.AspNetCore;
-using Scalar.AspNetCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Host.UseDefaultServiceProvider(options =>
@@ -77,6 +77,10 @@ builder.Services.AddScoped<IAuthorizationHandler, PlatformPermissionAuthorizatio
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("account-security", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
     options.AddPolicy("account-recovery", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",

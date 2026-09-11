@@ -6,7 +6,6 @@
  * OpenAPI spec version: v1
  */
 
-export interface MfaCodeRequest {
+export interface MfaEnrollmentRequest {
   enrollmentId: string;
-  code: string;
 }

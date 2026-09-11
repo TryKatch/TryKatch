@@ -1,4 +1,3 @@
-using Trykatch.Application.Identity;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -8,7 +7,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenIddict.Abstractions;
+using Trykatch.Application.Identity;
 
 namespace Trykatch.Identity;
 
@@ -61,6 +62,13 @@ public static class DependencyInjection
             // continue to invalidate existing application cookies.
             options.Events.OnRedirectToLogin = context => RejectRedirect(context, StatusCodes.Status401Unauthorized);
             options.Events.OnRedirectToAccessDenied = context => RejectRedirect(context, StatusCodes.Status403Forbidden);
+            options.Events.OnSigningIn = context =>
+            {
+                // Ticket properties survive sliding renewal; an independent sign-in
+                // receives a fresh ID. Legacy cookies must sign in again for step-up.
+                context.Properties.Items.TryAdd(AccountSecuritySession.PropertyName, Guid.NewGuid().ToString("N"));
+                return Task.CompletedTask;
+            };
         });
         services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(5));
 
@@ -108,6 +116,8 @@ public static class DependencyInjection
         services.AddScoped<IPlatformAccessDirectory, PlatformAccessDirectory>();
         services.AddScoped<IPlatformAuthorityReader, PlatformAuthorityReader>();
         services.AddScoped<PlatformManagementAuthorization>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IAccountSecurity, AccountSecurityService>();
         return services;
     }
 

@@ -6,7 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-export interface MfaSetupResponse {
-  sharedKey: string;
-  authenticatorUri: string;
+export interface MfaRecoveryCodes {
+  codes: string[];
+  signInRequired?: boolean;
 }

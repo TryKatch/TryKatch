@@ -6,7 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-export interface MfaCodeRequest {
-  enrollmentId: string;
-  code: string;
+export interface RecentAssuranceGrant {
+  grant: string;
+  expiresAt: string;
 }
