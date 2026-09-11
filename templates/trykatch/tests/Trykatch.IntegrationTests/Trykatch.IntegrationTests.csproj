@@ -13,6 +13,7 @@
     <ProjectReference Include="../../src/Modules/Documents/Trykatch.Modules.Documents.Domain/Trykatch.Modules.Documents.Domain.csproj" />
     <ProjectReference Include="../../src/Modules/Projects/Trykatch.Modules.Projects.Domain/Trykatch.Modules.Projects.Domain.csproj" />
     <ProjectReference Include="../../src/Modules/Projects/Trykatch.Modules.Projects.Infrastructure/Trykatch.Modules.Projects.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Modules/Federation/Trykatch.Modules.Federation.Infrastructure/Trykatch.Modules.Federation.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

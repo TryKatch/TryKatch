@@ -76,12 +76,12 @@ services:
     environment:
       POSTGRES_DB: trykatch
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${TRYKATCH_POSTGRES_ADMIN_PASSWORD}
-      TRYKATCH_MIGRATOR_PASSWORD: ${TRYKATCH_MIGRATOR_PASSWORD}
-      TRYKATCH_ORG_RUNTIME_PASSWORD: ${TRYKATCH_ORG_RUNTIME_PASSWORD}
-      TRYKATCH_PLATFORM_RUNTIME_PASSWORD: ${TRYKATCH_PLATFORM_RUNTIME_PASSWORD}
-      TRYKATCH_IDENTITY_RUNTIME_PASSWORD: ${TRYKATCH_IDENTITY_RUNTIME_PASSWORD}
-      TRYKATCH_OUTBOX_WORKER_PASSWORD: ${TRYKATCH_OUTBOX_WORKER_PASSWORD}
+      POSTGRES_PASSWORD: ${TRYKATCH_POSTGRES_ADMIN_PASSWORD:?set the PostgreSQL administrator password}
+      TRYKATCH_MIGRATOR_PASSWORD: ${TRYKATCH_MIGRATOR_PASSWORD:?set the migrator database password}
+      TRYKATCH_ORG_RUNTIME_PASSWORD: ${TRYKATCH_ORG_RUNTIME_PASSWORD:?set the organization runtime database password}
+      TRYKATCH_PLATFORM_RUNTIME_PASSWORD: ${TRYKATCH_PLATFORM_RUNTIME_PASSWORD:?set the platform runtime database password}
+      TRYKATCH_IDENTITY_RUNTIME_PASSWORD: ${TRYKATCH_IDENTITY_RUNTIME_PASSWORD:?set the identity runtime database password}
+      TRYKATCH_OUTBOX_WORKER_PASSWORD: ${TRYKATCH_OUTBOX_WORKER_PASSWORD:?set the outbox worker database password}
     volumes: [postgres-data:/var/lib/postgresql, ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro]
     read_only: true
     tmpfs: [/tmp, /var/run/postgresql]

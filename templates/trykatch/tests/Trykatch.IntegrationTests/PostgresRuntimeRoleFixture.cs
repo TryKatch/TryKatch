@@ -60,4 +60,54 @@ internal static class PostgresRuntimeRoleFixture
         await command.ExecuteNonQueryAsync();
         await transaction.CommitAsync();
     }
+
+    public static async Task<(string Organization, string Platform, string Identity, string Outbox)> CreateConnectionStringsAsync(string ownerConnection)
+    {
+        await EnsureRuntimeRolesAsync(ownerConnection);
+        return (
+            ForRole(ownerConnection, OrganizationRole, OrganizationPassword),
+            ForRole(ownerConnection, PlatformRole, PlatformPassword),
+            ForRole(ownerConnection, IdentityRole, IdentityPassword),
+            ForRole(ownerConnection, OutboxRole, OutboxPassword));
+    }
+
+    public static async Task GrantApplicationPrivilegesAsync(string ownerConnection)
+    {
+        await using NpgsqlConnection connection = new(ownerConnection);
+        await connection.OpenAsync();
+        await using NpgsqlCommand command = connection.CreateCommand();
+        command.CommandText = $"""
+            REVOKE ALL ON SCHEMA public FROM PUBLIC;
+            REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+            REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
+            REVOKE TEMPORARY ON DATABASE {QuoteIdentifier(connection.Database)} FROM PUBLIC;
+            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {OrganizationRole}, {PlatformRole}, {IdentityRole}, {OutboxRole};
+
+            GRANT USAGE ON SCHEMA app, platform TO {OrganizationRole};
+            GRANT SELECT ON platform.organizations, platform.module_data_resources TO {OrganizationRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON platform.memberships, platform.roles,
+                platform.membership_roles, platform.role_permissions, platform.invitations TO {OrganizationRole};
+            GRANT SELECT, INSERT ON platform.audit_entries TO {OrganizationRole};
+            GRANT INSERT ON platform.outbox_messages TO {OrganizationRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects, app.documents TO {OrganizationRole};
+
+            GRANT USAGE ON SCHEMA platform TO {PlatformRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON platform.organizations,
+                platform.organization_data_placements, platform.organization_creation_intents TO {PlatformRole};
+            GRANT SELECT, INSERT ON platform.roles, platform.role_permissions, platform.invitations TO {PlatformRole};
+
+            GRANT USAGE ON SCHEMA identity TO {IdentityRole};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity TO {IdentityRole};
+            GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity TO {IdentityRole};
+
+            GRANT USAGE ON SCHEMA platform TO {OutboxRole};
+            GRANT SELECT, UPDATE ON platform.outbox_messages TO {OutboxRole};
+            """;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static string ForRole(string ownerConnection, string role, string password) =>
+        new NpgsqlConnectionStringBuilder(ownerConnection) { Username = role, Password = password }.ConnectionString;
+
+    private static string QuoteIdentifier(string identifier) => $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 }

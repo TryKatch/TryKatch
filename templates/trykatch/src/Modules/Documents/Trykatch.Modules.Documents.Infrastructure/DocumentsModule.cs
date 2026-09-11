@@ -74,6 +74,7 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
     {
         services.AddSingleton<IApplicationModelContributor, DocumentsModelContributor>();
         services.AddSingleton<IOrganizationEndpointContributor, DocumentsEndpoints>();
+        services.AddScoped<IDocumentStore, DocumentStore>();
         services.AddScoped<DocumentsUseCases>();
     }
 }

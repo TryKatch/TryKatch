@@ -1,8 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="../../../Common/Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" />
     <ProjectReference Include="../Trykatch.Modules.Documents.Domain/Trykatch.Modules.Documents.Domain.csproj" />
     <ProjectReference Include="../Trykatch.Modules.Documents.IntegrationEvents/Trykatch.Modules.Documents.IntegrationEvents.csproj" />
