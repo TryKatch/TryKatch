@@ -80,6 +80,12 @@ jobs:
       - name: Verify Trykatch CLI package
         run: dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release --no-build -o artifacts/cli -p:PackageVersion=0.1.0-ci
       - run: dotnet test templates/trykatch/tests/Trykatch.UnitTests -c Release --no-build
+      - name: Enforce module architecture
+        run: |
+          dotnet test templates/trykatch/tests/Trykatch.ArchitectureTests -c Release --no-build
+          for project in templates/trykatch/tests/Modules/*/*Tests/*.csproj; do
+            dotnet test "$project" -c Release --no-build
+          done
       - run: dotnet test templates/trykatch/tests/Trykatch.IntegrationTests -c Release --no-build
       - run: dotnet list templates/trykatch/Trykatch.slnx package --vulnerable --include-transitive
 
