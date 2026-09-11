@@ -235,7 +235,10 @@ public sealed class PostgresIsolationInspectionTests
     public async Task OrganizationAuthorizationUsesTenantPoolAndRejectsCrossOrganizationRoleAttachment()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        (await database.InspectAsync()).IsValid.ShouldBeTrue();
         await using PlatformDbContext owner = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(database.ConnectionString).Options);
+        // This behavior test replaces the inspector's minimal stub with the full control-plane model.
+        await database.ExecuteAsync("DROP TABLE platform.audit_intents");
         await database.ExecuteAsync(owner.Database.GenerateCreateScript());
         foreach (SqlOperation operation in new ScopeControlPlaneAccess().UpOperations.OfType<SqlOperation>())
         {
@@ -278,8 +281,9 @@ public sealed class PostgresIsolationInspectionTests
         (await resolver.ResolveAsync(actor, organizationB.Id)).ShouldBeNull();
         await resolver.ResolveAsync(actor, organizationA.Id);
         tenant.Roles.Select(role => role.OrganizationId).Distinct().ToArray().ShouldBe([organizationA.Id]);
-        await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlInterpolatedAsync(
+        PostgresException denied = await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO platform.membership_roles (\"MembershipId\", \"RoleId\") VALUES ({membershipA.Id}, {roleB.Id})"));
+        denied.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
     }
 
     [TestMethod]
