@@ -57,6 +57,7 @@ The customer-facing workspace word is **organization**. Platform administrators 
 - Workspace invitations return a complete one-time URL rather than a standalone token. The optional SMTP adapter sends that URL; otherwise an administrator can copy it. New invitees provide first and last name plus a password, while existing identities sign in before accepting.
 - Organization access is resolved from the authenticated actor plus protected workspace context.
 - Every scoped transaction sets PostgreSQL `app.organization_id` and `app.actor_id`; RLS fails closed without them.
+- Unsafe scoped responses remain bounded and private until commit; cross-role organization administration appends an immutable audit intent for idempotent worker projection. See [mutation and audit atomicity](docs/audit-atomicity.md).
 - Runtime database credentials cannot own tables or bypass RLS.
 - Browser authentication uses secure HttpOnly cookies and antiforgery. Browser code never receives access or refresh tokens.
 - Password recovery returns an account-neutral response, rate-limits requests, invalidates existing sessions, and uses `TRYKATCH_PUBLIC_URL` as the trusted origin for production email links.

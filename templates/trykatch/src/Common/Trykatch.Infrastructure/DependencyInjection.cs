@@ -60,10 +60,21 @@ public static class DependencyInjection
         services.AddScoped<IAuditReader, AuditReader>();
         services.AddScoped<IWorkspaceOverviewReader, WorkspaceOverviewReader>();
         services.AddScoped<IAuditWriter, AuditWriter>();
+        services.AddScoped<IAuditIntentWriter, AuditIntentWriter>();
         services.AddScoped<IOutboxWriter, OutboxWriter>();
         services.AddScoped<IOrganizationModuleData, OrganizationModuleData>();
         services.TryAddSingleton<IOutboxTransport, LoggingOutboxTransport>();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<AuditProjectionOptions>()
+            .BindConfiguration(AuditProjectionOptions.SectionName)
+            .Validate(options => options.BatchSize is >= 1 and <= 500, "Audit projection batch size must be between 1 and 500.")
+            .Validate(options => options.PollInterval >= TimeSpan.FromMilliseconds(100) && options.PollInterval <= TimeSpan.FromMinutes(5), "Audit projection poll interval must be between 100 milliseconds and 5 minutes.")
+            .Validate(options => options.BacklogWarningCount >= 1, "Audit projection backlog warning count must be positive.")
+            .Validate(options => options.BacklogWarningAge >= TimeSpan.FromSeconds(1), "Audit projection backlog warning age must be at least one second.")
+            .ValidateOnStart();
+        services.AddSingleton<AuditProjectionBacklogState>();
+        services.AddHealthChecks().AddCheck<AuditProjectionHealthCheck>("audit-projection", tags: ["ready"]);
+        services.AddHostedService<AuditIntentProjectionWorker>();
         services.AddScoped<OutboxDelivery>();
         services.AddHostedService<OutboxProcessor>();
 #if TRYKATCH_EMAIL

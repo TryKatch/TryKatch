@@ -23,6 +23,16 @@ namespace Trykatch.IntegrationTests;
 public sealed class PostgresIsolationInspectionTests
 {
     [TestMethod]
+    public async Task CleanFixtureSatisfiesExactHostPoliciesAndOrganizationPrivileges()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+
+        PostgresIsolationInspection inspection = await database.InspectAsync();
+
+        inspection.IsValid.ShouldBeTrue(string.Join(Environment.NewLine, inspection.Errors));
+    }
+
+    [TestMethod]
     [DataRow("projects", "projects", "Horizon.Modules.Projects.Domain.Project", "Horizon.Domain.Projects.Project")]
     [DataRow("projects", "projects", "Northwind.Crm.Modules.Projects.Domain.Project", "Northwind.Crm.Domain.Projects.Project")]
     [DataRow("documents", "documents", "Horizon.Modules.Documents.Domain.DocumentRecord", "Try" + "katch.Modules.Documents.DocumentRecord")]
@@ -170,6 +180,8 @@ public sealed class PostgresIsolationInspectionTests
             CREATE ROLE {outbox} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             GRANT USAGE ON SCHEMA platform TO {outbox};
             GRANT SELECT, UPDATE ON platform.outbox_messages TO {outbox};
+            GRANT SELECT ON platform.audit_intents TO {outbox};
+            GRANT SELECT, INSERT ON platform.audit_entries TO {outbox};
             """);
         try
         {
@@ -223,7 +235,10 @@ public sealed class PostgresIsolationInspectionTests
     public async Task OrganizationAuthorizationUsesTenantPoolAndRejectsCrossOrganizationRoleAttachment()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        (await database.InspectAsync()).IsValid.ShouldBeTrue();
         await using PlatformDbContext owner = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(database.ConnectionString).Options);
+        // This behavior test replaces the inspector's minimal stub with the full control-plane model.
+        await database.ExecuteAsync("DROP TABLE platform.audit_intents");
         await database.ExecuteAsync(owner.Database.GenerateCreateScript());
         foreach (SqlOperation operation in new ScopeControlPlaneAccess().UpOperations.OfType<SqlOperation>())
         {
@@ -266,8 +281,9 @@ public sealed class PostgresIsolationInspectionTests
         (await resolver.ResolveAsync(actor, organizationB.Id)).ShouldBeNull();
         await resolver.ResolveAsync(actor, organizationA.Id);
         tenant.Roles.Select(role => role.OrganizationId).Distinct().ToArray().ShouldBe([organizationA.Id]);
-        await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlInterpolatedAsync(
+        PostgresException denied = await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO platform.membership_roles (\"MembershipId\", \"RoleId\") VALUES ({membershipA.Id}, {roleB.Id})"));
+        denied.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
     }
 
     [TestMethod]
@@ -516,6 +532,7 @@ public sealed class PostgresIsolationInspectionTests
             }
             InspectionDatabase result = new(container, administrator);
             await result.ExecuteAsync($"CREATE DATABASE {result.databaseName}", administrator);
+            await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(administrator);
             await result.ExecuteAsync($"""
                 CREATE ROLE {result.RuntimeRole} LOGIN PASSWORD '{result.runtimePassword}'
                   NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
@@ -539,10 +556,25 @@ public sealed class PostgresIsolationInspectionTests
                   USING ("OrganizationId" = NULLIF(current_setting('app.organization_id', true), '')::uuid)
                   WITH CHECK ("OrganizationId" = NULLIF(current_setting('app.organization_id', true), '')::uuid
                     AND "ActorId" = NULLIF(current_setting('app.actor_id', true), '')::uuid);
+                CREATE POLICY audit_projection_worker_read ON platform.audit_entries FOR SELECT TO trykatch_outbox_worker
+                  USING (current_user = 'trykatch_outbox_worker');
+                CREATE TABLE platform.audit_intents (
+                  "Id" uuid PRIMARY KEY,
+                  "OrganizationId" uuid NOT NULL,
+                  "ActorId" uuid NOT NULL);
+                ALTER TABLE platform.audit_intents ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE platform.audit_intents FORCE ROW LEVEL SECURITY;
+                CREATE POLICY audit_intents_append ON platform.audit_intents FOR INSERT TO trykatch_org_runtime
+                  WITH CHECK (
+                    "OrganizationId" = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                    AND "ActorId" = NULLIF(current_setting('app.actor_id', true), '')::uuid);
+                CREATE POLICY audit_intents_worker_read ON platform.audit_intents FOR SELECT TO trykatch_outbox_worker
+                  USING (current_user = 'trykatch_outbox_worker');
                 CREATE TABLE platform.outbox_messages ("Id" uuid);
                 GRANT USAGE ON SCHEMA app, platform TO {result.RuntimeRole}, {result.OwnerRole};
                 GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON platform.audit_entries TO {result.RuntimeRole};
+                GRANT INSERT ON platform.audit_intents TO {result.RuntimeRole};
                 GRANT INSERT ON platform.outbox_messages TO {result.RuntimeRole};
                 """);
             return result;
