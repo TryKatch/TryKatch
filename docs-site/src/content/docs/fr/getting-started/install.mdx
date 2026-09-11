@@ -183,13 +183,17 @@ Trykatch utilise Scalar plutôt que Swagger UI. Lorsque l’API est lancée dire
 
 ### Si l’application React signale un client généré manquant
 
-Les modèles actuels incluent le client généré et le vérifient lors de la création du paquet. La commande de développement répare également un client manquant avant le démarrage de Vite. Pour un projet créé avec une ancienne préversion, exécutez une fois les commandes suivantes depuis le dossier `web` de l’application :
+Les modèles actuels incluent le client généré et le vérifient lors de la création du paquet. La commande de développement répare également un client manquant avant le démarrage de Vite. Pour un projet créé avec une ancienne préversion, effectuez la réparation une fois, puis revenez à la racine de l’application et démarrez l’application Aspire complète :
 
 ```bash
+cd /chemin/vers/Horizon/web
 corepack pnpm install --frozen-lockfile
 corepack pnpm generate
-corepack pnpm dev
+cd ..
+trykatch start
 ```
+
+N’exécutez pas `corepack pnpm dev` depuis la racine de la solution : l’espace de travail pnpm et son script `dev` se trouvent dans `web`. Cette commande lancée depuis `web` démarre volontairement uniquement le serveur de développement React ; utilisez `trykatch start` lorsque l’authentification, PostgreSQL, les migrations, l’API et l’observabilité sont nécessaires.
 
 ### Si Aspire affiche « Container runtime unhealthy »
 
