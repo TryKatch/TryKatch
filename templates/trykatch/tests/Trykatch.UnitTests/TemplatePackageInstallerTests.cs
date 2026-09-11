@@ -9,7 +9,7 @@ public sealed class TemplatePackageInstallerTests
     [TestMethod]
     public void CurrentVersionMatchesTheCliPackageVersion()
     {
-        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.10");
+        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.11");
     }
 
     [TestMethod]
@@ -20,13 +20,13 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.InstallAsync("0.1.0-preview.10", force: true, CancellationToken.None);
+        int exitCode = await installer.InstallAsync("0.1.0-preview.11", force: true, CancellationToken.None);
 
         exitCode.ShouldBe(0);
-        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.10");
+        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.11");
         engine.Force.ShouldBeTrue();
-        output.ToString().ShouldContain("Installing Trykatch template 0.1.0-preview.10");
-        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.10 installed");
+        output.ToString().ShouldContain("Installing Trykatch template 0.1.0-preview.11");
+        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.11 installed");
         output.ToString().ShouldContain("dotnet new trykatch -n <name>");
         error.ToString().ShouldBeEmpty();
     }
@@ -42,11 +42,11 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.InstallAsync("0.1.0-preview.10", force: false, CancellationToken.None);
+        int exitCode = await installer.InstallAsync("0.1.0-preview.11", force: false, CancellationToken.None);
 
         exitCode.ShouldBe(0);
         engine.Package.ShouldBeNull();
-        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.10 is already installed");
+        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.11 is already installed");
         error.ToString().ShouldBeEmpty();
     }
 
@@ -65,7 +65,7 @@ public sealed class TemplatePackageInstallerTests
                     {
                       "Details": {
                         "PackageId": "Trykatch.Templates",
-                        "Version": "0.1.0-preview.10"
+                        "Version": "0.1.0-preview.11"
                       }
                     }
                   ]
@@ -75,7 +75,7 @@ public sealed class TemplatePackageInstallerTests
 
             bool installed = await engine.IsPackageInstalledAsync(
                 "Trykatch.Templates",
-                "0.1.0-preview.10",
+                "0.1.0-preview.11",
                 CancellationToken.None);
             bool otherVersionInstalled = await engine.IsPackageInstalledAsync(
                 "Trykatch.Templates",
@@ -99,13 +99,13 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.UpdateAsync("0.1.0-preview.10", CancellationToken.None);
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.11", CancellationToken.None);
 
         exitCode.ShouldBe(0);
-        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.10");
+        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.11");
         engine.Force.ShouldBeTrue();
-        output.ToString().ShouldContain("Updating Trykatch template to 0.1.0-preview.10");
-        output.ToString().ShouldContain("Trykatch template updated to 0.1.0-preview.10");
+        output.ToString().ShouldContain("Updating Trykatch template to 0.1.0-preview.11");
+        output.ToString().ShouldContain("Trykatch template updated to 0.1.0-preview.11");
         error.ToString().ShouldBeEmpty();
     }
 

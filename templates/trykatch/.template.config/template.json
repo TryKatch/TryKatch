@@ -14,6 +14,13 @@
     "type": "solution"
   },
   "symbols": {
+    "legacyApplicationRoot": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "namespaceName",
+      "replaces": "TrykatchApp",
+      "description": "Preserves preview.9 application contract names after project generation."
+    },
     "safeName": {
       "type": "derived",
       "valueSource": "name",

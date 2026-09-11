@@ -17,19 +17,30 @@ internal sealed class OutboxWriter(ApplicationDbContext dbContext) : IOutboxWrit
 
 internal static class OutboxContractName
 {
-    private static readonly IReadOnlyDictionary<string, string> StableNames =
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["Trykatch.Modules.Projects.IntegrationEvents.ProjectChanged"] =
-                "Trykatch" + "App.Application.Projects.ProjectChanged",
-            ["Trykatch.Modules.Documents.IntegrationEvents.DocumentChanged"] =
-                "Trykatch.Modules.Documents.DocumentChanged"
-        };
+    private const string ProjectsEventSuffix = ".Modules.Projects.IntegrationEvents.ProjectChanged";
+    private const string LegacyProjectsEventSuffix = ".Application.Projects.ProjectChanged";
+    private const string DocumentsEventSuffix = ".Modules.Documents.IntegrationEvents.DocumentChanged";
+    private const string CurrentApplicationRoot = "Trykatch";
+    private const string LegacyProjectsApplicationRoot = "TrykatchApp";
 
     public static string For(Type messageType)
     {
         ArgumentNullException.ThrowIfNull(messageType);
-        string currentName = messageType.FullName ?? messageType.Name;
-        return StableNames.GetValueOrDefault(currentName, currentName);
+        return For(messageType.FullName ?? messageType.Name);
+    }
+
+    internal static string For(string messageTypeName)
+    {
+        if (messageTypeName.EndsWith(DocumentsEventSuffix, StringComparison.Ordinal))
+            return "Try" + "katch.Modules.Documents.DocumentChanged";
+
+        if (!messageTypeName.EndsWith(ProjectsEventSuffix, StringComparison.Ordinal))
+            return messageTypeName;
+
+        string applicationRoot = messageTypeName[..^ProjectsEventSuffix.Length];
+        string legacyRoot = string.Equals(applicationRoot, CurrentApplicationRoot, StringComparison.Ordinal)
+            ? LegacyProjectsApplicationRoot
+            : applicationRoot;
+        return legacyRoot + LegacyProjectsEventSuffix;
     }
 }

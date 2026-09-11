@@ -99,6 +99,12 @@ generate_and_build() {
       corepack pnpm build
     )
   fi
+  if [[ $namespace_name == Horizon || $namespace_name == Trykatch ]]; then
+    dotnet test "$output/tests/$namespace_name.UnitTests/$namespace_name.UnitTests.csproj" --no-build \
+      --filter 'GeneratedApplicationsKeepTheirPreviewNineEventName|MovedIntegrationEventsKeepTheirExistingWireContractNames'
+    dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" --no-build \
+      --filter PreviewNine
+  fi
   # Each generated solution can produce several gigabytes of runtime assets.
   # Retain the generated source for assertions, but release build intermediates
   # before exercising the next template permutation on constrained CI runners.
@@ -115,6 +121,7 @@ grep -Fq 'AddViteApp("web", "../../../web/apps/web")' "$test_root/Horizon/src/AP
   fail 'React template output does not register the Vite application with AppHost'
 "$test_root/tools/trykatch" module doctor --root "$test_root/Horizon"
 generate_and_build Acme.Tools-Portal --ui none
+generate_and_build Trykatch --ui none
 test ! -e "$test_root/Acme.Tools.Portal/web"
 test ! -e "$test_root/Acme.Tools.Portal/.github/workflows/web.yml"
 test ! -e "$test_root/Acme.Tools.Portal/compose.backend.yml"

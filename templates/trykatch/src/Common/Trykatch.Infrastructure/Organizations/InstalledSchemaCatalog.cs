@@ -10,6 +10,9 @@ namespace Trykatch.Infrastructure.Organizations;
 /// </summary>
 public static class InstalledSchemaCatalog
 {
+    private const string CurrentApplicationRoot = "Trykatch";
+    private const string LegacyProjectsApplicationRoot = "TrykatchApp";
+
     public static async Task<IReadOnlyList<DataResourceDescriptor>> ReadAsync(
         string connectionString, CancellationToken cancellationToken = default)
     {
@@ -38,6 +41,9 @@ public static class InstalledSchemaCatalog
         foreach (InstalledDataResource item in installed)
         {
             ModuleDataResourceRules.Validate(item.Resource);
+            string declaration = JsonSerializer.Serialize(item.Resource);
+            await UpgradeKnownLegacyDeclarationAsync(
+                connection, transaction, item, declaration, cancellationToken);
             await using NpgsqlCommand upsert = new("""
                 INSERT INTO platform.module_data_resources (schema_name, table_name, module_id, declaration)
                 SELECT @schema, @table, @module, CAST(@declaration AS jsonb)
@@ -50,12 +56,62 @@ public static class InstalledSchemaCatalog
             upsert.Parameters.AddWithValue("schema", item.Resource.Schema);
             upsert.Parameters.AddWithValue("table", item.Resource.Table);
             upsert.Parameters.AddWithValue("module", item.ModuleId);
-            upsert.Parameters.AddWithValue("declaration", JsonSerializer.Serialize(item.Resource));
+            upsert.Parameters.AddWithValue("declaration", declaration);
             if (await upsert.ExecuteScalarAsync(cancellationToken) is not true)
                 throw new InvalidOperationException(
                     $"Installed relation '{item.Resource.Schema}.{item.Resource.Table}' is absent or its ownership declaration changed. An explicit reviewed data migration is required.");
         }
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task UpgradeKnownLegacyDeclarationAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        InstalledDataResource item,
+        string currentDeclaration,
+        CancellationToken cancellationToken)
+    {
+        string? legacyEntityType = LegacyEntityTypeFor(item);
+        if (legacyEntityType is null) return;
+
+        DataResourceDescriptor legacyResource = item.Resource with { EntityType = legacyEntityType };
+        await using NpgsqlCommand upgrade = new("""
+            UPDATE platform.module_data_resources
+            SET declaration = CAST(@currentDeclaration AS jsonb)
+            WHERE schema_name = @schema
+              AND table_name = @table
+              AND module_id = @module
+              AND declaration = CAST(@legacyDeclaration AS jsonb);
+            """, connection, transaction);
+        upgrade.Parameters.AddWithValue("schema", item.Resource.Schema);
+        upgrade.Parameters.AddWithValue("table", item.Resource.Table);
+        upgrade.Parameters.AddWithValue("module", item.ModuleId);
+        upgrade.Parameters.AddWithValue("currentDeclaration", currentDeclaration);
+        upgrade.Parameters.AddWithValue("legacyDeclaration", JsonSerializer.Serialize(legacyResource));
+        await upgrade.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    internal static string? LegacyEntityTypeFor(InstalledDataResource item)
+    {
+        const string projectsSuffix = ".Modules.Projects.Domain.Project";
+        const string documentsSuffix = ".Modules.Documents.Domain.DocumentRecord";
+        string? entityType = item.Resource.EntityType;
+
+        if (item is { ModuleId: "projects", Resource.Schema: "app", Resource.Table: "projects" }
+            && entityType?.EndsWith(projectsSuffix, StringComparison.Ordinal) is true)
+        {
+            string applicationRoot = entityType[..^projectsSuffix.Length];
+            string legacyRoot = string.Equals(applicationRoot, CurrentApplicationRoot, StringComparison.Ordinal)
+                ? LegacyProjectsApplicationRoot
+                : applicationRoot;
+            return legacyRoot + ".Domain.Projects.Project";
+        }
+
+        if (item is { ModuleId: "documents", Resource.Schema: "app", Resource.Table: "documents" }
+            && entityType?.EndsWith(documentsSuffix, StringComparison.Ordinal) is true)
+            return "Try" + "katch.Modules.Documents.DocumentRecord";
+
+        return null;
     }
 
     public static async Task ValidateDeclaredObjectsAsync(
