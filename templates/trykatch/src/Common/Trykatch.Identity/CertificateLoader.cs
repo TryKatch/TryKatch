@@ -7,6 +7,28 @@ namespace Trykatch.Identity;
 /// <summary>Loads operator-supplied credentials without exposing secret values in errors.</summary>
 public static class CertificateLoader
 {
+    internal static void RequireDistinctKeys(IEnumerable<X509Certificate2> certificates, string setting)
+    {
+        HashSet<string> identities = new(StringComparer.Ordinal);
+        foreach (X509Certificate2 certificate in certificates)
+        {
+            try
+            {
+                // Normalize through the parsed algorithm, not the certificate's encoded
+                // SPKI: absent and NULL RSA parameters can represent the same key.
+                using AsymmetricAlgorithm key = (AsymmetricAlgorithm?)certificate.GetRSAPublicKey()
+                    ?? certificate.GetECDsaPublicKey()
+                    ?? throw Invalid(setting, "The certificate public key uses an unsupported algorithm.");
+                string identity = Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo()));
+                if (!identities.Add(identity)) throw Invalid(setting, "Certificates must use distinct private keys for separate credentials.");
+            }
+            catch (Exception failure) when (failure is CryptographicException or NotSupportedException or ArgumentException)
+            {
+                throw Invalid(setting, "The certificate public key could not be normalized.");
+            }
+        }
+    }
+
     public static X509Certificate2 Load(CertificateOptions options, string setting, bool signing = false, bool allowExpired = false)
     {
         X509Certificate2? certificate = null;
@@ -37,9 +59,9 @@ public static class CertificateLoader
             }
             else
             {
-                using ECDsa? ec = signing ? certificate.GetECDsaPrivateKey() : null;
-                if (ec is null || ec.KeySize < 256 || !ec.VerifyData(challenge, ec.SignData(challenge, HashAlgorithmName.SHA256), HashAlgorithmName.SHA256))
-                    throw Invalid(setting, "The certificate uses an unsupported key for this purpose.");
+                // OpenIddict's certificate-signing path uses an X509SecurityKey and
+                // does not support ECDsa certificate credentials without custom wiring.
+                throw Invalid(setting, "RSA keys are required for identity certificates, including OpenIddict signing.");
             }
             return certificate;
         }

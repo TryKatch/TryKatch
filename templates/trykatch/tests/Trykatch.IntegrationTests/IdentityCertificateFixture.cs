@@ -29,5 +29,35 @@ internal sealed class IdentityCertificateFixture : IDisposable
         ["OpenIddict:EncryptionCertificate:Password"] = Password
     };
 
+    public string Reissue(string source, string name, bool omitRsaParameters = false)
+    {
+        using X509Certificate2 original = X509CertificateLoader.LoadPkcs12FromFile(source, Password, X509KeyStorageFlags.Exportable);
+        using RSA key = original.GetRSAPrivateKey()!;
+        // NULL and absent RSA AlgorithmIdentifier parameters encode the same key.
+        PublicKey publicKey = omitRsaParameters
+            ? new PublicKey(original.PublicKey.Oid, null, original.PublicKey.EncodedKeyValue)
+            : original.PublicKey;
+        X500DistinguishedName subject = new($"CN={name}");
+        CertificateRequest request = new(subject, publicKey, HashAlgorithmName.SHA256);
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, true));
+        using X509Certificate2 reissued = request.Create(subject, X509SignatureGenerator.CreateForRSA(key, RSASignaturePadding.Pkcs1),
+            DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(6), RandomNumberGenerator.GetBytes(16));
+        using X509Certificate2 paired = reissued.CopyWithPrivateKey(key);
+        string path = Path.Combine(DirectoryPath, name + ".pfx");
+        File.WriteAllBytes(path, paired.Export(X509ContentType.Pkcs12, Password));
+        return path;
+    }
+
+    public string CreateEcSigning()
+    {
+        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        CertificateRequest request = new("CN=ec-signing", key, HashAlgorithmName.SHA256);
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
+        using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(5));
+        string path = Path.Combine(DirectoryPath, "ec-signing.pfx");
+        File.WriteAllBytes(path, certificate.Export(X509ContentType.Pkcs12, Password));
+        return path;
+    }
+
     public void Dispose() => Directory.Delete(DirectoryPath, recursive: true);
 }

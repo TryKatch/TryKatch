@@ -6,6 +6,8 @@ All environments except `Development` require durable PostgreSQL Data Protection
 
 Use three separate password-protected PKCS#12 files: `signing.pfx` (OpenIddict signing), `encryption.pfx` (OpenIddict encryption), and `data-protection.pfx` (cookies, antiforgery, identity tokens, pending MFA, and other protected application data). Compose mounts these and their corresponding `signing.password`, `encryption.password`, and `data-protection.password` files read-only. Provision through your secret manager, not Git, build arguments, image layers, or command-line password arguments. Grant only the application UID read access; protect the host directory. Temporary acceptance assets are not production key provisioning.
 
+The three active credentials must use distinct private keys. Startup compares public-key identity, rejecting copied or reissued certificates that reuse a key even under different paths or subjects. Data Protection also rejects duplicate retained keys and an active key repeated in `DecryptionCertificates`; the active certificate already supports decryption. During A→B rotation, replace the staged B decryption entry with A when B becomes active.
+
 | Purpose | Certificate path | Password source |
 | --- | --- | --- |
 | OpenIddict signing | `OpenIddict:SigningCertificate:Path` | `Password` or `PasswordFile` in the same section |
@@ -15,7 +17,7 @@ Use three separate password-protected PKCS#12 files: `signing.pfx` (OpenIddict s
 
 Environment variables replace `:` with `__`. Existing OpenIddict `Path`/`Password` settings still work. Compose now prefers mounted password files; do not leave an inline password configured alongside a password file. Password files contain only the password; terminal CR/LF is removed. Password-free PFX files are no longer accepted outside Development. Limits: 4 MiB per certificate and 4 KiB per password file.
 
-Active certificates must be within their validity period, contain a usable private key, and permit the purpose when Key Usage is present. Encryption requires RSA ≥2048 bits; signing accepts RSA ≥2048 or ECDSA ≥256. Retained decryption certificates may be expired, but must retain usable private keys. These are provisioned cryptographic credentials, not HTTPS certificates: this loader does not apply web-PKI hostname/chain trust to a deliberately provisioned PFX. SMTP still uses normal TLS chain/hostname validation. Changes require restart; no hot reload is promised. Linux/Windows use ephemeral imports; macOS uses temporary keychain imports without persistent-key flags, disposed with the host.
+Active certificates must be within their validity period, contain a usable private key, and permit the purpose when Key Usage is present. All identity certificates require RSA ≥2048 bits, including OpenIddict signing. ECDSA signing certificates are rejected during configuration validation; a separately reviewed signing-key/algorithm adapter is required to support them. Retained decryption certificates may be expired, but must retain usable private keys. These are provisioned cryptographic credentials, not HTTPS certificates: this loader does not apply web-PKI hostname/chain trust to a deliberately provisioned PFX. SMTP still uses normal TLS chain/hostname validation. Changes require restart; no hot reload is promised. Linux/Windows use ephemeral imports; macOS uses temporary keychain imports without persistent-key flags, disposed with the host.
 
 ## Upgrade an existing plaintext ring
 
@@ -44,6 +46,8 @@ Active certificates must be within their validity period, contain a usable priva
 The supported ring is the template's portable ASP.NET Core authenticated-encryption XML format (version 1, .NET 10 descriptor/decryptor types). Unknown/custom/CNG descriptors, unsupported versions, duplicate key IDs, malformed records, or undecryptable keys fail closed without partial writes. Do not delete an offending key or bypass validation: restore a known-good backup or build a separately reviewed format adapter. No arbitrary XML deserializer type is activated before the allowlist checks.
 
 The production XML repository validates one bounded, DTD-disabled snapshot on every initial or refresh read, including fresh cryptographic verification independent of the framework's key-ID cache. It returns precisely that validated snapshot; concurrent valid insertions are picked up by subsequent reads. Writes must also be encrypted and valid before normal EF persistence. Later module option registrations cannot replace this repository or disable certificate encryption. Refresh validation does not continuously poll the database or revoke already cached keys between framework refreshes.
+
+Runtime reads and both maintenance reads share a single ordered PostgreSQL projection that checks every row with `octet_length`: XML is limited to 1 MiB per record, including multibyte text. If any record is oversized, empty, or null, the query returns only row IDs and null failure markers, not any XML. This prevents oversized text from reaching client materialization and leaves rejected rows untouched; the limit is per record, not a total key-count quota.
 
 ## Rotation A → B and retention
 

@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using Microsoft.AspNetCore.DataProtection;
@@ -14,14 +15,15 @@ namespace Trykatch.Identity;
 
 internal static class DataProtectionKeyRing
 {
+    internal const int MaximumXmlBytes = 1024 * 1024;
     internal static readonly XNamespace EncryptionNamespace = "http://schemas.asp.net/2015/03/dataProtection";
     internal static InvalidOperationException Invalid() => new("The identity key ring is invalid, unencrypted, or missing a decryption certificate. Run the privileged key maintenance preflight.");
 
     internal static XElement Parse(string? xml)
     {
-        if (string.IsNullOrWhiteSpace(xml) || xml.Length > 1024 * 1024) throw Invalid();
+        if (string.IsNullOrWhiteSpace(xml) || xml.Length > MaximumXmlBytes || Encoding.UTF8.GetByteCount(xml) > MaximumXmlBytes) throw Invalid();
         using StringReader input = new(xml);
-        using XmlReader reader = XmlReader.Create(input, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = 1024 * 1024 });
+        using XmlReader reader = XmlReader.Create(input, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = MaximumXmlBytes });
         return XElement.Load(reader, LoadOptions.PreserveWhitespace);
     }
 

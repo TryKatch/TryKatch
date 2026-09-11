@@ -29,13 +29,16 @@ internal sealed class IdentityCertificates : IDisposable
         }
         try
         {
-            return new()
+            IdentityCertificates certificates = new()
             {
                 Active = Load(protection.Certificate, "DataProtection:Certificate"),
                 Retired = protection.DecryptionCertificates.Select((item, index) => Load(item, $"DataProtection:DecryptionCertificates:{index}", retired: true)).ToArray(),
                 Signing = Load(openIddict.SigningCertificate, "OpenIddict:SigningCertificate", signing: true),
                 Encryption = Load(openIddict.EncryptionCertificate, "OpenIddict:EncryptionCertificate")
             };
+            CertificateLoader.RequireDistinctKeys([certificates.Signing, certificates.Encryption, certificates.Active], "IdentityCertificates");
+            CertificateLoader.RequireDistinctKeys([certificates.Active, .. certificates.Retired], "DataProtection");
+            return certificates;
         }
         catch { foreach (X509Certificate2 certificate in loaded) certificate.Dispose(); throw; }
     }

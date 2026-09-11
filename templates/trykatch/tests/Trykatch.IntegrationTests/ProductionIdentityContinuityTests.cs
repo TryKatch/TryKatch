@@ -23,6 +23,72 @@ namespace Trykatch.IntegrationTests;
 public sealed class ProductionIdentityContinuityTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task OversizedKeyXmlIsRejectedWithoutReturningTheStoredText(bool multibyte)
+    {
+        using IdentityCertificateFixture certificates = new();
+        await using SecurityHost host = await SecurityHost.StartAsync();
+        using HttpClient client = await host.SignInAsync();
+        Dictionary<string, string?> settings = ProductionSettings(certificates);
+        await MaintenanceAsync(host.OwnerConnection, settings, "apply");
+        KeyReadCapture capture = new();
+        await host.RestartAsync(settings, configureServices: services => services.AddDbContext<IdentityDbContext>(options => options.AddInterceptors(capture)));
+        IKeyManager manager = host.Services.GetRequiredService<IKeyManager>();
+        _ = manager.GetAllKeys();
+        // Build the large value entirely in PostgreSQL, never in test/client memory.
+        await ExecuteAsync(host.OwnerConnection, multibyte
+            ? "INSERT INTO identity.data_protection_keys (\"FriendlyName\", \"Xml\") VALUES ('oversized-fixture', repeat('界', 524289))"
+            : "INSERT INTO identity.data_protection_keys (\"FriendlyName\", \"Xml\") VALUES ('oversized-fixture', repeat('x', 1048577))");
+        Should.Throw<InvalidOperationException>(() => manager.GetAllKeys()).Message.ShouldContain("key ring");
+        string fingerprint = await StoredKeyFingerprintAsync(host.OwnerConnection);
+        foreach (string mode in new[] { "dry-run", "apply" })
+        {
+            var result = await InvokeMaintenanceAsync(host.OwnerConnection, settings, mode);
+            result.Exit.ShouldBe(1);
+            result.Error.ShouldContain("Key maintenance failed");
+            result.Error.ShouldNotContain("oversized-fixture");
+            (await StoredKeyFingerprintAsync(host.OwnerConnection)).ShouldBe(fingerprint);
+        }
+        // Re-evaluate the actual captured repository SELECT under a server-side
+        // aggregate: only lengths/counts cross this sentinel, not the projected XML.
+        // This fails if any oversized text is selected, or if offending rows are omitted.
+        await using NpgsqlConnection connection = new(host.OwnerConnection);
+        await connection.OpenAsync();
+        await using NpgsqlCommand probe = new($"SELECT max(octet_length(projected.\"Xml\")), count(*), count(*) FILTER (WHERE projected.\"Xml\" IS NULL) FROM ({capture.Sql}) AS projected", connection);
+        foreach (NpgsqlParameter parameter in capture.Parameters)
+            probe.Parameters.Add(new NpgsqlParameter(parameter.ParameterName, parameter.NpgsqlDbType) { Value = parameter.Value });
+        await using NpgsqlDataReader projection = await probe.ExecuteReaderAsync();
+        (await projection.ReadAsync()).ShouldBeTrue();
+        projection.IsDBNull(0).ShouldBeTrue();
+        projection.GetInt64(1).ShouldBe(2);
+        projection.GetInt64(2).ShouldBe(2);
+    }
+
+    private static async Task<string> StoredKeyFingerprintAsync(string connectionString)
+    {
+        await using NpgsqlConnection connection = new(connectionString);
+        await connection.OpenAsync();
+        await using NpgsqlCommand command = new("SELECT md5(string_agg(md5(coalesce(\"Xml\", '')), '' ORDER BY \"Id\")) FROM identity.data_protection_keys", connection);
+        return (string)(await command.ExecuteScalarAsync())!;
+    }
+
+    private sealed class KeyReadCapture : DbCommandInterceptor
+    {
+        public string Sql { get; private set; } = "";
+        public NpgsqlParameter[] Parameters { get; private set; } = [];
+        public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+        {
+            if (command.CommandText.Contains("data_protection_keys", StringComparison.Ordinal))
+            {
+                Sql = command.CommandText.TrimEnd().TrimEnd(';');
+                Parameters = command.Parameters.Cast<NpgsqlParameter>().ToArray();
+            }
+            return result;
+        }
+    }
+
+    [TestMethod]
     [DataRow("same-id")]
     [DataRow("same-id-ciphertext")]
     [DataRow("plaintext")]
@@ -211,8 +277,10 @@ public sealed class ProductionIdentityContinuityTests
         host.Services.GetRequiredService<IKeyManager>().CreateNewKey(DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(90));
         (await MaintenanceAsync(host.OwnerConnection, settings, "dry-run")).GetProperty("keys").GetInt32().ShouldBe(2);
         Dictionary<string, string?> withoutB = new(settings) { ["DataProtection:Certificate:Path"] = settings["DataProtection:DecryptionCertificates:0:Path"] };
+        // Keep configuration valid while withholding a required decrypting key.
+        withoutB["DataProtection:DecryptionCertificates:0:Path"] = certificates.Create("unrelated-retained");
         (await InvokeMaintenanceAsync(host.OwnerConnection, withoutB, "dry-run")).Exit.ShouldBe(1);
-        Dictionary<string, string?> withoutA = new(settings) { ["DataProtection:DecryptionCertificates:0:Path"] = settings["DataProtection:Certificate:Path"] };
+        Dictionary<string, string?> withoutA = new(settings) { ["DataProtection:DecryptionCertificates:0:Path"] = withoutB["DataProtection:DecryptionCertificates:0:Path"] };
         (await InvokeMaintenanceAsync(host.OwnerConnection, withoutA, "dry-run")).Exit.ShouldBe(1);
         await host.RestartAsync(withoutA);
         Should.Throw<InvalidOperationException>(() => host.CreateClient()).Message.ShouldContain("key ring");

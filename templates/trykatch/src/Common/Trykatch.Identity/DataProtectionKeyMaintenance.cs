@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Xml;
 using System.Xml.Linq;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -25,6 +26,7 @@ public static class DataProtectionKeyMaintenance
             certificates.Add(active);
             foreach ((CertificateOptions item, int index) in options.DecryptionCertificates.Select((item, index) => (item, index)))
                 certificates.Add(CertificateLoader.Load(item, $"DataProtection:DecryptionCertificates:{index}", allowExpired: true));
+            CertificateLoader.RequireDistinctKeys(certificates, "DataProtection");
             await using IdentityDbContext database = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(connectionString).Options);
             await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
             bool owner = await database.Database.SqlQueryRaw<bool>("""
@@ -36,7 +38,7 @@ public static class DataProtectionKeyMaintenance
             // Quiesce API writers operationally too: this lock cannot stop an old
             // replica from creating another plaintext key after maintenance exits.
             await database.Database.ExecuteSqlRawAsync("LOCK TABLE identity.data_protection_keys IN EXCLUSIVE MODE", cancellationToken);
-            var rows = await database.DataProtectionKeys.OrderBy(key => key.Id).ToArrayAsync(cancellationToken);
+            BoundedDataProtectionKey[] rows = await BoundedDataProtectionKeyQuery.Read(database).ToArrayAsync(cancellationToken);
             XElement[] elements = rows.Select(row => DataProtectionKeyRing.Parse(row.Xml)).ToArray();
             HashSet<Guid> ids = DataProtectionKeyRing.Inspect(elements, requireEncrypted: false);
             DataProtectionKeyRing.VerifyFresh(elements, certificates, ids);
@@ -52,7 +54,13 @@ public static class DataProtectionKeyMaintenance
                 secret.ReplaceWith(new XElement(DataProtectionKeyRing.EncryptionNamespace + "encryptedSecret",
                     new XAttribute("decryptorType", encrypted.DecryptorType.AssemblyQualifiedName!), encrypted.EncryptedElement));
                 plaintext++;
-                if (apply) rows[index].Xml = element.ToString(SaveOptions.DisableFormatting);
+                string protectedXml = element.ToString(SaveOptions.DisableFormatting);
+                _ = DataProtectionKeyRing.Parse(protectedXml); // Dry-run must reject a wrapper that would exceed the persisted bound too.
+                if (apply)
+                {
+                    DataProtectionKey changed = new() { Id = rows[index].Id, Xml = protectedXml };
+                    database.Attach(changed).Property(key => key.Xml).IsModified = true;
+                }
             }
             DataProtectionKeyRing.Inspect(elements, requireEncrypted: true);
             DataProtectionKeyRing.VerifyFresh(elements, certificates, ids);
@@ -60,8 +68,8 @@ public static class DataProtectionKeyMaintenance
             {
                 await database.SaveChangesAsync(cancellationToken);
                 // Re-read persisted XML, with no key-manager cache from the old ring.
-                string?[] written = await database.DataProtectionKeys.AsNoTracking().OrderBy(key => key.Id).Select(key => key.Xml).ToArrayAsync(cancellationToken);
-                XElement[] persisted = written.Select(DataProtectionKeyRing.Parse).ToArray();
+                BoundedDataProtectionKey[] written = await BoundedDataProtectionKeyQuery.Read(database).ToArrayAsync(cancellationToken);
+                XElement[] persisted = written.Select(key => DataProtectionKeyRing.Parse(key.Xml)).ToArray();
                 if (!ids.SetEquals(DataProtectionKeyRing.Inspect(persisted, requireEncrypted: true))) throw DataProtectionKeyRing.Invalid();
                 DataProtectionKeyRing.VerifyFresh(persisted, certificates, ids);
             }

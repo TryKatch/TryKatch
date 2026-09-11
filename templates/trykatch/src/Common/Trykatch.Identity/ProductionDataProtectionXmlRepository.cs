@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,8 +24,8 @@ internal sealed class ProductionDataProtectionXmlRepository(
         IdentityDbContext database = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         try
         {
-            string?[] records = database.DataProtectionKeys.AsNoTracking().Select(key => key.Xml).ToArray();
-            XElement[] snapshot = records.Select(DataProtectionKeyRing.Parse).ToArray();
+            BoundedDataProtectionKey[] records = BoundedDataProtectionKeyQuery.Read(database).ToArray();
+            XElement[] snapshot = records.Select(key => DataProtectionKeyRing.Parse(key.Xml)).ToArray();
             Validate(snapshot);
             return snapshot;
         }

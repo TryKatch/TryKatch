@@ -7,9 +7,11 @@ description: Certificate provisioning, encrypted key-ring upgrades, rotation, an
 
 Outside Development, the API requires three separate password-protected PKCS#12 credentials: OpenIddict signing, OpenIddict encryption, and Data Protection encryption. Compose mounts `signing.pfx`, `encryption.pfx`, `data-protection.pfx` and their corresponding `.password` files read-only from `TRYKATCH_SECRETS_PATH`. Use a secret manager, restrict access to the application UID, and keep all material outside Git and images.
 
+The active credentials must use distinct private keys; startup rejects copied or reissued certificates sharing a public key. Data Protection rejects duplicate retained keys and its active key repeated in `DecryptionCertificates`. The active certificate already decrypts: when staged B becomes active during rotation, replace its decryption-list entry with A.
+
 Direct configuration uses `OpenIddict:SigningCertificate`, `OpenIddict:EncryptionCertificate`, and `DataProtection:Certificate`, each with `Path` and exactly one populated `Password` or `PasswordFile`. Existing OpenIddict inline passwords remain compatible; empty overlay values count as absent. Environment variables replace `:` with `__`. Password files contain the password only (terminal CR/LF removed). Password-free PFX files are rejected. Certificates are limited to 4 MiB and password files to 4 KiB.
 
-Active certificates require current validity, a usable private key, and suitable key usage. Encryption requires RSA ≥2048 bits; signing also permits ECDSA ≥256. Retained Data Protection certificates may be expired but must retain private keys. A deliberately provisioned identity PFX is not an HTTPS server certificate; SMTP still performs normal TLS trust/hostname checks. Configuration changes require restart. See the generated `docs/production-identity.md` for the complete contract and platform details.
+Active certificates require current validity, a usable private key, and suitable key usage. All identity certificates require RSA ≥2048 bits, including OpenIddict signing. ECDSA signing certificates fail configuration validation; supporting them requires a separately reviewed signing-key/algorithm adapter. Retained Data Protection certificates may be expired but must retain private keys. A deliberately provisioned identity PFX is not an HTTPS server certificate; SMTP still performs normal TLS trust/hostname checks. Configuration changes require restart. See the generated `docs/production-identity.md` for the complete contract and platform details.
 
 ## Existing plaintext key rings: mandatory upgrade order
 
@@ -38,6 +40,8 @@ The native command is `dotnet run --project src/API/Trykatch.Migrator -c Release
 Maintenance locks the table transactionally, preserves key IDs/dates/revocations, wraps plaintext master keys, and verifies every original, transformed, and persisted key descriptor using fresh providers. Dry-run writes no XML; apply is all-or-nothing and idempotent. Only the template's portable .NET 10 Data Protection XML format is supported. Unknown/custom/CNG descriptors, duplicate IDs, malformed rows, and missing decryption credentials fail closed without printing XML or secrets. A separately reviewed adapter is required for other formats.
 
 At runtime, the production XML repository validates the exact bounded, DTD-disabled snapshot returned on every initial and refresh read, using fresh cryptographic verification even for an existing key ID. Valid concurrent insertions do not cause a separate-snapshot mismatch. Writes are validated before EF persistence, and later module configuration cannot replace the repository or disable certificate encryption. This is a refresh boundary, not continuous database polling or immediate eviction of cached keys.
+
+Runtime and maintenance share an ordered PostgreSQL projection checking every row with `octet_length`, enforcing a 1 MiB XML limit per record, including multibyte text. An oversized, empty, or null record makes the entire query return only IDs and null failure markers—no XML reaches client materialization. Rejected records remain untouched. This per-record limit is not a total key-count quota.
 
 ## Rotation and rollback
 
