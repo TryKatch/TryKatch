@@ -19,7 +19,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="templates/**/*" Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/node_modules/**;templates/**/dist/**;templates/**/.playwright-cli/**;templates/**/*.tsbuildinfo" />
+    <Content Include="templates/**/*" Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/node_modules/**;templates/**/dist/**;templates/**/.git/**;templates/**/.idea/**;templates/**/.vscode/**;templates/**/.vercel/**;templates/**/.playwright-cli/**;templates/**/artifacts/**;templates/**/output/**;templates/**/coverage/**;templates/**/playwright-report/**;templates/**/test-results/**;templates/**/*.tsbuildinfo;templates/**/*.user;templates/**/*.trx;templates/**/*.log;templates/**/*.nupkg;templates/**/*.snupkg;templates/**/.DS_Store;templates/**/.env;templates/**/.env.*;templates/**/secrets/**;templates/**/*.pfx;templates/**/*.p12;templates/**/*.pem;templates/**/*.key" />
+    <Content Include="templates/trykatch/.env.example" />
     <Content Include="README.md" Pack="true" PackagePath="/" />
     <Compile Remove="**/*" />
   </ItemGroup>

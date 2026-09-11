@@ -32,6 +32,10 @@ classify_path() {
     Trykatch.Templates.csproj|scripts/test-template.sh|scripts/test-apphost-launch-profile.sh|templates/trykatch/.template.config/*|templates/trykatch/.github/*|templates/trykatch/LICENSE)
       packaging=true
       ;;
+    scripts/test-artifact-boundaries.sh)
+      packaging=true
+      deployment=true
+      ;;
     scripts/test-vercel-deployment.sh)
       web=true
       ;;
@@ -77,6 +81,8 @@ classify_path() {
     templates/trykatch/.dockerignore)
       backend=true
       web=true
+      deployment=true
+      packaging=true
       ;;
     templates/trykatch/*)
       mark_all
