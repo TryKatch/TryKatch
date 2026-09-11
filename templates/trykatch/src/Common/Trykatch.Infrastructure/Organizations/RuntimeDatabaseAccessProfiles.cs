@@ -49,6 +49,7 @@ public static class RuntimeDatabaseAccessProfiles
         "platform.invitations",
         "platform.organization_data_placements",
         "platform.organization_creation_intents",
+        "platform.audit_intents",
         "platform.audit_entries",
         "platform.outbox_messages",
         "platform.module_data_resources",
@@ -84,6 +85,8 @@ public static class RuntimeDatabaseAccessProfiles
             RuntimeDatabaseRoleKind.Identity when relation == "identity.account_security_events" => SelectInsert,
             RuntimeDatabaseRoleKind.Identity when relation.StartsWith("identity.", StringComparison.Ordinal) => Crud,
             RuntimeDatabaseRoleKind.Outbox when relation == "platform.outbox_messages" => SelectUpdate,
+            RuntimeDatabaseRoleKind.Outbox when relation == "platform.audit_intents" => Select,
+            RuntimeDatabaseRoleKind.Outbox when relation == "platform.audit_entries" => SelectInsert,
             _ => None
         };
     }
@@ -102,6 +105,7 @@ public static class RuntimeDatabaseAccessProfiles
             "platform.organizations" or "platform.module_data_resources" => Select,
             "platform.memberships" or "platform.roles" or "platform.membership_roles"
                 or "platform.role_permissions" or "platform.invitations" => Crud,
+            "platform.audit_intents" => Insert,
             "platform.audit_entries" => SelectInsert,
             "platform.outbox_messages" => Insert,
             _ when resource?.Ownership == ModuleDataOwnership.Organization => Crud,

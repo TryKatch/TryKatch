@@ -4,10 +4,19 @@ using Trykatch.Modules.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 
 namespace Trykatch.Api.Security;
 
-public sealed class PlatformDataTransactionMiddleware(RequestDelegate next)
+public sealed class AtomicMutationResponseOptions
+{
+    public const string SectionName = "AtomicMutationResponse";
+    public int MaximumBytes { get; init; } = 1_048_576;
+}
+
+public sealed class PlatformDataTransactionMiddleware(
+    RequestDelegate next,
+    IOptions<AtomicMutationResponseOptions> responseOptions)
 {
     public async Task InvokeAsync(
         HttpContext context,
@@ -48,10 +57,28 @@ public sealed class PlatformDataTransactionMiddleware(RequestDelegate next)
             $"SELECT set_config('app.actor_id', {actor}, true), set_config('app.organization_id', {organization}, true)",
             context.RequestAborted);
 
-        await next(context);
-        if (context.Response.StatusCode < StatusCodes.Status500InternalServerError)
+        bool mutation = HttpMethods.IsPost(context.Request.Method)
+            || HttpMethods.IsPut(context.Request.Method)
+            || HttpMethods.IsPatch(context.Request.Method)
+            || HttpMethods.IsDelete(context.Request.Method);
+        if (!mutation)
         {
-            await transaction.CommitAsync(context.RequestAborted);
+            await next(context);
+            if (context.Response.StatusCode < StatusCodes.Status500InternalServerError)
+                await transaction.CommitAsync(context.RequestAborted);
+            return;
         }
+
+        await AtomicMutationResponse.ExecuteAsync(
+            context,
+            responseOptions.Value.MaximumBytes,
+            next,
+            async cancellationToken =>
+            {
+                if (context.Response.StatusCode < StatusCodes.Status500InternalServerError)
+                    await transaction.CommitAsync(cancellationToken);
+                else
+                    await transaction.RollbackAsync(CancellationToken.None);
+            });
     }
 }

@@ -89,7 +89,7 @@ public sealed class OrganizationAdministration(
     IPermissionAuthorizer authorizer,
     OrganizationManagementAuthorization managementAuthorization,
     IPermissionCatalog permissionCatalog,
-    IAuditWriter auditWriter)
+    IAuditIntentWriter auditWriter)
 {
     public async Task<Result<IReadOnlyList<RoleDto>>> ListRolesAsync(RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
     {
@@ -169,7 +169,6 @@ public sealed class OrganizationAdministration(
             new AuditTarget("Role", role.Id.ToString(), role.Name),
             new Dictionary<string, string?> { ["permissionCount"] = requestedPermissions.Count.ToString(CultureInfo.InvariantCulture) });
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(ToRoleDto(role));
     }
 
@@ -242,10 +241,9 @@ public sealed class OrganizationAdministration(
             new Dictionary<string, string?>
             {
                 ["status"] = membership.Status.ToString(),
-                ["roles"] = string.Join(", ", selectedRoles.Select(x => x.Name).Order())
+                ["roleCount"] = selectedRoles.Length.ToString(CultureInfo.InvariantCulture)
             });
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(ToMemberDto(membership, roles, profile));
     }
 
@@ -299,7 +297,6 @@ public sealed class OrganizationAdministration(
         await store.AddInvitationAsync(invitation, cancellationToken);
         auditWriter.Record(AuditActions.InvitationCreated, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email));
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), organization.Name, token));
     }
 
@@ -321,7 +318,6 @@ public sealed class OrganizationAdministration(
             new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email),
             new Dictionary<string, string?> { ["expiresAt"] = invitation.ExpiresAt.ToString("O", CultureInfo.InvariantCulture) });
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(ToInvitationDto(invitation));
     }
 
@@ -337,7 +333,6 @@ public sealed class OrganizationAdministration(
         invitation.Revoke(DateTimeOffset.UtcNow);
         auditWriter.Record(AuditActions.InvitationRevoked, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email));
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(true);
     }
 
@@ -444,9 +439,8 @@ public sealed class OrganizationAdministration(
             "restore" => AuditActions.RoleRestored,
             _ => AuditActions.RoleDeleted
         };
-        auditWriter.Record(action, new AuditTarget("Role", role.Id.ToString(), role.Name), operation == "delete" ? new Dictionary<string, string?> { ["reason"] = role.DeletionReason } : null);
+        auditWriter.Record(action, new AuditTarget("Role", role.Id.ToString(), role.Name), operation == "delete" ? AuditDetails.ReasonProvided(role.DeletionReason) : null);
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(true);
     }
 
@@ -482,9 +476,8 @@ public sealed class OrganizationAdministration(
             "restore" => AuditActions.MembershipRestored,
             _ => AuditActions.MembershipDeleted
         };
-        auditWriter.Record(action, new AuditTarget("Membership", membership.Id.ToString(), displayName), operation == "delete" ? new Dictionary<string, string?> { ["reason"] = membership.DeletionReason } : null);
+        auditWriter.Record(action, new AuditTarget("Membership", membership.Id.ToString(), displayName), operation == "delete" ? AuditDetails.ReasonProvided(membership.DeletionReason) : null);
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(true);
     }
 
@@ -511,9 +504,8 @@ public sealed class OrganizationAdministration(
             "restore" => AuditActions.InvitationRestored,
             _ => AuditActions.InvitationDeleted
         };
-        auditWriter.Record(action, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email), operation == "delete" ? new Dictionary<string, string?> { ["reason"] = invitation.DeletionReason } : null);
+        auditWriter.Record(action, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email), operation == "delete" ? AuditDetails.ReasonProvided(invitation.DeletionReason) : null);
         await store.SaveChangesAsync(cancellationToken);
-        await auditWriter.SaveChangesAsync(cancellationToken);
         return Result.Success(true);
     }
 

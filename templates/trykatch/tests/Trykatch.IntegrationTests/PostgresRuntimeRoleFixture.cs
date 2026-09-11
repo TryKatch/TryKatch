@@ -88,6 +88,7 @@ internal static class PostgresRuntimeRoleFixture
             GRANT SELECT, INSERT, UPDATE, DELETE ON platform.memberships, platform.roles,
                 platform.membership_roles, platform.role_permissions, platform.invitations TO {OrganizationRole};
             GRANT SELECT, INSERT ON platform.audit_entries TO {OrganizationRole};
+            GRANT INSERT ON platform.audit_intents TO {OrganizationRole};
             GRANT INSERT ON platform.outbox_messages TO {OrganizationRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects, app.documents TO {OrganizationRole};
 
@@ -102,6 +103,8 @@ internal static class PostgresRuntimeRoleFixture
 
             GRANT USAGE ON SCHEMA platform TO {OutboxRole};
             GRANT SELECT, UPDATE ON platform.outbox_messages TO {OutboxRole};
+            GRANT SELECT ON platform.audit_intents TO {OutboxRole};
+            GRANT SELECT, INSERT ON platform.audit_entries TO {OutboxRole};
 
             GRANT EXECUTE ON FUNCTION platform.redact_legacy_outbox_error() TO {OrganizationRole}, {OutboxRole};
             """;

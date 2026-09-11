@@ -40,6 +40,11 @@ builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.Is
 ModuleCatalog moduleCatalog = builder.Services.AddModules(builder.Configuration, EnabledModules.All);
 builder.Services.AddIdentity(builder.Configuration, builder.Environment.IsDevelopment(), isOpenApiGeneration);
 builder.Services.AddProblemDetails();
+builder.Services.AddOptions<AtomicMutationResponseOptions>()
+    .BindConfiguration(AtomicMutationResponseOptions.SectionName)
+    .Validate(options => options.MaximumBytes is >= 1_024 and <= 8_388_608,
+        "Atomic mutation response limit must be between 1 KiB and 8 MiB.")
+    .ValidateOnStart();
 builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
 builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
 builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();

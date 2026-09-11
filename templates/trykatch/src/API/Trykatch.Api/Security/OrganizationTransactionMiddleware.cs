@@ -22,19 +22,17 @@ public sealed class OrganizationTransactionMiddleware(RequestDelegate next)
         if (platformDbContext.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Organization data requires an actor-scoped platform transaction.");
 
-        await using IDbContextTransaction applicationTransaction = await applicationDbContext.Database.BeginTransactionAsync(context.RequestAborted);
+        await using IDbContextTransaction applicationTransaction = await OrganizationTransactionEnlistment.EnlistAsync(
+            platformDbContext,
+            applicationDbContext,
+            organization.OrganizationId,
+            organization.ActorId,
+            context.RequestAborted);
         string organizationId = organization.OrganizationId.ToString();
         string actorId = organization.ActorId.ToString();
-        await applicationDbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT set_config('app.organization_id', {organizationId}, true), set_config('app.actor_id', {actorId}, true)",
-            context.RequestAborted);
         await platformDbContext.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT set_config('app.organization_id', {organizationId}, true), set_config('app.actor_id', {actorId}, true)",
             context.RequestAborted);
         await next(context);
-        if (context.Response.StatusCode < StatusCodes.Status500InternalServerError)
-        {
-            await applicationTransaction.CommitAsync(context.RequestAborted);
-        }
     }
 }

@@ -154,7 +154,7 @@ public sealed class ProjectUseCases(
         auditWriter.Record(
             AuditActions.ProjectDeleted,
             new AuditTarget("Project", project.Id.ToString(), project.Name),
-            new Dictionary<string, string?> { ["reason"] = project.DeletionReason });
+            AuditDetails.ReasonProvided(project.DeletionReason));
         outbox.Enqueue(new ProjectChanged(project.OrganizationId, project.Id, "deleted", context.ActorId));
         await store.SaveChangesAsync(cancellationToken);
         return Result.Success(true);

@@ -8,7 +8,12 @@ public sealed class AuditEntry : Entity, IOrganizationOwned
     private AuditEntry() : base(Guid.Empty) { }
 
     public AuditEntry(Guid organizationId, Guid actorId, string action, string subjectType, string subjectId, string subjectDisplayName, string details)
-        : base(Guid.CreateVersion7())
+        : this(Guid.CreateVersion7(), organizationId, actorId, action, subjectType, subjectId, subjectDisplayName, details, DateTimeOffset.UtcNow)
+    {
+    }
+
+    public AuditEntry(Guid id, Guid organizationId, Guid actorId, string action, string subjectType, string subjectId, string subjectDisplayName, string details, DateTimeOffset occurredAt)
+        : base(id)
     {
         OrganizationId = organizationId;
         ActorId = actorId;
@@ -17,7 +22,7 @@ public sealed class AuditEntry : Entity, IOrganizationOwned
         SubjectId = subjectId;
         SubjectDisplayName = subjectDisplayName;
         Details = details;
-        OccurredAt = DateTimeOffset.UtcNow;
+        OccurredAt = occurredAt;
     }
 
     public Guid OrganizationId { get; private init; }

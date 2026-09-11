@@ -1,4 +1,5 @@
 using Trykatch.Domain.Organizations;
+using Trykatch.Application.Auditing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Trykatch.Infrastructure.Persistence;
@@ -14,6 +15,7 @@ public class PlatformDbContext : DbContext
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<OrganizationCreationIntent> OrganizationCreationIntents => Set<OrganizationCreationIntent>();
     public DbSet<OrganizationDataPlacementRecord> OrganizationDataPlacements => Set<OrganizationDataPlacementRecord>();
+    public DbSet<AuditIntent> AuditIntents => Set<AuditIntent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -102,6 +104,18 @@ public class PlatformDbContext : DbContext
             entity.HasIndex(x => x.InvitationId).IsUnique();
             entity.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Invitation>().WithMany().HasForeignKey(x => x.InvitationId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AuditIntent>(entity =>
+        {
+            entity.ToTable("audit_intents");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Operation).HasMaxLength(120);
+            entity.Property(x => x.SubjectType).HasMaxLength(120);
+            entity.Property(x => x.SubjectId).HasMaxLength(160);
+            entity.Property(x => x.SubjectDisplayName).HasMaxLength(240);
+            entity.Property(x => x.Details).HasColumnType("jsonb").HasMaxLength(2048);
+            entity.HasIndex(x => new { x.OrganizationId, x.OccurredAt, x.Id });
         });
     }
 }
