@@ -15,7 +15,7 @@ test -f "$config" || fail 'vercel.json must live at the template root so module 
 test ! -e "$template_root/web/vercel.json" || fail 'web/vercel.json narrows the upload context and excludes module packages'
 test -f "$ignore_file" || fail '.vercelignore must exclude local build artifacts from deployments'
 
-for pattern in '**/bin/' '**/obj/' '**/node_modules/' 'tests/'; do
+for pattern in '**/bin/' '**/obj/' '**/node_modules/' '**/*.pfx' 'tests/'; do
   grep -Fxq "$pattern" "$ignore_file" || fail ".vercelignore is missing $pattern"
 done
 

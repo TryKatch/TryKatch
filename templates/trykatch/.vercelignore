@@ -10,6 +10,7 @@
 **/TestResults/
 **/coverage/
 **/output/
+**/*.pfx
 .git/
 .idea/
 .vercel/
