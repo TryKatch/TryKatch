@@ -5,6 +5,7 @@
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "scripts": {
+    "ensure-generated": "node scripts/ensure-generated.mjs",
     "generate": "orval --config orval.config.ts && node scripts/normalize-generated.mjs",
     "build": "tsc -b",
     "test": "vitest run --passWithNoTests",

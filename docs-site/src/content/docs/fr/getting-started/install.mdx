@@ -170,6 +170,27 @@ Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seu
 
 La commande .NET directe équivalente est `dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj`.
 
+## Examiner le backend
+
+Après le démarrage de l’AppHost, ouvrez le tableau de bord Aspire et sélectionnez la ressource **api**. Utilisez son URL HTTPS comme `<URL API>` ci-dessous :
+
+- `<URL API>/health/live` confirme que le processus API est actif.
+- `<URL API>/health/ready` confirme que l’API et ses dépendances requises sont prêtes.
+- `<URL API>/docs` ouvre la référence API interactive Scalar en environnement Development.
+- `<URL API>/openapi/v1.json` renvoie le document OpenAPI en environnement Development.
+
+Trykatch utilise Scalar plutôt que Swagger UI. Lorsque l’API est lancée directement avec son profil HTTPS versionné, `<URL API>` vaut `https://localhost:7268`. Le démarrage par l’AppHost reste recommandé, car Aspire fournit PostgreSQL et les chaînes de connexion d’exécution.
+
+### Si l’application React signale un client généré manquant
+
+Les modèles actuels incluent le client généré et le vérifient lors de la création du paquet. La commande de développement répare également un client manquant avant le démarrage de Vite. Pour un projet créé avec une ancienne préversion, exécutez une fois les commandes suivantes depuis le dossier `web` de l’application :
+
+```bash
+corepack pnpm install --frozen-lockfile
+corepack pnpm generate
+corepack pnpm dev
+```
+
 ### Si Aspire affiche « Container runtime unhealthy »
 
 Vérifiez que le démon Docker — et pas uniquement l’application Docker — est prêt :

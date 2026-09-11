@@ -99,6 +99,10 @@ generate_and_build() {
   test -f "$output/compose.observability-tls.yml"
   test -f "$output/scripts/test-observability.sh"
   if [[ -f "$output/web/package.json" ]]; then
+    test -f "$output/web/packages/api-client/src/generated/client.ts" ||
+      fail "generated application '$name' is missing the API client entry point"
+    test -f "$output/web/packages/api-client/src/generated/models/index.ts" ||
+      fail "generated application '$name' is missing the generated API models"
     bash "$output/scripts/test-proxy-headers.sh"
     (
       cd "$output/web"

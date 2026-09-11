@@ -179,6 +179,8 @@ dotnet new \
 
 test -f "$generated_root/$generated_namespace.slnx"
 test -f "$generated_root/web/package.json"
+test -f "$generated_root/web/packages/api-client/src/generated/client.ts"
+test -f "$generated_root/web/packages/api-client/src/generated/models/index.ts"
 test -f "$generated_root/compose.yml"
 test -d "$generated_root/.git"
 test "$(git -C "$generated_root" branch --show-current)" = main
