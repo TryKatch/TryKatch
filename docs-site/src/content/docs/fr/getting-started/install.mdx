@@ -46,16 +46,26 @@ Vous pouvez relancer cette commande sans risque. Si cette version exacte est dé
 Remplacez `Horizon` par le nom de votre produit :
 
 ```bash
-dotnet new trykatch -n Horizon
+trykatch new Horizon
 cd Horizon
 ```
+
+La commande `trykatch new` génère l’application et l’initialise comme dépôt Git
+avec `main` comme branche initiale. Si le répertoire de sortie se trouve déjà
+dans un dépôt Git, Trykatch conserve le dépôt parent au lieu de créer un dépôt
+imbriqué.
 
 :::note[Alternative : installer sans la CLI Trykatch]
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
 dotnet new install Trykatch.Templates@0.1.0-preview.12
+dotnet new trykatch -n Horizon --allow-scripts yes
 ```
+
+`--allow-scripts yes` autorise l’action d’initialisation Git fournie avec le
+modèle. Sans cette option, le moteur de modèles .NET demande une confirmation
+interactive.
 :::
 
 Les noms contenant des points ou des tirets sont normalisés pour produire des espaces de noms C#, des répertoires, des noms de conteneurs et des packages npm valides.
@@ -107,13 +117,13 @@ Redémarrez ensuite l’AppHost. Trykatch fixe chaque point de terminaison Aspir
 React est inclus par défaut. Ne générez une solution limitée au backend que lorsque ce choix est intentionnel :
 
 ```bash
-dotnet new trykatch -n Horizon --ui none
+trykatch new Horizon --ui none
 ```
 
 Les modules gratuits optionnels sont désactivés par défaut :
 
 ```bash
-dotnet new trykatch -n Horizon \
+trykatch new Horizon \
   --email true \
   --storage true \
   --documents true \

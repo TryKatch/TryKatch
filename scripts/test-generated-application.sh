@@ -174,11 +174,14 @@ dotnet new \
   --debug:custom-hive "$template_hive" \
   trykatch \
   --name "$generated_name" \
-  --output "$generated_root"
+  --output "$generated_root" \
+  --allow-scripts yes
 
 test -f "$generated_root/$generated_namespace.slnx"
 test -f "$generated_root/web/package.json"
 test -f "$generated_root/compose.yml"
+test -d "$generated_root/.git"
+test "$(git -C "$generated_root" branch --show-current)" = main
 
 mkdir -p "$generated_root/secrets"
 create_certificate signing "$signing_certificate_password"

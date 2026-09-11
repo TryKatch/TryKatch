@@ -30,6 +30,11 @@ static Task<int> RunAsync(string[] arguments)
         && string.Equals(arguments[1], "start", StringComparison.Ordinal))
         return Task.FromResult(ShowStartHelp());
 
+    if (arguments.Length == 2
+        && IsHelp(arguments[0])
+        && string.Equals(arguments[1], "new", StringComparison.Ordinal))
+        return Task.FromResult(ShowNewHelp());
+
     if (arguments.Length == 1 && IsHelp(arguments[0]))
         return Task.FromResult(ShowHelp());
 
@@ -46,6 +51,9 @@ static Task<int> RunAsync(string[] arguments)
 
     if (string.Equals(arguments[0], "start", StringComparison.Ordinal))
         return RunStartAsync(arguments);
+
+    if (string.Equals(arguments[0], "new", StringComparison.Ordinal))
+        return RunNewAsync(arguments);
 
     if (arguments.Length < 2 || !string.Equals(arguments[0], "module", StringComparison.Ordinal))
         return Task.FromResult(ShowUnknownCommand(arguments[0]));
@@ -131,6 +139,25 @@ static Task<int> RunAsync(string[] arguments)
     catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or ArgumentException or InvalidOperationException)
     {
         return Task.FromResult(Fail(exception.Message));
+    }
+}
+
+static async Task<int> RunNewAsync(string[] arguments)
+{
+    if (arguments.Length == 1 || arguments.Skip(1).Any(IsHelpOption))
+        return ShowNewHelp(arguments.Length == 1 ? 1 : 0);
+
+    try
+    {
+        ApplicationCreator creator = new(new DotnetApplicationTemplateProcess(), Console.Error);
+        return await creator.CreateAsync(arguments.Skip(1).ToArray(), CancellationToken.None);
+    }
+    catch (Exception exception) when (exception is IOException
+        or UnauthorizedAccessException
+        or InvalidOperationException
+        or System.ComponentModel.Win32Exception)
+    {
+        return Fail(exception.Message);
     }
 }
 
@@ -260,7 +287,7 @@ static int ShowHelp()
     Console.WriteLine("  trykatch template install");
     Console.WriteLine("  trykatch update                 Update the template to this CLI's version.");
     Console.WriteLine("  trykatch template uninstall    Remove the installed project template.");
-    Console.WriteLine("  dotnet new trykatch -n <name> [options]");
+    Console.WriteLine("  trykatch new <name> [options]  Create an application and initialize Git.");
     Console.WriteLine("  trykatch start                  Start a generated application through Aspire.");
     Console.WriteLine();
     Console.WriteLine("Application options:");
@@ -275,8 +302,28 @@ static int ShowHelp()
     Console.WriteLine("  trykatch module list     List installed modules and their state.");
     Console.WriteLine("  trykatch module doctor   Validate the full-stack module graph.");
     Console.WriteLine();
-    Console.WriteLine("Run 'dotnet new trykatch --help' for template-engine options.");
+    Console.WriteLine("Run 'trykatch new --help' for application-generation options.");
     return 0;
+}
+
+static int ShowNewHelp(int exitCode = 0)
+{
+    Console.WriteLine("Create a Trykatch application");
+    Console.WriteLine();
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  trykatch new <name> [options]");
+    Console.WriteLine();
+    Console.WriteLine("Options:");
+    Console.WriteLine("  --output <path>     Write the application to a specific directory.");
+    Console.WriteLine("  --ui <react|none>   Include the React frontend or generate a backend-only application.");
+    Console.WriteLine("  --email             Include SMTP email and local Mailpit support.");
+    Console.WriteLine("  --storage           Include local and S3-compatible object storage.");
+    Console.WriteLine("  --documents         Include spreadsheet and PDF exporters.");
+    Console.WriteLine("  --images            Include image validation and processing.");
+    Console.WriteLine();
+    Console.WriteLine("The generated application is initialized as a Git repository on the main branch.");
+    Console.WriteLine("When the output is already inside a Git worktree, the parent repository is preserved.");
+    return exitCode;
 }
 
 static int ShowTemplateHelp(int exitCode = 0)

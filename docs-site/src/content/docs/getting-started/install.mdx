@@ -46,16 +46,25 @@ The command is safe to run again. If this exact version is present, it reports t
 Replace `Horizon` with your product name:
 
 ```bash
-dotnet new trykatch -n Horizon
+trykatch new Horizon
 cd Horizon
 ```
+
+The `trykatch new` command generates the application and initializes it as a Git
+repository with `main` as its initial branch. If the output directory is already
+inside a Git worktree, Trykatch preserves the parent repository instead of
+creating a nested one.
 
 :::note[Alternative: install without the Trykatch CLI]
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
 dotnet new install Trykatch.Templates@0.1.0-preview.12
+dotnet new trykatch -n Horizon --allow-scripts yes
 ```
+
+`--allow-scripts yes` authorizes the template’s packaged Git initialization
+action. Without it, the .NET template engine asks for confirmation interactively.
 :::
 
 React is the default surface. The generated project contains the complete `web` workspace, including the React application, reusable UI and module packages, generated API client, tests, lockfile, and production container.
@@ -109,13 +118,13 @@ Then restart the AppHost. Trykatch pins every generated Aspire endpoint to `http
 React is included by default. Generate a backend-only solution only when that is intentional:
 
 ```bash
-dotnet new trykatch -n Horizon --ui none
+trykatch new Horizon --ui none
 ```
 
 Optional free modules are disabled by default:
 
 ```bash
-dotnet new trykatch -n Horizon \
+trykatch new Horizon \
   --email true \
   --storage true \
   --documents true \

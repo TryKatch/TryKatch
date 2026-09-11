@@ -41,7 +41,7 @@ dotnet tool install \
 help_output=$("$test_root/tools/trykatch" help)
 grep -Fq 'Create an application:' <<<"$help_output" ||
   fail 'CLI help does not explain application creation'
-grep -Fq 'dotnet new trykatch -n <name> [options]' <<<"$help_output" ||
+grep -Fq 'trykatch new <name> [options]' <<<"$help_output" ||
   fail 'CLI help does not show the application creation command'
 grep -Fq 'trykatch template install' <<<"$help_output" ||
   fail 'CLI help does not show the progress-aware template installer'
@@ -73,6 +73,11 @@ grep -Fq 'trykatch template uninstall' <<<"$template_help_output" ||
 start_help_output=$("$test_root/tools/trykatch" start --help)
 grep -Fq 'trykatch start [--root <path>]' <<<"$start_help_output" ||
   fail 'start help does not document AppHost discovery'
+new_help_output=$("$test_root/tools/trykatch" new --help)
+grep -Fq 'trykatch new <name> [options]' <<<"$new_help_output" ||
+  fail 'new help does not document application generation'
+grep -Fq 'initialized as a Git repository on the main branch' <<<"$new_help_output" ||
+  fail 'new help does not explain Git initialization'
 cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'Trykatch.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
 test "$cli_informational_version" = 'Trykatch CLI 0.1.0-ci' ||
   fail "packaged CLI reports '$cli_informational_version' instead of its package version"
@@ -82,7 +87,10 @@ generate_and_build() {
   shift
   local namespace_name=${name//-/.}
   local output="$test_root/$namespace_name"
-  dotnet new --debug:custom-hive "$template_hive" trykatch -n "$name" -o "$output" "$@"
+  dotnet new --debug:custom-hive "$template_hive" trykatch -n "$name" -o "$output" "$@" --allow-scripts yes
+  test -d "$output/.git" || fail "generated application '$name' was not initialized as a Git repository"
+  test "$(git -C "$output" branch --show-current)" = main ||
+    fail "generated application '$name' did not use main as its initial Git branch"
   dotnet restore "$output/$namespace_name.slnx"
   dotnet build "$output/$namespace_name.slnx" --no-restore
   dotnet run --project "$output/tools/$namespace_name.ModuleTool" --no-build -- module doctor --root "$output"
