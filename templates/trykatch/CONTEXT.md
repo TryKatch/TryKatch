@@ -20,7 +20,11 @@ The association granting a user access to one organization.
 
 ## Organization role
 
-An organization-owned named bundle of organization permissions. Owner, Admin, Member, and Viewer are protected seeded roles, not hard-coded authorization branches. Custom organization roles can be created, described, edited, archived, restored, and disposed under the recoverable lifecycle policy.
+An organization-owned named bundle of organization permissions. Owner, Admin, Member, and Viewer are protected seeded roles; only Owner carries protected ownership authority in addition to its permission grants.
+
+## Organization Owner
+
+An active member assigned the organization's protected Owner role. A custom role with equivalent permissions is a delegated manager, not an Owner.
 
 ## Platform role
 
@@ -48,7 +52,7 @@ The non-replaceable organization resolution, authentication, authorization, Post
 
 ## Platform administrator
 
-A global operator with the protected Administrator platform role. Platform administration is not an organization role, and role managers cannot create, edit, delete, or assign grants beyond their own effective platform permissions.
+A global operator with the protected Administrator platform role. A custom platform role with equivalent permissions does not carry protected Administrator authority, and neither role implies organization membership.
 
 ## Project
 

@@ -8,6 +8,28 @@ namespace Trykatch.Infrastructure.Organizations;
 
 internal sealed class OrganizationAdministrationStore(OrganizationControlPlaneDbContext dbContext) : IOrganizationAdministrationStore
 {
+    public async Task AcquireManagementLockAsync(Guid organizationId, CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Organization management requires an actor-scoped transaction.");
+        if (dbContext.ChangeTracker.HasChanges())
+            throw new InvalidOperationException("Organization authority must be resolved before staging changes.");
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({organizationId.ToString()}, 734002))", cancellationToken);
+        dbContext.ChangeTracker.Clear();
+    }
+
+    public Task<Membership?> FindMembershipForUserAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) =>
+        dbContext.Memberships.AsNoTracking().Include(membership => membership.Roles)
+            .SingleOrDefaultAsync(membership => membership.OrganizationId == organizationId && membership.UserId == userId, cancellationToken);
+
+    public Task<bool> HasOtherActiveOwnerAsync(Guid organizationId, Guid exceptMembershipId, CancellationToken cancellationToken) =>
+        dbContext.Memberships.AsNoTracking().AnyAsync(membership => membership.OrganizationId == organizationId
+            && membership.Id != exceptMembershipId && membership.Status == MembershipStatus.Active
+            && membership.ArchivedAt == null && membership.DeletedAt == null
+            && membership.Roles.Any(link => dbContext.Roles.Any(role => role.Id == link.RoleId && role.OrganizationId == organizationId
+                && role.IsSystem && role.Name == "Owner" && role.ArchivedAt == null && role.DeletedAt == null)), cancellationToken);
+
     public async Task<IReadOnlyList<Role>> ListRolesAsync(Guid organizationId, RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
     {
         IQueryable<Role> query = dbContext.Roles.AsNoTracking().Include(x => x.Permissions).Where(x => x.OrganizationId == organizationId);

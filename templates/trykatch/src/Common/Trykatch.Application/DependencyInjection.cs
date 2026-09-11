@@ -12,6 +12,7 @@ public static class DependencyInjection
         services.AddScoped<CreateOrganization>();
         services.AddScoped<ManageOrganizations>();
         services.AddScoped<OrganizationAdministration>();
+        services.AddScoped<OrganizationManagementAuthorization>();
         services.AddSingleton<IPermissionDefinitionProvider, BuiltInPermissionDefinitionProvider>();
         services.AddSingleton<IPermissionCatalog, PermissionCatalog>();
         services.AddSingleton<IValidator<CreateOrganizationCommand>, CreateOrganizationValidator>();

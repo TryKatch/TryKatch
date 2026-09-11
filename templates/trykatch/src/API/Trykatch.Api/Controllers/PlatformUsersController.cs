@@ -49,7 +49,7 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
     [RequirePlatformPermission(PlatformPermissions.UsersManage)]
     public async Task<ActionResult<PlatformRoleDefinition>> CreateRole(SavePlatformRoleRequest request, CancellationToken cancellationToken)
     {
-        Result<PlatformRoleDefinition> result = await directory.CreateRoleAsync(new(request.Name, request.Description, request.Permissions), GetGrantBoundary(), cancellationToken);
+        Result<PlatformRoleDefinition> result = await directory.CreateRoleAsync(GetActorId(), new(request.Name, request.Description, request.Permissions), cancellationToken);
         return result.IsSuccess && result.Value is not null
             ? CreatedAtAction(nameof(ListRoles), result.Value)
             : ToProblem(result);
@@ -59,14 +59,14 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
     [CookieAntiforgery]
     [RequirePlatformPermission(PlatformPermissions.UsersManage)]
     public async Task<ActionResult<PlatformRoleDefinition>> UpdateRole(string roleKey, SavePlatformRoleRequest request, CancellationToken cancellationToken) =>
-        ToRoleActionResult(await directory.UpdateRoleAsync(roleKey, new(request.Name, request.Description, request.Permissions), GetGrantBoundary(), cancellationToken));
+        ToRoleActionResult(await directory.UpdateRoleAsync(GetActorId(), roleKey, new(request.Name, request.Description, request.Permissions), cancellationToken));
 
     [HttpDelete("roles/{roleKey}", Name = "PlatformUsers_DeleteRole")]
     [CookieAntiforgery]
     [RequirePlatformPermission(PlatformPermissions.UsersManage)]
     public async Task<IActionResult> DeleteRole(string roleKey, CancellationToken cancellationToken)
     {
-        Result<bool> result = await directory.DeleteRoleAsync(roleKey, GetGrantBoundary(), cancellationToken);
+        Result<bool> result = await directory.DeleteRoleAsync(GetActorId(), roleKey, cancellationToken);
         return result.IsSuccess ? NoContent() : ToProblem(result);
     }
 
@@ -80,8 +80,8 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
     public async Task<ActionResult<PlatformAccessGrant>> Grant(GrantPlatformAccessRequest request, CancellationToken cancellationToken)
     {
         Result<PlatformAccessGrant> result = await directory.GrantAsync(
+            GetActorId(),
             new GrantPlatformAccessCommand(request.Email, request.DisplayName, request.RoleKey),
-            GetGrantBoundary(),
             cancellationToken);
         return result.IsSuccess && result.Value is not null
             ? CreatedAtAction(nameof(Get), new { userId = result.Value.User.Id }, result.Value)
@@ -92,7 +92,7 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
     [CookieAntiforgery]
     [RequirePlatformPermission(PlatformPermissions.UsersManage)]
     public async Task<ActionResult<PlatformAccessUser>> ChangeRole(Guid userId, ChangePlatformRoleRequest request, CancellationToken cancellationToken) =>
-        ToActionResult(await directory.ChangeRoleAsync(GetActorId(), userId, request.RoleKey, GetGrantBoundary(), cancellationToken));
+        ToActionResult(await directory.ChangeRoleAsync(GetActorId(), userId, request.RoleKey, cancellationToken));
 
     [HttpPost("{userId:guid}/suspend", Name = "PlatformUsers_Suspend")]
     [CookieAntiforgery]
@@ -111,7 +111,7 @@ public sealed class PlatformUsersController(IPlatformAccessDirectory directory) 
     [RequirePlatformPermission(PlatformPermissions.UsersManage)]
     public async Task<ActionResult<PlatformActivationTokenResponse>> CreateActivationToken(Guid userId, CancellationToken cancellationToken)
     {
-        Result<string> result = await directory.CreateActivationTokenAsync(userId, cancellationToken);
+        Result<string> result = await directory.CreateActivationTokenAsync(GetActorId(), userId, cancellationToken);
         return result.IsSuccess && result.Value is not null
             ? Ok(new PlatformActivationTokenResponse(userId, result.Value))
             : ToProblem(result);
