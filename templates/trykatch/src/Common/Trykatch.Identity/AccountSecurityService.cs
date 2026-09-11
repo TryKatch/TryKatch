@@ -103,6 +103,7 @@ internal sealed class AccountSecurityService(
                 RequireSuccess(await users.AccessFailedAsync(user));
                 return Failure<MfaRecoveryCodes>("reauthentication_failed");
             }
+            RequireSuccess(await users.ResetAccessFailedCountAsync(user));
             await ((IUserAuthenticatorKeyStore<ApplicationUser>)userStore).SetAuthenticatorKeyAsync(user, key, cancellationToken);
             RequireSuccess(await users.SetTwoFactorEnabledAsync(user, true));
             MfaRecoveryCodes codes = await ReplaceRecoveryCodesAsync(user);

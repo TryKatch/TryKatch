@@ -340,6 +340,45 @@ public sealed class AccountSecurityStepUpTests
     }
 
     [TestMethod]
+    public async Task SuccessfulEnrollmentConfirmationResetsEarlierFailedAttempts()
+    {
+        await using SecurityHost host = await SecurityHost.StartAsync();
+        using HttpClient client = await host.SignInAsync();
+        JsonElement setup = await StartEnrollmentAsync(client);
+        for (int attempt = 0; attempt < 4; attempt++)
+        {
+            using HttpResponseMessage wrong = await PostAsync(client, "/mfa/enable", new
+            {
+                enrollmentId = setup.GetProperty("enrollmentId"),
+                code = "invalid"
+            });
+            await AssertProblemAsync(wrong, HttpStatusCode.Forbidden, "reauthentication_failed");
+        }
+
+        await SuccessAsync(client, "/mfa/enable", new
+        {
+            enrollmentId = setup.GetProperty("enrollmentId"),
+            code = Totp(setup.GetProperty("sharedKey").GetString()!, host.Clock.GetUtcNow())
+        });
+
+        using HttpClient login = host.CreateClient();
+        using HttpResponseMessage wrongPassword = await PostAsync(login, "/api/v1/auth/login", new
+        {
+            email = SecurityHost.Email,
+            password = "Wrong!Password42",
+            rememberMe = false
+        });
+        wrongPassword.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        using HttpResponseMessage correctPassword = await PostAsync(login, "/api/v1/auth/login", new
+        {
+            email = SecurityHost.Email,
+            password = SecurityHost.Password,
+            rememberMe = false
+        });
+        correctPassword.StatusCode.ShouldBe((HttpStatusCode)428);
+    }
+
+    [TestMethod]
     public async Task RecoveryProofStorageFailureRollsBackWithoutConsumingTheFactor()
     {
         await using SecurityHost host = await SecurityHost.StartAsync(legacyMfa: true);

@@ -11,4 +11,9 @@ describe('OpenAPI example privacy', () => {
       expect(sample.source).toContain('console.log({ status: response.status });')
     }
   })
+
+  it('declares empty success responses for cancellation and disable operations', () => {
+    expect(contract.paths['/api/v1/account/security/mfa/cancel'].post.responses).toHaveProperty('204')
+    expect(contract.paths['/api/v1/account/security/mfa/disable'].post.responses).toHaveProperty('204')
+  })
 })

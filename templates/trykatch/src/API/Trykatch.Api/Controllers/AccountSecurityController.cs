@@ -41,6 +41,7 @@ public sealed class AccountSecurityController(IAccountSecurity security, SignInM
 
     [HttpPost("mfa/cancel", Name = "AccountSecurity_CancelMfaEnrollment")]
     [CookieAntiforgery]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> CancelMfaEnrollment(MfaEnrollmentRequest request, CancellationToken cancellationToken)
     {
         Result<bool> result = await security.CancelEnrollmentAsync(await GetContextAsync(), request.EnrollmentId, cancellationToken);
@@ -58,6 +59,7 @@ public sealed class AccountSecurityController(IAccountSecurity security, SignInM
 
     [HttpPost("mfa/disable", Name = "AccountSecurity_DisableMfa")]
     [CookieAntiforgery]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DisableMfa(MfaGrantRequest request, CancellationToken cancellationToken)
     {
         Result<bool> result = await security.DisableAsync(await GetContextAsync(), request.Grant, cancellationToken);

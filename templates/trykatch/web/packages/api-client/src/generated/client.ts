@@ -2128,12 +2128,12 @@ export const useAccountSecurityEnableMfa = <TError = unknown,
       return useMutation(getAccountSecurityEnableMfaMutationOptions(options), queryClient);
     }
 
-export type accountSecurityCancelMfaEnrollmentResponse200 = {
+export type accountSecurityCancelMfaEnrollmentResponse204 = {
   data: void
-  status: 200
+  status: 204
 }
 
-export type accountSecurityCancelMfaEnrollmentResponseSuccess = (accountSecurityCancelMfaEnrollmentResponse200) & {
+export type accountSecurityCancelMfaEnrollmentResponseSuccess = (accountSecurityCancelMfaEnrollmentResponse204) & {
   headers: Headers;
 };
 ;
@@ -2338,12 +2338,12 @@ export const useAccountSecurityRegenerateRecoveryCodes = <TError = unknown,
       return useMutation(getAccountSecurityRegenerateRecoveryCodesMutationOptions(options), queryClient);
     }
 
-export type accountSecurityDisableMfaResponse200 = {
+export type accountSecurityDisableMfaResponse204 = {
   data: void
-  status: 200
+  status: 204
 }
 
-export type accountSecurityDisableMfaResponseSuccess = (accountSecurityDisableMfaResponse200) & {
+export type accountSecurityDisableMfaResponseSuccess = (accountSecurityDisableMfaResponse204) & {
   headers: Headers;
 };
 ;

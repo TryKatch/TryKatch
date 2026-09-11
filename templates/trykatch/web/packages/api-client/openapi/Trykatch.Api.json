@@ -978,8 +978,8 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
           }
         },
         "x-codeSamples": [
@@ -1077,8 +1077,8 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
           }
         },
         "x-codeSamples": [
