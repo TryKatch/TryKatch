@@ -26,9 +26,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
-export TRYKATCH_RELEASE_VERSION=ci-validation
-docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.yml" config --quiet
-docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.backend.yml" config --quiet
+export TRYKATCH_RELEASE_VERSION='1.2.3+sha.abc/ref'
+for compose_file in compose.yml compose.backend.yml; do
+  rendered_compose=$(docker compose \
+    --env-file "$template_root/.env.example" \
+    -f "$template_root/$compose_file" \
+    config --format json)
+  jq --exit-status --arg release "$TRYKATCH_RELEASE_VERSION" \
+    'all(.services[]; ((.image // "") | contains($release) | not))' \
+    <<<"$rendered_compose" >/dev/null
+done
 docker compose --env-file "$template_root/.env.example" -f "$template_root/compose.yml" -f "$template_root/compose.observability-tls.yml" config --quiet
 jq empty "$template_root/deploy/observability/grafana/dashboards/json/trykatch-overview.json"
 
