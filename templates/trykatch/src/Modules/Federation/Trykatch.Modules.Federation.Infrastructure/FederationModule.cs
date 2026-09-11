@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Trykatch.Modules;
 using Trykatch.Modules.AspNetCore;
 using Trykatch.Modules.Federation.Application;
@@ -59,12 +60,14 @@ public sealed class FederationModule : IModule, IModuleMigrationContributor
         services.AddSingleton<IPlatformEndpointContributor, FederationEndpoints>();
         services.AddSingleton(new FederationDatabaseOptions(connectionString));
         services.AddScoped<IFederationConnectionStore, FederationConnectionStore>();
+        services.AddScoped<IFederationProviderProbe, FederationProviderProbe>();
         services.AddScoped<FederationConnectionService>();
         services.AddHttpClient("trykatch-federation-discovery", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(10);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Trykatch-Federation/1.0");
-        });
+        }).ConfigurePrimaryHttpMessageHandler(provider => FederationNetworkGuard.CreateHandler(
+            provider.GetRequiredService<IOptions<FederationSecurityOptions>>().Value.AllowInsecureLoopbackIssuer));
         services.AddOptions<FederationSecurityOptions>().Bind(configuration.GetSection("Federation"));
     }
 }

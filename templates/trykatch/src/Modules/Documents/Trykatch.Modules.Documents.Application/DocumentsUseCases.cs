@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Trykatch.Modules;
 using Trykatch.Modules.Documents.Domain;
 using Trykatch.Modules.Documents.IntegrationEvents;
@@ -20,20 +19,40 @@ public static class DocumentOperation
     public static DocumentOperationResult<T> Failure<T>(string code, string error) => new(false, default, code, error);
 }
 
+public enum DocumentQueryScope
+{
+    Active,
+    Recoverable
+}
+
+/// <summary>Persistence seam for document use cases.</summary>
+public interface IDocumentStore
+{
+    Task<IReadOnlyList<DocumentRecord>> ListAsync(DocumentQueryScope scope, CancellationToken cancellationToken);
+    Task<DocumentRecord?> FindAsync(Guid id, bool includeRecoverable, CancellationToken cancellationToken);
+    void Add(DocumentRecord document);
+    Task SaveChangesAsync(CancellationToken cancellationToken);
+}
+
 /// <summary>The module's application interface; adapters translate its typed results.</summary>
-public sealed class DocumentsUseCases(IOrganizationModuleData data, IModulePermissionAuthorizer authorizer, TimeProvider timeProvider)
+public sealed class DocumentsUseCases(
+    IDocumentStore store,
+    IOrganizationModuleData context,
+    IModulePermissionAuthorizer authorizer,
+    TimeProvider timeProvider)
 {
     public async Task<DocumentOperationResult<DocumentDto[]>> ListAsync(string lifecycle, CancellationToken cancellationToken)
     {
         if (!await authorizer.HasPermissionAsync("documents.read", cancellationToken))
             return DocumentOperation.Failure<DocumentDto[]>("forbidden", "Documents cannot be viewed by this membership.");
-        IQueryable<DocumentRecord> query = data.Query<DocumentRecord>();
+        DocumentQueryScope scope;
         if (string.Equals(lifecycle, "recoverable", StringComparison.OrdinalIgnoreCase))
-            query = query.IgnoreQueryFilters(["LifecycleVisibility"])
-                .Where(document => document.ArchivedAt != null || document.DeletedAt != null);
-        else if (!string.Equals(lifecycle, "active", StringComparison.OrdinalIgnoreCase))
+            scope = DocumentQueryScope.Recoverable;
+        else if (string.Equals(lifecycle, "active", StringComparison.OrdinalIgnoreCase))
+            scope = DocumentQueryScope.Active;
+        else
             return DocumentOperation.Failure<DocumentDto[]>("validation", "Lifecycle must be active or recoverable.");
-        DocumentRecord[] records = await query.AsNoTracking().OrderByDescending(document => document.CreatedAt).ToArrayAsync(cancellationToken);
+        IReadOnlyList<DocumentRecord> records = await store.ListAsync(scope, cancellationToken);
         return DocumentOperation.Success(records.Select(ToDto).ToArray());
     }
 
@@ -42,10 +61,10 @@ public sealed class DocumentsUseCases(IOrganizationModuleData data, IModulePermi
         if (!await CanManage(cancellationToken)) return Forbidden<DocumentDto>();
         string? error = Validate(command);
         if (error is not null) return DocumentOperation.Failure<DocumentDto>("validation", error);
-        DocumentRecord document = DocumentRecord.Create(data.OrganizationId, data.ActorId, command.Title, command.Content, timeProvider.GetUtcNow());
-        data.Add(document);
+        DocumentRecord document = DocumentRecord.Create(context.OrganizationId, context.ActorId, command.Title, command.Content, timeProvider.GetUtcNow());
+        store.Add(document);
         RecordChange(document, "created");
-        await data.SaveChangesAsync(cancellationToken);
+        await store.SaveChangesAsync(cancellationToken);
         return DocumentOperation.Success(ToDto(document));
     }
 
@@ -54,23 +73,23 @@ public sealed class DocumentsUseCases(IOrganizationModuleData data, IModulePermi
         if (!await CanManage(cancellationToken)) return Forbidden<DocumentDto>();
         string? error = Validate(command);
         if (error is not null) return DocumentOperation.Failure<DocumentDto>("validation", error);
-        DocumentRecord? document = await data.Query<DocumentRecord>().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        DocumentRecord? document = await store.FindAsync(id, includeRecoverable: false, cancellationToken);
         if (document is null) return NotFound<DocumentDto>();
         document.Update(command.Title, command.Content, timeProvider.GetUtcNow());
         RecordChange(document, "updated");
-        await data.SaveChangesAsync(cancellationToken);
+        await store.SaveChangesAsync(cancellationToken);
         return DocumentOperation.Success(ToDto(document));
     }
 
     public async Task<DocumentOperationResult<bool>> ArchiveAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!await CanManage(cancellationToken)) return Forbidden<bool>();
-        DocumentRecord? document = await data.Query<DocumentRecord>().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        DocumentRecord? document = await store.FindAsync(id, includeRecoverable: false, cancellationToken);
         if (document is null) return NotFound<bool>();
-        if (document.Archive(data.ActorId, timeProvider.GetUtcNow()))
+        if (document.Archive(context.ActorId, timeProvider.GetUtcNow()))
         {
             RecordChange(document, "archived");
-            await data.SaveChangesAsync(cancellationToken);
+            await store.SaveChangesAsync(cancellationToken);
         }
         return DocumentOperation.Success(true);
     }
@@ -78,13 +97,12 @@ public sealed class DocumentsUseCases(IOrganizationModuleData data, IModulePermi
     public async Task<DocumentOperationResult<bool>> RestoreAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!await CanManage(cancellationToken)) return Forbidden<bool>();
-        DocumentRecord? document = await data.Query<DocumentRecord>().IgnoreQueryFilters(["LifecycleVisibility"])
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        DocumentRecord? document = await store.FindAsync(id, includeRecoverable: true, cancellationToken);
         if (document is null) return NotFound<bool>();
         if (document.Restore())
         {
             RecordChange(document, "restored");
-            await data.SaveChangesAsync(cancellationToken);
+            await store.SaveChangesAsync(cancellationToken);
         }
         return DocumentOperation.Success(true);
     }
@@ -95,15 +113,14 @@ public sealed class DocumentsUseCases(IOrganizationModuleData data, IModulePermi
         string reason = requestedReason?.Trim() ?? string.Empty;
         if (reason.Length is < 10 or > 500)
             return DocumentOperation.Failure<bool>("validation", "A deletion reason containing 10-500 characters is required.");
-        DocumentRecord? document = await data.Query<DocumentRecord>().IgnoreQueryFilters(["LifecycleVisibility"])
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        DocumentRecord? document = await store.FindAsync(id, includeRecoverable: true, cancellationToken);
         if (document is null) return NotFound<bool>();
         if (document.LifecycleState != DocumentLifecycleState.Archived)
             return DocumentOperation.Failure<bool>("conflict", "Archive the document before requesting deletion.");
-        if (document.RequestDeletion(data.ActorId, reason, timeProvider.GetUtcNow()))
+        if (document.RequestDeletion(context.ActorId, reason, timeProvider.GetUtcNow()))
         {
             RecordChange(document, "deleted");
-            await data.SaveChangesAsync(cancellationToken);
+            await store.SaveChangesAsync(cancellationToken);
         }
         return DocumentOperation.Success(true);
     }
@@ -115,8 +132,8 @@ public sealed class DocumentsUseCases(IOrganizationModuleData data, IModulePermi
         IReadOnlyDictionary<string, string?>? details = operation == "deleted"
             ? new Dictionary<string, string?> { ["reason"] = document.DeletionReason }
             : null;
-        data.RecordAudit($"document.{operation}", "Document", document.Id.ToString(), document.Title, details);
-        data.Enqueue(new DocumentChanged(document.Id, document.OrganizationId, operation, data.ActorId,
+        context.RecordAudit($"document.{operation}", "Document", document.Id.ToString(), document.Title, details);
+        context.Enqueue(new DocumentChanged(document.Id, document.OrganizationId, operation, context.ActorId,
             timeProvider.GetUtcNow(), document.DeletionReason));
     }
 

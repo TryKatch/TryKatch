@@ -41,4 +41,41 @@ public sealed class ProjectsLayerTests
         entrypoints.ShouldHaveSingleItem().ShouldBe(typeof(ProjectsModule));
         entrypoints[0].IsSealed.ShouldBeTrue();
     }
+
+    [TestMethod]
+    public void CompiledReferencesRespectTheApplicationAndPresentationSeams()
+    {
+        string[] applicationReferences = Application.GetReferencedAssemblies().Select(reference => reference.Name!).ToArray();
+        applicationReferences.ShouldNotContain(reference => IsAdapterAssembly(reference));
+
+        string[] presentationReferences = Presentation.GetReferencedAssemblies().Select(reference => reference.Name!).ToArray();
+        presentationReferences.ShouldNotContain(reference =>
+            reference == "Trykatch.Modules.Projects.Domain"
+            || reference == "Trykatch.Modules.Projects.Infrastructure");
+    }
+
+    [TestMethod]
+    public void IntegrationEventsOwnOnlyStableNamedContracts()
+    {
+        System.Type[] contracts = Events.ExportedTypes.ToArray();
+        contracts.ShouldHaveSingleItem().ShouldBe(typeof(ProjectChanged));
+        contracts.ShouldAllBe(contract => contract.Namespace == "Trykatch.Modules.Projects.IntegrationEvents");
+        contracts.ShouldAllBe(contract => contract.Name.EndsWith("Changed", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void InfrastructureExportsOnlyItsEntrypointAndRequiredHostSeams()
+    {
+        Infrastructure.ExportedTypes
+            .Where(type => type != typeof(ProjectsModule))
+            .ShouldAllBe(type => typeof(IApplicationModelContributor).IsAssignableFrom(type));
+    }
+
+    private static bool IsAdapterAssembly(string reference) =>
+        reference.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal)
+        || reference.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
+        || reference.StartsWith("Microsoft.Extensions.Http", StringComparison.Ordinal)
+        || reference.StartsWith("Npgsql", StringComparison.Ordinal)
+        || reference.EndsWith(".Infrastructure", StringComparison.Ordinal)
+        || reference.EndsWith(".Presentation", StringComparison.Ordinal);
 }

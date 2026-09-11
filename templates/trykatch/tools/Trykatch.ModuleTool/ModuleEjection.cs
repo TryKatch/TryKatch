@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using System.Xml.Linq;
 
 namespace Trykatch.ModuleTool;
@@ -47,13 +48,32 @@ public sealed partial class ModuleWorkspace
         string? webTarget = source.Manifest.Capabilities.Contains("web", StringComparer.Ordinal)
             ? ResolveInsideRoot(source.Manifest.Artifacts.WebPackage)
             : null;
-        string dotnetTargetDirectory = Path.GetDirectoryName(dotnetTarget)!;
-        string? webTargetDirectory = webTarget is null ? null : Path.GetDirectoryName(webTarget)!;
-        if (Directory.Exists(dotnetTargetDirectory) || (webTargetDirectory is not null && Directory.Exists(webTargetDirectory)))
+        bool hasSourceRoot = !string.IsNullOrWhiteSpace(source.Manifest.Artifacts.SourceRoot);
+        string? sourceRoot = hasSourceRoot
+            ? SourceDirectoryPath(bundleRoot, source.Manifest.Artifacts.SourceRoot)
+            : null;
+        string? targetRoot = hasSourceRoot
+            ? ResolveInsideRoot(source.Manifest.Artifacts.SourceRoot)
+            : null;
+        if (sourceRoot is not null)
+        {
+            EnsureArtifactIsInsideSourceRoot(dotnetSource, sourceRoot, "dotnet project");
+            if (webSource is not null)
+                EnsureArtifactIsInsideSourceRoot(webSource, sourceRoot, "web package");
+        }
+        string dotnetTargetDirectory = targetRoot ?? Path.GetDirectoryName(dotnetTarget)!;
+        string? webTargetDirectory = targetRoot ?? (webTarget is null ? null : Path.GetDirectoryName(webTarget)!);
+        if (Directory.Exists(dotnetTargetDirectory)
+            || (webTargetDirectory is not null
+                && !string.Equals(webTargetDirectory, dotnetTargetDirectory, StringComparison.Ordinal)
+                && Directory.Exists(webTargetDirectory)))
             return ToReport(modules,
             [
                 "Ejection refuses to overwrite an existing source directory. Choose clean artifact paths in the reviewed source bundle."
             ]);
+        string? verifiedSourceRoot = sourceRoot is null
+            ? null
+            : StageVerifiedSourceTree(sourceRoot, source.Manifest.Artifacts.SourceTreeSha256);
 
         string targetManifestPath = Path.Combine(dotnetTargetDirectory, "try" + "katch.module.json");
         string oldManifestPath = ResolveInsideRoot(installed.Registration.Manifest);
@@ -68,8 +88,11 @@ public sealed partial class ModuleWorkspace
 
         try
         {
-            CopyDirectory(Path.GetDirectoryName(dotnetSource)!, dotnetTargetDirectory);
-            if (webSource is not null && webTargetDirectory is not null)
+            if (verifiedSourceRoot is not null)
+                CopyDirectory(verifiedSourceRoot, dotnetTargetDirectory);
+            else
+                CopyDirectory(Path.GetDirectoryName(dotnetSource)!, dotnetTargetDirectory);
+            if (sourceRoot is null && webSource is not null && webTargetDirectory is not null)
                 CopyDirectory(Path.GetDirectoryName(webSource)!, webTargetDirectory);
             WriteAtomicBytes(targetManifestPath, source.ManifestBytes);
 
@@ -113,9 +136,16 @@ public sealed partial class ModuleWorkspace
             DeleteNewLockFiles(baselineLockFiles);
             if (Directory.Exists(dotnetTargetDirectory))
                 Directory.Delete(dotnetTargetDirectory, recursive: true);
-            if (webTargetDirectory is not null && Directory.Exists(webTargetDirectory))
+            if (webTargetDirectory is not null
+                && !string.Equals(webTargetDirectory, dotnetTargetDirectory, StringComparison.Ordinal)
+                && Directory.Exists(webTargetDirectory))
                 Directory.Delete(webTargetDirectory, recursive: true);
             throw;
+        }
+        finally
+        {
+            if (verifiedSourceRoot is not null && Directory.Exists(verifiedSourceRoot))
+                Directory.Delete(verifiedSourceRoot, recursive: true);
         }
     }
 
@@ -147,6 +177,68 @@ public sealed partial class ModuleWorkspace
         if (!File.Exists(path))
             throw new InvalidOperationException($"Source bundle artifact '{workspaceRelativePath}' does not exist.");
         return path;
+    }
+
+    private static string SourceDirectoryPath(string bundleRoot, string workspaceRelativePath)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceRelativePath) || Path.IsPathRooted(workspaceRelativePath))
+            throw new InvalidOperationException("Source bundle root must use a workspace-relative path.");
+        string path = Path.GetFullPath(workspaceRelativePath, bundleRoot);
+        string prefix = Path.TrimEndingDirectorySeparator(bundleRoot) + Path.DirectorySeparatorChar;
+        if (!path.StartsWith(prefix, StringComparison.Ordinal) || !Directory.Exists(path))
+            throw new InvalidOperationException("Source bundle root must be an existing directory inside the reviewed bundle.");
+        return path;
+    }
+
+    private static void EnsureArtifactIsInsideSourceRoot(string artifact, string sourceRoot, string subject)
+    {
+        string relative = Path.GetRelativePath(sourceRoot, artifact);
+        if (relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Source bundle {subject} must be inside artifacts.sourceRoot.");
+    }
+
+    private static string StageVerifiedSourceTree(string sourceRoot, string expectedSha256)
+    {
+        if (expectedSha256.Length != 64 || expectedSha256.Any(character => !Uri.IsHexDigit(character)))
+            throw new InvalidOperationException("Source bundle must declare a valid artifacts.sourceTreeSha256 digest.");
+        if (new DirectoryInfo(sourceRoot).LinkTarget is not null)
+            throw new InvalidOperationException("Source bundle root must not be a symbolic link.");
+        string stagingRoot = Directory.CreateTempSubdirectory("trykatch-source-").FullName;
+        try
+        {
+            StringBuilder inventory = new();
+            foreach ((string file, string relative) in Directory
+                         .EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
+                         .Select(file => (
+                             File: file,
+                             Relative: Path.GetRelativePath(sourceRoot, file)
+                                 .Replace(Path.DirectorySeparatorChar, '/')))
+                         .OrderBy(item => item.Relative, StringComparer.Ordinal))
+            {
+                for (FileSystemInfo? item = new FileInfo(file); item is not null && item.FullName != sourceRoot;
+                     item = item is FileInfo current ? current.Directory : ((DirectoryInfo)item).Parent)
+                    if (item.LinkTarget is not null)
+                        throw new InvalidOperationException("Source bundle artifacts must not traverse symbolic links.");
+                byte[] reviewedBytes = File.ReadAllBytes(file);
+                string digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(reviewedBytes))
+                    .ToLowerInvariant();
+                inventory.Append(relative).Append('\0').Append(digest).Append('\n');
+                string stagedFile = Path.Combine(stagingRoot, relative.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(stagedFile)!);
+                File.WriteAllBytes(stagedFile, reviewedBytes);
+            }
+            string actual = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    Encoding.UTF8.GetBytes(inventory.ToString())))
+                .ToLowerInvariant();
+            if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Source bundle tree integrity check failed.");
+            return stagingRoot;
+        }
+        catch
+        {
+            Directory.Delete(stagingRoot, recursive: true);
+            throw;
+        }
     }
 
     private static void AddProjectReference(string hostProject, string moduleProject)

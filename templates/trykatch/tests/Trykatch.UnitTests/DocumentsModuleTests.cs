@@ -44,15 +44,16 @@ public sealed class DocumentsModuleTests
     public async Task ApplicationUseCaseRepeatsManageAuthorizationBeforeWriting()
     {
         RecordingModuleData data = new();
-        DocumentsUseCases useCases = new(data, new DeniedAuthorizer(), TimeProvider.System);
+        RecordingDocumentStore store = new();
+        DocumentsUseCases useCases = new(store, data, new DeniedAuthorizer(), TimeProvider.System);
 
         DocumentOperationResult<DocumentDto> result = await useCases.CreateAsync(
             new("Blocked", "content"), CancellationToken.None);
 
         result.IsSuccess.ShouldBeFalse();
         result.Code.ShouldBe("forbidden");
-        data.Added.ShouldBe(0);
-        data.Saves.ShouldBe(0);
+        store.Added.ShouldBe(0);
+        store.Saves.ShouldBe(0);
     }
 
     private sealed class DeniedAuthorizer : IModulePermissionAuthorizer
@@ -65,14 +66,37 @@ public sealed class DocumentsModuleTests
     {
         public Guid OrganizationId { get; } = Guid.CreateVersion7();
         public Guid ActorId { get; } = Guid.CreateVersion7();
-        public int Added { get; private set; }
-        public int Saves { get; private set; }
         public IQueryable<TEntity> Query<TEntity>() where TEntity : class => Array.Empty<TEntity>().AsQueryable();
-        public void Add<TEntity>(TEntity entity) where TEntity : class => Added++;
+        public void Add<TEntity>(TEntity entity) where TEntity : class { }
         public void Remove<TEntity>(TEntity entity) where TEntity : class { }
         public void RecordAudit(string action, string subjectType, string subjectId, string displayName,
             IReadOnlyDictionary<string, string?>? details = null) { }
         public void Enqueue<TMessage>(TMessage message) where TMessage : notnull { }
-        public Task SaveChangesAsync(CancellationToken cancellationToken) { Saves++; return Task.CompletedTask; }
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingDocumentStore : IDocumentStore
+    {
+        public int Added { get; private set; }
+        public int Saves { get; private set; }
+
+        public Task<IReadOnlyList<DocumentRecord>> ListAsync(
+            DocumentQueryScope scope,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<DocumentRecord>>([]);
+
+        public Task<DocumentRecord?> FindAsync(
+            Guid id,
+            bool includeRecoverable,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<DocumentRecord?>(null);
+
+        public void Add(DocumentRecord document) => Added++;
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            Saves++;
+            return Task.CompletedTask;
+        }
     }
 }

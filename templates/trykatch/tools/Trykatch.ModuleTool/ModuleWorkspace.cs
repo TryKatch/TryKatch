@@ -1097,6 +1097,8 @@ public sealed class ModuleArtifacts
 {
     public string DotnetProject { get; init; } = string.Empty;
     public string WebPackage { get; init; } = string.Empty;
+    public string SourceRoot { get; init; } = string.Empty;
+    public string SourceTreeSha256 { get; init; } = string.Empty;
 }
 
 public sealed class ModuleDistribution

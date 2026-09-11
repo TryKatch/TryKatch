@@ -2,6 +2,9 @@ using Trykatch.ModuleTool;
 using Trykatch.Modules;
 using Shouldly;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Trykatch.UnitTests;
 
@@ -544,6 +547,87 @@ public sealed class ModuleWorkspaceTests
             .ShouldContain("\"kind\": \"workspace\"");
     }
 
+    [TestMethod]
+    public void BuiltCompositePackagesCompleteThePackageLifecycle()
+    {
+        string? packageRoot = Environment.GetEnvironmentVariable("TRYKATCH_ACTUAL_MODULE_PACKAGES");
+        string? moduleSourceRoot = Environment.GetEnvironmentVariable("TRYKATCH_ACTUAL_MODULE_SOURCE_ROOT");
+        if (string.IsNullOrWhiteSpace(packageRoot) || string.IsNullOrWhiteSpace(moduleSourceRoot))
+            return; // The package CI supplies two freshly packed versions of every discovered module.
+
+        string versionOneRoot = Path.Combine(packageRoot, "1.0.0");
+        string versionTwoRoot = Path.Combine(packageRoot, "1.1.0");
+        string[] versionOnePackages = Directory.GetFiles(versionOneRoot, "Trykatch.Modules.*.1.0.0.nupkg")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        versionOnePackages.Length.ShouldBeGreaterThan(0);
+
+        foreach (string versionOnePackage in versionOnePackages)
+        {
+            string packageId = Path.GetFileName(versionOnePackage)[..^".1.0.0.nupkg".Length];
+            string moduleName = packageId["Trykatch.Modules.".Length..];
+            string moduleId = moduleName.ToLowerInvariant();
+            string versionTwoPackage = Path.Combine(versionTwoRoot, $"{packageId}.1.1.0.nupkg");
+            File.Exists(versionTwoPackage).ShouldBeTrue($"upgrade package missing for {moduleName}");
+
+            using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+            if (moduleId == "projects")
+                temporary.RenameBaselineProjectsModule();
+            ActualPackageLifecycleCommandRunner runner = new();
+            ModuleWorkspace workspace = new(temporary.Root, runner);
+            workspace.Generate().IsHealthy.ShouldBeTrue();
+            string versionOneManifest = temporary.WriteActualPackageManifest(
+                moduleId, moduleName, "1.0.0", versionOnePackage, moduleSourceRoot);
+
+            ModuleDoctorReport installed = workspace.InstallPackage(versionOneManifest, Sha256(versionOneManifest));
+
+            installed.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, installed.Errors));
+            installed.Modules.Single(module => module.Id == moduleId).Version.ShouldBe("1.0.0");
+
+            string versionTwoManifest = temporary.WriteActualPackageManifest(
+                moduleId, moduleName, "1.1.0", versionTwoPackage, moduleSourceRoot);
+            ModuleDoctorReport upgraded = workspace.UpgradePackage(versionTwoManifest, Sha256(versionTwoManifest));
+
+            upgraded.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, upgraded.Errors));
+            upgraded.Modules.Single(module => module.Id == moduleId).Version.ShouldBe("1.1.0");
+
+            string sourceBundle = temporary.WriteCompositeSourceBundle(moduleId, moduleName, "1.1.0", moduleSourceRoot);
+            string sourceManifest = Path.Combine(sourceBundle, "try" + "katch.module.json");
+            string guardedSource = Directory.GetFiles(
+                Path.Combine(sourceBundle, "src", "Modules", moduleName),
+                "*.csproj",
+                SearchOption.AllDirectories)[0];
+            byte[] reviewedSource = File.ReadAllBytes(guardedSource);
+            File.AppendAllText(guardedSource, "<!-- tampered -->");
+            Should.Throw<InvalidOperationException>(() =>
+                workspace.EjectPackage(moduleId, sourceBundle, Sha256(sourceManifest)))
+                .Message.ShouldContain("tree integrity");
+            File.WriteAllBytes(guardedSource, reviewedSource);
+            ModuleDoctorReport ejected = workspace.EjectPackage(moduleId, sourceBundle, Sha256(sourceManifest));
+
+            ejected.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, ejected.Errors));
+            ejected.Modules.Single(module => module.Id == moduleId).ManifestPath.ShouldContain("src/Modules");
+            string ejectedRoot = Path.Combine(temporary.Root, "src", "Modules", moduleName);
+            Directory.GetFiles(ejectedRoot, "*.csproj", SearchOption.AllDirectories).Length.ShouldBe(5);
+            File.ReadAllText(Path.Combine(ejectedRoot, "trykatch.module.json"))
+                .ShouldContain(moduleId == "documents" ? "\"requires\": [\n    \"projects\"" : "\"requires\": []");
+
+            using TemporaryModuleWorkspace unregisterTemporary = TemporaryModuleWorkspace.Create();
+            if (moduleId == "projects")
+                unregisterTemporary.RenameBaselineProjectsModule();
+            ModuleWorkspace unregisterWorkspace = new(unregisterTemporary.Root, new ActualPackageLifecycleCommandRunner());
+            unregisterWorkspace.Generate().IsHealthy.ShouldBeTrue();
+            string unregisterManifest = unregisterTemporary.WriteActualPackageManifest(
+                moduleId, moduleName, "1.0.0", versionOnePackage, moduleSourceRoot);
+            unregisterWorkspace.InstallPackage(unregisterManifest, Sha256(unregisterManifest)).IsHealthy.ShouldBeTrue();
+
+            ModuleDoctorReport unregistered = unregisterWorkspace.Unregister(moduleId);
+
+            unregistered.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, unregistered.Errors));
+            unregistered.Modules.ShouldNotContain(module => module.Id == moduleId);
+        }
+    }
+
     private static string Sha256(string path) =>
         Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
 
@@ -580,6 +664,17 @@ public sealed class ModuleWorkspaceTests
                 "<Project><ItemGroup><PackageReference Include=\"Existing.Package\" /></ItemGroup></Project>");
             File.WriteAllText(Path.Combine(root, "web/apps/web/package.json"),
                 "{\n  \"dependencies\": {}\n}\n");
+            File.WriteAllText(Path.Combine(root, "web/package.json"),
+                "{ \"name\": \"trykatch-module-lifecycle\", \"private\": true }\n");
+            File.WriteAllText(Path.Combine(root, "web/pnpm-workspace.yaml"), """
+                packages:
+                  - apps/*
+                  - packages/*
+                  - ../src/Modules/*/Web
+                """);
+            WriteWorkspacePackage(root, "api-client", "@trykatch/api-client");
+            WriteWorkspacePackage(root, "module-sdk", "@trykatch/module-sdk");
+            WriteWorkspacePackage(root, "ui", "@trykatch/ui");
             File.WriteAllText(Path.Combine(root, "web/pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
             File.WriteAllText(Path.Combine(root, "NuGet.Config"), """
                 <configuration>
@@ -641,6 +736,14 @@ public sealed class ModuleWorkspaceTests
             return new(root);
         }
 
+        private static void WriteWorkspacePackage(string root, string directory, string packageName)
+        {
+            string path = Path.Combine(root, "web", "packages", directory);
+            Directory.CreateDirectory(path);
+            File.WriteAllText(Path.Combine(path, "package.json"),
+                $"{{ \"name\": \"{packageName}\", \"version\": \"1.0.0\" }}\n");
+        }
+
         public string WritePackageManifest(string id, string version, string? invalidEvidence = null)
         {
             string path = Path.Combine(Root, $"{id}-{version}.package.json");
@@ -696,6 +799,153 @@ public sealed class ModuleWorkspaceTests
                 }
                 """);
             return path;
+        }
+
+        public void RenameBaselineProjectsModule()
+        {
+            string projectsManifest = Path.Combine(Root, "manifests/projects.json");
+            string foundationManifest = Path.Combine(Root, "manifests/foundation.json");
+            string manifest = File.ReadAllText(projectsManifest)
+                .Replace("\"id\": \"projects\"", "\"id\": \"foundation\"", StringComparison.Ordinal)
+                .Replace("\"name\": \"projects\"", "\"name\": \"foundation\"", StringComparison.Ordinal)
+                .Replace("\"path\": \"/projects\"", "\"path\": \"/foundation\"", StringComparison.Ordinal);
+            File.WriteAllText(foundationManifest, manifest);
+            File.Delete(projectsManifest);
+
+            string catalogPath = Path.Combine(Root, "try" + "katch.modules.json");
+            string catalog = File.ReadAllText(catalogPath)
+                .Replace("\"id\": \"projects\"", "\"id\": \"foundation\"", StringComparison.Ordinal)
+                .Replace("manifests/projects.json", "manifests/foundation.json", StringComparison.Ordinal);
+            File.WriteAllText(catalogPath, catalog);
+        }
+
+        public string WriteActualPackageManifest(
+            string id,
+            string moduleName,
+            string version,
+            string backendPackageSource,
+            string moduleSourceRoot)
+        {
+            string path = Path.Combine(Root, $"{id}-{version}.package.json");
+            string packageFile = $"{id}.{version}.nupkg";
+            string provenanceFile = $"{id}.{version}.provenance.json";
+            string sbomFile = $"{id}.{version}.spdx.json";
+            string dotnetPackageId = $"Trykatch.Modules.{moduleName}";
+            string frontendPackageId = $"@trykatch-modules/{id}";
+            SignedModuleTestArtifacts.Create(
+                Root,
+                id,
+                version,
+                dotnetPackageId: dotnetPackageId,
+                frontendPackageId: frontendPackageId,
+                backendPackageSource: backendPackageSource);
+            JsonObject manifest = ReadActualManifest(moduleSourceRoot, moduleName);
+            manifest["version"] = version;
+            manifest["description"] = "Actual composite package lifecycle verification.";
+            manifest["distribution"] = new JsonObject
+            {
+                ["kind"] = "package",
+                ["license"] = "Apache-2.0",
+                ["dotnet"] = new JsonObject
+                {
+                    ["id"] = dotnetPackageId,
+                    ["version"] = version,
+                    ["packageFile"] = packageFile,
+                    ["sha256"] = Sha256(Path.Combine(Root, packageFile))
+                },
+                ["web"] = new JsonObject
+                {
+                    ["id"] = frontendPackageId,
+                    ["version"] = version,
+                    ["packageFile"] = $"{id}.{version}.tgz",
+                    ["sha256"] = Sha256(Path.Combine(Root, $"{id}.{version}.tgz"))
+                },
+                ["supplyChain"] = new JsonObject
+                {
+                    ["provenanceFile"] = provenanceFile,
+                    ["provenanceSha256"] = Sha256(Path.Combine(Root, provenanceFile)),
+                    ["provenanceSignatureFile"] = $"{id}.{version}.provenance.sig",
+                    ["sbomFile"] = sbomFile,
+                    ["sbomSha256"] = Sha256(Path.Combine(Root, sbomFile))
+                }
+            };
+            manifest["artifacts"] = new JsonObject { ["dotnetProject"] = "", ["webPackage"] = "" };
+            manifest["entrypoints"]!["web"]!["specifier"] = frontendPackageId;
+            File.WriteAllText(path, manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n");
+            return path;
+        }
+
+        public string WriteCompositeSourceBundle(
+            string id,
+            string moduleName,
+            string version,
+            string moduleSourceRoot)
+        {
+            string bundle = Path.Combine(Root, $"bundle-{id}-{version}");
+            string sourceRoot = $"src/Modules/{moduleName}";
+            string source = Path.Combine(moduleSourceRoot, moduleName);
+            string target = Path.Combine(bundle, sourceRoot);
+            CopyDirectory(source, target);
+            JsonObject manifest = ReadActualManifest(moduleSourceRoot, moduleName);
+            manifest["version"] = version;
+            manifest["description"] = "Reviewed actual five-project ejection source.";
+            manifest["distribution"] = new JsonObject { ["kind"] = "workspace", ["license"] = "Apache-2.0" };
+            JsonObject artifacts = manifest["artifacts"]!.AsObject();
+            artifacts["dotnetProject"] = artifacts["dotnetProject"]!.GetValue<string>()
+                .Replace($"src/Modules/{moduleName}", sourceRoot, StringComparison.Ordinal);
+            artifacts["webPackage"] = artifacts["webPackage"]!.GetValue<string>()
+                .Replace($"src/Modules/{moduleName}", sourceRoot, StringComparison.Ordinal);
+            artifacts["sourceRoot"] = sourceRoot;
+            artifacts["sourceTreeSha256"] = SourceTreeSha256(target);
+            File.WriteAllText(
+                Path.Combine(bundle, "try" + "katch.module.json"),
+                manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n");
+            return bundle;
+        }
+
+        private static JsonObject ReadActualManifest(string moduleSourceRoot, string moduleName) =>
+            JsonNode.Parse(File.ReadAllText(Path.Combine(moduleSourceRoot, moduleName, "try" + "katch.module.json")))!
+                .AsObject();
+
+        private static void CopyDirectory(string source, string destination)
+        {
+            static bool IsBuildOutput(string path) => path
+                .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(segment => segment is "bin" or "obj");
+
+            foreach (string directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories)
+                         .Where(directory => !IsBuildOutput(Path.GetRelativePath(source, directory))))
+                Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+            Directory.CreateDirectory(destination);
+            foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)
+                         .Where(file => !IsBuildOutput(Path.GetRelativePath(source, file)))
+                         .Where(file => !string.Equals(
+                             Path.GetFileName(file),
+                             "try" + "katch.module.json",
+                             StringComparison.Ordinal)))
+            {
+                string target = Path.Combine(destination, Path.GetRelativePath(source, file));
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target);
+            }
+        }
+
+        private static string SourceTreeSha256(string sourceRoot)
+        {
+            StringBuilder inventory = new();
+            foreach ((string file, string relative) in Directory
+                         .EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
+                         .Select(file => (
+                             File: file,
+                             Relative: Path.GetRelativePath(sourceRoot, file)
+                                 .Replace(Path.DirectorySeparatorChar, '/')))
+                         .OrderBy(item => item.Relative, StringComparer.Ordinal))
+            {
+                string digest = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))).ToLowerInvariant();
+                inventory.Append(relative).Append('\0').Append(digest).Append('\n');
+            }
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(inventory.ToString())))
+                .ToLowerInvariant();
         }
 
         public string WriteSourceBundle(string id, string version)
@@ -862,6 +1112,21 @@ public sealed class ModuleWorkspaceTests
             }
             return new(0, "ok");
         }
+    }
+
+    private sealed class ActualPackageLifecycleCommandRunner : IWorkspaceCommandRunner
+    {
+        private readonly RecordingCommandRunner fallback = new();
+
+        public WorkspaceCommandResult Run(
+            string fileName,
+            IReadOnlyList<string> arguments,
+            string workingDirectory) =>
+            string.Equals(fileName, "pnpm", StringComparison.Ordinal)
+            && arguments.Count > 0
+            && string.Equals(arguments[0], "install", StringComparison.Ordinal)
+                ? new ProcessWorkspaceCommandRunner().Run(fileName, arguments, workingDirectory)
+                : fallback.Run(fileName, arguments, workingDirectory);
     }
 
     private sealed class ArtifactReplacementRunner(string backend, string frontend) : IWorkspaceCommandRunner

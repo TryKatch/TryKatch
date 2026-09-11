@@ -44,8 +44,8 @@ assert_scope 'templates/trykatch/web/apps/web/nginx.conf' web true
 assert_scope 'templates/trykatch/web/apps/web/nginx.conf' deployment true
 assert_scope 'templates/trykatch/web/apps/web/nginx.conf' qualification true
 assert_scope 'templates/trykatch/compose.yml' qualification true
-assert_scope 'templates/trykatch/deploy/postgres/init/10-create-migrator.sh' deployment true
-assert_scope 'templates/trykatch/deploy/postgres/init/10-create-migrator.sh' qualification true
+assert_scope 'templates/trykatch/deploy/postgres/init/10-create-migrator.sql' deployment true
+assert_scope 'templates/trykatch/deploy/postgres/init/10-create-migrator.sql' qualification true
 assert_scope 'templates/trykatch/scripts/test-proxy-headers.sh' deployment true
 assert_scope 'templates/trykatch/scripts/test-proxy-headers.sh' web true
 assert_scope 'templates/trykatch/scripts/test-proxy-headers.sh' qualification true

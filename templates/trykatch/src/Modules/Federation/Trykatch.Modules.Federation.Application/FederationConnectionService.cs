@@ -1,51 +1,47 @@
-using System.Net;
-using System.Net.Sockets;
-using System.Text.Json;
-using Microsoft.Extensions.Options;
 using Trykatch.Modules.Federation.Domain;
 
 namespace Trykatch.Modules.Federation.Application;
 
 public sealed class FederationConnectionService(
     IFederationConnectionStore store,
-    IHttpClientFactory httpClientFactory,
-    IOptions<FederationSecurityOptions> securityOptions,
+    IFederationProviderProbe providerProbe,
     TimeProvider timeProvider)
 {
-    private const int MaximumDiscoveryBytes = 256 * 1024;
+    public async Task<IReadOnlyList<FederationConnectionDto>> ListAsync(CancellationToken cancellationToken) =>
+        (await store.ListAsync(cancellationToken)).Select(ToDto).ToArray();
 
-    public async Task<FederationOperationResult<FederationConnection>> CreateAsync(
+    public async Task<FederationOperationResult<FederationConnectionDto>> CreateAsync(
         SaveFederationConnectionRequest request,
         CancellationToken cancellationToken)
     {
         FederationOperationResult<NormalizedConnection> validation = await ValidateAsync(request, requireSecret: true, cancellationToken);
         if (validation.Value is null)
-            return FederationOperationResult.Failure<FederationConnection>(validation.Code!, validation.Error!);
+            return FederationOperationResult.Failure<FederationConnectionDto>(validation.Code!, validation.Error!);
         NormalizedConnection value = validation.Value;
         FederationConnection? created = await store.CreateAsync(
             Guid.NewGuid(), value.Name, value.Issuer, value.ClientId, value.ClientSecret!, cancellationToken);
         return created is null
-            ? FederationOperationResult.Failure<FederationConnection>("conflict", "That issuer and client ID are already configured.")
-            : FederationOperationResult.Success<FederationConnection>(created);
+            ? FederationOperationResult.Failure<FederationConnectionDto>("conflict", "That issuer and client ID are already configured.")
+            : FederationOperationResult.Success(ToDto(created));
     }
 
-    public async Task<FederationOperationResult<FederationConnection>> UpdateAsync(
+    public async Task<FederationOperationResult<FederationConnectionDto>> UpdateAsync(
         Guid id,
         SaveFederationConnectionRequest request,
         CancellationToken cancellationToken)
     {
         StoredFederationConnection? current = await store.GetAsync(id, cancellationToken);
         if (current is null)
-            return FederationOperationResult.Failure<FederationConnection>("not_found", "The SSO connection was not found.");
+            return FederationOperationResult.Failure<FederationConnectionDto>("not_found", "The SSO connection was not found.");
         FederationOperationResult<NormalizedConnection> validation = await ValidateAsync(request, requireSecret: false, cancellationToken);
         if (validation.Value is null)
-            return FederationOperationResult.Failure<FederationConnection>(validation.Code!, validation.Error!);
+            return FederationOperationResult.Failure<FederationConnectionDto>(validation.Code!, validation.Error!);
         NormalizedConnection value = validation.Value;
         FederationConnection? updated = await store.UpdateAsync(
             current, value.Name, value.Issuer, value.ClientId, value.ClientSecret, cancellationToken);
         return updated is null
-            ? FederationOperationResult.Failure<FederationConnection>("conflict", "That issuer and client ID are already configured.")
-            : FederationOperationResult.Success<FederationConnection>(updated);
+            ? FederationOperationResult.Failure<FederationConnectionDto>("conflict", "That issuer and client ID are already configured.")
+            : FederationOperationResult.Success(ToDto(updated));
     }
 
     public async Task<FederationOperationResult<FederationTestResult>> TestAsync(Guid id, CancellationToken cancellationToken)
@@ -55,49 +51,28 @@ public sealed class FederationConnectionService(
             return FederationOperationResult.Failure<FederationTestResult>("not_found", "The SSO connection was not found.");
 
         DateTimeOffset testedAt = timeProvider.GetUtcNow();
-        try
-        {
-            Uri issuer = await ValidateIssuerAsync(connection.Public.Issuer, cancellationToken);
-            Uri discovery = new(issuer.AbsoluteUri.TrimEnd('/') + "/.well-known/openid-configuration");
-            using HttpRequestMessage request = new(HttpMethod.Get, discovery);
-            using HttpResponseMessage response = await httpClientFactory.CreateClient("trykatch-federation-discovery")
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            response.EnsureSuccessStatusCode();
-            byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-            if (bytes.Length > MaximumDiscoveryBytes)
-                throw new InvalidOperationException("Discovery response exceeds the 256 KiB safety limit.");
-            using JsonDocument document = JsonDocument.Parse(bytes);
-            string discoveredIssuer = RequiredAbsoluteUri(document.RootElement, "issuer").AbsoluteUri.TrimEnd('/');
-            if (!string.Equals(discoveredIssuer, issuer.AbsoluteUri.TrimEnd('/'), StringComparison.Ordinal))
-                throw new InvalidOperationException("Discovery issuer does not exactly match the configured issuer.");
-            _ = RequiredAbsoluteUri(document.RootElement, "authorization_endpoint");
-            _ = RequiredAbsoluteUri(document.RootElement, "token_endpoint");
-            _ = RequiredAbsoluteUri(document.RootElement, "jwks_uri");
-            const string message = "OIDC discovery and issuer binding passed.";
-            await store.MarkTestedAsync(connection, true, message, cancellationToken);
-            return FederationOperationResult.Success<FederationTestResult>(new(true, message, testedAt));
-        }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidOperationException or SocketException)
-        {
-            string message = $"Provider test failed: {exception.Message}";
-            await store.MarkTestedAsync(connection, false, message, cancellationToken);
-            return FederationOperationResult.Failure<FederationTestResult>("provider_unavailable", message);
-        }
+        FederationProviderProbeResult probe = await providerProbe.TestDiscoveryAsync(
+            connection.Public.Issuer,
+            cancellationToken);
+        await store.MarkTestedAsync(connection, probe.IsSuccess, probe.Message, cancellationToken);
+        return probe.IsSuccess
+            ? FederationOperationResult.Success(new FederationTestResult(true, probe.Message, testedAt))
+            : FederationOperationResult.Failure<FederationTestResult>("provider_unavailable", probe.Message);
     }
 
-    public async Task<FederationOperationResult<FederationConnection>> SetEnabledAsync(
+    public async Task<FederationOperationResult<FederationConnectionDto>> SetEnabledAsync(
         Guid id,
         bool enabled,
         CancellationToken cancellationToken)
     {
         StoredFederationConnection? current = await store.GetAsync(id, cancellationToken);
         if (current is null)
-            return FederationOperationResult.Failure<FederationConnection>("not_found", "The SSO connection was not found.");
+            return FederationOperationResult.Failure<FederationConnectionDto>("not_found", "The SSO connection was not found.");
         if (!await store.SetEnabledAsync(current, enabled, cancellationToken))
-            return FederationOperationResult.Failure<FederationConnection>(
+            return FederationOperationResult.Failure<FederationConnectionDto>(
                 "not_tested",
                 "The current configuration must pass a provider test before it can be enabled.");
-        return FederationOperationResult.Success<FederationConnection>((await store.GetAsync(id, cancellationToken))!.Public);
+        return FederationOperationResult.Success(ToDto((await store.GetAsync(id, cancellationToken))!.Public));
     }
 
     public async Task<FederationOperationResult<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken)
@@ -125,10 +100,12 @@ public sealed class FederationConnectionService(
             return FederationOperationResult.Failure<NormalizedConnection>("validation", "The client secret exceeds the supported length.");
         try
         {
-            Uri issuer = await ValidateIssuerAsync(request.Issuer, cancellationToken);
+            FederationProviderProbeResult issuer = await providerProbe.ValidateIssuerAsync(request.Issuer, cancellationToken);
+            if (!issuer.IsSuccess || issuer.NormalizedIssuer is null)
+                return FederationOperationResult.Failure<NormalizedConnection>("validation", issuer.Message);
             return FederationOperationResult.Success<NormalizedConnection>(new(
                 name,
-                issuer.AbsoluteUri.TrimEnd('/'),
+                issuer.NormalizedIssuer,
                 clientId,
                 string.IsNullOrWhiteSpace(request.ClientSecret) ? null : request.ClientSecret));
         }
@@ -138,51 +115,46 @@ public sealed class FederationConnectionService(
         }
     }
 
-    private async Task<Uri> ValidateIssuerAsync(string value, CancellationToken cancellationToken)
-    {
-        if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out Uri? issuer) || !string.IsNullOrEmpty(issuer.Query) || !string.IsNullOrEmpty(issuer.Fragment))
-            throw new InvalidOperationException("Issuer must be an absolute URL without a query or fragment.");
-        bool insecureLoopback = issuer.Scheme == Uri.UriSchemeHttp
-            && securityOptions.Value.AllowInsecureLoopbackIssuer
-            && (issuer.IsLoopback || string.Equals(issuer.Host, "host.docker.internal", StringComparison.OrdinalIgnoreCase));
-        if (issuer.Scheme != Uri.UriSchemeHttps && !insecureLoopback)
-            throw new InvalidOperationException("Issuer must use HTTPS. Only an explicit local loopback exception is supported.");
-
-        IPAddress[] addresses = await Dns.GetHostAddressesAsync(issuer.DnsSafeHost, cancellationToken);
-        if (!insecureLoopback && addresses.Any(IsPrivateOrMetadataAddress))
-            throw new InvalidOperationException("Issuer resolves to a private, loopback, link-local, or metadata network address.");
-        return issuer;
-    }
-
-    private static bool IsPrivateOrMetadataAddress(IPAddress address)
-    {
-        if (IPAddress.IsLoopback(address) || address.IsIPv6LinkLocal || address.IsIPv6SiteLocal)
-            return true;
-        if (address.AddressFamily != AddressFamily.InterNetwork)
-            return false;
-        byte[] bytes = address.GetAddressBytes();
-        return bytes[0] == 10
-            || bytes[0] == 127
-            || bytes[0] == 169 && bytes[1] == 254
-            || bytes[0] == 172 && bytes[1] is >= 16 and <= 31
-            || bytes[0] == 192 && bytes[1] == 168
-            || bytes[0] == 100 && bytes[1] is >= 64 and <= 127;
-    }
-
-    private static Uri RequiredAbsoluteUri(JsonElement root, string property)
-    {
-        if (!root.TryGetProperty(property, out JsonElement value)
-            || !Uri.TryCreate(value.GetString(), UriKind.Absolute, out Uri? uri))
-            throw new InvalidOperationException($"Discovery document is missing a valid '{property}'.");
-        return uri;
-    }
-
     private sealed record NormalizedConnection(string Name, string Issuer, string ClientId, string? ClientSecret);
+
+    private static FederationConnectionDto ToDto(FederationConnection connection) => new(
+        connection.Id,
+        connection.Name,
+        connection.Issuer,
+        connection.ClientId,
+        connection.SecretConfigured,
+        connection.Enabled,
+        connection.LastTestedAt,
+        connection.LastTestResult,
+        connection.UpdatedAt);
 }
 
-public sealed class FederationSecurityOptions
+public sealed record SaveFederationConnectionRequest(
+    string Name,
+    string Issuer,
+    string ClientId,
+    string? ClientSecret);
+
+public sealed record FederationConnectionDto(
+    Guid Id,
+    string Name,
+    string Issuer,
+    string ClientId,
+    bool SecretConfigured,
+    bool Enabled,
+    DateTimeOffset? LastTestedAt,
+    string? LastTestResult,
+    DateTimeOffset UpdatedAt);
+
+public sealed record FederationTestResult(bool Successful, string Message, DateTimeOffset TestedAt);
+
+public sealed record FederationProviderProbeResult(bool IsSuccess, string? NormalizedIssuer, string Message);
+
+/// <summary>External OpenID Connect validation seam implemented by Infrastructure.</summary>
+public interface IFederationProviderProbe
 {
-    public bool AllowInsecureLoopbackIssuer { get; init; }
+    Task<FederationProviderProbeResult> ValidateIssuerAsync(string issuer, CancellationToken cancellationToken);
+    Task<FederationProviderProbeResult> TestDiscoveryAsync(string normalizedIssuer, CancellationToken cancellationToken);
 }
 
 public sealed record StoredFederationConnection(

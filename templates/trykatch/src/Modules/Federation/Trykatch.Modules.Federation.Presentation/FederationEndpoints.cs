@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Trykatch.Modules.AspNetCore;
 using Trykatch.Modules.Federation.Application;
-using Trykatch.Modules.Federation.Domain;
 
 namespace Trykatch.Modules.Federation.Presentation;
 
@@ -19,8 +18,8 @@ public sealed class FederationEndpoints : IPlatformEndpointContributor
     public void MapEndpoints(RouteGroupBuilder platformApi)
     {
         RouteGroupBuilder group = platformApi.MapGroup("/federation/connections");
-        group.MapGet("/", async (IFederationConnectionStore store, CancellationToken cancellationToken) =>
-                Results.Ok(await store.ListAsync(cancellationToken)))
+        group.MapGet("/", async (FederationConnectionService service, CancellationToken cancellationToken) =>
+                Results.Ok(await service.ListAsync(cancellationToken)))
             .WithName("Federation_ListConnections").WithTags("Federation");
         group.MapPost("/", CreateAsync).RequireAuthorization($"platform-permission:{ManagePermission}")
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true)).WithName("Federation_CreateConnection").WithTags("Federation");
@@ -42,7 +41,7 @@ public sealed class FederationEndpoints : IPlatformEndpointContributor
 
     private static async Task<IResult> CreateAsync(SaveFederationConnectionRequest request, FederationConnectionService service, CancellationToken cancellationToken)
     {
-        FederationOperationResult<FederationConnection> result = await service.CreateAsync(request, cancellationToken);
+        FederationOperationResult<FederationConnectionDto> result = await service.CreateAsync(request, cancellationToken);
         return ToResult(result, value => Results.Created($"/api/v1/platform/federation/connections/{value.Id}", value));
     }
 
@@ -56,7 +55,7 @@ public sealed class FederationEndpoints : IPlatformEndpointContributor
         ToResult(await service.DeleteAsync(id, cancellationToken), _ => Results.NoContent());
 
     private static IResult ToResult<T>(FederationOperationResult<T> result, Func<T, IResult> success) =>
-        result.Value is not null
+        result.Code is null && result.Value is not null
             ? success(result.Value)
             : Results.Problem(
                 statusCode: result.Code switch
