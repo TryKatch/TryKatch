@@ -199,10 +199,24 @@ dotnet run --launch-profile https --project src/API/Horizon.AppHost/Horizon.AppH
   <TabItem label="Frontend uniquement">
     Le frontend peut s’exécuter dans un second terminal lorsqu’une API est déjà disponible. Arrêtez d’abord la ressource Aspire **web** pour éviter un conflit de port, copiez l’URL HTTPS de la ressource **api**, puis exécutez :
 
+    Installez d’abord les dépendances de l’espace de travail :
+
     ```bash
     cd web
     corepack pnpm install --frozen-lockfile
+    ```
+
+    Sous macOS ou Linux (Bash/Zsh) :
+
+    ```bash
     services__api__https__0=https://localhost:7240 corepack pnpm dev
+    ```
+
+    Sous Windows PowerShell :
+
+    ```powershell
+    $env:services__api__https__0 = 'https://localhost:7240'
+    corepack pnpm dev
     ```
 
     Remplacez `https://localhost:7240` par l’URL HTTPS de l’API affichée dans votre tableau de bord Aspire. L’application React s’ouvre à l’URL affichée par Vite, généralement `http://localhost:5173`.

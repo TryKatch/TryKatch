@@ -200,10 +200,24 @@ dotnet run --launch-profile https --project src/API/Horizon.AppHost/Horizon.AppH
   <TabItem label="Frontend only">
     The frontend can run in a second terminal while an API is already available. Stop the Aspire **web** resource first to avoid a port conflict, copy the API HTTPS URL shown for the **api** resource, then run:
 
+    First install the workspace dependencies:
+
     ```bash
     cd web
     corepack pnpm install --frozen-lockfile
+    ```
+
+    On macOS or Linux (Bash/Zsh):
+
+    ```bash
     services__api__https__0=https://localhost:7240 corepack pnpm dev
+    ```
+
+    On Windows PowerShell:
+
+    ```powershell
+    $env:services__api__https__0 = 'https://localhost:7240'
+    corepack pnpm dev
     ```
 
     Replace `https://localhost:7240` with the API HTTPS URL shown by your Aspire dashboard. The React application opens at the URL printed by Vite, normally `http://localhost:5173`.
