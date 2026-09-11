@@ -144,9 +144,17 @@ trykatch module help
 
 `trykatch help` présente les choix de génération d’application. `trykatch start --help` documente le démarrage. `trykatch template help` documente l’installation, la mise à jour et la suppression du modèle. `trykatch module help` répertorie toutes les commandes prises en charge pour le cycle de vie des modules.
 
-## Démarrer l’application
+## Exécuter le backend et le frontend
 
-Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seul — afin que PostgreSQL, les migrations, les identifiants d’exécution, l’API, React, OpenTelemetry et les services d’observabilité démarrent ensemble.
+Gardez Docker actif. Depuis la racine de l’application générée, cette commande unique démarre **à la fois le backend ASP.NET Core et le frontend React**, avec PostgreSQL, les migrations, OpenTelemetry et les services d’observabilité locaux :
+
+```bash
+trykatch start
+```
+
+Démarrez toujours l’AppHost — jamais le projet API seul — car Aspire fournit la base de données et les identifiants d’exécution requis par le backend.
+
+### Choisir comment démarrer l’application complète
 
 <Tabs syncKey="start-method">
   <TabItem label="CLI" icon="terminal">
@@ -161,14 +169,45 @@ Gardez Docker actif. Démarrez toujours l’AppHost — jamais le projet API seu
   <TabItem label="Rider">
     Ouvrez le fichier `Horizon.slnx` généré et laissez Rider restaurer la solution. Sélectionnez **`Horizon.AppHost: https`** dans les configurations d’exécution, puis choisissez **Run** ou **Debug**.
 
-    Si Rider n’a pas créé la configuration, faites un clic droit sur `src/Horizon.AppHost/Horizon.AppHost.csproj`, puis choisissez **Run 'Horizon.AppHost'** une première fois.
+    Si Rider n’a pas créé la configuration, faites un clic droit sur `src/API/Horizon.AppHost/Horizon.AppHost.csproj`, puis choisissez **Run 'Horizon.AppHost'** une première fois.
   </TabItem>
   <TabItem label="Visual Studio">
     Ouvrez `Horizon.slnx`. Dans l’Explorateur de solutions, faites un clic droit sur **Horizon.AppHost**, choisissez **Définir comme projet de démarrage**, sélectionnez le profil **https**, puis appuyez sur **F5** ou choisissez **Démarrer**.
   </TabItem>
 </Tabs>
 
-La commande .NET directe équivalente est `dotnet run --launch-profile https --project src/Horizon.AppHost/Horizon.AppHost.csproj`.
+La commande .NET directe équivalente est :
+
+```bash
+dotnet run --launch-profile https --project src/API/Horizon.AppHost/Horizon.AppHost.csproj
+```
+
+### Exécuter une seule couche
+
+<Tabs syncKey="application-layer">
+  <TabItem label="Backend uniquement">
+    Pour un produit sans frontend, générez-le sans React, puis démarrez-le normalement :
+
+    ```bash
+    trykatch new Horizon --ui none
+    cd Horizon
+    trykatch start
+    ```
+
+    Dans une application React existante, exécutez `trykatch start`, attendez que la ressource **api** soit saine, puis arrêtez uniquement la ressource **web** depuis le tableau de bord Aspire. PostgreSQL, le migrateur, l’API et les ressources d’observabilité restent gérés par Aspire.
+  </TabItem>
+  <TabItem label="Frontend uniquement">
+    Le frontend peut s’exécuter dans un second terminal lorsqu’une API est déjà disponible. Arrêtez d’abord la ressource Aspire **web** pour éviter un conflit de port, copiez l’URL HTTPS de la ressource **api**, puis exécutez :
+
+    ```bash
+    cd web
+    corepack pnpm install --frozen-lockfile
+    services__api__https__0=https://localhost:7240 corepack pnpm dev
+    ```
+
+    Remplacez `https://localhost:7240` par l’URL HTTPS de l’API affichée dans votre tableau de bord Aspire. L’application React s’ouvre à l’URL affichée par Vite, généralement `http://localhost:5173`.
+  </TabItem>
+</Tabs>
 
 ## Examiner le backend
 

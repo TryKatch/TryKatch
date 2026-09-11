@@ -5,7 +5,7 @@ description: Configurez et qualifiez OpenTelemetry, le Collector, Grafana, Loki,
 
 ## Autorité de déploiement
 
-Utilisez `dotnet run --project src/Horizon.AppHost` pour le développement local et les tests. Le mode run d’AppHost/DCP n’est pas un orchestrateur de production et le tableau de bord Aspire reste local et éphémère. ServiceDefaults est déployé avec l’API. Le mode publish d’AppHost pourra alimenter une future CI, mais aucun publisher de production n’est configuré : les fichiers Compose versionnés restent l’autorité jusqu’à la comparaison et la qualification d’un autre adaptateur en staging.
+Utilisez `dotnet run --project src/API/Horizon.AppHost/Horizon.AppHost.csproj` pour le développement local et les tests. Le mode run d’AppHost/DCP n’est pas un orchestrateur de production et le tableau de bord Aspire reste local et éphémère. ServiceDefaults est déployé avec l’API. Le mode publish d’AppHost pourra alimenter une future CI, mais aucun publisher de production n’est configuré : les fichiers Compose versionnés restent l’autorité jusqu’à la comparaison et la qualification d’un autre adaptateur en staging.
 
 Avant Compose, remplacez les valeurs de `.env.example` et donnez à `TRYKATCH_RELEASE_VERSION` un identifiant de version immuable. Collector, Loki, Tempo et Prometheus restent sur le réseau Docker privé. Grafana écoute sur loopback et doit être placé derrière un accès HTTPS authentifié. Un déploiement backend seul doit interdire l’accès public à `/health/*` sur l’API publiée directement.
 

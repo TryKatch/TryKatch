@@ -127,6 +127,10 @@ generate_and_build() {
 
 generate_and_build Horizon
 test -d "$test_root/Horizon/web"
+test ! -e "$test_root/Horizon/.env.local"
+test ! -e "$test_root/Horizon/.idea"
+test ! -e "$test_root/Horizon/.vercel"
+test ! -e "$test_root/Horizon/output"
 test -f "$test_root/Horizon/.github/workflows/web.yml"
 test ! -e "$test_root/Horizon/compose.backend.yml"
 test ! -e "$test_root/Horizon/README.backend.md"
@@ -142,6 +146,8 @@ generate_and_build Acme.Tools-Portal --ui none
 generate_and_build Trykatch --ui none
 test ! -e "$test_root/Acme.Tools.Portal/web"
 test ! -e "$test_root/Acme.Tools.Portal/.github/workflows/web.yml"
+test ! -e "$test_root/Acme.Tools.Portal/.vercelignore"
+test ! -e "$test_root/Acme.Tools.Portal/vercel.json"
 test ! -e "$test_root/Acme.Tools.Portal/compose.backend.yml"
 test ! -e "$test_root/Acme.Tools.Portal/README.backend.md"
 test ! -e "$test_root/Acme.Tools.Portal/scripts/test-proxy-headers.sh"
