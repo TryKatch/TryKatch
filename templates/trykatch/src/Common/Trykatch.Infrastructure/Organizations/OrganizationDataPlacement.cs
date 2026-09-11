@@ -1,7 +1,7 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
-using System.Data;
 using Trykatch.Application.Organizations;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure.Persistence;
@@ -162,8 +162,8 @@ internal sealed class SharedPostgresDataPlacement(
             await using NpgsqlCommand command = new("""
                 SELECT 1;
                 INSERT INTO platform.outbox_messages
-                  ("Id", "Type", "Payload", "OccurredAt", "ProcessedAt", "Attempts", "LastError")
-                VALUES (@id, 'organization.placement.probe', '{}'::jsonb, now(), NULL, 0, NULL)
+                  ("Id", "Type", "Payload", "OccurredAt", "ProcessedAt", "Attempts", "LastErrorCode", "LastErrorType")
+                VALUES (@id, 'organization.placement.probe', '{}'::jsonb, now(), NULL, 0, NULL, NULL)
                 """, probe, transaction);
             command.Parameters.AddWithValue("id", Guid.CreateVersion7());
             await command.ExecuteNonQueryAsync(cancellationToken);

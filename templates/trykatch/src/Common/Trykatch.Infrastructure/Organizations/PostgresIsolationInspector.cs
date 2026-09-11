@@ -74,9 +74,10 @@ public static class PostgresIsolationInspector
         IReadOnlyList<SequenceInfo> sequences = await ReadSequencesAsync(connection, cancellationToken);
         IReadOnlyList<string> functions = await ReadUserFunctionsAsync(connection, cancellationToken);
         IReadOnlyList<string> schemas = await ReadUserSchemasAsync(connection, cancellationToken);
+        await InspectHostFunctionContractsAsync(connection, errors, cancellationToken);
         foreach ((RuntimeDatabaseRoleKind kind, string role) in roles)
         {
-            await InspectRoleAsync(connection, role, errors, cancellationToken);
+            await InspectRoleAsync(connection, role, kind, errors, cancellationToken);
             await InspectAccessAsync(connection, role, kind, declarations, relations.Keys, sequences, schemas, errors, cancellationToken);
         }
         foreach ((string relationName, HostPostgresPolicyContracts.Policy[] expected) in HostPostgresPolicyContracts.All)
@@ -146,7 +147,10 @@ public static class PostgresIsolationInspector
                 errors.Add($"User-schema sequence '{sequence.Relation}' is not owned by a declared relation.");
         }
         foreach (string function in functions)
-            errors.Add($"User-schema function '{function}' is not declared by the host.");
+        {
+            if (!HostPostgresFunctionContracts.All.Contains(function))
+                errors.Add($"User-schema function '{function}' is not declared by the host.");
+        }
 
         return new(errors);
     }
@@ -221,11 +225,28 @@ public static class PostgresIsolationInspector
             if (actual != expected)
                 errors.Add($"{kind} runtime '{runtimeRole}' {(actual ? "has forbidden" : "is missing required")} USAGE on schema '{schema}'.");
         }
+
+        await using NpgsqlCommand functionAccess = new("""
+            SELECT function_oid IS NOT NULL,
+                   COALESCE(has_function_privilege(@role, function_oid, 'EXECUTE'), false)
+            FROM (SELECT to_regprocedure(@function) AS function_oid) approved
+            """, connection);
+        functionAccess.Parameters.AddWithValue("role", runtimeRole);
+        functionAccess.Parameters.AddWithValue("function", HostPostgresFunctionContracts.RedactLegacyOutboxError);
+        await using NpgsqlDataReader functionReader = await functionAccess.ExecuteReaderAsync(cancellationToken);
+        await functionReader.ReadAsync(cancellationToken);
+        bool functionExists = functionReader.GetBoolean(0);
+        bool actualFunctionAccess = functionReader.GetBoolean(1);
+        bool expectedFunctionAccess = functionExists
+            && kind is (RuntimeDatabaseRoleKind.Organization or RuntimeDatabaseRoleKind.Outbox);
+        if (actualFunctionAccess != expectedFunctionAccess)
+            errors.Add($"{kind} runtime '{runtimeRole}' {(actualFunctionAccess ? "has forbidden" : "is missing required")} EXECUTE access to the legacy outbox redaction trigger function.");
     }
 
     private static async Task InspectRoleAsync(
         NpgsqlConnection connection,
         string role,
+        RuntimeDatabaseRoleKind kind,
         List<string> errors,
         CancellationToken cancellationToken)
     {
@@ -251,10 +272,17 @@ public static class PostgresIsolationInspector
                    EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                      WHERE (({PostgresSchemaContract.UserSchemaPredicate})
                        OR n.nspname = 'pg_catalog' AND p.proname IN ('pg_read_file', 'pg_read_binary_file', 'pg_ls_dir', 'pg_stat_file', 'lo_import', 'lo_export'))
+                       AND NOT COALESCE(
+                         p.oid = to_regprocedure(@approved_function) AND @allow_approved_function,
+                         false)
                        AND has_function_privilege(r.oid, p.oid, 'EXECUTE'))
             FROM pg_roles r WHERE r.rolname = @role;
             """;
         command.Parameters.AddWithValue("role", role);
+        command.Parameters.AddWithValue("approved_function", HostPostgresFunctionContracts.RedactLegacyOutboxError);
+        command.Parameters.AddWithValue(
+            "allow_approved_function",
+            kind is RuntimeDatabaseRoleKind.Organization or RuntimeDatabaseRoleKind.Outbox);
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
@@ -353,6 +381,104 @@ public static class PostgresIsolationInspector
         List<string> result = [];
         while (await reader.ReadAsync(cancellationToken)) result.Add(reader.GetString(0));
         return result;
+    }
+
+    internal static async Task InspectHostFunctionContractsAsync(
+        NpgsqlConnection connection,
+        List<string> errors,
+        CancellationToken cancellationToken)
+    {
+        await using NpgsqlCommand compatibility = new("""
+            SELECT EXISTS (
+                     SELECT 1 FROM pg_attribute
+                     WHERE attrelid = to_regclass('platform.outbox_messages')
+                       AND attname = 'LastError' AND NOT attisdropped),
+                   to_regprocedure(@function) IS NOT NULL
+            """, connection);
+        compatibility.Parameters.AddWithValue(
+            "function",
+            HostPostgresFunctionContracts.RedactLegacyOutboxError);
+        await using NpgsqlDataReader compatibilityReader =
+            await compatibility.ExecuteReaderAsync(cancellationToken);
+        await compatibilityReader.ReadAsync(cancellationToken);
+        bool compatibilityRequired = compatibilityReader.GetBoolean(0);
+        bool functionExists = compatibilityReader.GetBoolean(1);
+        await compatibilityReader.DisposeAsync();
+
+        if (!compatibilityRequired)
+        {
+            if (functionExists)
+                errors.Add("The legacy outbox redaction function exists without its compatibility column.");
+            return;
+        }
+        if (!functionExists)
+        {
+            errors.Add("The legacy outbox compatibility column requires its host-owned redaction function.");
+            return;
+        }
+
+        await using NpgsqlCommand command = new("""
+            SELECT p.prosrc, l.lanname, p.prosecdef, p.proleakproof, p.provolatile::text,
+                   COALESCE(p.proconfig, ARRAY[]::text[]),
+                   p.proowner = (
+                     SELECT relation.relowner
+                     FROM pg_class relation
+                     WHERE relation.oid = to_regclass('platform.outbox_messages')),
+                   NOT EXISTS (
+                     SELECT 1
+                     FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) privilege
+                     WHERE privilege.grantee = 0 AND privilege.privilege_type = 'EXECUTE'),
+                   pg_get_function_result(p.oid),
+                   ARRAY(
+                     SELECT pg_get_triggerdef(t.oid, false)
+                     FROM pg_trigger t
+                     WHERE t.tgfoid = p.oid AND NOT t.tgisinternal
+                     ORDER BY t.tgname),
+                   ARRAY(
+                     SELECT t.tgenabled::text
+                     FROM pg_trigger t
+                     WHERE t.tgfoid = p.oid AND NOT t.tgisinternal
+                     ORDER BY t.tgname)
+            FROM pg_proc p
+            JOIN pg_language l ON l.oid = p.prolang
+            WHERE p.oid = to_regprocedure(@function);
+            """, connection);
+        command.Parameters.AddWithValue("function", HostPostgresFunctionContracts.RedactLegacyOutboxError);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            errors.Add("The declared legacy outbox redaction function could not be inspected.");
+            return;
+        }
+
+        string body = reader.GetString(0);
+        string language = reader.GetString(1);
+        bool securityDefiner = reader.GetBoolean(2);
+        bool leakproof = reader.GetBoolean(3);
+        string volatility = reader.GetString(4);
+        string[] configuration = reader.GetFieldValue<string[]>(5);
+        bool ownedByOutboxTableOwner = reader.GetBoolean(6);
+        bool publicExecuteRevoked = reader.GetBoolean(7);
+        string resultType = reader.GetString(8);
+        string[] triggers = reader.GetFieldValue<string[]>(9);
+        string[] triggerEnablement = reader.GetFieldValue<string[]>(10);
+
+        bool valid = language == "plpgsql"
+            && !securityDefiner
+            && !leakproof
+            && volatility == "v"
+            && configuration.SequenceEqual(["search_path=pg_catalog"], StringComparer.Ordinal)
+            && ownedByOutboxTableOwner
+            && publicExecuteRevoked
+            && resultType == "trigger"
+            && HostPostgresFunctionContracts.Normalize(body) == HostPostgresFunctionContracts.Normalize(
+                HostPostgresFunctionContracts.RedactLegacyOutboxErrorBody)
+            && triggers.Length == 1
+            && HostPostgresFunctionContracts.Normalize(triggers[0]) == HostPostgresFunctionContracts.Normalize(
+                HostPostgresFunctionContracts.RedactLegacyOutboxErrorTrigger)
+            && triggerEnablement.SequenceEqual(["O"], StringComparer.Ordinal);
+        if (!valid)
+            errors.Add("Host function 'platform.redact_legacy_outbox_error()' differs from its approved body, privileges, ownership, execution mode, configuration, or trigger binding.");
     }
 
     private static async Task<IReadOnlyList<string>> ReadUserSchemasAsync(

@@ -1,8 +1,8 @@
-using Trykatch.Application.Outbox;
-using Trykatch.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
+using Trykatch.Application.Outbox;
+using Trykatch.Infrastructure.Persistence;
 
 namespace Trykatch.UnitTests;
 
@@ -31,7 +31,8 @@ public sealed class OutboxDeliveryTests
     public async Task RetriesKeepTheIdempotencyKeyAndProcessedMessagesAreNotRepublished()
     {
         DateTimeOffset completedAt = new(2026, 9, 8, 9, 0, 0, TimeSpan.Zero);
-        RecordingTransport transport = new() { Failure = new InvalidOperationException("temporary failure") };
+        const string plantedSecret = "password=temporary-failure-secret";
+        RecordingTransport transport = new() { Failure = new InvalidOperationException(plantedSecret) };
         OutboxDelivery delivery = new(transport, new FixedTimeProvider(completedAt), NullLogger<OutboxDelivery>.Instance);
         OutboxMessage message = new()
         {
@@ -44,12 +45,16 @@ public sealed class OutboxDeliveryTests
         (await delivery.DeliverAsync(message, CancellationToken.None)).ShouldBeFalse();
         message.Attempts.ShouldBe(1);
         message.ProcessedAt.ShouldBeNull();
-        message.LastError.ShouldBe("temporary failure");
+        message.LastErrorCode.ShouldBe("transport_failure");
+        message.LastErrorType.ShouldBe(typeof(InvalidOperationException).FullName);
+        message.LastErrorCode!.ShouldNotContain(plantedSecret);
+        message.LastErrorType!.ShouldNotContain(plantedSecret);
 
         transport.Failure = null;
         (await delivery.DeliverAsync(message, CancellationToken.None)).ShouldBeTrue();
         message.ProcessedAt.ShouldBe(completedAt);
-        message.LastError.ShouldBeNull();
+        message.LastErrorCode.ShouldBeNull();
+        message.LastErrorType.ShouldBeNull();
         (await delivery.DeliverAsync(message, CancellationToken.None)).ShouldBeFalse();
 
         transport.Envelopes.Count.ShouldBe(2);

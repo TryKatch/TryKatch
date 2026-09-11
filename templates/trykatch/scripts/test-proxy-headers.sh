@@ -38,6 +38,17 @@ grep -Fq 'TRYKATCH_INGRESS_PROXY_IP=172.30.250.2' "$environment_file" ||
   fail 'the example environment does not reserve a dedicated ingress address'
 grep -Fq '/etc/nginx/conf.d:mode=0770,uid=101,gid=101' "$compose_file" ||
   fail 'the read-only web container has no private writable destination for rendered Nginx configuration'
+grep -Fq 'log_format trykatch_safe escape=json' "$configuration" ||
+  fail 'Nginx does not define the credential-safe access log format'
+grep -Fq 'access_log /dev/stdout trykatch_safe;' "$configuration" ||
+  fail 'Nginx does not use the credential-safe access log format'
+grep -Fq 'error_log /dev/null;' "$configuration" ||
+  fail 'Nginx request error logging is not discarded before it can emit credential-bearing targets'
+
+safe_log_definition=$(grep -F 'log_format trykatch_safe escape=json' "$configuration")
+if grep -Eq '\$(request_uri|uri|args|query_string|http_referer|http_cookie|http_authorization)' <<<"$safe_log_definition"; then
+  fail 'the safe access log includes request-controlled paths, query values, referrers, cookies, or authorization'
+fi
 
 if grep -Eq 'proxy_set_header[[:space:]]+X-Forwarded-(For|Proto)[[:space:]]+\$http_x_forwarded_' "$configuration"; then
   fail 'an untrusted inbound forwarding header is relayed directly to the API'
@@ -49,7 +60,7 @@ if [[ ${1:-} != --runtime ]]; then
   exit 0
 fi
 
-for command in awk curl docker grep; do
+for command in awk curl docker grep head; do
   command -v "$command" >/dev/null 2>&1 || fail "required command is unavailable: $command"
 done
 
@@ -173,5 +184,41 @@ host_address=${host_result%%|*}
 host_scheme=${host_result##*|}
 [[ $host_address != 198.51.100.99 && $host_address != 203.0.113.10 && $host_scheme == http ]] ||
   fail "a host-published request influenced upstream headers: $host_result"
+
+path_sentinel='reset-path-secret-9472'
+query_sentinel='query-secret-5831'
+curl --connect-timeout 2 --max-time 5 --fail --silent --show-error \
+  "http://127.0.0.1:$published_port/api/v1/auth/password/reset/$path_sentinel?token=$query_sentinel" >/dev/null
+proxy_logs=$(docker logs "$proxy_name" 2>&1)
+if grep -Fq "$path_sentinel" <<<"$proxy_logs" || grep -Fq "$query_sentinel" <<<"$proxy_logs"; then
+  fail 'Nginx access logs contain a credential-bearing request path or query value'
+fi
+grep -Fq '"route":"api"' <<<"$proxy_logs" ||
+  fail 'Nginx access logs do not include the safe API route label'
+
+docker exec --user root "$proxy_name" sh -c \
+  'mkdir -p /tmp/client_temp && chmod 000 /tmp/client_temp'
+critical_path_sentinel='critical-path-secret-6248'
+critical_query_sentinel='critical-query-secret-1937'
+critical_status=$(head -c 20000 /dev/zero | curl --connect-timeout 2 --max-time 5 \
+  --silent --output /dev/null --write-out '%{http_code}' --data-binary @- \
+  "http://127.0.0.1:$published_port/api/v1/auth/password/reset/$critical_path_sentinel?token=$critical_query_sentinel")
+[[ $critical_status == 500 ]] || fail "an unwritable request-body store returned unexpected HTTP status $critical_status"
+proxy_logs=$(docker logs "$proxy_name" 2>&1)
+if grep -Fq "$critical_path_sentinel" <<<"$proxy_logs" || grep -Fq "$critical_query_sentinel" <<<"$proxy_logs"; then
+  fail 'Nginx logs contain a credential-bearing target after a critical request failure'
+fi
+
+docker stop "$upstream_name" >/dev/null
+failure_path_sentinel='failed-path-secret-3619'
+failure_query_sentinel='failed-query-secret-7154'
+failure_status=$(curl --connect-timeout 2 --max-time 5 --silent --output /dev/null --write-out '%{http_code}' \
+  "http://127.0.0.1:$published_port/api/v1/auth/password/reset/$failure_path_sentinel?token=$failure_query_sentinel")
+[[ $failure_status == 502 || $failure_status == 504 ]] ||
+  fail "an unavailable upstream returned unexpected HTTP status $failure_status"
+proxy_logs=$(docker logs "$proxy_name" 2>&1)
+if grep -Fq "$failure_path_sentinel" <<<"$proxy_logs" || grep -Fq "$failure_query_sentinel" <<<"$proxy_logs"; then
+  fail 'Nginx logs contain a credential-bearing target after an upstream failure'
+fi
 
 printf 'Proxy header runtime behavior passed.\n'

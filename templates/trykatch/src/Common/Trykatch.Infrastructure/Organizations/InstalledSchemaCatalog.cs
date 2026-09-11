@@ -154,7 +154,11 @@ public static class InstalledSchemaCatalog
             ORDER BY 1
             """, connection);
         await using NpgsqlDataReader functionReader = await functions.ExecuteReaderAsync(cancellationToken);
-        while (await functionReader.ReadAsync(cancellationToken)) undeclared.Add(functionReader.GetString(0));
+        while (await functionReader.ReadAsync(cancellationToken))
+        {
+            string function = functionReader.GetString(0);
+            if (!HostPostgresFunctionContracts.All.Contains(function)) undeclared.Add(function);
+        }
         if (undeclared.Count > 0)
             throw new InvalidOperationException(
                 "PostgreSQL user schemas contain undeclared persistent objects: " + string.Join(", ", undeclared) +

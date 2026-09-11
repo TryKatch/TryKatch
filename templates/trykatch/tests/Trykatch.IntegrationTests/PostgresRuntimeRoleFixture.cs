@@ -102,6 +102,8 @@ internal static class PostgresRuntimeRoleFixture
 
             GRANT USAGE ON SCHEMA platform TO {OutboxRole};
             GRANT SELECT, UPDATE ON platform.outbox_messages TO {OutboxRole};
+
+            GRANT EXECUTE ON FUNCTION platform.redact_legacy_outbox_error() TO {OrganizationRole}, {OutboxRole};
             """;
         await command.ExecuteNonQueryAsync();
     }

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using Trykatch.Application.Outbox;
 using Microsoft.Extensions.Logging;
+using Trykatch.Application.Outbox;
 
 namespace Trykatch.Infrastructure.Persistence;
 
@@ -10,7 +10,6 @@ internal sealed partial class OutboxDelivery(
     TimeProvider timeProvider,
     ILogger<OutboxDelivery> logger)
 {
-    private const int MaximumErrorLength = 2000;
     private static readonly ActivitySource ActivitySource = new("Trykatch.Outbox");
     private static readonly Meter Meter = new("Trykatch.Outbox");
     private static readonly Counter<long> DispatchCounter = Meter.CreateCounter<long>("trykatch.outbox.dispatches");
@@ -33,7 +32,8 @@ internal sealed partial class OutboxDelivery(
                 new OutboxEnvelope(message.Id, message.Type, message.Payload, message.OccurredAt, message.Attempts + 1),
                 cancellationToken);
             message.ProcessedAt = timeProvider.GetUtcNow();
-            message.LastError = null;
+            message.LastErrorCode = null;
+            message.LastErrorType = null;
             DispatchCounter.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
             return true;
         }
@@ -44,10 +44,9 @@ internal sealed partial class OutboxDelivery(
         catch (Exception exception)
         {
             message.Attempts++;
-            message.LastError = exception.Message.Length <= MaximumErrorLength
-                ? exception.Message
-                : exception.Message[..MaximumErrorLength];
             string exceptionType = exception.GetType().FullName ?? exception.GetType().Name;
+            message.LastErrorCode = Classify(exception);
+            message.LastErrorType = exceptionType;
             activity?.SetStatus(ActivityStatusCode.Error);
             activity?.SetTag("error.type", exceptionType);
             DispatchCounter.Add(1, new KeyValuePair<string, object?>("outcome", "failure"));
@@ -59,6 +58,13 @@ internal sealed partial class OutboxDelivery(
             DispatchDuration.Record(Stopwatch.GetElapsedTime(started).TotalSeconds);
         }
     }
+
+    private static string Classify(Exception exception) => exception switch
+    {
+        TimeoutException or OperationCanceledException => "transport_timeout",
+        HttpRequestException => "transport_unavailable",
+        _ => "transport_failure"
+    };
 
     [LoggerMessage(EventId = 4201, Level = LogLevel.Error, Message = "Outbox message {MessageId} failed on attempt {DeliveryAttempt} with {ExceptionType}")]
     private static partial void LogFailed(ILogger logger, Guid messageId, int deliveryAttempt, string exceptionType);

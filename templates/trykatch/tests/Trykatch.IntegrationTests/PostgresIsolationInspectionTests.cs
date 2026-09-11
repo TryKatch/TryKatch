@@ -1,19 +1,19 @@
-using Npgsql;
-using Shouldly;
-using Testcontainers.PostgreSql;
-using Trykatch.Infrastructure.Modules;
-using Trykatch.Infrastructure.Organizations;
-using Trykatch.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using Shouldly;
+using Testcontainers.PostgreSql;
 using Trykatch.Application;
 using Trykatch.Application.Organizations;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure;
+using Trykatch.Infrastructure.Modules;
+using Trykatch.Infrastructure.Organizations;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Infrastructure.Persistence.Migrations.Platform;
+using Trykatch.Modules;
 using Trykatch.Modules.Documents.Infrastructure;
 
 namespace Trykatch.IntegrationTests;
@@ -209,7 +209,8 @@ public sealed class PostgresIsolationInspectionTests
         await database.ExecuteAsync("CREATE TABLE platform.reports (id int)");
         ModuleDescriptor platform = new ProjectsModule().Descriptor with
         {
-            Id = "reporting", DefaultDataOwnership = ModuleDataOwnership.Platform,
+            Id = "reporting",
+            DefaultDataOwnership = ModuleDataOwnership.Platform,
             DataResources = [new("reports", "platform", "reports", ModuleDataOwnership.Platform, AccessRule: ModuleDataAccessRule.PlatformOnly)]
         };
         ModuleDescriptor[] modules = [new ProjectsModule().Descriptor, platform];
@@ -356,6 +357,73 @@ public sealed class PostgresIsolationInspectionTests
 
         inspection.IsValid.ShouldBeFalse();
         inspection.Errors.ShouldContain(error => error.Contains("custom_schema.read_secret", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task RejectsPrivilegedCatalogFunctionWhenCompatibilityFunctionIsAbsent()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync(
+            $"GRANT EXECUTE ON FUNCTION pg_catalog.pg_read_file(text) TO {database.RuntimeRole}");
+
+        PostgresIsolationInspection inspection = await database.InspectAsync();
+
+        inspection.IsValid.ShouldBeFalse();
+        inspection.Errors.ShouldContain(error => error.Contains("privileged function", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task AcceptsOnlyTheExactHostOwnedLegacyOutboxRedactionFunction()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync($"""
+            ALTER TABLE platform.outbox_messages
+              ADD COLUMN "LastError" text NULL,
+              ADD COLUMN "LastErrorCode" character varying(80) NULL,
+              ADD COLUMN "LastErrorType" character varying(500) NULL;
+            CREATE FUNCTION platform.redact_legacy_outbox_error()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            SECURITY INVOKER
+            SET search_path = pg_catalog
+            AS $function$
+            BEGIN
+              IF NEW."LastError" IS NOT NULL THEN
+                NEW."LastErrorCode" := COALESCE(NEW."LastErrorCode", 'legacy_unclassified');
+                NEW."LastErrorType" := COALESCE(NEW."LastErrorType", 'legacy_exception');
+                NEW."LastError" := NULL;
+              END IF;
+              RETURN NEW;
+            END
+            $function$;
+            REVOKE ALL ON FUNCTION platform.redact_legacy_outbox_error() FROM PUBLIC;
+            GRANT EXECUTE ON FUNCTION platform.redact_legacy_outbox_error() TO {database.RuntimeRole};
+            CREATE TRIGGER redact_legacy_outbox_error
+            BEFORE INSERT OR UPDATE OF "LastError" ON platform.outbox_messages
+            FOR EACH ROW
+            EXECUTE FUNCTION platform.redact_legacy_outbox_error();
+            """);
+
+        (await database.InspectAsync()).IsValid.ShouldBeTrue();
+
+        await database.ExecuteAsync("ALTER TABLE platform.outbox_messages DISABLE TRIGGER redact_legacy_outbox_error");
+        PostgresIsolationInspection disabled = await database.InspectAsync();
+        disabled.IsValid.ShouldBeFalse();
+        disabled.Errors.ShouldContain(error => error.Contains("differs from its approved", StringComparison.Ordinal));
+        await database.ExecuteAsync("ALTER TABLE platform.outbox_messages ENABLE TRIGGER redact_legacy_outbox_error");
+
+        await database.ExecuteAsync("""
+            CREATE OR REPLACE FUNCTION platform.redact_legacy_outbox_error()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            SECURITY INVOKER
+            SET search_path = pg_catalog
+            AS 'BEGIN RETURN NEW; END';
+            """);
+
+        PostgresIsolationInspection tampered = await database.InspectAsync();
+        tampered.IsValid.ShouldBeFalse();
+        tampered.Errors.ShouldContain(error => error.Contains("differs from its approved", StringComparison.Ordinal));
     }
 
     [TestMethod]
