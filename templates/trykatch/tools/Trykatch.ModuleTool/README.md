@@ -6,6 +6,7 @@ The Trykatch CLI validates and composes the backend and React surfaces of a gene
 dotnet tool install --global Trykatch.Cli --prerelease
 trykatch help
 trykatch template install
+trykatch new Horizon
 trykatch template help
 trykatch start
 trykatch module help
@@ -20,6 +21,10 @@ trykatch template uninstall
 ```
 
 `template install` invokes the official .NET template engine with an argument-safe process boundary. It shows a spinner in interactive terminals, emits deterministic progress in redirected output and CI, preserves the template engine's failure details, and defaults to the template version matching the installed CLI. Use `--version <version>` to select another release and `--force` to repair an existing installation.
+
+`new <name>` creates the complete application and authorizes the packaged Git
+initialization post-action. Standalone output starts on `main`; output already
+inside a Git worktree remains part of its parent repository.
 
 `start` discovers the generated Aspire AppHost from the current directory or `--root`, then runs its HTTPS launch profile with inherited terminal output. `template uninstall` removes `Trykatch.Templates` through the official .NET template engine; remove the global CLI separately with `dotnet tool uninstall --global Trykatch.Cli`.
 

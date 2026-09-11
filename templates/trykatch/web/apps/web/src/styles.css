@@ -197,6 +197,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 .collection { overflow: hidden; }
 .collection:has(.data-table-menu-panel), .collection:has(.row-actions-menu) { overflow: visible; }
+.module-extension-strip { min-height: 58px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 11px; margin-top: 12px; padding: 10px 12px; }
+.module-extension-icon { width: 32px; height: 32px; display: grid; place-items: center; color: var(--accent-ink); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)); border-radius: var(--radius); }
+.module-extension-copy { min-width: 0; display: grid; gap: 1px; }
+.module-extension-copy strong { font-size: 12px; }
+.module-extension-copy small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.document-details .document-content { grid-template-columns: 1fr; gap: 6px; }
+.document-details .document-content dd { padding: 10px 11px; color: var(--text); text-align: left; white-space: pre-wrap; background: var(--panel-raised); border: 1px solid var(--line); border-radius: var(--radius); }
 .filter-bar { display: flex; align-items: center; gap: 8px; padding: 9px; border-bottom: 1px solid var(--line); }
 .filter-bar input, .profile-form input, .access-select { height: 34px; padding: 0 10px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line); border-radius: var(--radius); }
 .filter-bar input { width: min(360px, 50vw); }
@@ -703,6 +710,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .role-identity-fields { grid-template-columns: 1fr; padding-inline: 16px; }.permission-editor-header, .permission-module > header, .role-editor-footer { align-items: flex-start; flex-direction: column; }.permission-editor-header, .permission-module > header, .role-editor-footer { padding-inline: 16px; }.permission-module-actions { width: 100%; justify-content: space-between; }.permission-toolbar { padding-inline: 14px; }.permission-option { padding-inline: 16px; }.permission-copy small { white-space: normal; }.role-editor-footer > div { width: 100%; justify-content: flex-end; }
   .data-table-search { width: 100%; }.data-table-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; }.data-table-search, .data-table-filters { grid-column: 1 / -1; }.data-table-filters { grid-template-columns: 1fr; }.data-table-count { align-self: center; }.data-table-menu { justify-self: end; }.data-table-menu-panel { position: fixed; top: auto; right: 12px; bottom: 12px; left: 12px; width: auto; max-height: calc(100dvh - 24px); }.table-pagination { align-items: flex-start; flex-direction: column; }.table-pagination > div { width: 100%; justify-content: space-between; }.audit-event { min-width: 250px; }
   .filter-bar { align-items: stretch; flex-direction: column; }.filter-bar input { width: 100%; }.filter-actions { width: 100%; flex-wrap: wrap; margin-left: 0; }.dialog-actions { flex-wrap: wrap; }.dialog-actions .button { flex: 1; }.dialog-actions .button-danger { flex-basis: 100%; margin-right: 0; }
+  .module-extension-strip { grid-template-columns: 34px minmax(0, 1fr); }.module-extension-strip > .button { grid-column: 1 / -1; width: 100%; }.module-extension-copy small { overflow: visible; white-space: normal; }
   .archive-summary-grid { grid-template-columns: 1fr; }
   .record-details-context { grid-template-columns: 42px minmax(0, 1fr); padding-inline: 16px; }.record-details-mark { width: 42px; height: 42px; }.record-details-status { grid-column: 2; justify-self: start; }.record-details-section { padding-inline: 16px; }.record-details > div { grid-template-columns: 1fr; gap: 3px; }.record-details dd { text-align: left; }.record-details-actions { padding-inline: 16px; }.record-details-actions .button { flex: 1; }
   .role-permission-disclosure { padding: 12px; }.role-permission-overview { flex-direction: column; gap: 6px; }.role-permission-overview p { text-align: left; }.role-permission-module > ul { grid-template-columns: 1fr; }.role-permission-module li:nth-child(even) { border-left: 0; }.role-permission-module li:nth-child(n + 2) { border-top: 1px solid var(--line); }.role-permission-module-title small { white-space: normal; }

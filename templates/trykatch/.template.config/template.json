@@ -163,5 +163,37 @@
   ],
   "primaryOutputs": [
     { "path": "Trykatch.slnx" }
+  ],
+  "postActions": [
+    {
+      "condition": "(OS != \"Windows_NT\")",
+      "description": "Initialize Git source control for the generated application.",
+      "manualInstructions": [
+        { "text": "Run 'bash scripts/initialize-git.sh' from the generated application directory." }
+      ],
+      "actionId": "3A7C4B45-1F5D-4A30-959A-51B88E82B5D2",
+      "continueOnError": true,
+      "args": {
+        "executable": "bash",
+        "args": "scripts/initialize-git.sh",
+        "redirectStandardOutput": false,
+        "redirectStandardError": false
+      }
+    },
+    {
+      "condition": "(OS == \"Windows_NT\")",
+      "description": "Initialize Git source control for the generated application.",
+      "manualInstructions": [
+        { "text": "Run 'scripts\\initialize-git.cmd' from the generated application directory." }
+      ],
+      "actionId": "3A7C4B45-1F5D-4A30-959A-51B88E82B5D2",
+      "continueOnError": true,
+      "args": {
+        "executable": "cmd",
+        "args": "/c scripts\\initialize-git.cmd",
+        "redirectStandardOutput": false,
+        "redirectStandardError": false
+      }
+    }
   ]
 }

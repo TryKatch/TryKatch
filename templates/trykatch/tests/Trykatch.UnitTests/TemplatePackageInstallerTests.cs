@@ -27,7 +27,7 @@ public sealed class TemplatePackageInstallerTests
         engine.Force.ShouldBeTrue();
         output.ToString().ShouldContain("Installing Trykatch template 0.1.0-preview.12");
         output.ToString().ShouldContain("Trykatch template 0.1.0-preview.12 installed");
-        output.ToString().ShouldContain("dotnet new trykatch -n <name>");
+        output.ToString().ShouldContain("trykatch new <name>");
         error.ToString().ShouldBeEmpty();
     }
 

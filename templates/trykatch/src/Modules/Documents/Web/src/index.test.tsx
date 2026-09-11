@@ -56,6 +56,22 @@ describe('DocumentsPage', () => {
   beforeEach(() => mockedFetch.mockReset())
   afterEach(cleanup)
 
+  it('opens document creation in a focused dialog instead of an inline table form', async () => {
+    mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
+      ? { permissions: ['documents.read', 'documents.manage'] } as never
+      : [] as never)
+
+    renderDocuments()
+
+    const create = await screen.findByRole('button', { name: 'New document' })
+    expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
+
+    fireEvent.click(create)
+
+    expect(screen.getByRole('dialog', { name: 'Create document' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Document title' })).toBeInTheDocument()
+  })
+
   it('hides every mutation control from read-only members', async () => {
     mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
       ? { permissions: ['documents.read'] }
@@ -65,6 +81,9 @@ describe('DocumentsPage', () => {
 
     expect(await screen.findByText('Runbook')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Runbook' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View' }))
+    expect(screen.getByRole('dialog', { name: 'Runbook' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
   })
@@ -93,11 +112,14 @@ describe('DocumentsPage', () => {
 
     renderDocuments()
     await screen.findByText('Runbook')
+    fireEvent.click(screen.getByRole('button', { name: 'New document' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Document title' }), { target: { value: 'New document' } })
-    fireEvent.click(screen.getByRole('button', { name: /Create/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create document' }))
     expect(await screen.findByText('save failed')).toHaveAttribute('role', 'alert')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Runbook' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
     await waitFor(() => expect(screen.getByText('archive failed')).toHaveAttribute('role', 'alert'))
   })
 
@@ -114,7 +136,8 @@ describe('DocumentsPage', () => {
     await screen.findByText('Runbook')
     expect(client.getQueryState(archiveKey)?.isInvalidated).toBe(false)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Runbook' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
 
     await waitFor(() => expect(client.getQueryState(archiveKey)?.isInvalidated).toBe(true))
   })
@@ -126,7 +149,8 @@ describe('DocumentsPage', () => {
 
     render(workspace(client, <><DocumentsPage /><ShellAccessProbe /></>))
 
-    expect(await screen.findByRole('textbox', { name: 'Document title' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'New document' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
     expect(screen.getByText('Shell permissions: documents.read,documents.manage')).toBeInTheDocument()
     expect(client.getQueryData(['access'])).toEqual({ permissions: ['documents.read', 'documents.manage'] })
     expect(mockedFetch).not.toHaveBeenCalledWith('/api/v1/access', expect.anything())
@@ -139,7 +163,8 @@ describe('DocumentsPage', () => {
       : [] as never)
     const { view } = renderDocuments(client)
 
-    expect(await screen.findByRole('textbox', { name: 'Document title' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'New document' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
     expect(client.getQueryData(['access'])).toEqual({ permissions: ['documents.read', 'documents.manage'] })
 
     view.rerender(workspace(client, <><DocumentsPage /><ShellAccessProbe /></>))
