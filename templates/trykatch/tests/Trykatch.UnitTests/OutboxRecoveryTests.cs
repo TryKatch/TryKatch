@@ -87,6 +87,20 @@ public sealed class OutboxRecoveryTests
     }
 
     [TestMethod]
+    public void DatabaseFaultClassificationFindsTransientProviderFaultInsideEfWrapper()
+    {
+        InvalidOperationException connectionFailure = new(
+            "The database operation failed.",
+            new NpgsqlException("password=untrusted", new IOException("connection interrupted")));
+        InvalidOperationException serializationFailure = new(
+            "The database operation failed.",
+            new PostgresException("password=untrusted", "ERROR", "ERROR", PostgresErrorCodes.SerializationFailure));
+
+        OutboxDatabaseFaultClassifier.Classify(connectionFailure).ShouldBe(OutboxDatabaseFaultKind.Transient);
+        OutboxDatabaseFaultClassifier.Classify(serializationFailure).ShouldBe(OutboxDatabaseFaultKind.Transient);
+    }
+
+    [TestMethod]
     public void DatabaseTlsAuthenticationFailureIsPermanentEvenInsideTransientIoWrapper()
     {
         NpgsqlException exception = new("secret", new IOException("secret", new AuthenticationException("secret")));

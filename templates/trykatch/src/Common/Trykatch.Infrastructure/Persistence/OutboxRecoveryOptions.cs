@@ -1,6 +1,5 @@
 using System.Net.Sockets;
 using System.Security.Authentication;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -79,27 +78,39 @@ internal static class OutboxDatabaseFaultClassifier
 
     public static OutboxDatabaseFaultKind Classify(Exception exception)
     {
+        bool transientCauseFound = false;
+        bool permanentProviderCauseFound = false;
         for (Exception? cause = exception; cause is not null; cause = cause.InnerException)
+        {
             if (cause is AuthenticationException or OptionsValidationException)
                 return OutboxDatabaseFaultKind.Permanent;
-        Exception current = exception;
-        while (current is DbUpdateException && current.InnerException is not null)
-            current = current.InnerException;
-        if (current is PostgresException postgres)
-        {
-            if (PermanentSqlStates.Contains(postgres.SqlState) || postgres.SqlState.StartsWith("42", StringComparison.Ordinal))
-                return OutboxDatabaseFaultKind.Permanent;
-            // Host cancellation is handled by the worker before classification. A server
-            // statement deadline must recover just like a client command timeout.
-            if (postgres.SqlState == PostgresErrorCodes.QueryCanceled)
-                return OutboxDatabaseFaultKind.Transient;
-            return postgres.IsTransient ? OutboxDatabaseFaultKind.Transient : OutboxDatabaseFaultKind.Permanent;
+
+            if (cause is PostgresException postgres)
+            {
+                if (PermanentSqlStates.Contains(postgres.SqlState)
+                    || postgres.SqlState.StartsWith("42", StringComparison.Ordinal))
+                    return OutboxDatabaseFaultKind.Permanent;
+                // Host cancellation is handled by the worker before classification. A server
+                // statement deadline must recover just like a client command timeout.
+                if (postgres.SqlState == PostgresErrorCodes.QueryCanceled || postgres.IsTransient)
+                    transientCauseFound = true;
+                else
+                    permanentProviderCauseFound = true;
+                continue;
+            }
+
+            if (cause is NpgsqlException npgsql)
+            {
+                transientCauseFound |= npgsql.IsTransient;
+                continue;
+            }
+
+            transientCauseFound |= cause is TimeoutException or IOException or SocketException;
         }
-        if (current is NpgsqlException npgsql)
-            return npgsql.IsTransient || npgsql.InnerException is IOException or SocketException
-                ? OutboxDatabaseFaultKind.Transient
-                : OutboxDatabaseFaultKind.Permanent;
-        if (current is TimeoutException or IOException or SocketException)
+
+        if (permanentProviderCauseFound)
+            return OutboxDatabaseFaultKind.Permanent;
+        if (transientCauseFound)
             return OutboxDatabaseFaultKind.Transient;
         return OutboxDatabaseFaultKind.Permanent;
     }
