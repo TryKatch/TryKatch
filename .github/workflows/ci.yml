@@ -82,9 +82,13 @@ jobs:
       - run: dotnet test templates/trykatch/tests/Trykatch.UnitTests -c Release --no-build
       - name: Enforce module architecture
         run: |
-          dotnet test templates/trykatch/tests/Trykatch.ArchitectureTests -c Release --no-build
-          for project in templates/trykatch/tests/Modules/*/*Tests/*.csproj; do
-            dotnet test "$project" -c Release --no-build
+          dotnet build templates/trykatch/Trykatch.slnx -c Debug --no-restore
+          dotnet test templates/trykatch/tests/Trykatch.ArchitectureTests -c Debug --no-build --no-restore
+          for project in templates/trykatch/tests/Modules/*/*ArchitectureTests/*.csproj; do
+            dotnet test "$project" -c Debug --no-build --no-restore
+          done
+          for project in templates/trykatch/tests/Modules/*/*UnitTests/*.csproj; do
+            dotnet test "$project" -c Release --no-build --no-restore
           done
       - run: dotnet test templates/trykatch/tests/Trykatch.IntegrationTests -c Release --no-build
       - run: dotnet list templates/trykatch/Trykatch.slnx package --vulnerable --include-transitive
@@ -183,6 +187,8 @@ jobs:
           cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
       - run: dotnet restore templates/trykatch/Trykatch.slnx
       - run: dotnet build templates/trykatch/Trykatch.slnx -c Release --no-restore
+      - name: Verify composite module packages
+        run: bash templates/trykatch/scripts/test-module-packages.sh
       - run: pnpm --dir templates/trykatch/web install --frozen-lockfile
       - name: Verify disabled and enabled Federation composition
         run: bash scripts/test-federation-module.sh

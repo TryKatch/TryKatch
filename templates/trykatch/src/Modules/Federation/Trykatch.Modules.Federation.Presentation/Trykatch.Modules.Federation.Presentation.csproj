@@ -5,6 +5,5 @@
   <ItemGroup>
     <ProjectReference Include="../../../Common/Trykatch.Modules.AspNetCore/Trykatch.Modules.AspNetCore.csproj" />
     <ProjectReference Include="../Trykatch.Modules.Federation.Application/Trykatch.Modules.Federation.Application.csproj" />
-    <ProjectReference Include="../Trykatch.Modules.Federation.Domain/Trykatch.Modules.Federation.Domain.csproj" />
   </ItemGroup>
 </Project>

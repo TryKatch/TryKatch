@@ -1,5 +1,6 @@
 using Trykatch.Modules;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -51,6 +52,7 @@ public static class ModuleEndpointExtensions
         RouteGroupBuilder organizationApi = endpoints
             .MapGroup("/api/v1")
             .RequireAuthorization()
+            .AddEndpointFilter<ModuleAntiforgeryFilter>()
             .WithMetadata(new OrganizationScopedMetadata());
 
         IEnumerable<IOrganizationEndpointContributor> contributors = endpoints
@@ -86,6 +88,7 @@ public static class ModuleEndpointExtensions
             RouteGroupBuilder moduleApi = endpoints
                 .MapGroup("/api/v1/platform")
                 .RequireAuthorization($"platform-permission:{contributor.RequiredPlatformPermission}")
+                .AddEndpointFilter<ModuleAntiforgeryFilter>()
                 .WithMetadata(new ModuleEndpointMetadata(contributor.ModuleId));
             contributor.MapEndpoints(moduleApi);
         }

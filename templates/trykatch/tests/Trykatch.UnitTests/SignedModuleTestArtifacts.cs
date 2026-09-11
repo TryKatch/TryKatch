@@ -12,7 +12,14 @@ namespace Trykatch.UnitTests;
 internal static class SignedModuleTestArtifacts
 {
     private static readonly string[] Creators = ["Tool: Trykatch test fixture"];
-    public static void Create(string root, string moduleId, string version, string? invalidEvidence = null)
+    public static void Create(
+        string root,
+        string moduleId,
+        string version,
+        string? invalidEvidence = null,
+        string dotnetPackageId = "Trykatch.Modules.Reporting",
+        string frontendPackageId = "@trykatch/module-reporting",
+        string? backendPackageSource = null)
     {
         string backend = $"{moduleId}.{version}.nupkg";
         string frontend = $"{moduleId}.{version}.tgz";
@@ -28,18 +35,23 @@ internal static class SignedModuleTestArtifacts
         string pfx = Path.Combine(root, $"fixture-{Guid.NewGuid():N}.pfx");
         string password = Guid.NewGuid().ToString("N");
         File.WriteAllBytes(pfx, certificate.Export(X509ContentType.Pfx, password));
-        using (ZipArchive archive = ZipFile.Open(Path.Combine(root, backend), ZipArchiveMode.Create))
+        if (backendPackageSource is not null)
         {
-            WriteEntry(archive, "Trykatch.Modules.Reporting.nuspec", $"""
-                <?xml version="1.0" encoding="utf-8"?>
-                <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd"><metadata>
-                <id>Trykatch.Modules.Reporting</id><version>{version}</version><authors>Trykatch Tests</authors><description>Signed fixture</description>
-                </metadata></package>
-                """);
+            File.Copy(backendPackageSource, Path.Combine(root, backend), overwrite: true);
+        }
+        else
+        {
+            using ZipArchive archive = ZipFile.Open(Path.Combine(root, backend), ZipArchiveMode.Create);
+            WriteEntry(archive, $"{dotnetPackageId}.nuspec", $"""
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd"><metadata>
+                    <id>{dotnetPackageId}</id><version>{version}</version><authors>Trykatch Tests</authors><description>Signed fixture</description>
+                    </metadata></package>
+                    """);
             WriteEntry(archive, "README.md", "Signed package test fixture.");
             WriteEntry(archive, "[Content_Types].xml", """
-                <?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="nuspec" ContentType="application/octet"/><Default Extension="md" ContentType="application/octet"/></Types>
-                """);
+                    <?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="nuspec" ContentType="application/octet"/><Default Extension="md" ContentType="application/octet"/></Types>
+                    """);
         }
         try
         {
@@ -52,13 +64,13 @@ internal static class SignedModuleTestArtifacts
         using (FileStream file = File.Create(Path.Combine(root, frontend)))
         using (GZipStream gzip = new(file, CompressionLevel.SmallestSize))
         using (TarWriter archive = new(gzip))
-        using (MemoryStream metadata = new(JsonSerializer.SerializeToUtf8Bytes(new { name = "@trykatch/module-reporting", version = invalidEvidence == "frontend-version" ? "9.9.9" : version })))
+        using (MemoryStream metadata = new(JsonSerializer.SerializeToUtf8Bytes(new { name = frontendPackageId, version = invalidEvidence == "frontend-version" ? "9.9.9" : version })))
             archive.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "package/package.json") { DataStream = metadata });
 
         (string Purl, string Name, string File)[] artifacts =
         [
-            ($"pkg:nuget/Trykatch.Modules.Reporting@{version}", "Trykatch.Modules.Reporting", backend),
-            ($"pkg:npm/%40trykatch/module-reporting@{version}", "@trykatch/module-reporting", frontend)
+            ($"pkg:nuget/{dotnetPackageId}@{version}", dotnetPackageId, backend),
+            ($"pkg:npm/{frontendPackageId.Replace("@", "%40", StringComparison.Ordinal)}@{version}", frontendPackageId, frontend)
         ];
         File.WriteAllBytes(Path.Combine(root, sbom), JsonSerializer.SerializeToUtf8Bytes(new
         {

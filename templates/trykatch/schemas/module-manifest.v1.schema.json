@@ -116,10 +116,16 @@
     "artifacts": {
       "type": "object",
       "additionalProperties": false,
+      "dependentRequired": {
+        "sourceRoot": ["sourceTreeSha256"],
+        "sourceTreeSha256": ["sourceRoot"]
+      },
       "required": ["dotnetProject", "webPackage"],
       "properties": {
         "dotnetProject": { "type": "string" },
-        "webPackage": { "type": "string" }
+        "webPackage": { "type": "string" },
+        "sourceRoot": { "type": "string" },
+        "sourceTreeSha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }
       }
     },
     "entrypoints": {

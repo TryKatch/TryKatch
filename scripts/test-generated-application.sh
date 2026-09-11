@@ -13,7 +13,8 @@ artifact_root=
 generated_name=${TRYKATCH_ACCEPTANCE_PROJECT_NAME:-Acme.Acceptance-Portal}
 generated_namespace=${generated_name//-/.}
 generated_namespace=${generated_namespace// /.}
-compose_project="trykatch-acceptance-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+workspace_suffix=${test_root##*.}
+compose_project="trykatch-acceptance-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${workspace_suffix}"
 compose_project=$(printf '%s' "$compose_project" | tr '[:upper:]_' '[:lower:]-' | cut -c1-63)
 web_url=${TRYKATCH_ACCEPTANCE_BASE_URL:-https://127.0.0.1:8443}
 platform_admin_email=${TRYKATCH_ACCEPTANCE_ADMIN_EMAIL:-platform.admin@example.test}
@@ -65,6 +66,25 @@ require_command() {
     printf 'Required command is unavailable: %s\n' "$1" >&2
     exit 2
   fi
+}
+
+select_free_network_prefix() {
+  local probe_name="${compose_project}-network-probe"
+  local prefix
+
+  for prefix in \
+    172.30.240 172.30.241 172.30.242 172.30.243 172.30.244 \
+    172.31.240 172.31.241 172.31.242 172.31.243 172.31.244 \
+    10.240.240 10.240.241 10.240.242 10.240.243 10.240.244; do
+    if docker network create --subnet "$prefix.0/24" "$probe_name" >/dev/null 2>&1; then
+      docker network rm "$probe_name" >/dev/null
+      printf '%s' "$prefix"
+      return 0
+    fi
+  done
+
+  printf 'Unable to reserve a non-overlapping Docker subnet for generated-application acceptance.\n' >&2
+  return 1
 }
 
 wait_for_web() {
@@ -124,6 +144,8 @@ create_ingress_certificate() {
 for command in curl docker dotnet openssl pnpm; do
   require_command "$command"
 done
+
+network_prefix=$(select_free_network_prefix)
 
 platform_admin_password=${platform_admin_password:-"A1!$(openssl rand -hex 24)"}
 platform_manager_password=${platform_manager_password:-"A1!$(openssl rand -hex 24)"}
@@ -187,7 +209,7 @@ services:
   web:
     environment:
       TRYKATCH_INGRESS_PROXY_IP: 127.0.0.1
-    ports:
+    ports: !override
       - "127.0.0.1:8443:8443"
     volumes:
       - "$test_root/acceptance-tls.conf:/etc/nginx/conf.d/acceptance-tls.conf:ro"
@@ -208,6 +230,11 @@ TRYKATCH_PLATFORM_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;U
 TRYKATCH_IDENTITY_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_identity_runtime;Password=$runtime_password-identity
 TRYKATCH_OUTBOX_WORKER_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_outbox_worker;Password=$runtime_password-outbox
 TRYKATCH_PUBLIC_URL=$web_url
+TRYKATCH_NETWORK_SUBNET=$network_prefix.0/24
+TRYKATCH_NETWORK_DYNAMIC_RANGE=$network_prefix.128/25
+TRYKATCH_NETWORK_GATEWAY=$network_prefix.1
+TRYKATCH_INGRESS_PROXY_IP=$network_prefix.2
+TRYKATCH_WEB_PROXY_IP=$network_prefix.10
 TRYKATCH_SECRETS_PATH=$generated_root/secrets
 TRYKATCH_SIGNING_CERTIFICATE_PASSWORD=$signing_certificate_password
 TRYKATCH_ENCRYPTION_CERTIFICATE_PASSWORD=$encryption_certificate_password

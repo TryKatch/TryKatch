@@ -9,6 +9,9 @@
     <IsCompositeModulePackage>true</IsCompositeModulePackage>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Trykatch.UnitTests" />
+  </ItemGroup>
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Npgsql" />
   </ItemGroup>

@@ -11,17 +11,6 @@ public sealed record FederationConnection(
     string? LastTestResult,
     DateTimeOffset UpdatedAt);
 
-public sealed record SaveFederationConnectionRequest(
-    string Name,
-    string Issuer,
-    string ClientId,
-    string? ClientSecret);
-
-public sealed record FederationTestResult(
-    bool Successful,
-    string Message,
-    DateTimeOffset TestedAt);
-
 /// <summary>
 /// Deep protocol seam owned by the security kernel. Provider adapters return
 /// normalized identities; they never issue Trykatch cookies or choose roles.
