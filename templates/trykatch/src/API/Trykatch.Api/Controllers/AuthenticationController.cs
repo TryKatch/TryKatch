@@ -198,23 +198,15 @@ public sealed class AuthenticationController(
 
     private async Task<SessionResponse> ToResponse(ApplicationUser user)
     {
-        IList<string> assignedRoles = await users.GetRolesAsync(user);
-        PlatformRoleDefinition? role = null;
-        foreach (string roleKey in assignedRoles)
-        {
-            role = await platformAccess.FindRoleAsync(roleKey);
-            if (role is not null) break;
-        }
-        if (role is null && user.IsPlatformAdministrator) role = PlatformRoles.Find(PlatformRoles.Administrator);
-        bool hasPlatformAccess = role is not null && !user.IsPlatformAccessSuspended;
+        EffectivePlatformAccess access = await platformAccess.ResolveEffectiveAccessAsync(user.Id);
         return new(
             user.Id,
             user.Email ?? string.Empty,
             user.DisplayName,
-            role?.Key == PlatformRoles.Administrator,
-            hasPlatformAccess,
-            hasPlatformAccess ? role?.Key : null,
-            hasPlatformAccess ? role!.Permissions.Order(StringComparer.Ordinal).ToArray() : []);
+            access.IsAdministrator,
+            access.IsActive,
+            access.RoleKey,
+            access.Permissions.Order(StringComparer.Ordinal).ToArray());
     }
 
     private static string Normalize(string code) =>

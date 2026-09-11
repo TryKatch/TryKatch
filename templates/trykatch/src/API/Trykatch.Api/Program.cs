@@ -12,6 +12,7 @@ using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 using Trykatch.Modules.AspNetCore;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Identity;
 using OpenIddict.Validation.AspNetCore;
 using Scalar.AspNetCore;
@@ -70,6 +71,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("PlatformAdministrator", policy => policy.RequireClaim("platform_admin", "true"));
 });
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, PlatformPermissionAuthorizationHandler>();
 builder.Services.AddRateLimiter(options =>
