@@ -10,7 +10,7 @@ internal sealed class ApplicationStarter(
     public async Task<int> StartAsync(string root, CancellationToken cancellationToken)
     {
         ApplicationLocation location = ApplicationLocation.Discover(root);
-        await output.WriteLineAsync("Checking Docker container runtime...");
+        await output.WriteLineAsync("Checking Docker container runtime (Docker Desktop may take up to 15 seconds to wake)...");
         ContainerRuntimeStatus runtime = await containerRuntimeProbe.CheckAsync(cancellationToken);
         if (!runtime.IsReady)
         {
@@ -56,20 +56,21 @@ internal interface IContainerRuntimeProbe
 internal sealed class DockerContainerRuntimeProbe : IContainerRuntimeProbe
 {
     private const int MinimumDockerClientMajorVersion = 25;
-    private static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(6);
+    private const int MaximumAttempts = 2;
+    internal static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(15);
 
     public async Task<ContainerRuntimeStatus> CheckAsync(CancellationToken cancellationToken)
     {
         ContainerRuntimeStatus lastFailure = ContainerRuntimeStatus.Unavailable(
             "Docker did not answer the runtime readiness check.");
 
-        for (int attempt = 1; attempt <= 3; attempt++)
+        for (int attempt = 1; attempt <= MaximumAttempts; attempt++)
         {
             lastFailure = await CheckOnceAsync(cancellationToken);
             if (lastFailure.IsReady || lastFailure.ClientVersion is not null)
                 return lastFailure;
 
-            if (attempt < 3)
+            if (attempt < MaximumAttempts)
                 await Task.Delay(TimeSpan.FromSeconds(attempt), cancellationToken);
         }
 
@@ -96,7 +97,7 @@ internal sealed class DockerContainerRuntimeProbe : IContainerRuntimeProbe
                 TryTerminate(process);
                 await Task.WhenAll(standardOutput, standardError);
                 return ContainerRuntimeStatus.Unavailable(
-                    "Docker Desktop did not answer within six seconds. It may still be waking from Resource Saver.");
+                    "Docker Desktop did not answer within 15 seconds. It may still be waking from Resource Saver, or the active Docker context may not point to its engine.");
             }
 
             string output = (await standardOutput).Trim();
