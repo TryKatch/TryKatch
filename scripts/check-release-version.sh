@@ -22,6 +22,20 @@ require_text() {
   fi
 }
 
+contains_exact_version() {
+  local text="$1"
+  local version="$2"
+  local escaped_version="${version//./\\.}"
+
+  if [[ "$text" == *".nupkg"* ]]; then
+    grep --fixed-strings --quiet -- "Trykatch.Templates.${version}.nupkg" <<< "$text"
+    return
+  fi
+
+  grep --extended-regexp --quiet -- \
+    "(^|[^[:alnum:].-])${escaped_version}([[:space:]<]|$)" <<< "$text"
+}
+
 if [[ ! "$release_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
   fail "RELEASE_VERSION is not a valid semantic version: $release_version"
 fi
@@ -46,25 +60,25 @@ current_installation_surfaces=(
   templates/trykatch/web/apps/web/src/views/LandingPage.tsx
 )
 
-require_text README.md "dotnet tool install --global Trykatch.Cli --version $release_version"
-require_text README.md "dotnet new install Trykatch.Templates@$release_version"
+require_text README.md "dotnet tool install --global Trykatch.Cli --version"
+require_text README.md "dotnet new install Trykatch.Templates@"
 require_text docs-site/src/content/docs/getting-started/install.mdx \
-  "dotnet tool install --global Trykatch.Cli --version $release_version"
+  "dotnet tool install --global Trykatch.Cli --version"
 require_text docs-site/src/content/docs/getting-started/install.mdx \
-  "dotnet tool update --global Trykatch.Cli --version $release_version"
+  "dotnet tool update --global Trykatch.Cli --version"
 require_text docs-site/src/content/docs/getting-started/install.mdx \
-  "dotnet new install Trykatch.Templates@$release_version"
+  "dotnet new install Trykatch.Templates@"
 require_text docs-site/src/content/docs/fr/getting-started/install.mdx \
-  "dotnet tool install --global Trykatch.Cli --version $release_version"
+  "dotnet tool install --global Trykatch.Cli --version"
 require_text docs-site/src/content/docs/fr/getting-started/install.mdx \
-  "dotnet tool update --global Trykatch.Cli --version $release_version"
+  "dotnet tool update --global Trykatch.Cli --version"
 require_text docs-site/src/content/docs/fr/getting-started/install.mdx \
-  "dotnet new install Trykatch.Templates@$release_version"
+  "dotnet new install Trykatch.Templates@"
 require_text templates/trykatch/web/apps/web/src/views/LandingPage.tsx \
-  "dotnet new install Trykatch.Templates@$release_version"
+  "dotnet new install Trykatch.Templates@"
 
 while IFS= read -r reference; do
-  if [[ "$reference" != *"$release_version"* ]]; then
+  if ! contains_exact_version "$reference" "$release_version"; then
     fail "current installation command is stale: $reference"
   fi
 done < <(
