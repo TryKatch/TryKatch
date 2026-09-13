@@ -28,6 +28,7 @@ public sealed class ApplicationStarterTests
         process.ProjectPath.ShouldBe(appHostProject);
         process.WorkingDirectory.ShouldBe(temporaryDirectory.Path);
         runtime.CheckCount.ShouldBe(1);
+        output.ToString().ShouldContain("may take up to 15 seconds to wake");
         output.ToString().ShouldContain("Docker 28.4.0 is ready");
         output.ToString().ShouldContain("Starting Horizon through its Aspire AppHost");
     }
@@ -118,6 +119,27 @@ public sealed class ApplicationStarterTests
             "--format",
             "{{.Client.Version}}|{{.Server.Version}}"
         ]);
+    }
+
+    [TestMethod]
+    public void DockerProbeAllowsDockerDesktopToWakeFromResourceSaver()
+    {
+        DockerContainerRuntimeProbe.WakeUpTimeout.ShouldBeGreaterThanOrEqualTo(TimeSpan.FromSeconds(10));
+    }
+
+    [TestMethod]
+    public async Task DockerProbeKeepsPollingWhenTheDaemonFailsImmediatelyWhileWaking()
+    {
+        int attempts = 0;
+        DockerContainerRuntimeProbe probe = new((_, _) => Task.FromResult(
+            ++attempts >= 3
+                ? ContainerRuntimeStatus.Ready("29.7.2", "29.7.2")
+                : ContainerRuntimeStatus.Unavailable("The Docker daemon is still waking.")));
+
+        ContainerRuntimeStatus result = await probe.CheckAsync(CancellationToken.None);
+
+        result.IsReady.ShouldBeTrue();
+        attempts.ShouldBe(3);
     }
 
     private static void CreateAppHost(string root, string name)
