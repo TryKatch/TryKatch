@@ -9,7 +9,7 @@ public sealed class TemplatePackageInstallerTests
     [TestMethod]
     public void CurrentVersionMatchesTheCliPackageVersion()
     {
-        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.14");
+        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.15");
     }
 
     [TestMethod]
@@ -20,13 +20,13 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.InstallAsync("0.1.0-preview.14", force: true, CancellationToken.None);
+        int exitCode = await installer.InstallAsync("0.1.0-preview.15", force: true, CancellationToken.None);
 
         exitCode.ShouldBe(0);
-        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.14");
+        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.15");
         engine.Force.ShouldBeTrue();
-        output.ToString().ShouldContain("Installing Trykatch template 0.1.0-preview.14");
-        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.14 installed");
+        output.ToString().ShouldContain("Installing Trykatch template 0.1.0-preview.15");
+        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.15 installed");
         output.ToString().ShouldContain("trykatch new <name>");
         error.ToString().ShouldBeEmpty();
     }
@@ -42,11 +42,11 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.InstallAsync("0.1.0-preview.14", force: false, CancellationToken.None);
+        int exitCode = await installer.InstallAsync("0.1.0-preview.15", force: false, CancellationToken.None);
 
         exitCode.ShouldBe(0);
         engine.Package.ShouldBeNull();
-        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.14 is already installed");
+        output.ToString().ShouldContain("Trykatch template 0.1.0-preview.15 is already installed");
         error.ToString().ShouldBeEmpty();
     }
 
@@ -65,7 +65,7 @@ public sealed class TemplatePackageInstallerTests
                     {
                       "Details": {
                         "PackageId": "Trykatch.Templates",
-                        "Version": "0.1.0-preview.14"
+                        "Version": "0.1.0-preview.15"
                       }
                     }
                   ]
@@ -75,7 +75,7 @@ public sealed class TemplatePackageInstallerTests
 
             bool installed = await engine.IsPackageInstalledAsync(
                 "Trykatch.Templates",
-                "0.1.0-preview.14",
+                "0.1.0-preview.15",
                 CancellationToken.None);
             bool otherVersionInstalled = await engine.IsPackageInstalledAsync(
                 "Trykatch.Templates",
@@ -99,13 +99,13 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.UpdateAsync("0.1.0-preview.14", CancellationToken.None);
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.15", CancellationToken.None);
 
         exitCode.ShouldBe(0);
-        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.14");
+        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.15");
         engine.Force.ShouldBeTrue();
-        output.ToString().ShouldContain("Updating Trykatch template to 0.1.0-preview.14");
-        output.ToString().ShouldContain("Trykatch template updated to 0.1.0-preview.14");
+        output.ToString().ShouldContain("Updating Trykatch template to 0.1.0-preview.15");
+        output.ToString().ShouldContain("Trykatch template updated to 0.1.0-preview.15");
         error.ToString().ShouldBeEmpty();
     }
 
@@ -128,13 +128,13 @@ public sealed class TemplatePackageInstallerTests
     public async Task UpdateFormatsRepeatedNuGetDownloadFailuresAsOneActionableError()
     {
         const string downloadFailure =
-            "Failed to download package 'Trykatch.Templates.0.1.0-preview.14'.";
+            "Failed to download package 'Trykatch.Templates.0.1.0-preview.15'.";
         const string unexpectedEof = "Received an unexpected EOF or 0 bytes from the transport stream.";
         RecordingTemplateEngine engine = new(new(
             103,
             $"""
             The following template packages will be installed:
-              Trykatch.Templates::0.1.0-preview.14
+              Trykatch.Templates::0.1.0-preview.15
             {downloadFailure}
             {unexpectedEof}
             {downloadFailure}
@@ -143,18 +143,18 @@ public sealed class TemplatePackageInstallerTests
             $"""
             Error: {downloadFailure}
             {unexpectedEof}
-            Warning: Failed to download Trykatch.Templates::0.1.0-preview.14 from NuGet feed https://api.nuget.org/v3/index.json.
+            Warning: Failed to download Trykatch.Templates::0.1.0-preview.15 from NuGet feed https://api.nuget.org/v3/index.json.
             """));
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, TextWriter.Null, error, isInteractive: false);
 
-        int exitCode = await installer.UpdateAsync("0.1.0-preview.14", CancellationToken.None);
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.15", CancellationToken.None);
 
         string formattedError = error.ToString();
         exitCode.ShouldBe(103);
-        formattedError.ShouldContain("Could not update Trykatch template to 0.1.0-preview.14");
+        formattedError.ShouldContain("Could not update Trykatch template to 0.1.0-preview.15");
         formattedError.ShouldContain("Reason: NuGet package download ended unexpectedly (unexpected EOF).");
-        formattedError.ShouldContain("Package: Trykatch.Templates@0.1.0-preview.14");
+        formattedError.ShouldContain("Package: Trykatch.Templates@0.1.0-preview.15");
         formattedError.ShouldContain("Retry: trykatch update");
         formattedError.ShouldContain("dotnet nuget locals http-cache --clear");
         formattedError.ShouldNotContain("The following template packages will be installed");

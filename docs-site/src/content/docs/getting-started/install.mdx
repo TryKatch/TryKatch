@@ -24,7 +24,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.14
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.15
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -59,7 +59,7 @@ creating a nested one.
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.14
+dotnet new install Trykatch.Templates@0.1.0-preview.15
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -76,7 +76,7 @@ Names containing dots and hyphens are normalized for C# namespaces, directories,
 Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.14
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.15
 trykatch update
 ```
 
@@ -90,7 +90,7 @@ When NuGet reports an unexpected EOF or an empty transport stream, Trykatch cond
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.14
+trykatch update --version 0.1.0-preview.15
 ```
 
 The .NET template engine can remove the previous template before a forced update finishes. Retrying the Trykatch command restores the template; applications you already generated are not affected.
@@ -179,7 +179,7 @@ Always start the AppHost—not the API project by itself—because Aspire suppli
     trykatch start
     ```
 
-    The CLI discovers the generated AppHost. It checks the Docker client and daemon before launching Aspire, allows a brief Resource Saver wake-up, and stops early with a focused recovery message when the runtime is unavailable. From another directory, use `trykatch start --root /path/to/Horizon`.
+    The CLI discovers the generated AppHost. It checks the Docker client and daemon before launching Aspire and allows up to 15 seconds per attempt for Docker Desktop to wake from Resource Saver. If the runtime remains unavailable after two attempts, it stops with a focused recovery message. From another directory, use `trykatch start --root /path/to/Horizon`.
   </TabItem>
   <TabItem label="Rider">
     Open the generated `Horizon.slnx` file and allow Rider to restore the solution. Select **`Horizon.AppHost: https`** in the run-configuration menu, then choose **Run** or **Debug**.
@@ -279,6 +279,8 @@ docker version
 ```
 
 If `docker info` fails, restart Docker Desktop and wait until its engine is running. Resume the engine if Docker Resource Saver paused it. If `docker version` shows a client older than 25.0, update Docker Desktop and verify that Rider or your terminal resolves the updated `docker` executable. Then stop and restart the AppHost.
+
+The Docker Desktop window can show **Engine running** while a terminal is still waiting for the daemon socket or is using another Docker context. Run `docker context show` and `docker version` in the same terminal that runs `trykatch start`. The CLI permits Docker Desktop's normal Resource Saver wake-up window before reporting a failure.
 
 PostgreSQL and the local observability containers cannot start while the container runtime is unhealthy, so downstream resources correctly remain in **Waiting**. The **migrator** is a one-shot process: **Finished** with exit code 0 is success, not a stopped application. The **api** and **web** should then become running. Inspect the first failed or unhealthy resource rather than restarting every resource individually.
 

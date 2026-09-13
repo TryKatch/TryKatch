@@ -24,7 +24,7 @@ Suivez ces étapes dans l’ordre.
 Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.14
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.15
 ```
 
 Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
@@ -59,7 +59,7 @@ imbriqué.
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.14
+dotnet new install Trykatch.Templates@0.1.0-preview.15
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -75,7 +75,7 @@ Les noms contenant des points ou des tirets sont normalisés pour produire des e
 Mettez d’abord à jour la CLI, puis utilisez la commande de mise à jour dédiée de Trykatch. La CLI et le modèle restent ainsi sur la même version :
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.14
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.15
 trykatch update
 ```
 
@@ -89,7 +89,7 @@ Lorsque NuGet signale une fin de flux inattendue (EOF) ou un flux de transport v
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.14
+trykatch update --version 0.1.0-preview.15
 ```
 
 Le moteur de modèles .NET peut supprimer l’ancienne version avant la fin d’une mise à jour forcée. Relancer la commande Trykatch restaure le modèle ; les applications déjà générées ne sont pas affectées.
@@ -178,7 +178,7 @@ Démarrez toujours l’AppHost — jamais le projet API seul — car Aspire four
     trykatch start
     ```
 
-    La CLI détecte automatiquement l’AppHost généré. Elle vérifie le client et le démon Docker avant de lancer Aspire, laisse au runtime le temps de sortir du mode Resource Saver, puis s’arrête avec un message de résolution précis si Docker reste indisponible. Depuis un autre répertoire, utilisez `trykatch start --root /chemin/vers/Horizon`.
+    La CLI détecte automatiquement l’AppHost généré. Elle vérifie le client et le démon Docker avant de lancer Aspire et accorde jusqu’à 15 secondes par tentative à Docker Desktop pour sortir du mode Resource Saver. Si le runtime reste indisponible après deux tentatives, elle s’arrête avec un message de résolution précis. Depuis un autre répertoire, utilisez `trykatch start --root /chemin/vers/Horizon`.
   </TabItem>
   <TabItem label="Rider">
     Ouvrez le fichier `Horizon.slnx` généré et laissez Rider restaurer la solution. Sélectionnez **`Horizon.AppHost: https`** dans les configurations d’exécution, puis choisissez **Run** ou **Debug**.
@@ -278,6 +278,8 @@ docker version
 ```
 
 Si `docker info` échoue, redémarrez Docker Desktop et attendez que son moteur soit opérationnel. Réactivez le moteur si Docker Resource Saver l’a suspendu. Si `docker version` indique un client antérieur à la version 25.0, mettez Docker Desktop à jour et vérifiez que Rider ou votre terminal utilise bien le nouvel exécutable `docker`. Arrêtez ensuite l’AppHost, puis redémarrez-le.
+
+La fenêtre Docker Desktop peut afficher **Engine running** alors qu’un terminal attend encore le socket du démon ou utilise un autre contexte Docker. Exécutez `docker context show` et `docker version` dans le même terminal que `trykatch start`. La CLI respecte désormais la fenêtre normale de réveil du mode Resource Saver avant de signaler un échec.
 
 PostgreSQL et les conteneurs d’observabilité locale ne peuvent pas démarrer lorsque le runtime de conteneurs est défaillant ; les ressources dépendantes restent donc correctement dans l’état **Waiting**. Le **migrateur** est un processus ponctuel : l’état **Finished** avec le code de sortie 0 indique un succès, pas une application arrêtée. Les ressources **api** et **web** doivent ensuite passer à l’état actif. Examinez la première ressource en échec ou défaillante au lieu de redémarrer chaque ressource séparément.
 
