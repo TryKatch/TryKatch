@@ -24,7 +24,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.13
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.14
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -59,7 +59,7 @@ creating a nested one.
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.13
+dotnet new install Trykatch.Templates@0.1.0-preview.14
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -76,13 +76,24 @@ Names containing dots and hyphens are normalized for C# namespaces, directories,
 Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.13
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.14
 trykatch update
 ```
 
 `trykatch template update` is the explicit equivalent. Use `--version <version>` with either command when you need a particular release.
 
 Template updates affect projects generated in the future; they do not rewrite an existing application's source files.
+
+### If a NuGet download is interrupted
+
+When NuGet reports an unexpected EOF or an empty transport stream, Trykatch condenses the repeated SDK messages into one actionable error. First retry the command shown by the CLI. If the download continues to fail, clear only NuGet's HTTP cache and retry:
+
+```bash
+dotnet nuget locals http-cache --clear
+trykatch update --version 0.1.0-preview.14
+```
+
+The .NET template engine can remove the previous template before a forced update finishes. Retrying the Trykatch command restores the template; applications you already generated are not affected.
 
 ## Uninstall Trykatch
 
@@ -149,7 +160,10 @@ trykatch module help
 
 Keep Docker running. From the generated application's root directory, this one command starts **both the ASP.NET Core backend and the React frontend**, together with PostgreSQL, migrations, OpenTelemetry, and the local observability services:
 
+The application root is the directory created by `trykatch new`—for example, `Horizon/`. It contains `Horizon.slnx`, `src/`, `tests/`, and `web/`. Change to that directory before running any restore, build, test, pnpm, or start command:
+
 ```bash
+cd /path/to/Horizon
 trykatch start
 ```
 
@@ -159,7 +173,7 @@ Always start the AppHost—not the API project by itself—because Aspire suppli
 
 <Tabs syncKey="start-method">
   <TabItem label="CLI" icon="terminal">
-    From the generated application's root directory, run:
+    From the generated application's root directory—the folder containing `Horizon.slnx`—run:
 
     ```bash
     trykatch start

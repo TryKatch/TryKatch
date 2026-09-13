@@ -24,7 +24,7 @@ Suivez ces étapes dans l’ordre.
 Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.13
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.14
 ```
 
 Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
@@ -59,7 +59,7 @@ imbriqué.
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.13
+dotnet new install Trykatch.Templates@0.1.0-preview.14
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -75,13 +75,24 @@ Les noms contenant des points ou des tirets sont normalisés pour produire des e
 Mettez d’abord à jour la CLI, puis utilisez la commande de mise à jour dédiée de Trykatch. La CLI et le modèle restent ainsi sur la même version :
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.13
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.14
 trykatch update
 ```
 
 `trykatch template update` est l’équivalent explicite. Ajoutez `--version <version>` à l’une ou l’autre commande pour sélectionner une version précise.
 
 La mise à jour du modèle s’applique aux futurs projets générés ; elle ne réécrit pas les fichiers source d’une application existante.
+
+### Si un téléchargement NuGet est interrompu
+
+Lorsque NuGet signale une fin de flux inattendue (EOF) ou un flux de transport vide, Trykatch regroupe les messages répétés du SDK en une seule erreur exploitable. Réessayez d’abord la commande affichée par la CLI. Si le téléchargement échoue encore, videz uniquement le cache HTTP de NuGet, puis relancez la mise à jour :
+
+```bash
+dotnet nuget locals http-cache --clear
+trykatch update --version 0.1.0-preview.14
+```
+
+Le moteur de modèles .NET peut supprimer l’ancienne version avant la fin d’une mise à jour forcée. Relancer la commande Trykatch restaure le modèle ; les applications déjà générées ne sont pas affectées.
 
 ## Désinstaller Trykatch
 
@@ -148,7 +159,10 @@ trykatch module help
 
 Gardez Docker actif. Depuis la racine de l’application générée, cette commande unique démarre **à la fois le backend ASP.NET Core et le frontend React**, avec PostgreSQL, les migrations, OpenTelemetry et les services d’observabilité locaux :
 
+La racine de l’application est le répertoire créé par `trykatch new`, par exemple `Horizon/`. Il contient `Horizon.slnx`, `src/`, `tests/` et `web/`. Placez-vous dans ce répertoire avant toute commande de restauration, compilation, test, pnpm ou démarrage :
+
 ```bash
+cd /chemin/vers/Horizon
 trykatch start
 ```
 
@@ -158,7 +172,7 @@ Démarrez toujours l’AppHost — jamais le projet API seul — car Aspire four
 
 <Tabs syncKey="start-method">
   <TabItem label="CLI" icon="terminal">
-    Depuis la racine de l’application générée, exécutez :
+    Depuis la racine de l'application générée — le dossier qui contient `Horizon.slnx` — exécutez :
 
     ```bash
     trykatch start

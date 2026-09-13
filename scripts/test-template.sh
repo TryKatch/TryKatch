@@ -154,6 +154,12 @@ generate_and_build() {
 
 generate_and_build Horizon
 test -d "$test_root/Horizon/web"
+grep -Fq 'folder that contains `Horizon.slnx`, `src/`, `tests/`, and `web/`' "$test_root/Horizon/README.md" ||
+  fail 'generated React README does not identify the application root'
+grep -Fq 'Use `trykatch start` when you want to run the application.' "$test_root/Horizon/README.md" ||
+  fail 'generated React README does not distinguish validation from startup'
+grep -Fq 'corepack pnpm --dir web install --frozen-lockfile' "$test_root/Horizon/README.md" ||
+  fail 'generated React README does not install frontend dependencies before validation'
 test ! -e "$test_root/Horizon/.env.local"
 test ! -e "$test_root/Horizon/.idea"
 test ! -e "$test_root/Horizon/.vercel"
@@ -172,6 +178,8 @@ grep -RFq --include='*.cs' 'WithVolume("horizon-otel-queue", "/var/lib/otelcol")
 generate_and_build Acme.Tools-Portal --ui none
 generate_and_build Trykatch --ui none
 test ! -e "$test_root/Acme.Tools.Portal/web"
+grep -Fq 'folder that contains `Acme.Tools.Portal.slnx`, `src/`, and `tests/`' "$test_root/Acme.Tools.Portal/README.md" ||
+  fail 'generated backend README does not identify the application root'
 test ! -e "$test_root/Acme.Tools.Portal/package.json"
 test ! -e "$test_root/Acme.Tools.Portal/.github/workflows/web.yml"
 test ! -e "$test_root/Acme.Tools.Portal/.vercelignore"

@@ -36,6 +36,7 @@ internal sealed class TemplatePackageInstaller(
             $"Installing Trykatch template {version}",
             $"Trykatch template {version} installed",
             $"Could not install Trykatch template {version}.",
+            $"trykatch template install --version {version} --force",
             cancellationToken);
     }
 
@@ -47,6 +48,7 @@ internal sealed class TemplatePackageInstaller(
             $"Updating Trykatch template to {version}",
             $"Trykatch template updated to {version}",
             $"Could not update Trykatch template to {version}.",
+            $"trykatch update --version {version}",
             cancellationToken);
     }
 
@@ -86,11 +88,12 @@ internal sealed class TemplatePackageInstaller(
         string status,
         string completion,
         string failure,
+        string retryCommand,
         CancellationToken cancellationToken)
     {
         if (!SemanticVersion.IsMatch(version))
         {
-            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.13.");
+            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.14.");
             return 1;
         }
 
@@ -119,7 +122,7 @@ internal sealed class TemplatePackageInstaller(
             if (isInteractive)
                 await output.WriteLineAsync();
             await error.WriteLineAsync(failure);
-            await WriteFailureDetailsAsync(result);
+            await WriteFailureDetailsAsync(result, package, retryCommand);
             return result.ExitCode;
         }
 
@@ -130,16 +133,40 @@ internal sealed class TemplatePackageInstaller(
         return 0;
     }
 
-    private async Task WriteFailureDetailsAsync(TemplateEngineResult result)
+    private async Task WriteFailureDetailsAsync(
+        TemplateEngineResult result,
+        string? package = null,
+        string? retryCommand = null)
     {
-        string details = string.Join(
-            Environment.NewLine,
-            new[] { result.StandardOutput, result.StandardError }
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(value => value.Trim()));
-        if (details.Length > 0)
-            await error.WriteLineAsync(details);
+        string[] diagnostics = new[] { result.StandardOutput, result.StandardError }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .SelectMany(value => value.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries))
+            .Select(value => value.Trim())
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (package is not null
+            && retryCommand is not null
+            && diagnostics.Any(IsUnexpectedNuGetDownloadTermination))
+        {
+            await error.WriteLineAsync("  Reason: NuGet package download ended unexpectedly (unexpected EOF).");
+            await error.WriteLineAsync($"  Package: {package}");
+            await error.WriteLineAsync($"  Retry: {retryCommand}");
+            await error.WriteLineAsync("  If it continues:");
+            await error.WriteLineAsync("    dotnet nuget locals http-cache --clear");
+            await error.WriteLineAsync($"    {retryCommand}");
+            await error.WriteLineAsync("  Retrying restores the template if the .NET engine removed the previous copy.");
+            return;
+        }
+
+        foreach (string diagnostic in diagnostics)
+            await error.WriteLineAsync($"  {diagnostic}");
     }
+
+    private static bool IsUnexpectedNuGetDownloadTermination(string diagnostic) =>
+        diagnostic.Contains("unexpected EOF", StringComparison.OrdinalIgnoreCase)
+        || diagnostic.Contains("0 bytes from the transport stream", StringComparison.OrdinalIgnoreCase);
 
     private async Task RenderProgressAsync(
         string status,

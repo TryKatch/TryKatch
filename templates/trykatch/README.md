@@ -10,6 +10,14 @@ For deployment, first read [production identity](docs/production-identity.md): t
 
 Prerequisites: .NET SDK 10.0.301+, Docker, Node.js 24+, and Corepack. The generated root `package.json` pins pnpm 10.17.1, so the same package-manager version is selected on every machine.
 
+Open a terminal in the generated application's root directory—the folder that contains `Trykatch.slnx`, `src/`, `tests/`, and `web/`. For example:
+
+```bash
+cd /path/to/Trykatch
+```
+
+Then run the following commands from that directory. The final command starts PostgreSQL, migrations, the backend, the React frontend, and the observability services through Aspire:
+
 ```bash
 dotnet tool restore
 dotnet restore Trykatch.slnx
@@ -63,18 +71,23 @@ The customer-facing workspace word is **organization**. Platform administrators 
 - Password recovery returns an account-neutral response, rate-limits requests, invalidates existing sessions, and uses `TRYKATCH_PUBLIC_URL` as the trusted origin for production email links.
 - External clients use OpenIddict authorization code + PKCE or client credentials. Implicit and password grants are not enabled.
 
-## Development commands
+## Validate changes
+
+Run these commands from the generated application's root directory—the same directory that contains `Trykatch.slnx`. They restore, compile, test, generate, and validate the application; they do **not** start it. Use `trykatch start` when you want to run the application.
 
 ```bash
 dotnet restore Trykatch.slnx
 dotnet build Trykatch.slnx --no-restore
 dotnet test tests/Trykatch.UnitTests
 dotnet test tests/Trykatch.ArchitectureTests
+corepack pnpm --dir web install --frozen-lockfile
 corepack pnpm --dir web generate
 corepack pnpm --dir web typecheck
 corepack pnpm --dir web test
 corepack pnpm --dir web build
 ```
+
+The paths are relative to the application root. For example, `tests/Trykatch.UnitTests` means the `Trykatch.UnitTests` project inside the root `tests/` directory, and `--dir web` tells pnpm to use the root `web/` workspace. Run the pnpm install command before any generate, typecheck, test, build, or dev command; those commands use tools such as TypeScript from `web/node_modules`.
 
 Generated files under `web/packages/api-client/src/generated` are machine-owned. Change API contracts, rebuild the API, and run `corepack pnpm --dir web generate`; never hand-edit those files.
 
