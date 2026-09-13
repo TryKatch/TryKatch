@@ -106,7 +106,7 @@ generate_and_build() {
   if [[ -d "$output/src/Common/$namespace_name.Infrastructure/Optional/Email" ]]; then
     grep -Fq 'services.AddEmailModule(configuration, isDevelopment, isOpenApiGeneration)' "$output/src/Common/$namespace_name.Infrastructure/DependencyInjection.cs" ||
       fail "generated email application '$name' does not wire the SMTP adapter"
-    grep -Fq 'Email__Security' "$output/src/API/$namespace_name.AppHost/Program.cs" ||
+    grep -RFq --include='*.cs' 'Email__Security' "$output/src/API/$namespace_name.AppHost" ||
       fail "generated email application '$name' does not wire Mailpit transport security"
     grep -Fq 'RealSmtpDeliveryUsesConfiguredTransport' "$output/tests/$namespace_name.IntegrationTests/SmtpTransportTests.cs" ||
       fail "generated email application '$name' omits its SMTP tests"
@@ -162,11 +162,11 @@ test -f "$test_root/Horizon/.github/workflows/web.yml"
 test ! -e "$test_root/Horizon/compose.backend.yml"
 test ! -e "$test_root/Horizon/README.backend.md"
 bash "$repository_root/scripts/test-apphost-launch-profile.sh" "$test_root/Horizon"
-grep -Fq 'AddViteApp("web", "../../../web/apps/web")' "$test_root/Horizon/src/API/Horizon.AppHost/Program.cs" ||
+grep -RFq --include='*.cs' 'AddViteApp("web", "../../../web/apps/web")' "$test_root/Horizon/src/API/Horizon.AppHost" ||
   fail 'React template output does not register the Vite application with AppHost'
-grep -Fq 'WithDataVolume("horizon-postgres-data")' "$test_root/Horizon/src/API/Horizon.AppHost/Program.cs" ||
+grep -RFq --include='*.cs' 'WithDataVolume("horizon-postgres-data")' "$test_root/Horizon/src/API/Horizon.AppHost" ||
   fail 'generated PostgreSQL volume is not scoped to the application name'
-grep -Fq 'WithVolume("horizon-otel-queue", "/var/lib/otelcol")' "$test_root/Horizon/src/API/Horizon.AppHost/Program.cs" ||
+grep -RFq --include='*.cs' 'WithVolume("horizon-otel-queue", "/var/lib/otelcol")' "$test_root/Horizon/src/API/Horizon.AppHost" ||
   fail 'generated OpenTelemetry queue volume is not scoped to the application name'
 "$test_root/tools/trykatch" module doctor --root "$test_root/Horizon"
 generate_and_build Acme.Tools-Portal --ui none
@@ -181,7 +181,7 @@ test ! -e "$test_root/Acme.Tools.Portal/README.backend.md"
 test ! -e "$test_root/Acme.Tools.Portal/scripts/test-proxy-headers.sh"
 test -f "$test_root/Acme.Tools.Portal/compose.yml"
 test -f "$test_root/Acme.Tools.Portal/README.md"
-if grep -Fq 'AddViteApp(' "$test_root/Acme.Tools.Portal/src/API/Acme.Tools.Portal.AppHost/Program.cs"; then
+if grep -RFq --include='*.cs' 'AddViteApp(' "$test_root/Acme.Tools.Portal/src/API/Acme.Tools.Portal.AppHost"; then
   fail 'Backend-only template output registers a Vite application'
 fi
 grep -Fq 'ports: ["8080:8080"]' "$test_root/Acme.Tools.Portal/compose.yml"

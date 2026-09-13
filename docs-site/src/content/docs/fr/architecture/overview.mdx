@@ -21,6 +21,10 @@ Le noyau gère l’identité et les sessions, la résolution de l’organisation
 
 Les modules peuvent fournir des services backend, des contrôleurs, la configuration du modèle EF et les migrations, des permissions, des routes et éléments de navigation React, des événements, des workers et des outils d’assistance optionnels. Un catalogue unique valide les identifiants, les dépendances, la parité backend/frontend et l’état d’activation.
 
+## Racines de composition des hôtes
+
+L’API, l’AppHost Aspire et le migrateur de base de données conservent volontairement des fichiers `Program.cs` courts. Chaque point d’entrée crée uniquement son hôte, appelle une extension d’hébergement Trykatch cohérente, puis l’exécute. L’enregistrement des services, l’ordre des middlewares HTTP, la topologie des ressources, l’ordre des migrations et le provisionnement des rôles d’exécution restent derrière des interfaces de composition nommées dans le projet hôte qui en est responsable. Les tests d’architecture garantissent ce contrat de point d’entrée minimal.
+
 ## Le parcours opérationnel
 
 Les données métier liées à une organisation et les messages de l’outbox sont validés dans la même transaction. Le worker traite les messages persistants de manière idempotente. Les activités HTTP, base de données et worker exportent des journaux, traces et métriques corrélés au moyen d’OpenTelemetry.
