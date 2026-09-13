@@ -21,6 +21,10 @@ The kernel owns identity and sessions, organization resolution, permission enfor
 
 Modules contribute backend services, controllers, EF model configuration and migrations, permissions, React routes and navigation, events, workers, and optional assistant tools. A single catalog validates identifiers, dependencies, backend/frontend parity, and enabled state.
 
+## Host composition roots
+
+The API, Aspire AppHost, and database migrator keep their `Program.cs` files deliberately small. Each entry point only creates its host, calls a cohesive Trykatch hosting extension, and runs it. Service registration, HTTP middleware ordering, resource topology, migration ordering, and runtime-role provisioning remain behind named composition interfaces in their owning host projects. Architecture tests enforce the thin entry-point contract.
+
 ## The operational path
 
 Organization-scoped work commits business data and outbox messages together. The worker processes durable messages idempotently. HTTP, database, and worker activity export correlated logs, traces, and metrics through OpenTelemetry.

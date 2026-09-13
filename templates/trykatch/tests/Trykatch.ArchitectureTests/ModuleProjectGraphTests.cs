@@ -16,15 +16,15 @@ public sealed class ModuleProjectGraphTests
         string[] modules = DiscoverModules(Workspace);
         modules.ShouldNotBeEmpty();
         foreach (string module in modules)
-        foreach (string layer in LayerNames)
-        {
-            string project = Path.Combine(
-                Workspace,
-                "src", "Modules", module,
-                $"Trykatch.Modules.{module}.{layer}",
-                $"Trykatch.Modules.{module}.{layer}.csproj");
-            File.Exists(project).ShouldBeTrue($"Missing {module} {layer} project: {project}");
-        }
+            foreach (string layer in LayerNames)
+            {
+                string project = Path.Combine(
+                    Workspace,
+                    "src", "Modules", module,
+                    $"Trykatch.Modules.{module}.{layer}",
+                    $"Trykatch.Modules.{module}.{layer}.csproj");
+                File.Exists(project).ShouldBeTrue($"Missing {module} {layer} project: {project}");
+            }
     }
 
     [TestMethod]
@@ -126,6 +126,20 @@ public sealed class ModuleProjectGraphTests
         }
     }
 
+    [TestMethod]
+    [DataRow("src/API/Trykatch.Api/Program.cs", 15)]
+    [DataRow("src/API/Trykatch.AppHost/Program.cs", 10)]
+    [DataRow("src/API/Trykatch.Migrator/Program.cs", 10)]
+    public void HostProgramFilesRemainThinCompositionRoots(string relativePath, int maximumLines)
+    {
+        string path = Path.Combine(Workspace, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+        File.Exists(path).ShouldBeTrue($"Missing host entry point: {path}");
+        File.ReadAllLines(path).Length.ShouldBeLessThanOrEqualTo(
+            maximumLines,
+            $"{relativePath} should only orchestrate host composition; move setup details behind cohesive hosting extensions.");
+    }
+
     private static string[] DiscoverModules(string root) => Directory
         .EnumerateFiles(Path.Combine(root, "src", "Modules"), "trykatch.module.json", SearchOption.AllDirectories)
         .Select(path => Directory.GetParent(path)!.Name)
@@ -183,89 +197,89 @@ internal static class ModuleProjectGraphInspector
             .ToArray();
 
         foreach (string module in modules)
-        foreach (string project in Directory.EnumerateFiles(
-                     Path.Combine(modulesRoot, module), "*.csproj", SearchOption.AllDirectories))
-        {
-            string layer = Layers.SingleOrDefault(candidate =>
-                    Path.GetFileNameWithoutExtension(project).EndsWith($".{candidate}", StringComparison.Ordinal))
-                ?? string.Empty;
-            if (layer.Length == 0)
+            foreach (string project in Directory.EnumerateFiles(
+                         Path.Combine(modulesRoot, module), "*.csproj", SearchOption.AllDirectories))
             {
-                errors.Add($"Unknown project layer: {project}");
-                continue;
-            }
-
-            XDocument document = XDocument.Load(project);
-            foreach (XElement reference in document.Descendants("ProjectReference"))
-            {
-                string? include = reference.Attribute("Include")?.Value;
-                if (string.IsNullOrWhiteSpace(include))
+                string layer = Layers.SingleOrDefault(candidate =>
+                        Path.GetFileNameWithoutExtension(project).EndsWith($".{candidate}", StringComparison.Ordinal))
+                    ?? string.Empty;
+                if (layer.Length == 0)
                 {
-                    errors.Add($"{module}.{layer} has an empty ProjectReference.");
+                    errors.Add($"Unknown project layer: {project}");
                     continue;
                 }
 
-                string target = Path.GetFullPath(include, Path.GetDirectoryName(project)!);
-                string targetName = Path.GetFileNameWithoutExtension(target);
-                string normalized = target.Replace('\\', '/');
-                if (TryReadModuleTarget(normalized, out string targetModule, out string targetLayer))
+                XDocument document = XDocument.Load(project);
+                foreach (XElement reference in document.Descendants("ProjectReference"))
                 {
-                    bool allowed = targetModule == module
-                        ? AllowedOwnModuleLayers[layer].Contains(targetLayer)
-                        : targetLayer == "IntegrationEvents";
-                    if (!allowed)
-                        errors.Add($"{module}.{layer} cannot reference {targetModule}.{targetLayer} ({targetName}).");
-                    continue;
+                    string? include = reference.Attribute("Include")?.Value;
+                    if (string.IsNullOrWhiteSpace(include))
+                    {
+                        errors.Add($"{module}.{layer} has an empty ProjectReference.");
+                        continue;
+                    }
+
+                    string target = Path.GetFullPath(include, Path.GetDirectoryName(project)!);
+                    string targetName = Path.GetFileNameWithoutExtension(target);
+                    string normalized = target.Replace('\\', '/');
+                    if (TryReadModuleTarget(normalized, out string targetModule, out string targetLayer))
+                    {
+                        bool allowed = targetModule == module
+                            ? AllowedOwnModuleLayers[layer].Contains(targetLayer)
+                            : targetLayer == "IntegrationEvents";
+                        if (!allowed)
+                            errors.Add($"{module}.{layer} cannot reference {targetModule}.{targetLayer} ({targetName}).");
+                        continue;
+                    }
+
+                    if (normalized.Contains("/src/Common/", StringComparison.Ordinal))
+                    {
+                        if (!AllowedCommonProjects[layer].Contains(targetName))
+                            errors.Add($"{module}.{layer} cannot reference Common project {targetName}.");
+                        continue;
+                    }
+
+                    errors.Add($"{module}.{layer} cannot reference project outside its module or approved Common seams: {targetName}.");
                 }
 
-                if (normalized.Contains("/src/Common/", StringComparison.Ordinal))
+                if (layer is "Domain" or "Application" or "IntegrationEvents")
                 {
-                    if (!AllowedCommonProjects[layer].Contains(targetName))
-                        errors.Add($"{module}.{layer} cannot reference Common project {targetName}.");
-                    continue;
+                    foreach (string framework in document.Descendants("FrameworkReference")
+                                 .Select(item => (string?)item.Attribute("Include"))
+                                 .OfType<string>())
+                        errors.Add($"{module}.{layer} cannot reference framework {framework}.");
                 }
 
-                errors.Add($"{module}.{layer} cannot reference project outside its module or approved Common seams: {targetName}.");
+                if (layer is "Domain" or "IntegrationEvents")
+                {
+                    foreach (string package in document.Descendants("PackageReference")
+                                 .Select(item => (string?)item.Attribute("Include"))
+                                 .OfType<string>())
+                        errors.Add($"{module}.{layer} cannot reference package {package}.");
+                }
+                else if (layer == "Application")
+                {
+                    string[] forbiddenPrefixes =
+                        ["Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "Microsoft.Extensions.Http", "Npgsql"];
+                    foreach (string package in document.Descendants("PackageReference")
+                                 .Select(item => (string?)item.Attribute("Include"))
+                                 .OfType<string>())
+                        if (forbiddenPrefixes.Any(prefix => package.StartsWith(prefix, StringComparison.Ordinal)))
+                            errors.Add($"{module}.Application cannot reference adapter package {package}.");
+                }
             }
-
-            if (layer is "Domain" or "Application" or "IntegrationEvents")
-            {
-                foreach (string framework in document.Descendants("FrameworkReference")
-                             .Select(item => (string?)item.Attribute("Include"))
-                             .OfType<string>())
-                    errors.Add($"{module}.{layer} cannot reference framework {framework}.");
-            }
-
-            if (layer is "Domain" or "IntegrationEvents")
-            {
-                foreach (string package in document.Descendants("PackageReference")
-                             .Select(item => (string?)item.Attribute("Include"))
-                             .OfType<string>())
-                    errors.Add($"{module}.{layer} cannot reference package {package}.");
-            }
-            else if (layer == "Application")
-            {
-                string[] forbiddenPrefixes =
-                    ["Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "Microsoft.Extensions.Http", "Npgsql"];
-                foreach (string package in document.Descendants("PackageReference")
-                             .Select(item => (string?)item.Attribute("Include"))
-                             .OfType<string>())
-                    if (forbiddenPrefixes.Any(prefix => package.StartsWith(prefix, StringComparison.Ordinal)))
-                        errors.Add($"{module}.Application cannot reference adapter package {package}.");
-            }
-        }
 
         string apiRoot = Path.Combine(workspace, "src", "API");
         if (Directory.Exists(apiRoot))
-        foreach (string project in Directory.EnumerateFiles(apiRoot, "*.csproj", SearchOption.AllDirectories))
-        foreach (XElement reference in XDocument.Load(project).Descendants("ProjectReference"))
-        {
-            string target = Path.GetFullPath(reference.Attribute("Include")?.Value ?? string.Empty, Path.GetDirectoryName(project)!);
-            string normalized = target.Replace('\\', '/');
-            if (TryReadModuleTarget(normalized, out string targetModule, out string targetLayer)
-                && targetLayer != "Infrastructure")
-                errors.Add($"Host {Path.GetFileNameWithoutExtension(project)} cannot reference {targetModule}.{targetLayer}.");
-        }
+            foreach (string project in Directory.EnumerateFiles(apiRoot, "*.csproj", SearchOption.AllDirectories))
+                foreach (XElement reference in XDocument.Load(project).Descendants("ProjectReference"))
+                {
+                    string target = Path.GetFullPath(reference.Attribute("Include")?.Value ?? string.Empty, Path.GetDirectoryName(project)!);
+                    string normalized = target.Replace('\\', '/');
+                    if (TryReadModuleTarget(normalized, out string targetModule, out string targetLayer)
+                        && targetLayer != "Infrastructure")
+                        errors.Add($"Host {Path.GetFileNameWithoutExtension(project)} cannot reference {targetModule}.{targetLayer}.");
+                }
 
         return errors.ToArray();
     }
