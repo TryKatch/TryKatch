@@ -10,6 +10,12 @@ For deployment, first read [production identity](docs/production-identity.md): t
 
 Prerequisites: .NET SDK 10.0.301+ and Docker.
 
+Open a terminal in the generated application's root directory—the folder that contains `Trykatch.slnx`, `src/`, and `tests/`—then run the commands from there:
+
+```bash
+cd /path/to/Trykatch
+```
+
 ```bash
 dotnet tool restore
 dotnet restore Trykatch.slnx

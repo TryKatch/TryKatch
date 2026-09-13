@@ -125,6 +125,43 @@ public sealed class TemplatePackageInstallerTests
     }
 
     [TestMethod]
+    public async Task UpdateFormatsRepeatedNuGetDownloadFailuresAsOneActionableError()
+    {
+        const string downloadFailure =
+            "Failed to download package 'Trykatch.Templates.0.1.0-preview.13'.";
+        const string unexpectedEof = "Received an unexpected EOF or 0 bytes from the transport stream.";
+        RecordingTemplateEngine engine = new(new(
+            103,
+            $"""
+            The following template packages will be installed:
+              Trykatch.Templates::0.1.0-preview.13
+            {downloadFailure}
+            {unexpectedEof}
+            {downloadFailure}
+            {unexpectedEof}
+            """,
+            $"""
+            Error: {downloadFailure}
+            {unexpectedEof}
+            Warning: Failed to download Trykatch.Templates::0.1.0-preview.13 from NuGet feed https://api.nuget.org/v3/index.json.
+            """));
+        StringWriter error = new();
+        TemplatePackageInstaller installer = new(engine, TextWriter.Null, error, isInteractive: false);
+
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.13", CancellationToken.None);
+
+        string formattedError = error.ToString();
+        exitCode.ShouldBe(103);
+        formattedError.ShouldContain("Could not update Trykatch template to 0.1.0-preview.13");
+        formattedError.ShouldContain("Reason: NuGet package download ended unexpectedly (unexpected EOF).");
+        formattedError.ShouldContain("Package: Trykatch.Templates@0.1.0-preview.13");
+        formattedError.ShouldContain("Retry: trykatch update");
+        formattedError.ShouldContain("dotnet nuget locals http-cache --clear");
+        formattedError.ShouldNotContain("The following template packages will be installed");
+        formattedError.Split("unexpected EOF", StringSplitOptions.None).Length.ShouldBe(2);
+    }
+
+    [TestMethod]
     public async Task UninstallUsesTheOfficialTemplateEngineAndExplainsCliRemoval()
     {
         RecordingTemplateEngine engine = new(new(0, "uninstalled", string.Empty));
