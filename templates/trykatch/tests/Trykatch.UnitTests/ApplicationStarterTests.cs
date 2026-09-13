@@ -124,7 +124,22 @@ public sealed class ApplicationStarterTests
     [TestMethod]
     public void DockerProbeAllowsDockerDesktopToWakeFromResourceSaver()
     {
-        DockerContainerRuntimeProbe.AttemptTimeout.ShouldBeGreaterThanOrEqualTo(TimeSpan.FromSeconds(10));
+        DockerContainerRuntimeProbe.WakeUpTimeout.ShouldBeGreaterThanOrEqualTo(TimeSpan.FromSeconds(10));
+    }
+
+    [TestMethod]
+    public async Task DockerProbeKeepsPollingWhenTheDaemonFailsImmediatelyWhileWaking()
+    {
+        int attempts = 0;
+        DockerContainerRuntimeProbe probe = new((_, _) => Task.FromResult(
+            ++attempts >= 3
+                ? ContainerRuntimeStatus.Ready("29.7.2", "29.7.2")
+                : ContainerRuntimeStatus.Unavailable("The Docker daemon is still waking.")));
+
+        ContainerRuntimeStatus result = await probe.CheckAsync(CancellationToken.None);
+
+        result.IsReady.ShouldBeTrue();
+        attempts.ShouldBe(3);
     }
 
     private static void CreateAppHost(string root, string name)

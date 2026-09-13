@@ -27,6 +27,7 @@ namespace Trykatch.IntegrationTests;
 
 [TestClass]
 [TestCategory("Integration")]
+[DoNotParallelize]
 public sealed class OutboxRecoveryIntegrationTests
 {
     private const string Email = "outbox-admin@trykatch.test";
