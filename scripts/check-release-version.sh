@@ -17,7 +17,7 @@ require_text() {
   local path="$1"
   local expected="$2"
 
-  if ! rg --fixed-strings --quiet "$expected" "$path"; then
+  if ! grep --fixed-strings --quiet -- "$expected" "$path"; then
     fail "$path must contain: $expected"
   fi
 }
@@ -68,7 +68,7 @@ while IFS= read -r reference; do
     fail "current installation command is stale: $reference"
   fi
 done < <(
-  rg --line-number \
+  grep --extended-regexp --line-number \
     'dotnet tool (install|update).*Trykatch\.Cli --version|dotnet new install .*Trykatch\.Templates|Trykatch\.Templates\.[0-9][^[:space:]]*\.nupkg' \
     "${current_installation_surfaces[@]}" || true
 )
