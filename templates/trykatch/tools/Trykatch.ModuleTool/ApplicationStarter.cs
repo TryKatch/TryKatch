@@ -56,28 +56,53 @@ internal interface IContainerRuntimeProbe
 internal sealed class DockerContainerRuntimeProbe : IContainerRuntimeProbe
 {
     private const int MinimumDockerClientMajorVersion = 25;
-    private const int MaximumAttempts = 2;
-    internal static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(15);
+    private readonly Func<TimeSpan, CancellationToken, Task<ContainerRuntimeStatus>> checkOnce;
+
+    public DockerContainerRuntimeProbe()
+        : this(CheckOnceAsync)
+    {
+    }
+
+    internal DockerContainerRuntimeProbe(
+        Func<TimeSpan, CancellationToken, Task<ContainerRuntimeStatus>> checkOnce)
+    {
+        ArgumentNullException.ThrowIfNull(checkOnce);
+        this.checkOnce = checkOnce;
+    }
+
+    internal static readonly TimeSpan WakeUpTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(1);
 
     public async Task<ContainerRuntimeStatus> CheckAsync(CancellationToken cancellationToken)
     {
         ContainerRuntimeStatus lastFailure = ContainerRuntimeStatus.Unavailable(
             "Docker did not answer the runtime readiness check.");
+        Stopwatch wakeUpWindow = Stopwatch.StartNew();
 
-        for (int attempt = 1; attempt <= MaximumAttempts; attempt++)
+        while (wakeUpWindow.Elapsed < WakeUpTimeout)
         {
-            lastFailure = await CheckOnceAsync(cancellationToken);
+            TimeSpan remaining = WakeUpTimeout - wakeUpWindow.Elapsed;
+            TimeSpan attemptTimeout = remaining < AttemptTimeout ? remaining : AttemptTimeout;
+            lastFailure = await checkOnce(attemptTimeout, cancellationToken);
             if (lastFailure.IsReady || lastFailure.ClientVersion is not null)
                 return lastFailure;
 
-            if (attempt < MaximumAttempts)
-                await Task.Delay(TimeSpan.FromSeconds(attempt), cancellationToken);
+            remaining = WakeUpTimeout - wakeUpWindow.Elapsed;
+            if (remaining <= TimeSpan.Zero)
+                break;
+
+            TimeSpan retryDelay = remaining < RetryDelay ? remaining : RetryDelay;
+            await Task.Delay(retryDelay, cancellationToken);
         }
 
-        return lastFailure;
+        return ContainerRuntimeStatus.Unavailable(
+            $"Docker Desktop did not become ready within {(int)WakeUpTimeout.TotalSeconds} seconds. {lastFailure.Message}");
     }
 
-    private static async Task<ContainerRuntimeStatus> CheckOnceAsync(CancellationToken cancellationToken)
+    private static async Task<ContainerRuntimeStatus> CheckOnceAsync(
+        TimeSpan attemptTimeout,
+        CancellationToken cancellationToken)
     {
         ProcessStartInfo startInfo = CreateStartInfo();
         try
@@ -87,7 +112,7 @@ internal sealed class DockerContainerRuntimeProbe : IContainerRuntimeProbe
             Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(cancellationToken);
             Task<string> standardError = process.StandardError.ReadToEndAsync(cancellationToken);
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(AttemptTimeout);
+            timeout.CancelAfter(attemptTimeout);
             try
             {
                 await process.WaitForExitAsync(timeout.Token);
@@ -97,7 +122,7 @@ internal sealed class DockerContainerRuntimeProbe : IContainerRuntimeProbe
                 TryTerminate(process);
                 await Task.WhenAll(standardOutput, standardError);
                 return ContainerRuntimeStatus.Unavailable(
-                    "Docker Desktop did not answer within 15 seconds. It may still be waking from Resource Saver, or the active Docker context may not point to its engine.");
+                    "The Docker daemon did not answer the current readiness attempt. It may still be waking from Resource Saver, or the active Docker context may not point to its engine.");
             }
 
             string output = (await standardOutput).Trim();

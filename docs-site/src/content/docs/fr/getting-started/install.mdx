@@ -178,7 +178,7 @@ Démarrez toujours l’AppHost — jamais le projet API seul — car Aspire four
     trykatch start
     ```
 
-    La CLI détecte automatiquement l’AppHost généré. Elle vérifie le client et le démon Docker avant de lancer Aspire et accorde jusqu’à 15 secondes par tentative à Docker Desktop pour sortir du mode Resource Saver. Si le runtime reste indisponible après deux tentatives, elle s’arrête avec un message de résolution précis. Depuis un autre répertoire, utilisez `trykatch start --root /chemin/vers/Horizon`.
+    La CLI détecte automatiquement l’AppHost généré. Elle vérifie le client et le démon Docker avant de lancer Aspire et continue ses vérifications pendant un maximum de 15 secondes lorsque Docker Desktop sort du mode Resource Saver. Si le runtime reste indisponible après cette fenêtre de réveil, elle s’arrête avec un message de résolution précis. Depuis un autre répertoire, utilisez `trykatch start --root /chemin/vers/Horizon`.
   </TabItem>
   <TabItem label="Rider">
     Ouvrez le fichier `Horizon.slnx` généré et laissez Rider restaurer la solution. Sélectionnez **`Horizon.AppHost: https`** dans les configurations d’exécution, puis choisissez **Run** ou **Debug**.
