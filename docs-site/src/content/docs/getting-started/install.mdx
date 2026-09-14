@@ -82,7 +82,7 @@ trykatch update
 
 `trykatch template update` is the explicit equivalent. Use `--version <version>` with either command when you need a particular release.
 
-If that exact template version is already installed, the update is a successful no-op. Trykatch reports that no update is required and does not remove or reinstall the working template.
+If that exact template version is already installed, the update is a successful no-op. Trykatch reports that no update is required and does not remove or reinstall the working template. Use `--force` only when you deliberately need to repair that same version by reinstalling it.
 
 Template updates affect projects generated in the future; they do not rewrite an existing application's source files.
 

@@ -48,7 +48,7 @@ trykatch module help
 trykatch module doctor --root ./Horizon
 ```
 
-`trykatch update` is idempotent: when the requested template version is already installed, it reports success without removing or reinstalling it.
+`trykatch update` is idempotent: when the requested template version is already installed, it reports success without removing or reinstalling it. Pass `--force` only to deliberately repair that same version by reinstalling it.
 
 From the generated application root, create a secure organization-owned backend
 module—or add `--with-web` for its React surface—in one atomic command:

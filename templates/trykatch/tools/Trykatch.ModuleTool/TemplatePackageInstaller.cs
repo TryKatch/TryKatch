@@ -41,12 +41,15 @@ internal sealed class TemplatePackageInstaller(
             cancellationToken);
     }
 
-    public async Task<int> UpdateAsync(string version, CancellationToken cancellationToken)
+    public async Task<int> UpdateAsync(
+        string version,
+        bool forceReinstall,
+        CancellationToken cancellationToken)
     {
         return await ApplyAsync(
             version,
             force: true,
-            skipIfAlreadyInstalled: true,
+            skipIfAlreadyInstalled: !forceReinstall,
             $"Updating Trykatch template to {version}",
             $"Trykatch template updated to {version}",
             $"Could not update Trykatch template to {version}.",

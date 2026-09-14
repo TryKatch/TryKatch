@@ -132,7 +132,7 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.UpdateAsync("0.1.0-preview.20", CancellationToken.None);
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.20", forceReinstall: false, CancellationToken.None);
 
         exitCode.ShouldBe(0);
         engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.20");
@@ -153,12 +153,30 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, output, error, isInteractive: false);
 
-        int exitCode = await installer.UpdateAsync("0.1.0-preview.20", CancellationToken.None);
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.20", forceReinstall: false, CancellationToken.None);
 
         exitCode.ShouldBe(0);
         engine.Package.ShouldBeNull();
         output.ToString().ShouldContain("Trykatch template 0.1.0-preview.20 is already installed");
         error.ToString().ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public async Task UpdateForceReinstallsTheRequestedVersionWhenItIsAlreadyPresent()
+    {
+        RecordingTemplateEngine engine = new(new(0, "reinstalled", string.Empty))
+        {
+            IsRequestedVersionInstalled = true
+        };
+        StringWriter output = new();
+        TemplatePackageInstaller installer = new(engine, output, TextWriter.Null, isInteractive: false);
+
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.20", forceReinstall: true, CancellationToken.None);
+
+        exitCode.ShouldBe(0);
+        engine.Package.ShouldBe("Trykatch.Templates@0.1.0-preview.20");
+        engine.Force.ShouldBeTrue();
+        output.ToString().ShouldContain("Trykatch template updated to 0.1.0-preview.20");
     }
 
     [TestMethod]
@@ -168,7 +186,7 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, TextWriter.Null, error, isInteractive: false);
 
-        int exitCode = await installer.UpdateAsync("0.1.0-preview.109", CancellationToken.None);
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.109", forceReinstall: false, CancellationToken.None);
 
         exitCode.ShouldBe(103);
         engine.Force.ShouldBeTrue();
@@ -200,7 +218,7 @@ public sealed class TemplatePackageInstallerTests
         StringWriter error = new();
         TemplatePackageInstaller installer = new(engine, TextWriter.Null, error, isInteractive: false);
 
-        int exitCode = await installer.UpdateAsync("0.1.0-preview.20", CancellationToken.None);
+        int exitCode = await installer.UpdateAsync("0.1.0-preview.20", forceReinstall: false, CancellationToken.None);
 
         string formattedError = error.ToString();
         exitCode.ShouldBe(103);
