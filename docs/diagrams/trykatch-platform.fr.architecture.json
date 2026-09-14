@@ -7,7 +7,7 @@
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/TryKatch/TryKatch",
-      "revision": "83d1cd52ae538c03145f8bc53a522ad10788f223"
+      "revision": "6d41f2aaac2183995702e271f1345b460adcdcc5"
     },
     "views": [
       {
@@ -20,7 +20,7 @@
         "id": "module-seam",
         "label": "Examiner la frontière des modules",
         "focus": ["security_kernel", "module_runtime", "projects_module", "federation_module"],
-        "note": "Les modules apportent leurs capacités par des contrats validés sans remplacer le noyau de sécurité."
+        "note": "La CLI génère cinq couches backend et une contribution React optionnelle, puis les valide sans remplacer le noyau de sécurité."
       },
       {
         "id": "operations",
@@ -85,11 +85,11 @@
     {
       "id": "projects_module",
       "type": "backend",
-      "label": "Module Projects",
-      "sublabel": "tranche verticale de référence",
+      "label": "Module généré",
+      "sublabel": "cinq couches + React optionnel",
       "pos": [1080, 160],
       "size": [160, 64],
-      "sources": [{ "path": "docs/module-authoring.md", "label": "module de référence" }]
+      "sources": [{ "path": "docs/module-authoring.md", "label": "générateur de module" }]
     },
     {
       "id": "federation_module",
@@ -167,7 +167,7 @@
       "dot": "cyan",
       "title": "Les modules restent remplaçables",
       "items": [
-        "Les contributions sont explicites et validées ; Projects et Federation démontrent le contrat"
+        "La CLI génère, enregistre, restaure, teste et annule atomiquement un module complet"
       ]
     },
     {

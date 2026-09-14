@@ -1,8 +1,8 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using System.Security.Cryptography;
 
 namespace Trykatch.ModuleTool;
 
@@ -309,7 +309,7 @@ public sealed partial class ModuleWorkspace
 
         foreach (ModuleDataResource resource in manifest.DataOwnership.Resources)
         {
-            if (!StableContractIdRegex().IsMatch(resource.Name)
+            if ((!StableContractIdRegex().IsMatch(resource.Name) && !SqlIdentifierRegex().IsMatch(resource.Name))
                 || !SqlIdentifierRegex().IsMatch(resource.Schema)
                 || !SqlIdentifierRegex().IsMatch(resource.Table))
                 errors.Add($"Module '{manifest.Id}' declares invalid data resource '{resource.Name}' at '{resource.Schema}.{resource.Table}'.");
@@ -674,13 +674,19 @@ public sealed partial class ModuleWorkspace
             {
                 string ownership = resource.Ownership switch
                 {
-                    "organization" => "Organization", "platform" => "Platform", "global" => "Global", "infrastructure" => "Infrastructure",
+                    "organization" => "Organization",
+                    "platform" => "Platform",
+                    "global" => "Global",
+                    "infrastructure" => "Infrastructure",
                     _ => throw new InvalidOperationException("Unsupported data ownership.")
                 };
                 string access = resource.AccessRule switch
                 {
-                    null => "null", "platform-only" => "ModuleDataAccessRule.PlatformOnly", "identity-only" => "ModuleDataAccessRule.IdentityOnly",
-                    "global-read-only" => "ModuleDataAccessRule.GlobalReadOnly", "host-only" => "ModuleDataAccessRule.HostOnly",
+                    null => "null",
+                    "platform-only" => "ModuleDataAccessRule.PlatformOnly",
+                    "identity-only" => "ModuleDataAccessRule.IdentityOnly",
+                    "global-read-only" => "ModuleDataAccessRule.GlobalReadOnly",
+                    "host-only" => "ModuleDataAccessRule.HostOnly",
                     _ => throw new InvalidOperationException("Unsupported data access rule.")
                 };
                 output.Append("        new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", new(")

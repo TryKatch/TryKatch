@@ -66,6 +66,32 @@ Projects is the enabled reference module. Its registration owns the use cases, p
 
 The Projects module remains the enabled reference for organization-scoped domain behavior. Together, Projects and Federation demonstrate built-in and optional module shapes without adding tutorial-only navigation to generated applications.
 
+## Generate a source module
+
+Run the generator from the application root—the directory containing the solution, `src/`, `tests/`, and `trykatch.modules.json`:
+
+```bash
+trykatch module create Invoicing \
+  --entity Invoice \
+  --resource invoices \
+  --ownership organization
+```
+
+Add `--with-web` for a React Query list/create/edit surface, navigation and Archive integration:
+
+```bash
+trykatch module create Invoicing \
+  --entity Invoice \
+  --resource invoices \
+  --ownership organization \
+  --description "Organization invoice management." \
+  --with-web
+```
+
+The command creates the five backend layers, unit and architecture test projects, an organization-owned EF model, a forced-RLS PostgreSQL migration, named API operations, permissions, audit/outbox behavior, and the module manifest. It then edits the solution and host project references, registers and enables the module, regenerates the registries, restores dependencies, builds and tests the result, and runs `module doctor`. With `--with-web`, it also regenerates the OpenAPI client and runs the frontend type checker, tests and production build.
+
+Creation is transactional. The generator stages output privately and restores every catalog, solution, project, registry, generated-client and lockfile mutation if a verification phase fails. It never overwrites an existing module. Version 1 intentionally accepts only explicit `organization` ownership.
+
 ## Lifecycle commands
 
 Run these commands from the generated solution root. The packaged tool command is `trykatch`; `dotnet run` works before installing it globally.
@@ -91,7 +117,9 @@ dotnet run --project tools/Trykatch.ModuleTool -- module disable federation
 7. Machine-owned registries produced by the module tool must remain deterministic and reviewed. CI rejects drift from `trykatch.modules.json`.
 8. Disabling or removing module code never drops its data. Permanent purge is a separate, explicit retention operation.
 
-## Adding a source module
+## Adding a source module manually
+
+Prefer `trykatch module create` for organization CRUD modules. Use the manual process only for platform, global or infrastructure capabilities, or for a module whose domain shape is intentionally outside the v1 generator contract.
 
 1. Create the five module projects—Domain, Application, IntegrationEvents, Presentation, and Infrastructure—plus `Web` beneath `src/Modules/<Module>`.
 2. Add a backend entry implementing `IModule`; use `IOrganizationEndpointContributor` for its organization API and register only the module's own dependencies.
