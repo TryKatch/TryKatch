@@ -58,15 +58,18 @@ Each definition uses `lowerCamelCase:type`, followed by optional modifiers. Fiel
 | Contract type | Generated .NET type | Generated React control |
 | --- | --- | --- |
 | `string` | `string` | text input or textarea |
-| `decimal` | `decimal` with `numeric(18,2)` persistence | decimal number input |
-| `int` / `long` | `int` / `long` | whole-number input |
+| `decimal` | `decimal` with `numeric(18,2)` persistence | invariant string transport and exact decimal input |
+| `int` | `int` | whole-number input |
+| `long` | `long` | invariant string transport and exact 64-bit integer input |
 | `bool` | `bool` | checkbox or optional selector |
 | `date` | `DateOnly` | date input |
-| `datetime` | `DateTimeOffset` | date-time input |
+| `datetime` | UTC-normalized `DateTimeOffset` | local date-time input converted to an ISO UTC instant |
 | `guid` | `Guid` | identifier input |
 | `enum(Draft,Sent,Paid)` | strongly typed `InvoiceStatus` | translated selector |
 
 If `--fields` is omitted, the compatible starter contract remains `name:string:required:max(200),description:string:optional:max(2000)`. Platform-managed fields such as `Id`, `OrganizationId`, audit timestamps and deletion metadata cannot be declared or exposed as writable fields.
+
+Field identifiers are limited to 63 ASCII characters so PostgreSQL cannot silently truncate a generated column name. Decimal values accept at most 16 integer digits and 2 fractional digits, matching `numeric(18,2)` exactly. Decimal and 64-bit integer values cross JSON as invariant strings so JavaScript cannot round them. Generated date-time values are normalized to UTC before persistence and converted between the browser's local editor and ISO UTC transport.
 
 ## What the command creates
 

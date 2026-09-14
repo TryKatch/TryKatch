@@ -30,6 +30,7 @@ internal static partial class ModuleFieldRenderer
             ["__MODEL_FIELD_CONFIGURATION__"] = JoinLines(fields.SelectMany(RenderModelConfiguration), 12),
             ["__MIGRATION_FIELDS__"] = JoinLines(fields.Select(RenderMigrationColumn), 16),
             ["__WEB_FIELD_STATE__"] = JoinLines(fields.Select(RenderWebState), 2),
+            ["__WEB_HELPERS__"] = RenderWebHelpers(fields),
             ["__WEB_FIELD_RESET__"] = string.Join("; ", fields.Select(RenderWebReset)),
             ["__WEB_FIELD_EDIT__"] = string.Join("; ", fields.Select(RenderWebEdit)),
             ["__WEB_REQUEST_BODY__"] = string.Join(", ", fields.Select(RenderWebRequestValue)),
@@ -50,9 +51,12 @@ internal static partial class ModuleFieldRenderer
             string.Join(",\n", field.EnumValues.Select((value, index) => $"    {value} = {index + 1}")) +
             "\n}"));
 
-    private static string RenderDomainAssignment(ModuleFieldDefinition field) => field.Kind == ModuleFieldKind.String
-        ? $"{field.PropertyName} = {field.Name}{(field.Required ? string.Empty : "?")}.Trim();"
-        : $"{field.PropertyName} = {field.Name};";
+    private static string RenderDomainAssignment(ModuleFieldDefinition field) => field.Kind switch
+    {
+        ModuleFieldKind.String => $"{field.PropertyName} = {field.Name}{(field.Required ? string.Empty : "?")}.Trim();",
+        ModuleFieldKind.DateTime => $"{field.PropertyName} = {field.Name}{(field.Required ? string.Empty : "?")}.ToUniversalTime();",
+        _ => $"{field.PropertyName} = {field.Name};"
+    };
 
     private static string RenderDomainProperty(string entityName, ModuleFieldDefinition field)
     {
@@ -73,14 +77,37 @@ internal static partial class ModuleFieldRenderer
         if (field.Kind == ModuleFieldKind.String)
             return field.Required ? $"command.{field.PropertyName}!" : $"command.{field.PropertyName}";
 
+        if (field.Kind == ModuleFieldKind.Decimal)
+        {
+            string parse = $"decimal.Parse(command.{field.PropertyName}!, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture)";
+            return field.Required
+                ? parse
+                : $"string.IsNullOrWhiteSpace(command.{field.PropertyName}) ? null : {parse}";
+        }
+
+        if (field.Kind == ModuleFieldKind.Long)
+        {
+            string parse = $"long.Parse(command.{field.PropertyName}!, NumberStyles.Integer, CultureInfo.InvariantCulture)";
+            return field.Required
+                ? parse
+                : $"string.IsNullOrWhiteSpace(command.{field.PropertyName}) ? null : {parse}";
+        }
+
         return field.Required
             ? $"command.{field.PropertyName}.GetValueOrDefault()"
             : $"command.{field.PropertyName}";
     }
 
-    private static string RenderDtoArgument(ModuleFieldDefinition field) => field.Kind == ModuleFieldKind.Enum
-        ? field.Required ? $"record.{field.PropertyName}.ToString()" : $"record.{field.PropertyName}?.ToString()"
-        : $"record.{field.PropertyName}";
+    private static string RenderDtoArgument(ModuleFieldDefinition field) => field.Kind switch
+    {
+        ModuleFieldKind.Enum => field.Required
+            ? $"record.{field.PropertyName}.ToString()"
+            : $"record.{field.PropertyName}?.ToString()",
+        ModuleFieldKind.Decimal or ModuleFieldKind.Long => field.Required
+            ? $"record.{field.PropertyName}.ToString(CultureInfo.InvariantCulture)"
+            : $"record.{field.PropertyName}?.ToString(CultureInfo.InvariantCulture)",
+        _ => $"record.{field.PropertyName}"
+    };
 
     private static IEnumerable<string> RenderValidation(string entityName, ModuleFieldDefinition field)
     {
@@ -103,6 +130,27 @@ internal static partial class ModuleFieldRenderer
             yield break;
         }
 
+        if (field.Kind == ModuleFieldKind.Decimal)
+        {
+            string value = $"command.{field.PropertyName}";
+            string parsed = $"parsed{field.PropertyName}";
+            if (field.Required)
+                yield return $"if (string.IsNullOrWhiteSpace({value})) errors.Add(\"{field.PropertyName} is required.\");";
+            string prefix = field.Required ? "else " : string.Empty;
+            yield return $"{prefix}if (!string.IsNullOrWhiteSpace({value}) && (!decimal.TryParse({value}, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out decimal {parsed}) || {parsed} <= -10000000000000000m || {parsed} >= 10000000000000000m || {parsed} != decimal.Round({parsed}, 2))) errors.Add(\"{field.PropertyName} must be an invariant decimal with at most 16 integer digits and 2 fractional digits.\");";
+            yield break;
+        }
+
+        if (field.Kind == ModuleFieldKind.Long)
+        {
+            string value = $"command.{field.PropertyName}";
+            if (field.Required)
+                yield return $"if (string.IsNullOrWhiteSpace({value})) errors.Add(\"{field.PropertyName} is required.\");";
+            string prefix = field.Required ? "else " : string.Empty;
+            yield return $"{prefix}if (!string.IsNullOrWhiteSpace({value}) && !long.TryParse({value}, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)) errors.Add(\"{field.PropertyName} must be a 64-bit integer.\");";
+            yield break;
+        }
+
         if (field.Required)
         {
             yield return $"if (command.{field.PropertyName} is null) errors.Add(\"{field.PropertyName} is required.\");";
@@ -112,8 +160,8 @@ internal static partial class ModuleFieldRenderer
     }
 
     private static string RenderAuditDisplay(ModuleFieldDefinition field) => field.Kind == ModuleFieldKind.String
-        ? $"record.{field.PropertyName} ?? record.Id.ToString()"
-        : $"Convert.ToString(record.{field.PropertyName}, CultureInfo.InvariantCulture) ?? record.Id.ToString()";
+        ? $"NormalizeAuditDisplay(record.{field.PropertyName}, record.Id)"
+        : $"NormalizeAuditDisplay(Convert.ToString(record.{field.PropertyName}, CultureInfo.InvariantCulture), record.Id)";
 
     private static IEnumerable<string> RenderModelConfiguration(ModuleFieldDefinition field)
     {
@@ -182,7 +230,7 @@ internal static partial class ModuleFieldRenderer
         string value = field.Kind switch
         {
             ModuleFieldKind.Boolean when field.Required => $"record.{field.Name}",
-            ModuleFieldKind.DateTime => $"record.{field.Name} ? String(record.{field.Name}).slice(0, 16) : ''",
+            ModuleFieldKind.DateTime => $"toDateTimeLocal(record.{field.Name})",
             ModuleFieldKind.String or ModuleFieldKind.Enum or ModuleFieldKind.Date or ModuleFieldKind.Guid => $"record.{field.Name} ?? ''",
             _ => $"record.{field.Name} == null ? '' : String(record.{field.Name})"
         };
@@ -193,9 +241,12 @@ internal static partial class ModuleFieldRenderer
     {
         string value = field.Kind switch
         {
-            ModuleFieldKind.Decimal or ModuleFieldKind.Integer or ModuleFieldKind.Long => field.Required
+            ModuleFieldKind.Integer => field.Required
                 ? $"Number({field.Name})"
                 : $"{field.Name} === '' ? null : Number({field.Name})",
+            ModuleFieldKind.DateTime => field.Required
+                ? $"new Date({field.Name}).toISOString()"
+                : $"{field.Name} === '' ? null : new Date({field.Name}).toISOString()",
             ModuleFieldKind.Boolean when field.Required => field.Name,
             ModuleFieldKind.Boolean => $"{field.Name} === '' ? null : {field.Name} === 'true'",
             _ when field.Required => field.Name,
@@ -223,9 +274,11 @@ internal static partial class ModuleFieldRenderer
             ModuleFieldKind.String =>
                 $"<input{common} maxLength={{{field.MaximumLength}}} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Decimal =>
-                $"<input type=\"number\" step=\"0.01\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
-            ModuleFieldKind.Integer or ModuleFieldKind.Long =>
+                $"<input inputMode=\"decimal\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+            ModuleFieldKind.Integer =>
                 $"<input type=\"number\" step=\"1\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+            ModuleFieldKind.Long =>
+                $"<input inputMode=\"numeric\" pattern=\"-?[0-9]+\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Date =>
                 $"<input type=\"date\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.DateTime =>
@@ -259,6 +312,18 @@ internal static partial class ModuleFieldRenderer
 
     private static string RenderWebViewingDisplayValue(ModuleFieldDefinition field) =>
         field.Required ? $"String(viewing.{field.Name})" : $"String(viewing.{field.Name} ?? viewing.id)";
+
+    private static string RenderWebHelpers(IEnumerable<ModuleFieldDefinition> fields) =>
+        fields.Any(field => field.Kind == ModuleFieldKind.DateTime)
+            ? """
+              function toDateTimeLocal(value: string | null | undefined): string {
+                if (!value) return ''
+                const date = new Date(value)
+                if (Number.isNaN(date.getTime())) return ''
+                return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+              }
+              """
+            : string.Empty;
 
     private static string RenderMessages(IReadOnlyList<ModuleFieldDefinition> fields, bool french)
     {

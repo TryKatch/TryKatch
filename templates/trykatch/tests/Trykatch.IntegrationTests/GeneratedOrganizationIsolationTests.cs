@@ -261,7 +261,7 @@ public sealed class GeneratedOrganizationIsolationTests
             IsolationFixture source = new(
                 new("sources", schema, "sources", ModuleDataOwnership.Organization,
                     "Fixture.Source", "source_organization_isolation"),
-                [new("Id", "uuid", "uuid", false, false, false, false)],
+                [new("Id", "uuid", "uuid", false, false, false, false, null)],
                 "TargetExternalKey",
                 []);
             ForeignKeyFixture foreignKey = new(
@@ -376,7 +376,8 @@ public sealed class GeneratedOrganizationIsolationTests
         command.CommandText = """
             SELECT column_name, data_type, udt_name,
                    is_nullable = 'YES', column_default IS NOT NULL,
-                   is_identity = 'YES', is_generated <> 'NEVER'
+                   is_identity = 'YES', is_generated <> 'NEVER',
+                   character_maximum_length
             FROM information_schema.columns
             WHERE table_schema = @schema AND table_name = @table
             ORDER BY ordinal_position
@@ -388,7 +389,8 @@ public sealed class GeneratedOrganizationIsolationTests
         while (await reader.ReadAsync())
             columns.Add(new(
                 reader.GetString(0), reader.GetString(1), reader.GetString(2),
-                reader.GetBoolean(3), reader.GetBoolean(4), reader.GetBoolean(5), reader.GetBoolean(6)));
+                reader.GetBoolean(3), reader.GetBoolean(4), reader.GetBoolean(5), reader.GetBoolean(6),
+                reader.IsDBNull(7) ? null : reader.GetInt32(7)));
         if (columns.Count == 0)
             throw new InvalidOperationException($"Declared relation '{resource.Schema}.{resource.Table}' does not exist.");
 
@@ -523,8 +525,12 @@ public sealed class GeneratedOrganizationIsolationTests
                 "ActorId" or "CreatedBy" => actorId,
                 _ => column.DataType switch
                 {
-                    "text" or "character varying" or "character" => marker,
-                    "timestamp with time zone" or "timestamp without time zone" => DateTimeOffset.UtcNow,
+                    "text" or "character varying" or "character" => column.MaximumLength is int maximumLength
+                        && marker.Length > maximumLength ? marker[..maximumLength] : marker,
+                    "timestamp with time zone" => DateTimeOffset.UtcNow,
+                    "timestamp without time zone" => DateTime.UtcNow,
+                    "date" => DateOnly.FromDateTime(DateTime.UtcNow),
+                    "uuid" => Guid.CreateVersion7(),
                     "boolean" => false,
                     "smallint" or "integer" or "bigint" or "numeric" => 0,
                     _ when column.UdtName is "json" or "jsonb" => "{}",
@@ -604,7 +610,8 @@ public sealed class GeneratedOrganizationIsolationTests
         bool IsNullable,
         bool HasDefault,
         bool IsIdentity,
-        bool IsGenerated);
+        bool IsGenerated,
+        int? MaximumLength);
 
     private sealed class DatabaseServer(PostgreSqlContainer? container, string connectionString) : IAsyncDisposable
     {

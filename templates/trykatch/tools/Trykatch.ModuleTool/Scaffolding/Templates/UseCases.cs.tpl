@@ -135,6 +135,13 @@ public sealed class __MODULE__UseCases(
             timeProvider.GetUtcNow(), record.DeletionReason));
     }
 
+    private static string NormalizeAuditDisplay(string? value, Guid id)
+    {
+        string normalized = value?.Trim() ?? string.Empty;
+        if (normalized.Length == 0) return id.ToString();
+        return normalized.Length <= 240 ? normalized : normalized[..240];
+    }
+
     private static string? Validate(Save__ENTITY__Command command)
     {
         List<string> errors = [];

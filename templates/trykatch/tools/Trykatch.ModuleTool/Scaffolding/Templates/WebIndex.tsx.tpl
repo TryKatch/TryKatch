@@ -14,6 +14,8 @@ async function loadResult<T>(load: () => Promise<T>): Promise<LoadResult<T>> {
   catch (error) { return { failure: error instanceof Error ? error.message : 'The request failed.' } }
 }
 
+__WEB_HELPERS__
+
 export function __MODULE__Page() {
   const { t, tableLabels } = use__MODULE__Messages()
   const queryClient = useQueryClient()

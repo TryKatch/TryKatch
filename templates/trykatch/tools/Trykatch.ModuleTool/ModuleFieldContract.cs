@@ -45,9 +45,9 @@ internal sealed record ModuleFieldDefinition(
     public string InputType => Kind switch
     {
         ModuleFieldKind.String or ModuleFieldKind.Enum => "string?",
-        ModuleFieldKind.Decimal => "decimal?",
+        ModuleFieldKind.Decimal => "string?",
         ModuleFieldKind.Integer => "int?",
-        ModuleFieldKind.Long => "long?",
+        ModuleFieldKind.Long => "string?",
         ModuleFieldKind.Boolean => "bool?",
         ModuleFieldKind.Date => "DateOnly?",
         ModuleFieldKind.DateTime => "DateTimeOffset?",
@@ -55,7 +55,7 @@ internal sealed record ModuleFieldDefinition(
         _ => throw new InvalidOperationException($"Unsupported field kind '{Kind}'.")
     };
 
-    public string DtoType => Kind == ModuleFieldKind.Enum
+    public string DtoType => Kind is ModuleFieldKind.Enum or ModuleFieldKind.Decimal or ModuleFieldKind.Long
         ? Required ? "string" : "string?"
         : DomainType(string.Empty);
 }
@@ -117,8 +117,8 @@ internal static partial class ModuleFieldContract
         string name = parts[0].Trim();
         if (!FieldNameRegex().IsMatch(name))
             throw new ArgumentException($"Field name '{name}' must be a lower camelCase identifier.");
-        if (name.Length > 64)
-            throw new ArgumentException($"Field name '{name}' cannot exceed 64 characters.");
+        if (name.Length > 63)
+            throw new ArgumentException($"Field name '{name}' cannot exceed PostgreSQL's 63-byte identifier limit.");
         if (ReservedNames.Contains(name))
             throw new ArgumentException($"Field name '{name}' is reserved by the generated platform contract.");
 

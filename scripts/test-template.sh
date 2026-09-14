@@ -204,14 +204,14 @@ grep -Fq 'public decimal Total { get; private set; }' \
   --entity Product \
   --resource inventory_items \
   --ownership organization \
-  --fields 'sku:string:required:max(64),price:decimal:required,available:bool:required,category:enum(Standard,Premium):required,notes:string:optional:max(1000)' \
+  --fields 'sku:string:required:max(64),price:decimal:required,discount:decimal:optional,sequence:long:required,available:bool:required,availableAt:datetime:optional,category:enum(Standard,Premium):required,notes:string:optional:max(1000)' \
   --with-web \
   --root "$test_root/Horizon"
 test -f "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
   fail 'full-stack module generation did not create its React entrypoint'
 grep -Fq 'fr:' "$test_root/Horizon/src/Modules/Inventory/Web/src/messages.ts" ||
   fail 'full-stack module generation omitted French messages'
-grep -Fq "body: JSON.stringify({ sku, price: Number(price), available, category, notes: notes || null })" \
+grep -Fq "body: JSON.stringify({ sku, price, discount: discount || null, sequence, available, availableAt: availableAt === '' ? null : new Date(availableAt).toISOString(), category, notes: notes || null })" \
   "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
   fail 'full-stack module generation did not apply its field contract to React'
 inventory_web_package=$(jq -r '.entrypoints.web.specifier' \
