@@ -53,7 +53,7 @@ internal sealed class TemplatePackageInstaller(
             $"Updating Trykatch template to {version}",
             $"Trykatch template updated to {version}",
             $"Could not update Trykatch template to {version}.",
-            $"trykatch update --version {version}",
+            $"trykatch update --version {version}{(forceReinstall ? " --force" : string.Empty)}",
             cancellationToken);
     }
 
