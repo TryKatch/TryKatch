@@ -33,6 +33,7 @@ internal sealed class TemplatePackageInstaller(
         return await ApplyAsync(
             version,
             force,
+            skipIfAlreadyInstalled: !force,
             $"Installing Trykatch template {version}",
             $"Trykatch template {version} installed",
             $"Could not install Trykatch template {version}.",
@@ -40,15 +41,19 @@ internal sealed class TemplatePackageInstaller(
             cancellationToken);
     }
 
-    public async Task<int> UpdateAsync(string version, CancellationToken cancellationToken)
+    public async Task<int> UpdateAsync(
+        string version,
+        bool forceReinstall,
+        CancellationToken cancellationToken)
     {
         return await ApplyAsync(
             version,
             force: true,
+            skipIfAlreadyInstalled: !forceReinstall,
             $"Updating Trykatch template to {version}",
             $"Trykatch template updated to {version}",
             $"Could not update Trykatch template to {version}.",
-            $"trykatch update --version {version}",
+            $"trykatch update --version {version}{(forceReinstall ? " --force" : string.Empty)}",
             cancellationToken);
     }
 
@@ -85,6 +90,7 @@ internal sealed class TemplatePackageInstaller(
     private async Task<int> ApplyAsync(
         string version,
         bool force,
+        bool skipIfAlreadyInstalled,
         string status,
         string completion,
         string failure,
@@ -93,12 +99,13 @@ internal sealed class TemplatePackageInstaller(
     {
         if (!SemanticVersion.IsMatch(version))
         {
-            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.19.");
+            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.20.");
             return 1;
         }
 
         const string packageId = "Trykatch.Templates";
-        if (!force && await templateEngine.IsPackageInstalledAsync(packageId, version, cancellationToken))
+        if (skipIfAlreadyInstalled
+            && await templateEngine.IsPackageInstalledAsync(packageId, version, cancellationToken))
         {
             await output.WriteLineAsync($"✓ Trykatch template {version} is already installed; no update is required.");
             await output.WriteLineAsync("  Next: trykatch new <name>");

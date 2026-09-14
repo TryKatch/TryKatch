@@ -280,7 +280,7 @@ static async Task<int> RunTemplateAsync(string[] arguments, CancellationToken ca
     }
 
     string version = TemplatePackageInstaller.CurrentVersion;
-    bool force = string.Equals(operation, "update", StringComparison.Ordinal);
+    bool force = false;
     for (int index = 2; index < arguments.Length; index++)
     {
         if (string.Equals(arguments[index], "--version", StringComparison.Ordinal))
@@ -307,7 +307,7 @@ static async Task<int> RunTemplateAsync(string[] arguments, CancellationToken ca
             Console.Error,
             !Console.IsOutputRedirected && !Console.IsErrorRedirected);
         return string.Equals(operation, "update", StringComparison.Ordinal)
-            ? await installer.UpdateAsync(version, cancellationToken)
+            ? await installer.UpdateAsync(version, force, cancellationToken)
             : await installer.InstallAsync(version, force, cancellationToken);
     }
     catch (Exception exception) when (exception is IOException
@@ -419,9 +419,9 @@ static int ShowTemplateHelp(int exitCode = 0)
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  trykatch template install [--version <version>] [--force]");
-    Console.WriteLine("  trykatch template update [--version <version>]");
+    Console.WriteLine("  trykatch template update [--version <version>] [--force]");
     Console.WriteLine("  trykatch template uninstall");
-    Console.WriteLine("  trykatch update [--version <version>]  Alias for 'template update'.");
+    Console.WriteLine("  trykatch update [--version <version>] [--force]  Alias for 'template update'.");
     Console.WriteLine();
     Console.WriteLine("Options:");
     Console.WriteLine("  --version <version>  Select a specific Trykatch.Templates version.");
