@@ -93,7 +93,7 @@ public sealed partial class ModuleWorkspace
             throw new InvalidOperationException("Restore did not bind the reviewed frontend identity, version and integrity.");
     }
 
-    private PackageMutationLock AcquirePackageMutationLock()
+    internal IDisposable AcquirePackageMutationLock()
     {
         string name = PackageMutationLockName(_root);
         Mutex mutex = new(false, name);

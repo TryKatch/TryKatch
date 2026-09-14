@@ -41,14 +41,12 @@ public sealed partial class ModuleWorkspace
         if (errors.Count > 0)
             return ToReport(modules, errors);
 
-        HashSet<string> baselineLockFiles = Directory
-            .EnumerateFiles(_root, "packages.lock.json", SearchOption.AllDirectories)
-            .ToHashSet(StringComparer.Ordinal);
+        using PackageLockFileOwnership packageLocks = ReservePackageLockFiles();
         Dictionary<string, byte[]?> originals = CapturePaths(MutationPaths(
             catalog,
             destinationManifestPath: null,
             previousManifestPath: null,
-            baselineLockFiles));
+            packageLocks.ExistingFiles));
         try
         {
             string moduleProject = ResolveInsideRoot(manifest.Artifacts.DotnetProject);
@@ -69,11 +67,11 @@ public sealed partial class ModuleWorkspace
             WriteGeneratedRegistries(catalog, modules);
             WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, JsonOptions) + "\n");
             RestorePackageGraphs(catalog, manifest.Capabilities.Contains("web", StringComparer.Ordinal));
+            packageLocks.Complete();
         }
         catch
         {
             RestoreFiles(originals);
-            DeleteNewLockFiles(baselineLockFiles);
             throw;
         }
         return ToReport(modules, []);
@@ -213,10 +211,8 @@ public sealed partial class ModuleWorkspace
         string? previousManifestPath,
         bool remove)
     {
-        HashSet<string> baselineLockFiles = Directory
-            .EnumerateFiles(_root, "packages.lock.json", SearchOption.AllDirectories)
-            .ToHashSet(StringComparer.Ordinal);
-        HashSet<string> paths = MutationPaths(catalog, destinationManifestPath, previousManifestPath, baselineLockFiles);
+        using PackageLockFileOwnership packageLocks = ReservePackageLockFiles();
+        HashSet<string> paths = MutationPaths(catalog, destinationManifestPath, previousManifestPath, packageLocks.ExistingFiles);
         if (!remove && candidate is not null && destinationManifestPath is not null)
         {
             if (candidate.VerifiedFiles is null) throw new InvalidOperationException("Packages must be verified before workspace mutation.");
@@ -250,7 +246,6 @@ public sealed partial class ModuleWorkspace
             if (errors.Count > 0)
             {
                 RestoreFiles(originals);
-                DeleteNewLockFiles(baselineLockFiles);
                 return ToReport(modules, errors);
             }
 
@@ -272,12 +267,12 @@ public sealed partial class ModuleWorkspace
                 && !string.Equals(previousManifestPath, destinationManifestPath, StringComparison.Ordinal)
                 && File.Exists(previousManifestPath))
                 File.Delete(previousManifestPath);
+            packageLocks.Complete();
             return report;
         }
         catch
         {
             RestoreFiles(originals);
-            DeleteNewLockFiles(baselineLockFiles);
             if (candidate?.RestoreCachePath is string cache && Directory.Exists(cache)) Directory.Delete(cache, recursive: true);
             throw;
         }
@@ -426,7 +421,7 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    private void RestorePackageGraphs(ModuleCatalogFile catalog, bool includeWeb, string? packagesPath = null)
+    internal void RestorePackageGraphs(ModuleCatalogFile catalog, bool includeWeb, string? packagesPath = null)
     {
         List<string> restoreArguments = ["restore", ResolveSolution(), "--force-evaluate", "--configfile", ResolveInsideRoot("NuGet.Config")];
         if (packagesPath is not null) restoreArguments.AddRange(["--packages", packagesPath]);
@@ -447,7 +442,7 @@ public sealed partial class ModuleWorkspace
             throw new InvalidOperationException($"Web package restore failed:{Environment.NewLine}{pnpm.Output}");
     }
 
-    private HashSet<string> MutationPaths(
+    internal HashSet<string> MutationPaths(
         ModuleCatalogFile catalog,
         string? destinationManifestPath,
         string? previousManifestPath,
@@ -487,17 +482,20 @@ public sealed partial class ModuleWorkspace
         return paths;
     }
 
-    private static Dictionary<string, byte[]?> CapturePaths(IEnumerable<string> paths) => paths
+    internal static Dictionary<string, byte[]?> CapturePaths(IEnumerable<string> paths) => paths
         .Distinct(StringComparer.Ordinal)
         .ToDictionary(path => path, path => File.Exists(path) ? File.ReadAllBytes(path) : null, StringComparer.Ordinal);
 
-    private void DeleteNewLockFiles(HashSet<string> baseline)
+    internal PackageLockFileOwnership ReservePackageLockFiles()
     {
-        foreach (string path in Directory.EnumerateFiles(_root, "packages.lock.json", SearchOption.AllDirectories))
-        {
-            if (!baseline.Contains(path))
-                File.Delete(path);
-        }
+        string[] candidates = Directory.EnumerateFiles(_root, "*.csproj", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}.trykatch{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}node_modules{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Select(path => Path.Combine(Path.GetDirectoryName(path)!, "packages.lock.json"))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        return PackageLockFileOwnership.Reserve(candidates);
     }
 
     private static void WriteAtomicBytes(string path, byte[] content)
@@ -577,7 +575,7 @@ public sealed partial class ModuleWorkspace
         return string.Equals(root?["dependencies"]?[packageId]?.GetValue<string>(), version, StringComparison.Ordinal);
     }
 
-    private static void UpsertWebDependency(string path, string packageId, string version)
+    internal static void UpsertWebDependency(string path, string packageId, string version)
     {
         JsonObject root = JsonNode.Parse(File.ReadAllText(path))?.AsObject()
             ?? throw new InvalidOperationException($"Invalid web package file '{path}'.");
@@ -607,6 +605,68 @@ public sealed partial class ModuleWorkspace
 }
 
 internal sealed record WorkspaceCommandResult(int ExitCode, string Output);
+
+internal sealed class PackageLockFileOwnership : IDisposable
+{
+    private static readonly byte[] ReservationContents = Encoding.UTF8.GetBytes("{\n  \"version\": 2,\n  \"dependencies\": {}\n}\n");
+    private readonly HashSet<string> ownedFiles = new(StringComparer.Ordinal);
+    private bool completed;
+
+    private PackageLockFileOwnership() { }
+
+    public IReadOnlyCollection<string> ExistingFiles { get; private set; } = [];
+
+    public static PackageLockFileOwnership Reserve(IEnumerable<string> candidates)
+    {
+        PackageLockFileOwnership ownership = new();
+        HashSet<string> existing = new(StringComparer.Ordinal);
+        try
+        {
+            foreach (string path in candidates)
+            {
+                try
+                {
+                    using FileStream reservation = new(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
+                    reservation.Write(ReservationContents);
+                    ownership.ownedFiles.Add(path);
+                }
+                catch (IOException) when (File.Exists(path))
+                {
+                    existing.Add(path);
+                }
+            }
+            ownership.ExistingFiles = existing;
+            return ownership;
+        }
+        catch
+        {
+            ownership.Dispose();
+            throw;
+        }
+    }
+
+    public void Complete()
+    {
+        foreach (string path in ownedFiles)
+        {
+            if (File.Exists(path) && File.ReadAllBytes(path).AsSpan().SequenceEqual(ReservationContents))
+                File.Delete(path);
+        }
+        completed = true;
+    }
+
+    public void Dispose()
+    {
+        if (completed)
+            return;
+        foreach (string path in ownedFiles)
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        completed = true;
+    }
+}
 
 internal interface IWorkspaceCommandRunner
 {

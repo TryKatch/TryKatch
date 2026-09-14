@@ -77,14 +77,12 @@ public sealed partial class ModuleWorkspace
 
         string targetManifestPath = Path.Combine(dotnetTargetDirectory, "try" + "katch.module.json");
         string oldManifestPath = ResolveInsideRoot(installed.Registration.Manifest);
-        HashSet<string> baselineLockFiles = Directory
-            .EnumerateFiles(_root, "packages.lock.json", SearchOption.AllDirectories)
-            .ToHashSet(StringComparer.Ordinal);
+        using PackageLockFileOwnership packageLocks = ReservePackageLockFiles();
         Dictionary<string, byte[]?> originals = CapturePaths(MutationPaths(
             catalog,
             destinationManifestPath: targetManifestPath,
             previousManifestPath: ResolveInsideRoot(installed.Registration.Manifest),
-            baselineLockFiles));
+            packageLocks.ExistingFiles));
 
         try
         {
@@ -128,12 +126,12 @@ public sealed partial class ModuleWorkspace
 
             if (File.Exists(oldManifestPath) && !string.Equals(oldManifestPath, targetManifestPath, StringComparison.Ordinal))
                 File.Delete(oldManifestPath);
+            packageLocks.Complete();
             return report;
         }
         catch
         {
             RestoreFiles(originals);
-            DeleteNewLockFiles(baselineLockFiles);
             if (Directory.Exists(dotnetTargetDirectory))
                 Directory.Delete(dotnetTargetDirectory, recursive: true);
             if (webTargetDirectory is not null
@@ -241,7 +239,7 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    private static void AddProjectReference(string hostProject, string moduleProject)
+    internal static void AddProjectReference(string hostProject, string moduleProject)
     {
         string include = Path.GetRelativePath(Path.GetDirectoryName(hostProject)!, moduleProject)
             .Replace(Path.DirectorySeparatorChar, '/');

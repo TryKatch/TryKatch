@@ -185,12 +185,21 @@ grep -RFq --include='*.cs' 'WithVolume("horizon-otel-queue", "/var/lib/otelcol")
   fail 'generated OpenTelemetry queue volume is not scoped to the application name'
 "$test_root/tools/trykatch" module doctor --root "$test_root/Horizon"
 
-"$test_root/tools/trykatch" module create Billing \
+billing_create_output=$("$test_root/tools/trykatch" module create Billing \
   --entity Invoice \
   --resource invoices \
   --ownership organization \
   --fields 'number:string:required:max(40),total:decimal:required,dueDate:date:required,status:enum(Draft,Sent,Paid):required' \
-  --root "$test_root/Horizon"
+  --root "$test_root/Horizon")
+printf '%s\n' "$billing_create_output"
+grep -Fq 'GET /api/v1/invoices' <<<"$billing_create_output" ||
+  fail 'module creation success output omitted generated endpoints'
+grep -Fq 'invoicing.read' <<<"$billing_create_output" &&
+  fail 'module creation success output reported a permission for the wrong module'
+grep -Fq 'billing.read' <<<"$billing_create_output" ||
+  fail 'module creation success output omitted generated permissions'
+grep -Fq "Run 'trykatch start'" <<<"$billing_create_output" ||
+  fail 'module creation success output omitted the start command'
 test -f "$test_root/Horizon/src/Modules/Billing/Horizon.Modules.Billing.Infrastructure/BillingModule.cs" ||
   fail 'backend module generation did not create its composition root'
 grep -Fq 'ALTER TABLE app.invoices FORCE ROW LEVEL SECURITY' \
@@ -199,6 +208,21 @@ grep -Fq 'ALTER TABLE app.invoices FORCE ROW LEVEL SECURITY' \
 grep -Fq 'public decimal Total { get; private set; }' \
   "$test_root/Horizon/src/Modules/Billing/Horizon.Modules.Billing.Domain/InvoiceRecord.cs" ||
   fail 'backend module generation did not apply its business field contract'
+for event_name in InvoiceCreated InvoiceUpdated InvoiceArchived InvoiceRestored InvoiceDeletionRequested; do
+  grep -Fq "record $event_name(" \
+    "$test_root/Horizon/src/Modules/Billing/Horizon.Modules.Billing.IntegrationEvents/InvoiceIntegrationEvents.cs" ||
+    fail "backend module generation omitted stable event contract $event_name"
+done
+if grep -Fq 'string Operation' \
+  "$test_root/Horizon/src/Modules/Billing/Horizon.Modules.Billing.IntegrationEvents/InvoiceIntegrationEvents.cs"; then
+  fail 'backend module generation retained a free-form integration event operation'
+fi
+for operation_id in Billing_List Billing_Get Billing_Create Billing_Update Billing_Archive Billing_Restore Billing_RequestDeletion; do
+  jq -e --arg operation_id "$operation_id" \
+    '[.paths[][] | select(.operationId? == $operation_id)] | length == 1' \
+    "$test_root/Horizon/web/packages/api-client/openapi/Horizon.Api.json" >/dev/null ||
+    fail "generated OpenAPI omitted operation id $operation_id"
+done
 
 "$test_root/tools/trykatch" module create Inventory \
   --entity Product \

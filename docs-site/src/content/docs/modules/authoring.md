@@ -31,7 +31,7 @@ trykatch module create Invoicing \
   --fields "number:string:required:max(40),total:decimal:required,dueDate:date:required,status:enum(Draft,Sent,Paid):required,notes:string:optional:max(2000)"
 ```
 
-`Invoicing` and `Invoice` must be PascalCase .NET identifiers. `invoices` must be an explicit lower-case snake_case PostgreSQL identifier, must not be a PostgreSQL keyword, and must not duplicate an `app` schema relation declared by another registered module. Version 1 deliberately requires `--ownership organization`; it never guesses the security boundary. These checks run before staging or modifying any workspace file.
+`Invoicing` and `Invoice` must be portable PascalCase .NET identifiers: Trykatch also rejects host names and Windows device names such as `CON`, `AUX`, `COM1`, and `LPT1`. `invoices` must be an explicit lower-case snake_case PostgreSQL identifier, must not be a PostgreSQL keyword, and must not duplicate an `app` schema relation declared by another registered module. Version 1 deliberately requires `--ownership organization`; it never guesses the security boundary. These checks run before staging or modifying any workspace file.
 
 ## Generate a full-stack module
 
@@ -88,9 +88,9 @@ tests/Modules/Invoicing/
 └── Horizon.Modules.Invoicing.ArchitectureTests/
 ```
 
-The command also adds the projects to the solution, registers the Infrastructure entrypoint with the API and migrator, adds and enables the catalog entry, regenerates all registries, restores dependencies, builds the backend, runs the generated tests and module doctor, and—when requested—generates the OpenAPI client and runs frontend type checking, tests, and the production build.
+The command also adds the projects to the solution in deterministic folder/project order, registers the Infrastructure entrypoint with the API and migrator, adds and enables the catalog entry, regenerates all registries, restores dependencies, builds the backend, runs the generated tests and module doctor, and—when requested—generates the OpenAPI client and runs frontend type checking, tests, and the production build. Success output lists every generated endpoint, both permissions, and the exact start command.
 
-The operation is atomic. Rendering happens in a private staging directory. If registration, restore, build, testing, client generation, or validation fails, Trykatch restores the catalog, solution, project files, registries, OpenAPI/client output, and lockfiles, then removes the new module. Repeating the same command reports that the module exists and makes no changes; v1 has no overwrite option.
+The operation is atomic. Rendering happens in a private staging directory, where the complete rendered manifest and projected module catalog are validated before any module file is committed. If solution editing, registration, restore, build, testing, client generation, or doctor validation fails, Trykatch restores the catalog, solution, project files, registries, OpenAPI/client output, and lockfiles, then removes the new module. Repeating the same command reports that the module exists and makes no changes; v1 has no overwrite option.
 
 ## Generated security contract
 
@@ -106,7 +106,7 @@ POST   /api/v1/invoices/{id}/restore
 DELETE /api/v1/invoices/{id}
 ```
 
-Reads require `invoicing.read`; mutations require `invoicing.manage`, permission checks are repeated in the application use cases, mutation endpoints require antiforgery protection, and writes record audit and outbox evidence in the host transaction.
+Reads require `invoicing.read`; mutations require `invoicing.manage`, permission checks are repeated in the application use cases, mutation endpoints require antiforgery protection, and writes record audit and outbox evidence in the host transaction. Minimal API handlers use typed result unions and stable OpenAPI operation names (`Invoicing_List` through `Invoicing_RequestDeletion`). The outbox publishes distinct immutable contracts—`InvoiceCreated`, `InvoiceUpdated`, `InvoiceArchived`, `InvoiceRestored`, and `InvoiceDeletionRequested`—instead of a free-form operation string.
 
 ## Start and verify the result
 

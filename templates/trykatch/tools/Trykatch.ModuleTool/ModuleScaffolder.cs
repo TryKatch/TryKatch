@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 namespace Trykatch.ModuleTool;
@@ -20,6 +19,9 @@ public sealed record ModuleCreationResult(
     string ModuleId,
     bool IncludeWeb,
     IReadOnlyList<string> CreatedPaths,
+    IReadOnlyList<string> Endpoints,
+    IReadOnlyList<string> Permissions,
+    string StartCommand,
     ModuleDoctorReport Report);
 
 public interface IModuleScaffolder
@@ -27,144 +29,167 @@ public interface IModuleScaffolder
     ModuleCreationResult Create(ModuleCreateRequest request);
 }
 
-public sealed class ModuleScaffolder : IModuleScaffolder
+internal enum ModuleCreationPhase
 {
+    SolutionEdit,
+    RegistrationAndCatalogMutation,
+    Restore,
+    WebInstall,
+    WebVerification,
+    DoctorValidation
+}
+
+internal interface IModuleCreationFailureInjector
+{
+    void ThrowIfRequested(ModuleCreationPhase phase);
+}
+
+internal sealed class NoModuleCreationFailureInjector : IModuleCreationFailureInjector
+{
+    public void ThrowIfRequested(ModuleCreationPhase phase) { }
+}
+
+public sealed partial class ModuleScaffolder : IModuleScaffolder
+{
+    private readonly string _root;
+    private readonly string _catalogPath;
+    private readonly IWorkspaceCommandRunner _commandRunner;
+    private readonly IModuleCreationFailureInjector _failureInjector;
     private readonly ModuleWorkspace _workspace;
 
     public ModuleScaffolder(string root) : this(root, new ProcessWorkspaceCommandRunner()) { }
 
-    internal ModuleScaffolder(string root, IWorkspaceCommandRunner commandRunner) =>
-        _workspace = new(root, commandRunner);
+    internal ModuleScaffolder(
+        string root,
+        IWorkspaceCommandRunner commandRunner,
+        IModuleCreationFailureInjector? failureInjector = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(root);
+        ArgumentNullException.ThrowIfNull(commandRunner);
+        _root = ModuleWorkspace.NormalizeWorkspaceRoot(root);
+        _catalogPath = Path.Combine(_root, "try" + "katch.modules.json");
+        _commandRunner = commandRunner;
+        _failureInjector = failureInjector ?? new NoModuleCreationFailureInjector();
+        _workspace = new(_root, commandRunner);
+    }
 
     public ModuleCreationResult Create(ModuleCreateRequest request) =>
-        _workspace.CreateScaffoldedModule(request);
+        CreateScaffoldedModule(request);
 }
 
-public sealed partial class ModuleWorkspace
+public sealed partial class ModuleScaffolder
 {
     private static readonly string[] GeneratedModuleLayers = ["Application", "Domain", "Infrastructure", "IntegrationEvents", "Presentation"];
     private static readonly string[] GeneratedTestKinds = ["ArchitectureTests", "UnitTests"];
-    private static readonly Regex DotnetIdentifier = new(
-        "^[A-Z][A-Za-z0-9]*$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
-    private static readonly Regex ResourceIdentifier = new(
-        "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
-    private static readonly HashSet<string> ReservedTypeNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Api", "Application", "ArchitectureTests", "Common", "Con", "Domain", "Infrastructure",
-        "IntegrationEvents", "Migrator", "Module", "Modules", "Nul", "Prn", "Presentation",
-        "Tests", "UnitTests", "Web"
-    };
-    private static readonly HashSet<string> PostgreSqlReservedIdentifiers = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "all", "analyse", "analyze", "and", "any", "array", "as", "asc", "asymmetric", "both",
-        "case", "cast", "check", "collate", "column", "constraint", "create", "current_catalog",
-        "current_date", "current_role", "current_time", "current_timestamp", "current_user", "default",
-        "deferrable", "desc", "distinct", "do", "else", "end", "except", "false", "fetch", "for",
-        "foreign", "freeze", "from", "full", "grant", "group", "having", "ilike", "in", "initially",
-        "intersect", "into", "is", "isnull", "lateral", "leading", "like", "limit", "localtime",
-        "localtimestamp", "natural", "not", "notnull", "null", "offset", "on", "only", "or", "order",
-        "placing", "primary", "references", "returning", "select", "session_user", "similar", "some",
-        "symmetric", "system_user", "table", "tablesample", "then", "to", "trailing", "true", "union",
-        "unique", "user", "using", "variadic", "verbose", "when", "where", "window", "with"
-    };
-
     internal ModuleCreationResult CreateScaffoldedModule(ModuleCreateRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        using IDisposable mutationLock = AcquirePackageMutationLock();
+        using IDisposable mutationLock = _workspace.AcquirePackageMutationLock();
 
         List<string> errors = [];
-        ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
+        ModuleCatalogFile? catalog = _workspace.ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
         if (catalog is null) throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
-        ValidateCatalog(catalog, errors);
-        List<LoadedModule> installedModules = LoadModules(catalog, errors);
-        ValidateModules(catalog, installedModules, errors);
+        _workspace.ValidateCatalog(catalog, errors);
+        List<ModuleWorkspace.LoadedModule> installedModules = _workspace.LoadModules(catalog, errors);
+        _workspace.ValidateModules(catalog, installedModules, errors);
         if (errors.Count > 0) throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
 
         ScaffoldNames names = ValidateCreateRequest(request, catalog, installedModules);
-        string moduleRoot = ResolveInsideRoot(Path.Combine("src", "Modules", names.Module));
-        string testRoot = ResolveInsideRoot(Path.Combine("tests", "Modules", names.Module));
+        string moduleRoot = _workspace.ResolveInsideRoot(Path.Combine("src", "Modules", names.Module));
+        string testRoot = _workspace.ResolveInsideRoot(Path.Combine("tests", "Modules", names.Module));
         if (Directory.Exists(moduleRoot) || Directory.Exists(testRoot))
             throw new InvalidOperationException($"Module '{names.Module}' already has source or test directories. No files were changed.");
 
-        string stagingRoot = ResolveInsideRoot(Path.Combine(".trykatch", "staging", Guid.NewGuid().ToString("N")));
+        string stagingRoot = _workspace.ResolveInsideRoot(Path.Combine(".trykatch", "staging", Guid.NewGuid().ToString("N")));
         string stagedModuleRoot = Path.Combine(stagingRoot, "src", "Modules", names.Module);
         string stagedTestRoot = Path.Combine(stagingRoot, "tests", "Modules", names.Module);
-        string solution = ResolveSolution();
-        bool hasWebSurface = HasWebSurface();
-        HashSet<string> baselineLockFiles = Directory
-            .EnumerateFiles(_root, "packages.lock.json", SearchOption.AllDirectories)
-            .ToHashSet(StringComparer.Ordinal);
-        string openApiRoot = ResolveInsideRoot("web/packages/api-client/openapi");
+        string solution = _workspace.ResolveSolution();
+        bool hasWebSurface = _workspace.HasWebSurface();
+        using PackageLockFileOwnership packageLocks = _workspace.ReservePackageLockFiles();
+        string openApiRoot = _workspace.ResolveInsideRoot("web/packages/api-client/openapi");
         HashSet<string> baselineOpenApiFiles = hasWebSurface
             ? EnumerateFilesIfPresent(openApiRoot).ToHashSet(StringComparer.Ordinal)
             : [];
-        string generatedClientRoot = ResolveInsideRoot("web/packages/api-client/src/generated");
+        string generatedClientRoot = _workspace.ResolveInsideRoot("web/packages/api-client/src/generated");
         HashSet<string> baselineGeneratedWebFiles = request.IncludeWeb
             ? EnumerateFilesIfPresent(generatedClientRoot).ToHashSet(StringComparer.Ordinal)
             : [];
-        HashSet<string> mutationPaths = MutationPaths(catalog, null, null, baselineLockFiles);
+        HashSet<string> mutationPaths = _workspace.MutationPaths(catalog, null, null, packageLocks.ExistingFiles);
         mutationPaths.Add(solution);
         mutationPaths.UnionWith(baselineOpenApiFiles);
         if (request.IncludeWeb)
         {
             mutationPaths.UnionWith(baselineGeneratedWebFiles);
-            mutationPaths.Add(ResolveInsideRoot("docs/generated/assistant-contract.json"));
+            mutationPaths.Add(_workspace.ResolveInsideRoot("docs/generated/assistant-contract.json"));
         }
-        Dictionary<string, byte[]?> originals = CapturePaths(mutationPaths);
+        Dictionary<string, byte[]?> originals = ModuleWorkspace.CapturePaths(mutationPaths);
 
         try
         {
             RenderModule(stagedModuleRoot, stagedTestRoot, names, request.IncludeWeb);
             ValidateStagedManifest(Path.Combine(stagedModuleRoot, "trykatch.module.json"), names, request.IncludeWeb);
+            string relativeManifest = Path.GetRelativePath(_root, Path.Combine(moduleRoot, "trykatch.module.json"))
+                .Replace(Path.DirectorySeparatorChar, '/');
+            catalog.Modules.Add(new ModuleRegistration { Id = names.ModuleId, Manifest = relativeManifest, Enabled = true });
+            ValidateProjectedCatalog(catalog, installedModules, stagedModuleRoot, names, errors);
+            if (errors.Count > 0)
+                throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
+
             Directory.CreateDirectory(Path.GetDirectoryName(moduleRoot)!);
             Directory.CreateDirectory(Path.GetDirectoryName(testRoot)!);
             Directory.Move(stagedModuleRoot, moduleRoot);
             Directory.Move(stagedTestRoot, testRoot);
             AddGeneratedProjectsToSolution(solution, names);
+            _failureInjector.ThrowIfRequested(ModuleCreationPhase.SolutionEdit);
 
-            string relativeManifest = Path.GetRelativePath(_root, Path.Combine(moduleRoot, "trykatch.module.json"))
-                .Replace(Path.DirectorySeparatorChar, '/');
-            catalog.Modules.Add(new ModuleRegistration { Id = names.ModuleId, Manifest = relativeManifest, Enabled = true });
-            List<LoadedModule> modules = LoadModules(catalog, errors);
-            ValidateModules(catalog, modules, errors);
+            List<ModuleWorkspace.LoadedModule> modules = _workspace.LoadModules(catalog, errors);
+            _workspace.ValidateModules(catalog, modules, errors);
             if (errors.Count > 0) throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
 
             string infrastructureProject = Path.Combine(moduleRoot,
                 $"{names.RootNamespace}.Modules.{names.Module}.Infrastructure",
                 $"{names.RootNamespace}.Modules.{names.Module}.Infrastructure.csproj");
-            AddProjectReference(
-                ResolveHostProject(catalog.Outputs.Backend, catalog.Outputs.BackendNamespace, "API"),
+            ModuleWorkspace.AddProjectReference(
+                _workspace.ResolveHostProject(catalog.Outputs.Backend, catalog.Outputs.BackendNamespace, "API"),
                 infrastructureProject);
-            AddProjectReference(
-                ResolveHostProject(catalog.Outputs.Migrator, catalog.Outputs.MigratorNamespace, "migrator"),
+            ModuleWorkspace.AddProjectReference(
+                _workspace.ResolveHostProject(catalog.Outputs.Migrator, catalog.Outputs.MigratorNamespace, "migrator"),
                 infrastructureProject);
             if (request.IncludeWeb)
             {
-                UpsertWebDependency(
-                    ResolveInsideRoot("web/apps/web/package.json"),
+                ModuleWorkspace.UpsertWebDependency(
+                    _workspace.ResolveInsideRoot("web/apps/web/package.json"),
                     names.WebPackage,
                     "workspace:*");
             }
 
-            WriteGeneratedRegistries(catalog, modules);
-            WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, JsonOptions) + "\n");
-            RestorePackageGraphs(catalog, request.IncludeWeb);
+            _workspace.WriteGeneratedRegistries(catalog, modules);
+            ModuleWorkspace.WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, ModuleWorkspace.SerializerOptions) + "\n");
+            _failureInjector.ThrowIfRequested(ModuleCreationPhase.RegistrationAndCatalogMutation);
+            _workspace.RestorePackageGraphs(catalog, request.IncludeWeb);
+            _failureInjector.ThrowIfRequested(ModuleCreationPhase.Restore);
             VerifyGeneratedBackendWorkspace(solution, names);
             if (request.IncludeWeb)
                 VerifyGeneratedWebWorkspace();
 
-            ModuleDoctorReport report = Inspect();
+            _failureInjector.ThrowIfRequested(ModuleCreationPhase.DoctorValidation);
+            ModuleDoctorReport report = _workspace.Inspect();
             if (!report.IsHealthy)
                 throw new InvalidOperationException(string.Join(Environment.NewLine, report.Errors));
+            packageLocks.Complete();
 
-            return new(names.ModuleId, request.IncludeWeb,
-                [Path.GetRelativePath(_root, moduleRoot), Path.GetRelativePath(_root, testRoot)], report);
+            return new(
+                names.ModuleId,
+                request.IncludeWeb,
+                [Path.GetRelativePath(_root, moduleRoot), Path.GetRelativePath(_root, testRoot)],
+                GeneratedEndpoints(names.Resource),
+                [names.ModuleId + ".read", names.ModuleId + ".manage"],
+                "trykatch start",
+                report);
         }
         catch (Exception exception)
         {
-            RestoreFiles(originals);
-            DeleteNewLockFiles(baselineLockFiles);
+            ModuleWorkspace.RestoreFiles(originals);
             if (hasWebSurface)
                 DeleteNewGeneratedWebFiles(openApiRoot, baselineOpenApiFiles);
             if (request.IncludeWeb)
@@ -172,7 +197,7 @@ public sealed partial class ModuleWorkspace
             DeleteDirectoryIfPresent(moduleRoot);
             DeleteDirectoryIfPresent(testRoot);
             if (request.IncludeWeb)
-                _ = _commandRunner.Run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], ResolveInsideRoot("web"));
+                _ = _commandRunner.Run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], _workspace.ResolveInsideRoot("web"));
             throw new InvalidOperationException($"Module creation failed and the workspace was restored: {exception.Message}", exception);
         }
         finally
@@ -187,43 +212,29 @@ public sealed partial class ModuleWorkspace
     private ScaffoldNames ValidateCreateRequest(
         ModuleCreateRequest request,
         ModuleCatalogFile catalog,
-        IReadOnlyCollection<LoadedModule> installedModules)
+        IReadOnlyCollection<ModuleWorkspace.LoadedModule> installedModules)
     {
-        string module = request.ModuleName?.Trim() ?? string.Empty;
-        string entity = request.EntityName?.Trim() ?? string.Empty;
-        string resource = request.ResourceName?.Trim() ?? string.Empty;
-        if (!DotnetIdentifier.IsMatch(module))
-            throw new ArgumentException("Module name must be a PascalCase .NET identifier, for example 'Invoicing'.");
-        if (!DotnetIdentifier.IsMatch(entity))
-            throw new ArgumentException("Entity name must be a PascalCase .NET identifier, for example 'Invoice'.");
-        if (module.Length > 64)
-            throw new ArgumentException("Module name cannot exceed 64 characters.");
-        if (entity.Length > 64)
-            throw new ArgumentException("Entity name cannot exceed 64 characters.");
-        if (ReservedTypeNames.Contains(module))
-            throw new ArgumentException($"Module name '{module}' is reserved by the Trykatch host or filesystem.");
-        if (ReservedTypeNames.Contains(entity))
-            throw new ArgumentException($"Entity name '{entity}' is reserved by the Trykatch host or filesystem.");
-        if (!ResourceIdentifier.IsMatch(resource))
-            throw new ArgumentException("--resource must be a lower-case snake_case PostgreSQL identifier, for example 'invoices'.");
-        if (PostgreSqlReservedIdentifiers.Contains(resource))
-            throw new ArgumentException($"Resource name '{resource}' is a PostgreSQL keyword. Choose a descriptive plural name such as '{resource}_records'.");
-        if (resource.Length > 35)
-            throw new ArgumentException("--resource cannot exceed 35 characters because generated PostgreSQL index names are limited to 63 bytes.");
+        ModuleName moduleName = ModuleName.Parse(request.ModuleName);
+        EntityName entityName = EntityName.Parse(request.EntityName);
+        ResourceName resourceName = ResourceName.Parse(request.ResourceName);
+        string module = moduleName.Value;
+        string entity = entityName.Value;
+        string resource = resourceName.Value;
         if (!string.Equals(request.Ownership, "organization", StringComparison.Ordinal))
             throw new ArgumentException("Version 1 of 'module create' requires '--ownership organization'.");
 
-        string moduleId = ToKebabCase(module);
+        ModuleId validatedModuleId = ModuleId.From(moduleName);
+        string moduleId = validatedModuleId.Value;
         if (catalog.Modules.Any(candidate => string.Equals(candidate.Id, moduleId, StringComparison.Ordinal)))
             throw new InvalidOperationException($"Trykatch module '{moduleId}' is already registered. No files were changed.");
-        LoadedModule? relationOwner = installedModules.FirstOrDefault(candidate =>
+        ModuleWorkspace.LoadedModule? relationOwner = installedModules.FirstOrDefault(candidate =>
             candidate.Manifest.DataOwnership?.Resources.Any(dataResource =>
                 string.Equals(dataResource.Schema, "app", StringComparison.Ordinal)
                 && string.Equals(dataResource.Table, resource, StringComparison.Ordinal)) == true);
         if (relationOwner is not null)
             throw new InvalidOperationException(
                 $"Trykatch module '{relationOwner.Manifest.Id}' already declares data relation 'app.{resource}'. No files were changed.");
-        if (!TryParseVersion(catalog.HostVersion, out Version? hostVersion)
+        if (!ModuleWorkspace.TryParseVersion(catalog.HostVersion, out Version? hostVersion)
             || hostVersion < new Version(0, 1)
             || hostVersion >= new Version(1, 0))
             throw new InvalidOperationException($"Module generation does not support Trykatch host version '{catalog.HostVersion}'. Supported range is [0.1.0, 1.0.0).");
@@ -231,11 +242,13 @@ public sealed partial class ModuleWorkspace
         const string backendSuffix = ".Api.Modules";
         if (!catalog.Outputs.BackendNamespace.EndsWith(backendSuffix, StringComparison.Ordinal))
             throw new InvalidOperationException("The module catalog backend namespace does not identify the application root namespace.");
-        string rootNamespace = catalog.Outputs.BackendNamespace[..^backendSuffix.Length];
-        string publisher = ToKebabCase(rootNamespace.Replace(".", string.Empty, StringComparison.Ordinal));
+        ApplicationNamespace applicationNamespace = ApplicationNamespace.Parse(
+            catalog.Outputs.BackendNamespace[..^backendSuffix.Length]);
+        string rootNamespace = applicationNamespace.Value;
+        string publisher = PublisherId.From(applicationNamespace).Value;
 
         string npmScope = ResolveNpmScope(catalog.Outputs.WebModuleSdkSpecifier);
-        if (request.IncludeWeb && (!HasWebSurface() || string.IsNullOrWhiteSpace(npmScope)))
+        if (request.IncludeWeb && (!_workspace.HasWebSurface() || string.IsNullOrWhiteSpace(npmScope)))
             throw new InvalidOperationException("--with-web requires a generated React workspace and a scoped module SDK package.");
 
         string description = string.IsNullOrWhiteSpace(request.Description)
@@ -256,7 +269,7 @@ public sealed partial class ModuleWorkspace
         Directory.CreateDirectory(testRoot);
         WriteTemplate("Entity.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Domain"), $"{names.Entity}Record.cs"), names);
         WriteTemplate("UseCases.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), $"{names.Module}UseCases.cs"), names);
-        WriteTemplate("Changed.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "IntegrationEvents"), $"{names.Entity}Changed.cs"), names);
+        WriteTemplate("IntegrationEvents.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "IntegrationEvents"), $"{names.Entity}IntegrationEvents.cs"), names);
         WriteTemplate("Endpoints.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Presentation"), $"{names.Module}Endpoints.cs"), names);
         WriteTemplate("Module.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Infrastructure"), $"{names.Module}Module.cs"), names);
         WriteTemplate("ModelContributor.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Infrastructure"), $"{names.Module}ModelContributor.cs"), names);
@@ -270,6 +283,17 @@ public sealed partial class ModuleWorkspace
 
     private static string ProjectDirectory(ScaffoldNames names, string layer) =>
         $"{names.RootNamespace}.Modules.{names.Module}.{layer}";
+
+    private static IReadOnlyList<string> GeneratedEndpoints(string resource) =>
+    [
+        $"GET /api/v1/{resource}",
+        $"GET /api/v1/{resource}/{{id}}",
+        $"POST /api/v1/{resource}",
+        $"PUT /api/v1/{resource}/{{id}}",
+        $"POST /api/v1/{resource}/{{id}}/archive",
+        $"POST /api/v1/{resource}/{{id}}/restore",
+        $"DELETE /api/v1/{resource}/{{id}}"
+    ];
 
     private static void WriteProjectFiles(string moduleRoot, ScaffoldNames names)
     {
@@ -373,7 +397,7 @@ public sealed partial class ModuleWorkspace
                 ["assistantTools"] = new JsonArray()
             }
         };
-        WriteUtf8(Path.Combine(moduleRoot, "trykatch.module.json"), manifest.ToJsonString(JsonOptions) + "\n");
+        WriteUtf8(Path.Combine(moduleRoot, "trykatch.module.json"), manifest.ToJsonString(ModuleWorkspace.SerializerOptions) + "\n");
     }
 
     private static void WriteReadme(string moduleRoot, ScaffoldNames names, bool includeWeb) =>
@@ -459,7 +483,7 @@ public sealed partial class ModuleWorkspace
             {
                 private static readonly ReflectionAssembly Domain = typeof({{names.Entity}}Record).Assembly;
                 private static readonly ReflectionAssembly Application = typeof({{names.Module}}UseCases).Assembly;
-                private static readonly ReflectionAssembly Events = typeof({{names.Entity}}Changed).Assembly;
+                private static readonly ReflectionAssembly Events = typeof({{names.Entity}}Created).Assembly;
                 private static readonly ReflectionAssembly Presentation = typeof({{names.Module}}Endpoints).Assembly;
                 private static readonly ReflectionAssembly Infrastructure = typeof({{names.Module}}Module).Assembly;
                 private static readonly Architecture Architecture = new ArchLoader().LoadAssemblies(Domain, Application, Events, Presentation, Infrastructure).Build();
@@ -517,7 +541,7 @@ public sealed partial class ModuleWorkspace
             },
             ["peerDependencies"] = new JsonObject { ["react"] = "^19.0.0" }
         };
-        WriteUtf8(Path.Combine(webRoot, "package.json"), package.ToJsonString(JsonOptions) + "\n");
+        WriteUtf8(Path.Combine(webRoot, "package.json"), package.ToJsonString(ModuleWorkspace.SerializerOptions) + "\n");
         WriteUtf8(Path.Combine(webRoot, "tsconfig.json"), """
             {
               "compilerOptions": { "target": "ES2023", "module": "ESNext", "moduleResolution": "Bundler", "strict": true,
@@ -538,6 +562,7 @@ public sealed partial class ModuleWorkspace
         AddSolutionFolder(root, $"/tests/Modules/{names.Module}/",
             GeneratedTestKinds.Select(kind =>
                 $"tests/Modules/{names.Module}/{prefix}.{kind}/{prefix}.{kind}.csproj"));
+        NormalizeSolutionOrdering(root);
         WriteUtf8(solutionPath, document.ToString());
     }
 
@@ -550,7 +575,32 @@ public sealed partial class ModuleWorkspace
             solution.Add(folder);
         }
         foreach (string path in projectPaths.Order(StringComparer.Ordinal))
-            folder.Add(new XElement("Project", new XAttribute("Path", path)));
+        {
+            if (!folder.Elements("Project").Any(project =>
+                    string.Equals((string?)project.Attribute("Path"), path, StringComparison.Ordinal)))
+                folder.Add(new XElement("Project", new XAttribute("Path", path)));
+        }
+    }
+
+    private static void NormalizeSolutionOrdering(XElement solution)
+    {
+        foreach (XElement folder in solution.Elements("Folder"))
+        {
+            XElement[] projects = folder.Elements("Project")
+                .OrderBy(project => (string?)project.Attribute("Path"), StringComparer.Ordinal)
+                .ToArray();
+            folder.Elements("Project").Remove();
+            folder.Add(projects);
+        }
+
+        XElement[] elementSlots = solution.Elements().ToArray();
+        XElement[] orderedElements = elementSlots
+            .OrderBy(element => element.Name.LocalName, StringComparer.Ordinal)
+            .ThenBy(element => (string?)element.Attribute("Name") ?? (string?)element.Attribute("Path"), StringComparer.Ordinal)
+            .Select(element => new XElement(element))
+            .ToArray();
+        for (int index = 0; index < elementSlots.Length; index++)
+            elementSlots[index].ReplaceWith(orderedElements[index]);
     }
 
     private void VerifyGeneratedBackendWorkspace(string solution, ScaffoldNames names)
@@ -558,7 +608,7 @@ public sealed partial class ModuleWorkspace
         EnsureCommandSucceeded(
             _commandRunner.Run("dotnet", ["build", solution, "--no-restore", "--no-incremental"], _root),
             "build the generated backend module");
-        string testRoot = ResolveInsideRoot(Path.Combine("tests", "Modules", names.Module));
+        string testRoot = _workspace.ResolveInsideRoot(Path.Combine("tests", "Modules", names.Module));
         foreach (string kind in GeneratedTestKinds)
         {
             string projectName = $"{names.RootNamespace}.Modules.{names.Module}.{kind}";
@@ -571,10 +621,12 @@ public sealed partial class ModuleWorkspace
 
     private void VerifyGeneratedWebWorkspace()
     {
-        EnsureCommandSucceeded(_commandRunner.Run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], ResolveInsideRoot("web")),
+        EnsureCommandSucceeded(_commandRunner.Run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], _workspace.ResolveInsideRoot("web")),
             "install the generated web workspace");
+        _failureInjector.ThrowIfRequested(ModuleCreationPhase.WebInstall);
         foreach (string operation in new[] { "generate", "typecheck", "test", "build" })
             EnsureCommandSucceeded(_commandRunner.Run("pnpm", ["--dir", "web", operation], _root), $"run 'pnpm {operation}'");
+        _failureInjector.ThrowIfRequested(ModuleCreationPhase.WebVerification);
     }
 
     private static void EnsureCommandSucceeded(WorkspaceCommandResult result, string operation)
@@ -603,6 +655,56 @@ public sealed partial class ModuleWorkspace
         bool declaresWeb = manifest["capabilities"]?.AsArray().Any(value => value?.GetValue<string>() == "web") == true;
         if (declaresWeb != includeWeb)
             throw new InvalidOperationException("The rendered module manifest has an inconsistent web capability.");
+    }
+
+    private void ValidateProjectedCatalog(
+        ModuleCatalogFile catalog,
+        IReadOnlyCollection<ModuleWorkspace.LoadedModule> installedModules,
+        string stagedModuleRoot,
+        ScaffoldNames names,
+        List<string> errors)
+    {
+        string manifestPath = Path.Combine(stagedModuleRoot, "trykatch.module.json");
+        ModuleManifest? manifest = _workspace.ReadJson<ModuleManifest>(manifestPath, errors, "rendered module manifest");
+        if (manifest is null)
+            return;
+
+        ModuleRegistration registration = catalog.Modules.Single(module =>
+            string.Equals(module.Id, names.ModuleId, StringComparison.Ordinal));
+        List<ModuleWorkspace.LoadedModule> projectedModules = [.. installedModules, new(
+            registration,
+            manifest,
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(manifestPath))).ToLowerInvariant(),
+            "template-normalized-sha256")];
+
+        _workspace.ValidateCatalog(catalog, errors);
+        _workspace.ValidateModules(catalog, projectedModules, errors, requireCommittedWorkspaceArtifacts: false);
+        ValidateProjectedArtifact(manifest.Id, manifest.Artifacts.DotnetProject, stagedModuleRoot, names, "dotnet project", errors);
+        bool declaresWeb = manifest.Capabilities.Contains("web", StringComparer.Ordinal);
+        if (declaresWeb)
+            ValidateProjectedArtifact(manifest.Id, manifest.Artifacts.WebPackage, stagedModuleRoot, names, "web package", errors);
+    }
+
+    private static void ValidateProjectedArtifact(
+        string moduleId,
+        string artifactPath,
+        string stagedModuleRoot,
+        ScaffoldNames names,
+        string subject,
+        List<string> errors)
+    {
+        string expectedPrefix = $"src/Modules/{names.Module}/";
+        if (!artifactPath.StartsWith(expectedPrefix, StringComparison.Ordinal))
+        {
+            errors.Add($"Rendered module '{moduleId}' {subject} must be beneath '{expectedPrefix}'.");
+            return;
+        }
+
+        string stagedArtifact = Path.Combine(
+            stagedModuleRoot,
+            artifactPath[expectedPrefix.Length..].Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(stagedArtifact))
+            errors.Add($"Rendered module '{moduleId}' {subject} '{artifactPath}' is missing from the staging tree.");
     }
 
     private static void WriteTemplate(string templateName, string outputPath, ScaffoldNames names)
@@ -653,9 +755,6 @@ public sealed partial class ModuleWorkspace
     }
 
     private static string ToCamelCase(string value) => char.ToLowerInvariant(value[0]) + value[1..];
-
-    private static string ToKebabCase(string value) => Regex.Replace(value,
-        "(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "-").ToLowerInvariant();
 
     private static void DeleteDirectoryIfPresent(string path)
     {
