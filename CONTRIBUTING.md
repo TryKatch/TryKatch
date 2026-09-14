@@ -16,4 +16,4 @@ Run the version contract before opening a pull request:
 bash scripts/check-release-version.sh
 ```
 
-CI runs the same contract on every pull request and branch build. Tagged releases additionally require the tag, such as `v0.1.0-preview.16`, to match `RELEASE_VERSION`; publication fails before packing when they differ.
+CI runs the same contract on every pull request and branch build. Tagged releases additionally require the tag, such as `v0.1.0-preview.17`, to match `RELEASE_VERSION`; publication fails before packing when they differ.
