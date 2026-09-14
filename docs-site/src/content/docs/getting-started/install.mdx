@@ -88,7 +88,7 @@ Template updates affect projects generated in the future; they do not rewrite an
 
 ### If a NuGet download is interrupted
 
-When NuGet reports an unexpected EOF or an empty transport stream, Trykatch condenses the repeated SDK messages into one actionable error. First retry the command shown by the CLI. If the download continues to fail, clear only NuGet's HTTP cache and retry:
+When NuGet reports an unexpected EOF or an empty transport stream, Trykatch condenses the repeated SDK messages into one actionable error. First retry the exact command shown by the CLI. If you started an explicit `--force` repair, that generated retry command also retains `--force` so it cannot be mistaken for an ordinary no-op update. If the download continues to fail, clear only NuGet's HTTP cache and retry:
 
 ```bash
 dotnet nuget locals http-cache --clear
