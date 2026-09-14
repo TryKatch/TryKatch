@@ -93,7 +93,7 @@ internal sealed class TemplatePackageInstaller(
     {
         if (!SemanticVersion.IsMatch(version))
         {
-            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.16.");
+            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.17.");
             return 1;
         }
 
@@ -243,9 +243,13 @@ internal sealed class DotnetTemplateEngine(string? templateEngineHome = null) : 
 
             foreach (JsonElement package in packages.EnumerateArray())
             {
-                if (!package.TryGetProperty("Details", out JsonElement details)
+                if (package.ValueKind is not JsonValueKind.Object
+                    || !package.TryGetProperty("Details", out JsonElement details)
+                    || details.ValueKind is not JsonValueKind.Object
                     || !details.TryGetProperty("PackageId", out JsonElement installedId)
-                    || !details.TryGetProperty("Version", out JsonElement installedVersion))
+                    || installedId.ValueKind is not JsonValueKind.String
+                    || !details.TryGetProperty("Version", out JsonElement installedVersion)
+                    || installedVersion.ValueKind is not JsonValueKind.String)
                 {
                     continue;
                 }
