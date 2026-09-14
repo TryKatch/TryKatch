@@ -3,6 +3,7 @@ set -euo pipefail
 
 script_root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 detector="$script_root/detect-changes.sh"
+docs_contract="$script_root/check-docs-required.sh"
 
 assert_scope() {
   local path=$1
@@ -34,6 +35,11 @@ assert_scope 'templates/trykatch/web/apps/web/src/main.tsx' web true
 assert_scope 'templates/trykatch/src/Modules/Federation/Web/src/index.tsx' web true
 assert_scope 'templates/trykatch/src/Modules/Federation/Web/src/index.tsx' backend false
 assert_scope 'templates/trykatch/src/Modules/Federation/Web/src/index.tsx' qualification true
+assert_scope 'templates/trykatch/tools/Trykatch.ModuleTool/ModuleScaffolder.cs' backend true
+assert_scope 'templates/trykatch/tools/Trykatch.ModuleTool/ModuleScaffolder.cs' web true
+assert_scope 'templates/trykatch/tools/Trykatch.ModuleTool/ModuleScaffolder.cs' packaging true
+assert_scope 'templates/trykatch/tools/Trykatch.ModuleTool/Scaffolding/Templates/WebIndex.tsx.tpl' web true
+assert_scope 'templates/trykatch/tools/Trykatch.ModuleTool/Program.cs' packaging true
 assert_scope 'templates/trykatch/deploy/observability/tempo.yml' observability true
 assert_scope 'templates/trykatch/compose.yml' deployment true
 assert_scope 'templates/trykatch/compose.yml' observability true
@@ -64,6 +70,17 @@ assert_scope 'scripts/test-artifact-boundaries.sh' qualification true
 assert_scope 'scripts/test-vercel-deployment.sh' web true
 assert_scope 'scripts/test-vercel-deployment.sh' backend false
 assert_scope 'scripts/test-vercel-deployment.sh' qualification true
+
+printf '%s\n' \
+  'templates/trykatch/tools/Trykatch.ModuleTool/Program.cs' \
+  'docs-site/src/content/docs/modules/authoring.md' |
+  bash "$docs_contract" --paths >/dev/null
+
+if printf '%s\n' 'templates/trykatch/tools/Trykatch.ModuleTool/Program.cs' |
+  bash "$docs_contract" --paths >/dev/null 2>&1; then
+  printf 'Expected the documentation contract to reject an undocumented CLI change.\n' >&2
+  exit 1
+fi
 assert_scope '.github/workflows/ci.yml' docs true
 assert_scope '.github/workflows/ci.yml' backend true
 assert_scope '.github/workflows/ci.yml' web true

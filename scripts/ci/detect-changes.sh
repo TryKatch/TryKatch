@@ -68,7 +68,18 @@ classify_path() {
     templates/trykatch/src/Modules/*/Web/*)
       web=true
       ;;
-    templates/trykatch/src/*|templates/trykatch/tests/*|templates/trykatch/tools/Trykatch.ModuleTool/*|templates/trykatch/Directory.*|templates/trykatch/.editorconfig|templates/trykatch/Trykatch.slnx|templates/trykatch/dotnet-tools.json)
+    templates/trykatch/tools/Trykatch.ModuleTool/ModuleScaffolder.cs|templates/trykatch/tools/Trykatch.ModuleTool/Scaffolding/*)
+      backend=true
+      web=true
+      packaging=true
+      qualification=true
+      ;;
+    templates/trykatch/tools/Trykatch.ModuleTool/*)
+      backend=true
+      packaging=true
+      qualification=true
+      ;;
+    templates/trykatch/src/*|templates/trykatch/tests/*|templates/trykatch/Directory.*|templates/trykatch/.editorconfig|templates/trykatch/Trykatch.slnx|templates/trykatch/dotnet-tools.json)
       backend=true
       ;;
     templates/trykatch/web/apps/web/nginx.conf|templates/trykatch/web/apps/web/Dockerfile|templates/trykatch/web/apps/web/proxy-test/*)

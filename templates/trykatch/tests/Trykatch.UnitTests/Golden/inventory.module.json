@@ -1,0 +1,65 @@
+{
+  "$schema": "https://trykatch.net/schemas/module-manifest.v1.json",
+  "schemaVersion": 1,
+  "id": "inventory",
+  "name": "Inventory",
+  "version": "1.0.0",
+  "description": "Organization-owned Inventory records.",
+  "publisher": "kametal",
+  "distribution": {
+    "kind": "workspace",
+    "license": "Apache-2.0"
+  },
+  "compatibility": {
+    "minimumHostVersion": "0.1.0",
+    "maximumHostVersionExclusive": "1.0.0"
+  },
+  "requires": [],
+  "optionalDependencies": [],
+  "capabilities": [
+    "api",
+    "data",
+    "web"
+  ],
+  "dataOwnership": {
+    "default": "organization",
+    "resources": [
+      {
+        "name": "inventory_items",
+        "schema": "app",
+        "table": "inventory_items",
+        "ownership": "organization",
+        "entityType": "Kametal.Modules.Inventory.Domain.ProductRecord",
+        "isolationPolicy": "inventory_items_organization_isolation"
+      }
+    ]
+  },
+  "artifacts": {
+    "dotnetProject": "src/Modules/Inventory/Kametal.Modules.Inventory.Infrastructure/Kametal.Modules.Inventory.Infrastructure.csproj",
+    "webPackage": "src/Modules/Inventory/Web/package.json"
+  },
+  "entrypoints": {
+    "dotnet": {
+      "type": "Kametal.Modules.Inventory.Infrastructure.InventoryModule"
+    },
+    "web": {
+      "specifier": "@kametal-modules/inventory",
+      "export": "inventoryModule"
+    }
+  },
+  "contributions": {
+    "permissions": [
+      "inventory.read",
+      "inventory.manage"
+    ],
+    "routes": [
+      {
+        "id": "inventory.list",
+        "path": "/inventory_items"
+      }
+    ],
+    "extensionPoints": [],
+    "extensions": [],
+    "assistantTools": []
+  }
+}

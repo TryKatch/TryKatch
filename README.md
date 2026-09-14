@@ -9,7 +9,7 @@ Trykatch is an Apache-2.0 enterprise application template for .NET 10, PostgreSQ
 `Trykatch.Templates` is the full-stack project generator. The recommended installer uses the official .NET template engine underneath while adding clear progress and completion states. Every default generation includes the .NET solution and the complete React/TanStack frontend workspace:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.15
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.16
 trykatch template install
 trykatch new Horizon
 trykatch new Acme.Operations
@@ -25,7 +25,7 @@ instead of creating a nested one.
 For automation or IDE-managed environments, the direct Microsoft CLI command remains supported:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.15
+dotnet new install Trykatch.Templates@0.1.0-preview.16
 ```
 
 The default output includes `web/apps/web`, the reusable `web/packages/ui` component system, the generated TanStack Query API client, frontend tests, and the production web container. Create a backend-only solution only when it is explicitly requested with:
@@ -39,7 +39,7 @@ Optional modules are enabled with `--email`, `--storage`, `--documents`, and `--
 `Trykatch.Cli` installs, updates, or removes the project template, starts generated applications through their Aspire AppHost, and manages the module lifecycle. Every generated application also contains its source under `tools/<ApplicationName>.ModuleTool`, so developers can run module commands without a global installation:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.15
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.16
 trykatch update
 trykatch help
 trykatch template help
@@ -47,6 +47,23 @@ trykatch start --help
 trykatch module help
 trykatch module doctor --root ./Horizon
 ```
+
+From the generated application root, create a secure organization-owned backend
+module—or add `--with-web` for its React surface—in one atomic command:
+
+```bash
+cd Horizon
+trykatch module create Invoicing \
+  --entity Invoice \
+  --resource invoices \
+  --ownership organization \
+  --with-web
+```
+
+The generator registers and enables the module, updates the solution and package
+graphs, builds and tests it, and restores the original workspace if any phase
+fails. See the [module authoring guide](https://docs.trykatch.net/modules/authoring/)
+for the generated structure, endpoints, RLS contract, and extension rules.
 
 The two packages have separate responsibilities:
 
@@ -65,9 +82,9 @@ dotnet tool uninstall --global Trykatch.Cli
 ```bash
 dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages
 dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release -o artifacts/packages
-dotnet new install artifacts/packages/Trykatch.Templates.0.1.0-preview.15.nupkg --force
+dotnet new install artifacts/packages/Trykatch.Templates.0.1.0-preview.16.nupkg --force
 dotnet new trykatch -n Horizon --allow-scripts yes
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.15 --add-source artifacts/packages
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.16 --add-source artifacts/packages
 ```
 
 The installed template uses the standard .NET template engine. Rider can install the `.nupkg` from **New Solution → More Templates → Install Template**, or discover it after `dotnet new install`. Visual Studio discovers installed SDK templates in the **Create a new project** dialog; search for **Trykatch** after installing the package and restarting the dialog or IDE.
