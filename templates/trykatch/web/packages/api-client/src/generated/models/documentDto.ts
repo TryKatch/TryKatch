@@ -11,7 +11,8 @@ import type { DocumentMetadataDto } from './documentMetadataDto';
 export interface DocumentDto {
   id: string;
   title: string;
-  content: string;
+  description: string;
+  fileName: string;
   createdAt: string;
   metadata: DocumentMetadataDto;
   lifecycle: DocumentLifecycleDto;

@@ -52,6 +52,14 @@ services:
       OpenIddict__EncryptionCertificate__PasswordFile: /run/secrets/encryption.password
       DataProtection__Certificate__Path: /run/secrets/data-protection.pfx
       DataProtection__Certificate__PasswordFile: /run/secrets/data-protection.password
+      #if (storage)
+      Storage__ServiceUrl: ${TRYKATCH_STORAGE_SERVICE_URL:?set a supported S3-compatible service URL}
+      Storage__AccessKey: ${TRYKATCH_STORAGE_ACCESS_KEY:?set a bucket-scoped storage access key}
+      Storage__SecretKey: ${TRYKATCH_STORAGE_SECRET_KEY:?set a bucket-scoped storage secret key}
+      Storage__Bucket: ${TRYKATCH_STORAGE_BUCKET:-trykatch-documents}
+      Storage__Region: ${TRYKATCH_STORAGE_REGION:-us-east-1}
+      Storage__CreateBucket: "false"
+      #endif
       #if (email)
       Email__Host: ${TRYKATCH_SMTP_HOST:-}
       Email__Port: ${TRYKATCH_SMTP_PORT:-587}

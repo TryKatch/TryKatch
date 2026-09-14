@@ -15,6 +15,23 @@ const columns: DataTableColumn<Row>[] = [
 ]
 
 describe('DataTable', () => {
+  it('keeps the result count and column settings in a trailing table-controls group', () => {
+    const view = render(<DataTable ariaLabel="Projects" data={data} columns={columns} getRowId={(row) => row.id} />)
+
+    try {
+      const toolbar = view.container.querySelector('.data-table-toolbar')
+      const actions = view.container.querySelector('.data-table-actions')
+
+      expect(toolbar).not.toBeNull()
+      expect(actions).not.toBeNull()
+      expect(toolbar?.lastElementChild).toBe(actions)
+      expect(within(actions as HTMLElement).getByText('2 results')).toBeInTheDocument()
+      expect(within(actions as HTMLElement).getByRole('button', { name: 'Table settings' })).toBeInTheDocument()
+    } finally {
+      view.unmount()
+    }
+  })
+
   it('owns reusable filtering, sorting, density and column visibility behavior', () => {
     const { container } = render(<DataTable ariaLabel="Projects" data={data} columns={columns} getRowId={(row) => row.id} />)
 

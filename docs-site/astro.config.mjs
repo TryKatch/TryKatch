@@ -44,7 +44,7 @@ export default defineConfig({
             'architecture/module-data-isolation',
           ],
         },
-        { label: 'Modules', translations: { fr: 'Modules' }, items: ['modules/authoring'] },
+        { label: 'Modules', translations: { fr: 'Modules' }, items: ['modules/authoring', 'modules/documents'] },
         {
           label: 'Operations',
           translations: { fr: 'Exploitation' },

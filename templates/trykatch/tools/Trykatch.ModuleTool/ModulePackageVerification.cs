@@ -12,8 +12,12 @@ public sealed partial class ModuleWorkspace
 {
     private const int MaximumArtifactBytes = 128 * 1024 * 1024;
 
-    private Dictionary<string, byte[]> VerifyPackageArtifacts(ModuleCatalogFile catalog, CandidatePackage candidate)
+    private Dictionary<string, byte[]> VerifyPackageArtifacts(
+        ModuleCatalogFile catalog,
+        CandidatePackage candidate,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ModuleManifest manifest = candidate.Manifest;
         if (!StableIdRegex().IsMatch(manifest.Id) || !TryParseVersion(manifest.Version, out _))
             throw new InvalidOperationException("Package module identity/version is invalid.");
@@ -79,7 +83,8 @@ public sealed partial class ModuleWorkspace
             List<string> arguments = ["nuget", "verify", packagePath, "--all", "--configfile", verificationConfig];
             foreach (string fingerprint in trust.NugetSignerSha256)
                 arguments.AddRange(["--certificate-fingerprint", fingerprint]);
-            WorkspaceCommandResult verification = _commandRunner.Run("dotnet", arguments, _root);
+            WorkspaceCommandResult verification = _commandRunner.Run(
+                "dotnet", arguments, _root, cancellationToken);
             if (verification.ExitCode != 0)
                 throw new InvalidOperationException($"NuGet signer verification failed; the workspace was not changed:{Environment.NewLine}{verification.Output}");
         }
@@ -88,6 +93,7 @@ public sealed partial class ModuleWorkspace
 
         byte[] ReadArtifact(string? relativePath, string? digest, bool requireDigest = true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string absolute = ResolvePackageArtifact(candidate.ManifestPath, relativePath, "artifact");
             if (new FileInfo(absolute).Length > MaximumArtifactBytes)
                 throw new InvalidOperationException("Module artifact exceeds the verification size limit.");

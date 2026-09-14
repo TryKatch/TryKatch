@@ -8,8 +8,8 @@ description: Consultez l’interface générée et les adaptateurs optionnels pr
 | `--ui react` | activée | Génère l’espace de travail React, TanStack, Vite, l’interface possédée et le client API. |
 | `--ui none` | désactivée | Génère le backend sans l’espace de travail web. |
 | `--email true` | désactivée | Ajoute MailKit SMTP et une ressource de développement Mailpit. |
-| `--storage true` | désactivée | Ajoute le stockage de développement local et un adaptateur compatible S3. |
+| `--storage true` | activée | Lance une ressource MinIO privée avec Aspire en développement local et ajoute un adaptateur générique compatible S3. Utilisez `--storage false` pour le stockage local sur le système de fichiers. |
 | `--documents true` | désactivée | Ajoute les adaptateurs Open XML SDK et PDFsharp/MigraDoc. |
 | `--images true` | désactivée | Ajoute la validation, le redimensionnement et la suppression des métadonnées avec SkiaSharp. |
 
-Tous les modules optionnels utilisent des packages gratuits et redistribuables conformément à la politique de dépendances du dépôt.
+MinIO est téléchargé comme conteneur de développement local AGPL-3.0 séparé ; il n’est pas intégré dans l’application générée. Les recommandations de sécurité actuelles du projet font de l’image communautaire épinglée un outil de développement, et non notre recommandation de stockage en production. La production doit utiliser un service compatible S3 corrigé et pris en charge, avec des identifiants limités au compartiment.

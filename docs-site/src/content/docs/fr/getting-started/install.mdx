@@ -24,7 +24,7 @@ Suivez ces étapes dans l’ordre.
 Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.18
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.19
 ```
 
 Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
@@ -59,7 +59,7 @@ imbriqué.
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.18
+dotnet new install Trykatch.Templates@0.1.0-preview.19
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -75,7 +75,7 @@ Les noms contenant des points ou des tirets sont normalisés pour produire des e
 Mettez d’abord à jour la CLI, puis utilisez la commande de mise à jour dédiée de Trykatch. La CLI et le modèle restent ainsi sur la même version :
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.18
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.19
 trykatch update
 ```
 
@@ -89,7 +89,7 @@ Lorsque NuGet signale une fin de flux inattendue (EOF) ou un flux de transport v
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.18
+trykatch update --version 0.1.0-preview.19
 ```
 
 Le moteur de modèles .NET peut supprimer l’ancienne version avant la fin d’une mise à jour forcée. Relancer la commande Trykatch restaure le modèle ; les applications déjà générées ne sont pas affectées.
@@ -280,6 +280,8 @@ docker version
 Si `docker info` échoue, redémarrez Docker Desktop et attendez que son moteur soit opérationnel. Réactivez le moteur si Docker Resource Saver l’a suspendu. Si `docker version` indique un client antérieur à la version 25.0, mettez Docker Desktop à jour et vérifiez que Rider ou votre terminal utilise bien le nouvel exécutable `docker`. Arrêtez ensuite l’AppHost, puis redémarrez-le.
 
 La fenêtre Docker Desktop peut afficher **Engine running** alors qu’un terminal attend encore le socket du démon ou utilise un autre contexte Docker. Exécutez `docker context show` et `docker version` dans le même terminal que `trykatch start`. La CLI respecte désormais la fenêtre normale de réveil du mode Resource Saver avant de signaler un échec.
+
+Les modèles actuels attribuent au volume PostgreSQL persistant de développement un mot de passe administrateur local explicite. La recréation d’une application portant le même nom conserve donc les mêmes identifiants de base de données. Si un projet créé avec une ancienne préversion affiche immédiatement `password authentication failed for user "postgres"` après que vous avez volontairement supprimé puis régénéré cette application, arrêtez d’abord l’AppHost. Si, et seulement si, l’ancienne base locale est jetable, supprimez le volume exact de cette application (par exemple `docker volume rm horizon-postgres-data`), puis redémarrez. La suppression du volume détruit définitivement cette base locale ; conservez-la ou sauvegardez-la si ses données sont importantes.
 
 PostgreSQL et les conteneurs d’observabilité locale ne peuvent pas démarrer lorsque le runtime de conteneurs est défaillant ; les ressources dépendantes restent donc correctement dans l’état **Waiting**. Le **migrateur** est un processus ponctuel : l’état **Finished** avec le code de sortie 0 indique un succès, pas une application arrêtée. Les ressources **api** et **web** doivent ensuite passer à l’état actif. Examinez la première ressource en échec ou défaillante au lieu de redémarrer chaque ressource séparément.
 

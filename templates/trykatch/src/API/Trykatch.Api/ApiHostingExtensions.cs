@@ -61,6 +61,9 @@ internal static class ApiHostingExtensions
         builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
         builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
         builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();
+        builder.Services.AddScoped<ModuleTransactionCompensation>();
+        builder.Services.AddScoped<IModuleTransactionCompensation>(services =>
+            services.GetRequiredService<ModuleTransactionCompensation>());
         builder.Services.ConfigureHttpJsonOptions(options => ConfigureStrictJson(options.SerializerOptions));
         builder.Services.AddControllers()
             .AddJsonOptions(options => ConfigureStrictJson(options.JsonSerializerOptions))

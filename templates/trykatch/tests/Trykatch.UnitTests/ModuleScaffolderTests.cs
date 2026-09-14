@@ -234,6 +234,45 @@ public sealed class ModuleScaffolderTests
     }
 
     [TestMethod]
+    public void CancellationDuringRestoreRollsBackEveryWorkspaceMutation()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        using CancellationTokenSource cancellation = new();
+        string catalogPath = Path.Combine(workspace.Root, "trykatch.modules.json");
+        string solutionPath = Path.Combine(workspace.Root, "Kametal.slnx");
+        string originalCatalog = File.ReadAllText(catalogPath);
+        string originalSolution = File.ReadAllText(solutionPath);
+
+        Should.Throw<OperationCanceledException>(() => new ModuleScaffolder(
+            workspace.Root,
+            new CancellingRunner(cancellation)).Create(new(
+                "Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: false),
+                cancellation.Token));
+
+        File.ReadAllText(catalogPath).ShouldBe(originalCatalog);
+        File.ReadAllText(solutionPath).ShouldBe(originalSolution);
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
+        Directory.Exists(Path.Combine(workspace.Root, "tests/Modules/Invoicing")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public void ProcessRunnerTerminatesTheActiveCommandWhenCanceled()
+    {
+        if (OperatingSystem.IsWindows())
+            Assert.Inconclusive("The stalled command fixture uses the Unix shell.");
+        using CancellationTokenSource cancellation = new(TimeSpan.FromMilliseconds(100));
+        DateTimeOffset startedAt = DateTimeOffset.UtcNow;
+
+        Should.Throw<OperationCanceledException>(() => new ProcessWorkspaceCommandRunner().Run(
+            "/bin/sh",
+            ["-c", "sleep 60"],
+            Path.GetTempPath(),
+            cancellation.Token));
+
+        (DateTimeOffset.UtcNow - startedAt).ShouldBeLessThan(TimeSpan.FromSeconds(5));
+    }
+
+    [TestMethod]
     public void RestoreFailurePreservesForeignLockFileCreatedDuringTheTransaction()
     {
         using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
@@ -580,6 +619,15 @@ public sealed class ModuleScaffolderTests
     {
         public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory) =>
             new(17, "simulated restore failure");
+    }
+
+    private sealed class CancellingRunner(CancellationTokenSource cancellation) : IWorkspaceCommandRunner
+    {
+        public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
+        {
+            cancellation.Cancel();
+            return new(0, string.Empty);
+        }
     }
 
     private sealed class ForeignLockFileFailingRunner(string foreignLock) : IWorkspaceCommandRunner

@@ -21,7 +21,7 @@
     {
       "id": "documents",
       "name": "Documents",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "capabilities": [
         "Api",
         "Web",
@@ -37,18 +37,6 @@
     "writes": "Mutating and destructive tools require an explicit allowlist entry and human confirmation."
   },
   "tools": [
-    {
-      "type": "function",
-      "name": "trykatch_create_document",
-      "description": "Create a document record in the current workspace.",
-      "strict": true,
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "required": [],
-        "additionalProperties": false
-      }
-    },
     {
       "type": "function",
       "name": "trykatch_get_project",
@@ -154,7 +142,7 @@
     {
       "type": "function",
       "name": "trykatch_update_document",
-      "description": "Update document content in the current workspace.",
+      "description": "Update document metadata in the current workspace.",
       "strict": true,
       "parameters": {
         "type": "object",
@@ -169,19 +157,21 @@
         ],
         "additionalProperties": false
       }
+    },
+    {
+      "type": "function",
+      "name": "trykatch_upload_document",
+      "description": "Upload a document file in the current workspace.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
     }
   ],
   "bindings": {
-    "trykatch_create_document": {
-      "operationId": "Documents_Create",
-      "method": "POST",
-      "path": "/api/v1/documents",
-      "moduleId": "documents",
-      "risk": "mutating",
-      "requiresHumanConfirmation": true,
-      "authorization": "api-enforced",
-      "organizationContext": "request-derived"
-    },
     "trykatch_get_project": {
       "operationId": "Projects_Get",
       "method": "GET",
@@ -216,6 +206,16 @@
       "operationId": "Documents_Update",
       "method": "PUT",
       "path": "/api/v1/documents/{id}",
+      "moduleId": "documents",
+      "risk": "mutating",
+      "requiresHumanConfirmation": true,
+      "authorization": "api-enforced",
+      "organizationContext": "request-derived"
+    },
+    "trykatch_upload_document": {
+      "operationId": "Documents_Upload",
+      "method": "POST",
+      "path": "/api/v1/documents",
       "moduleId": "documents",
       "risk": "mutating",
       "requiresHumanConfirmation": true,

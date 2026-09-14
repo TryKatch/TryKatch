@@ -7,6 +7,8 @@ internal static class ApplicationHostingExtensions
     public static IDistributedApplicationBuilder AddApplicationResources(
         this IDistributedApplicationBuilder builder)
     {
+        IResourceBuilder<ParameterResource> postgresAdminPassword =
+            builder.AddParameter("postgres-admin-password", "local-postgres-admin-only", secret: true);
         IResourceBuilder<ParameterResource> migratorPassword =
             builder.AddParameter("migrator-password", "local-migrator-only", secret: true);
         IResourceBuilder<ParameterResource> organizationPassword =
@@ -19,6 +21,7 @@ internal static class ApplicationHostingExtensions
             builder.AddParameter("outbox-runtime-password", "local-outbox-only", secret: true);
 
         IResourceBuilder<PostgresDatabaseResource> database = builder.AddApplicationDatabase(
+            postgresAdminPassword,
             migratorPassword,
             organizationPassword,
             platformPassword,
@@ -35,6 +38,7 @@ internal static class ApplicationHostingExtensions
             outboxPassword);
 
         builder.AddDevelopmentEmail(api);
+        builder.AddDevelopmentObjectStorage(api);
         builder.AddObservabilityStack();
 
 #if HAS_REACT_UI
@@ -50,6 +54,7 @@ internal static class ApplicationHostingExtensions
 
     private static IResourceBuilder<PostgresDatabaseResource> AddApplicationDatabase(
         this IDistributedApplicationBuilder builder,
+        IResourceBuilder<ParameterResource> postgresAdminPassword,
         IResourceBuilder<ParameterResource> migratorPassword,
         IResourceBuilder<ParameterResource> organizationPassword,
         IResourceBuilder<ParameterResource> platformPassword,
@@ -57,7 +62,7 @@ internal static class ApplicationHostingExtensions
         IResourceBuilder<ParameterResource> outboxPassword)
     {
         IResourceBuilder<PostgresServerResource> postgres = builder
-            .AddPostgres("postgres")
+            .AddPostgres("postgres", password: postgresAdminPassword)
             .WithImageTag("18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f")
             .WithEnvironment("TRYKATCH_MIGRATOR_PASSWORD", migratorPassword)
             .WithEnvironment("TRYKATCH_ORG_RUNTIME_PASSWORD", organizationPassword)
@@ -164,6 +169,38 @@ internal static class ApplicationHostingExtensions
                 .WithEnvironment("Email__From", "Trykatch <noreply@localhost>")
                 .WaitFor(mailpit);
         }
+#endif
+    }
+
+    private static void AddDevelopmentObjectStorage(
+        this IDistributedApplicationBuilder builder,
+        IResourceBuilder<ProjectResource> api)
+    {
+#if TRYKATCH_STORAGE
+        IResourceBuilder<ParameterResource> accessKey =
+            builder.AddParameter("minio-access-key", "trykatch-local", secret: true);
+        IResourceBuilder<ParameterResource> secretKey =
+            builder.AddParameter("minio-secret-key", "local-minio-secret-only", secret: true);
+        IResourceBuilder<ContainerResource> minio = builder
+            .AddContainer(
+                "minio",
+                "quay.io/minio/minio",
+                "RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
+            .WithArgs("server", "/data", "--console-address", ":9001")
+            .WithEnvironment("MINIO_ROOT_USER", accessKey)
+            .WithEnvironment("MINIO_ROOT_PASSWORD", secretKey)
+            .WithVolume("trykatch-app-slug-minio-data", "/data")
+            .WithHttpEndpoint(targetPort: 9000, name: "s3")
+            .WithHttpEndpoint(targetPort: 9001, name: "console")
+            .WithHttpHealthCheck("/minio/health/ready", endpointName: "s3");
+
+        api.WithEnvironment("Storage__ServiceUrl", minio.GetEndpoint("s3"))
+            .WithEnvironment("Storage__AccessKey", accessKey)
+            .WithEnvironment("Storage__SecretKey", secretKey)
+            .WithEnvironment("Storage__Bucket", "trykatch-documents")
+            .WithEnvironment("Storage__Region", "us-east-1")
+            .WithEnvironment("Storage__CreateBucket", "true")
+            .WaitFor(minio);
 #endif
     }
 

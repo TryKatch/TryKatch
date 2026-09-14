@@ -24,7 +24,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.18
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.19
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -59,7 +59,7 @@ creating a nested one.
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.18
+dotnet new install Trykatch.Templates@0.1.0-preview.19
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -76,7 +76,7 @@ Names containing dots and hyphens are normalized for C# namespaces, directories,
 Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.18
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.19
 trykatch update
 ```
 
@@ -90,7 +90,7 @@ When NuGet reports an unexpected EOF or an empty transport stream, Trykatch cond
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.18
+trykatch update --version 0.1.0-preview.19
 ```
 
 The .NET template engine can remove the previous template before a forced update finishes. Retrying the Trykatch command restores the template; applications you already generated are not affected.
@@ -281,6 +281,8 @@ docker version
 If `docker info` fails, restart Docker Desktop and wait until its engine is running. Resume the engine if Docker Resource Saver paused it. If `docker version` shows a client older than 25.0, update Docker Desktop and verify that Rider or your terminal resolves the updated `docker` executable. Then stop and restart the AppHost.
 
 The Docker Desktop window can show **Engine running** while a terminal is still waiting for the daemon socket or is using another Docker context. Run `docker context show` and `docker version` in the same terminal that runs `trykatch start`. The CLI permits Docker Desktop's normal Resource Saver wake-up window before reporting a failure.
+
+Current templates give the persistent development PostgreSQL volume an explicit local-only administrator password. Recreating an application with the same name therefore keeps the database credential stable. If a project created by an older preview reports `password authentication failed for user "postgres"` immediately after you intentionally discarded and regenerated that application, stop the AppHost first. If—and only if—the previous local database is disposable, remove that application's exact volume (for example, `docker volume rm horizon-postgres-data`) and start again. Removing the volume permanently deletes that local database; preserve or back it up when its data matters.
 
 PostgreSQL and the local observability containers cannot start while the container runtime is unhealthy, so downstream resources correctly remain in **Waiting**. The **migrator** is a one-shot process: **Finished** with exit code 0 is success, not a stopped application. The **api** and **web** should then become running. Inspect the first failed or unhealthy resource rather than restarting every resource individually.
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
@@ -18,11 +19,15 @@ public sealed partial class ModuleWorkspace
     private string PinnedWebArchive(ModuleManifest manifest) => ResolvePackageArtifact(
         PackageManifestPath(manifest), manifest.Distribution.Web!.PackageFile, "frontend");
 
-    private void MaterializeVerifiedPackage(CandidatePackage candidate, string destination)
+    private void MaterializeVerifiedPackage(
+        CandidatePackage candidate,
+        string destination,
+        CancellationToken cancellationToken)
     {
         string directory = Path.GetDirectoryName(destination)!;
         foreach ((string relative, byte[] bytes) in candidate.VerifiedFiles!)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string target = ResolveInsideRoot(Path.GetFullPath(relative, directory));
             WriteAtomicBytes(target, bytes);
         }
@@ -93,13 +98,21 @@ public sealed partial class ModuleWorkspace
             throw new InvalidOperationException("Restore did not bind the reviewed frontend identity, version and integrity.");
     }
 
-    internal IDisposable AcquirePackageMutationLock()
+    internal IDisposable AcquirePackageMutationLock(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         string name = PackageMutationLockName(_root);
         Mutex mutex = new(false, name);
         try
         {
-            if (!mutex.WaitOne(TimeSpan.FromSeconds(30))) throw new InvalidOperationException("Another module transaction is in progress.");
+            bool acquired = false;
+            Stopwatch timeout = Stopwatch.StartNew();
+            while (!acquired && timeout.Elapsed < TimeSpan.FromSeconds(30))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                acquired = mutex.WaitOne(TimeSpan.FromMilliseconds(100));
+            }
+            if (!acquired) throw new InvalidOperationException("Another module transaction is in progress.");
             return new PackageMutationLock(mutex);
         }
         catch { mutex.Dispose(); throw; }

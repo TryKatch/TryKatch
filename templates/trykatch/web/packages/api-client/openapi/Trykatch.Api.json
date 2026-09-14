@@ -406,14 +406,14 @@
         "tags": [
           "Documents"
         ],
-        "summary": "Create documents",
-        "description": "Create a document record in the current workspace.",
-        "operationId": "Documents_Create",
+        "summary": "Upload documents",
+        "description": "Upload a document file in the current workspace.",
+        "operationId": "Documents_Upload",
         "requestBody": {
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/SaveDocumentRequest"
+                "$ref": "#/components/schemas/UploadDocumentForm"
               }
             }
           },
@@ -445,16 +445,60 @@
           {
             "lang": "TypeScript",
             "label": "TypeScript · fetch",
-            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/documents/', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+            "source": "const uploadForm = document.querySelector<HTMLFormElement>('#upload-form');\nif (!uploadForm) throw new Error('Upload form was not found.');\nconst formData = new FormData(uploadForm);\n\nconst { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/documents/', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: formData, // The browser supplies the multipart boundary.\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ],
         "x-trykatch-module": "documents",
         "x-trykatch-assistant-tool": {
-          "name": "trykatch_create_document",
-          "description": "Create a document record in the current workspace.",
+          "name": "trykatch_upload_document",
+          "description": "Upload a document file in the current workspace.",
           "risk": "mutating",
           "requiresHumanConfirmation": true
         }
+      }
+    },
+    "/api/v1/documents/{id}/content": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Download documents",
+        "operationId": "Documents_Download",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/documents/{id:guid}/content', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/octet-stream',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: Blob = await response.blob();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ],
+        "x-trykatch-module": "documents"
       }
     },
     "/api/v1/documents/{id}": {
@@ -463,7 +507,7 @@
           "Documents"
         ],
         "summary": "Update documents",
-        "description": "Update document content in the current workspace.",
+        "description": "Update document metadata in the current workspace.",
         "operationId": "Documents_Update",
         "parameters": [
           {
@@ -480,7 +524,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SaveDocumentRequest"
+                "$ref": "#/components/schemas/UpdateDocumentRequest"
               }
             }
           },
@@ -518,7 +562,7 @@
         "x-trykatch-module": "documents",
         "x-trykatch-assistant-tool": {
           "name": "trykatch_update_document",
-          "description": "Update document content in the current workspace.",
+          "description": "Update document metadata in the current workspace.",
           "risk": "mutating",
           "requiresHumanConfirmation": true
         }
@@ -4760,7 +4804,8 @@
         "required": [
           "id",
           "title",
-          "content",
+          "description",
+          "fileName",
           "createdAt",
           "metadata",
           "lifecycle"
@@ -4774,7 +4819,10 @@
           "title": {
             "type": "string"
           },
-          "content": {
+          "description": {
+            "type": "string"
+          },
+          "fileName": {
             "type": "string"
           },
           "createdAt": {
@@ -4843,7 +4891,8 @@
         "required": [
           "updatedAt",
           "mediaType",
-          "characterCount"
+          "sizeBytes",
+          "sha256"
         ],
         "type": "object",
         "properties": {
@@ -4857,13 +4906,16 @@
           "mediaType": {
             "type": "string"
           },
-          "characterCount": {
+          "sizeBytes": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
               "string"
             ],
-            "format": "int32"
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string"
           }
         }
       },
@@ -4965,6 +5017,10 @@
             }
           }
         }
+      },
+      "IFormFile": {
+        "type": "string",
+        "format": "binary"
       },
       "InvitationDto": {
         "required": [
@@ -6119,24 +6175,6 @@
           }
         }
       },
-      "SaveDocumentRequest": {
-        "required": [
-          "title",
-          "content"
-        ],
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string"
-          },
-          "content": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "SavePlatformRoleRequest": {
         "required": [
           "name",
@@ -6258,6 +6296,24 @@
           }
         }
       },
+      "UpdateDocumentRequest": {
+        "required": [
+          "title",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "UpdateInvitationCommand": {
         "required": [
           "expiresInDays"
@@ -6306,6 +6362,28 @@
         "properties": {
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "UploadDocumentForm": {
+        "required": [
+          "title",
+          "description",
+          "file"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "file": {
+            "$ref": "#/components/schemas/IFormFile"
           }
         }
       },
@@ -6496,7 +6574,7 @@
     {
       "id": "documents",
       "name": "Documents",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "capabilities": [
         "Api",
         "Web",
