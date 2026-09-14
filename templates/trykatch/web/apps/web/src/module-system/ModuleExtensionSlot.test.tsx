@@ -51,7 +51,7 @@ describe('ModuleExtensionSlot', () => {
     </ModuleProvider>)
 
     const contribution = screen.getByRole('region', { name: 'Documents workspace' })
-    expect(within(contribution).getByText('Manage organization documents without leaving this workspace.')).toBeInTheDocument()
+    expect(within(contribution).getByText('Upload organization files without leaving this workspace.')).toBeInTheDocument()
     expect(within(contribution).getByRole('link', { name: 'Open documents' })).toHaveAttribute('href', '/documents')
   })
 

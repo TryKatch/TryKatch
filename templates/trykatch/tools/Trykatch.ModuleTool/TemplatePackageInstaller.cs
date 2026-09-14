@@ -93,7 +93,7 @@ internal sealed class TemplatePackageInstaller(
     {
         if (!SemanticVersion.IsMatch(version))
         {
-            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.18.");
+            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.19.");
             return 1;
         }
 

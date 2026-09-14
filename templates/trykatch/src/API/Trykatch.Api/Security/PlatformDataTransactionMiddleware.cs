@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace Trykatch.Api.Security;
 
@@ -14,14 +15,16 @@ public sealed class AtomicMutationResponseOptions
     public int MaximumBytes { get; init; } = 1_048_576;
 }
 
-public sealed class PlatformDataTransactionMiddleware(
+public sealed partial class PlatformDataTransactionMiddleware(
     RequestDelegate next,
-    IOptions<AtomicMutationResponseOptions> responseOptions)
+    IOptions<AtomicMutationResponseOptions> responseOptions,
+    ILogger<PlatformDataTransactionMiddleware> logger)
 {
     public async Task InvokeAsync(
         HttpContext context,
         OrganizationControlPlaneDbContext organizationDbContext,
-        IWorkspaceContextCookie workspaceCookie)
+        IWorkspaceContextCookie workspaceCookie,
+        ModuleTransactionCompensation transactionCompensation)
     {
         Endpoint? endpoint = context.GetEndpoint();
         bool usesPlatformData = endpoint?.Metadata.GetMetadata<PlatformDataScopedAttribute>() is not null
@@ -69,16 +72,107 @@ public sealed class PlatformDataTransactionMiddleware(
             return;
         }
 
-        await AtomicMutationResponse.ExecuteAsync(
-            context,
-            responseOptions.Value.MaximumBytes,
-            next,
-            async cancellationToken =>
+        bool transactionCommitted = false;
+        bool transactionRolledBack = false;
+        try
+        {
+            await AtomicMutationResponse.ExecuteAsync(
+                context,
+                responseOptions.Value.MaximumBytes,
+                next,
+                async cancellationToken =>
+                {
+                    if (context.Response.StatusCode < StatusCodes.Status500InternalServerError)
+                    {
+                        try
+                        {
+                            await transaction.CommitAsync(cancellationToken);
+                        }
+                        catch (PostgresException)
+                        {
+                            // PostgreSQL returned an explicit commit rejection, so
+                            // the transaction is known not to have committed even
+                            // though Npgsql now considers it completed.
+                            transactionRolledBack = true;
+                            try
+                            {
+                                await transactionCompensation.RollbackAsync(CancellationToken.None);
+                            }
+                            catch (Exception exception)
+                            {
+                                LogCompensationFailure(logger, exception);
+                            }
+                            throw;
+                        }
+                        transactionCommitted = true;
+                        transactionCompensation.Complete();
+                    }
+                    else
+                    {
+                        await transactionCompensation.CompensateAfterConfirmedRollbackAsync(
+                            async cancellationToken =>
+                            {
+                                await transaction.RollbackAsync(cancellationToken);
+                                transactionRolledBack = true;
+                            },
+                            CancellationToken.None);
+                    }
+                });
+        }
+        catch
+        {
+            if (!transactionCommitted && !transactionRolledBack)
             {
-                if (context.Response.StatusCode < StatusCodes.Status500InternalServerError)
-                    await transaction.CommitAsync(cancellationToken);
-                else
-                    await transaction.RollbackAsync(CancellationToken.None);
-            });
+                await RollbackAfterFailureAsync(transaction, transactionCompensation);
+            }
+            throw;
+        }
     }
+
+    private async Task RollbackAfterFailureAsync(
+        IDbContextTransaction transaction,
+        ModuleTransactionCompensation transactionCompensation)
+    {
+        bool rollbackConfirmed = false;
+        try
+        {
+            await transactionCompensation.CompensateAfterConfirmedRollbackAsync(
+                async cancellationToken =>
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    rollbackConfirmed = true;
+                },
+                CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            if (rollbackConfirmed)
+            {
+                LogCompensationFailure(logger, exception);
+            }
+            else
+            {
+                LogDatabaseRollbackFailure(logger, exception);
+                LogCompensationDeferred(logger);
+            }
+        }
+    }
+
+    [LoggerMessage(
+        EventId = 4401,
+        Level = LogLevel.Error,
+        Message = "Database transaction rollback failed after a request error.")]
+    private static partial void LogDatabaseRollbackFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 4402,
+        Level = LogLevel.Error,
+        Message = "Module side-effect compensation failed after a request rollback.")]
+    private static partial void LogCompensationFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 4403,
+        Level = LogLevel.Warning,
+        Message = "Destructive module compensation was deferred because database rollback could not be confirmed.")]
+    private static partial void LogCompensationDeferred(ILogger logger);
 }

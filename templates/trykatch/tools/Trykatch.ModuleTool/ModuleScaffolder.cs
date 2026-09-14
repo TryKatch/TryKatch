@@ -26,7 +26,7 @@ public sealed record ModuleCreationResult(
 
 public interface IModuleScaffolder
 {
-    ModuleCreationResult Create(ModuleCreateRequest request);
+    ModuleCreationResult Create(ModuleCreateRequest request, CancellationToken cancellationToken = default);
 }
 
 internal enum ModuleCreationPhase
@@ -73,18 +73,24 @@ public sealed partial class ModuleScaffolder : IModuleScaffolder
         _workspace = new(_root, commandRunner);
     }
 
-    public ModuleCreationResult Create(ModuleCreateRequest request) =>
-        CreateScaffoldedModule(request);
+    public ModuleCreationResult Create(
+        ModuleCreateRequest request,
+        CancellationToken cancellationToken = default) =>
+        CreateScaffoldedModule(request, cancellationToken);
 }
 
 public sealed partial class ModuleScaffolder
 {
     private static readonly string[] GeneratedModuleLayers = ["Application", "Domain", "Infrastructure", "IntegrationEvents", "Presentation"];
     private static readonly string[] GeneratedTestKinds = ["ArchitectureTests", "UnitTests"];
-    internal ModuleCreationResult CreateScaffoldedModule(ModuleCreateRequest request)
+    internal ModuleCreationResult CreateScaffoldedModule(
+        ModuleCreateRequest request,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        using IDisposable mutationLock = _workspace.AcquirePackageMutationLock();
+        cancellationToken.ThrowIfCancellationRequested();
+        using IDisposable mutationLock = _workspace.AcquirePackageMutationLock(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         List<string> errors = [];
         ModuleCatalogFile? catalog = _workspace.ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
@@ -126,7 +132,9 @@ public sealed partial class ModuleScaffolder
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             RenderModule(stagedModuleRoot, stagedTestRoot, names, request.IncludeWeb);
+            cancellationToken.ThrowIfCancellationRequested();
             ValidateStagedManifest(Path.Combine(stagedModuleRoot, "trykatch.module.json"), names, request.IncludeWeb);
             string relativeManifest = Path.GetRelativePath(_root, Path.Combine(moduleRoot, "trykatch.module.json"))
                 .Replace(Path.DirectorySeparatorChar, '/');
@@ -166,13 +174,14 @@ public sealed partial class ModuleScaffolder
             _workspace.WriteGeneratedRegistries(catalog, modules);
             ModuleWorkspace.WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, ModuleWorkspace.SerializerOptions) + "\n");
             _failureInjector.ThrowIfRequested(ModuleCreationPhase.RegistrationAndCatalogMutation);
-            _workspace.RestorePackageGraphs(catalog, request.IncludeWeb);
+            _workspace.RestorePackageGraphs(catalog, request.IncludeWeb, cancellationToken: cancellationToken);
             _failureInjector.ThrowIfRequested(ModuleCreationPhase.Restore);
-            VerifyGeneratedBackendWorkspace(solution, names);
+            VerifyGeneratedBackendWorkspace(solution, names, cancellationToken);
             if (request.IncludeWeb)
-                VerifyGeneratedWebWorkspace();
+                VerifyGeneratedWebWorkspace(cancellationToken);
 
             _failureInjector.ThrowIfRequested(ModuleCreationPhase.DoctorValidation);
+            cancellationToken.ThrowIfCancellationRequested();
             ModuleDoctorReport report = _workspace.Inspect();
             if (!report.IsHealthy)
                 throw new InvalidOperationException(string.Join(Environment.NewLine, report.Errors));
@@ -197,7 +206,13 @@ public sealed partial class ModuleScaffolder
             DeleteDirectoryIfPresent(moduleRoot);
             DeleteDirectoryIfPresent(testRoot);
             if (request.IncludeWeb)
-                _ = _commandRunner.Run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], _workspace.ResolveInsideRoot("web"));
+                _ = _commandRunner.Run(
+                    "pnpm",
+                    ["install", "--frozen-lockfile", "--ignore-scripts"],
+                    _workspace.ResolveInsideRoot("web"),
+                    CancellationToken.None);
+            if (exception is OperationCanceledException)
+                throw;
             throw new InvalidOperationException($"Module creation failed and the workspace was restored: {exception.Message}", exception);
         }
         finally
@@ -603,10 +618,13 @@ public sealed partial class ModuleScaffolder
             elementSlots[index].ReplaceWith(orderedElements[index]);
     }
 
-    private void VerifyGeneratedBackendWorkspace(string solution, ScaffoldNames names)
+    private void VerifyGeneratedBackendWorkspace(
+        string solution,
+        ScaffoldNames names,
+        CancellationToken cancellationToken)
     {
         EnsureCommandSucceeded(
-            _commandRunner.Run("dotnet", ["build", solution, "--no-restore", "--no-incremental"], _root),
+            _commandRunner.Run("dotnet", ["build", solution, "--no-restore", "--no-incremental"], _root, cancellationToken),
             "build the generated backend module");
         string testRoot = _workspace.ResolveInsideRoot(Path.Combine("tests", "Modules", names.Module));
         foreach (string kind in GeneratedTestKinds)
@@ -614,18 +632,18 @@ public sealed partial class ModuleScaffolder
             string projectName = $"{names.RootNamespace}.Modules.{names.Module}.{kind}";
             string project = Path.Combine(testRoot, projectName, projectName + ".csproj");
             EnsureCommandSucceeded(
-                _commandRunner.Run("dotnet", ["test", project, "--no-build", "--no-restore"], _root),
+                _commandRunner.Run("dotnet", ["test", project, "--no-build", "--no-restore"], _root, cancellationToken),
                 $"run generated {kind.Replace("Tests", " tests", StringComparison.Ordinal).ToLowerInvariant()}");
         }
     }
 
-    private void VerifyGeneratedWebWorkspace()
+    private void VerifyGeneratedWebWorkspace(CancellationToken cancellationToken)
     {
-        EnsureCommandSucceeded(_commandRunner.Run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], _workspace.ResolveInsideRoot("web")),
+        EnsureCommandSucceeded(_commandRunner.Run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], _workspace.ResolveInsideRoot("web"), cancellationToken),
             "install the generated web workspace");
         _failureInjector.ThrowIfRequested(ModuleCreationPhase.WebInstall);
         foreach (string operation in new[] { "generate", "typecheck", "test", "build" })
-            EnsureCommandSucceeded(_commandRunner.Run("pnpm", ["--dir", "web", operation], _root), $"run 'pnpm {operation}'");
+            EnsureCommandSucceeded(_commandRunner.Run("pnpm", ["--dir", "web", operation], _root, cancellationToken), $"run 'pnpm {operation}'");
         _failureInjector.ThrowIfRequested(ModuleCreationPhase.WebVerification);
     }
 

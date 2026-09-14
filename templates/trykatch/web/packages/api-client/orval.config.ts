@@ -10,7 +10,10 @@ export default defineConfig({
       httpClient: 'fetch',
       mode: 'split',
       clean: true,
-      override: { mutator: { path: './src/http.ts', name: 'customFetch' } },
+      override: {
+        fetch: { includeHttpResponseReturnType: false },
+        mutator: { path: './src/http.ts', name: 'customFetch' },
+      },
     },
   },
 })

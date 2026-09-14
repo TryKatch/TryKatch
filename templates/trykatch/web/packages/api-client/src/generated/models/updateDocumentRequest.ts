@@ -6,8 +6,8 @@
  * OpenAPI spec version: v1
  */
 
-export interface SaveDocumentRequest {
+export interface UpdateDocumentRequest {
   title: string;
   /** @nullable */
-  content: string | null;
+  description: string | null;
 }

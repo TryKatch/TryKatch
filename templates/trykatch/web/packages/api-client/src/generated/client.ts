@@ -90,15 +90,16 @@ import type {
   ResetPasswordRequest,
   RoleDto,
   RolesListParams,
-  SaveDocumentRequest,
   SavePlatformRoleRequest,
   SaveRoleCommand,
   SelectWorkspaceRequest,
   SessionResponse,
   UpdateAccountProfileRequest,
+  UpdateDocumentRequest,
   UpdateInvitationCommand,
   UpdateMembershipCommand,
   UpdateOrganizationRequest,
+  UploadDocumentForm,
   WorkspaceOverview
 } from './models';
 
@@ -124,18 +125,6 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export type projectsListResponse200 = {
-  data: PagedResultOfProjectDto
-  status: 200
-}
-
-export type projectsListResponseSuccess = (projectsListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type projectsListResponse = (projectsListResponseSuccess)
-
 export const getProjectsListUrl = (params?: ProjectsListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -155,9 +144,9 @@ export const getProjectsListUrl = (params?: ProjectsListParams,) => {
  * List the projects visible in the current organization workspace.
  * @summary List projects
  */
-export const projectsList = async (params?: ProjectsListParams, options?: Parameters<typeof customFetch>[1]): Promise<projectsListResponse> => {
+export const projectsList = async (params?: ProjectsListParams, options?: Parameters<typeof customFetch>[1]): Promise<PagedResultOfProjectDto> => {
 
-  return customFetch<projectsListResponse>(getProjectsListUrl(params),
+  return customFetch<PagedResultOfProjectDto>(getProjectsListUrl(params),
   {
     ...options,
     method: 'GET'
@@ -245,25 +234,6 @@ export function useProjectsList<TData = Awaited<ReturnType<typeof projectsList>>
 
 
 
-export type projectsCreateResponse201 = {
-  data: ProjectDto
-  status: 201
-}
-
-export type projectsCreateResponse400 = {
-  data: HttpValidationProblemDetails
-  status: 400
-}
-
-export type projectsCreateResponseSuccess = (projectsCreateResponse201) & {
-  headers: Headers;
-};
-export type projectsCreateResponseError = (projectsCreateResponse400) & {
-  headers: Headers;
-};
-
-export type projectsCreateResponse = (projectsCreateResponseSuccess | projectsCreateResponseError)
-
 export const getProjectsCreateUrl = () => {
 
 
@@ -275,7 +245,7 @@ export const getProjectsCreateUrl = () => {
 /**
  * @summary Create projects
  */
-export const projectsCreate = async (createProjectCommand: CreateProjectCommand, options?: Parameters<typeof customFetch>[1]): Promise<projectsCreateResponse> => {
+export const projectsCreate = async (createProjectCommand: CreateProjectCommand, options?: Parameters<typeof customFetch>[1]): Promise<ProjectDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -291,7 +261,7 @@ export const projectsCreate = async (createProjectCommand: CreateProjectCommand,
     }
     return headers;
   };
-return customFetch<projectsCreateResponse>(getProjectsCreateUrl(),
+return customFetch<ProjectDto>(getProjectsCreateUrl(),
   {
     ...options,
     method: 'POST',
@@ -352,18 +322,6 @@ export const useProjectsCreate = <TError = HttpValidationProblemDetails,
       return useMutation(getProjectsCreateMutationOptions(options), queryClient);
     }
 
-export type projectsGetResponse200 = {
-  data: ProjectDto
-  status: 200
-}
-
-export type projectsGetResponseSuccess = (projectsGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type projectsGetResponse = (projectsGetResponseSuccess)
-
 export const getProjectsGetUrl = (id: string,) => {
 
 
@@ -376,9 +334,9 @@ export const getProjectsGetUrl = (id: string,) => {
  * Get one project by its identifier in the current organization workspace.
  * @summary Get projects
  */
-export const projectsGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<projectsGetResponse> => {
+export const projectsGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ProjectDto> => {
 
-  return customFetch<projectsGetResponse>(getProjectsGetUrl(id),
+  return customFetch<ProjectDto>(getProjectsGetUrl(id),
   {
     ...options,
     method: 'GET'
@@ -466,25 +424,6 @@ export function useProjectsGet<TData = Awaited<ReturnType<typeof projectsGet>>, 
 
 
 
-export type projectsUpdateResponse200 = {
-  data: ProjectDto
-  status: 200
-}
-
-export type projectsUpdateResponse400 = {
-  data: HttpValidationProblemDetails
-  status: 400
-}
-
-export type projectsUpdateResponseSuccess = (projectsUpdateResponse200) & {
-  headers: Headers;
-};
-export type projectsUpdateResponseError = (projectsUpdateResponse400) & {
-  headers: Headers;
-};
-
-export type projectsUpdateResponse = (projectsUpdateResponseSuccess | projectsUpdateResponseError)
-
 export const getProjectsUpdateUrl = (id: string,) => {
 
 
@@ -497,7 +436,7 @@ export const getProjectsUpdateUrl = (id: string,) => {
  * @summary Update projects
  */
 export const projectsUpdate = async (id: string,
-    createProjectCommand: CreateProjectCommand, options?: Parameters<typeof customFetch>[1]): Promise<projectsUpdateResponse> => {
+    createProjectCommand: CreateProjectCommand, options?: Parameters<typeof customFetch>[1]): Promise<ProjectDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -513,7 +452,7 @@ export const projectsUpdate = async (id: string,
     }
     return headers;
   };
-return customFetch<projectsUpdateResponse>(getProjectsUpdateUrl(id),
+return customFetch<ProjectDto>(getProjectsUpdateUrl(id),
   {
     ...options,
     method: 'PUT',
@@ -574,25 +513,6 @@ export const useProjectsUpdate = <TError = HttpValidationProblemDetails,
       return useMutation(getProjectsUpdateMutationOptions(options), queryClient);
     }
 
-export type projectsDeleteResponse204 = {
-  data: void
-  status: 204
-}
-
-export type projectsDeleteResponse400 = {
-  data: HttpValidationProblemDetails
-  status: 400
-}
-
-export type projectsDeleteResponseSuccess = (projectsDeleteResponse204) & {
-  headers: Headers;
-};
-export type projectsDeleteResponseError = (projectsDeleteResponse400) & {
-  headers: Headers;
-};
-
-export type projectsDeleteResponse = (projectsDeleteResponseSuccess | projectsDeleteResponseError)
-
 export const getProjectsDeleteUrl = (id: string,) => {
 
 
@@ -605,7 +525,7 @@ export const getProjectsDeleteUrl = (id: string,) => {
  * @summary Delete projects
  */
 export const projectsDelete = async (id: string,
-    deleteRecordCommand: DeleteRecordCommand, options?: Parameters<typeof customFetch>[1]): Promise<projectsDeleteResponse> => {
+    deleteRecordCommand: DeleteRecordCommand, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -621,7 +541,7 @@ export const projectsDelete = async (id: string,
     }
     return headers;
   };
-return customFetch<projectsDeleteResponse>(getProjectsDeleteUrl(id),
+return customFetch<void>(getProjectsDeleteUrl(id),
   {
     ...options,
     method: 'DELETE',
@@ -682,18 +602,6 @@ export const useProjectsDelete = <TError = HttpValidationProblemDetails,
       return useMutation(getProjectsDeleteMutationOptions(options), queryClient);
     }
 
-export type projectsArchiveResponse204 = {
-  data: void
-  status: 204
-}
-
-export type projectsArchiveResponseSuccess = (projectsArchiveResponse204) & {
-  headers: Headers;
-};
-;
-
-export type projectsArchiveResponse = (projectsArchiveResponseSuccess)
-
 export const getProjectsArchiveUrl = (id: string,) => {
 
 
@@ -705,9 +613,9 @@ export const getProjectsArchiveUrl = (id: string,) => {
 /**
  * @summary Archive projects
  */
-export const projectsArchive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<projectsArchiveResponse> => {
+export const projectsArchive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<projectsArchiveResponse>(getProjectsArchiveUrl(id),
+  return customFetch<void>(getProjectsArchiveUrl(id),
   {
     ...options,
     method: 'POST'
@@ -768,18 +676,6 @@ export const useProjectsArchive = <TError = unknown,
       return useMutation(getProjectsArchiveMutationOptions(options), queryClient);
     }
 
-export type projectsRestoreResponse204 = {
-  data: void
-  status: 204
-}
-
-export type projectsRestoreResponseSuccess = (projectsRestoreResponse204) & {
-  headers: Headers;
-};
-;
-
-export type projectsRestoreResponse = (projectsRestoreResponseSuccess)
-
 export const getProjectsRestoreUrl = (id: string,) => {
 
 
@@ -791,9 +687,9 @@ export const getProjectsRestoreUrl = (id: string,) => {
 /**
  * @summary Restore projects
  */
-export const projectsRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<projectsRestoreResponse> => {
+export const projectsRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<projectsRestoreResponse>(getProjectsRestoreUrl(id),
+  return customFetch<void>(getProjectsRestoreUrl(id),
   {
     ...options,
     method: 'POST'
@@ -854,18 +750,6 @@ export const useProjectsRestore = <TError = unknown,
       return useMutation(getProjectsRestoreMutationOptions(options), queryClient);
     }
 
-export type documentsListResponse200 = {
-  data: DocumentDto[]
-  status: 200
-}
-
-export type documentsListResponseSuccess = (documentsListResponse200) & {
-  headers: Headers;
-};
-;
-
-export type documentsListResponse = (documentsListResponseSuccess)
-
 export const getDocumentsListUrl = (params?: DocumentsListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -885,9 +769,9 @@ export const getDocumentsListUrl = (params?: DocumentsListParams,) => {
  * List documents in the current workspace.
  * @summary List documents
  */
-export const documentsList = async (params?: DocumentsListParams, options?: Parameters<typeof customFetch>[1]): Promise<documentsListResponse> => {
+export const documentsList = async (params?: DocumentsListParams, options?: Parameters<typeof customFetch>[1]): Promise<DocumentDto[]> => {
 
-  return customFetch<documentsListResponse>(getDocumentsListUrl(params),
+  return customFetch<DocumentDto[]>(getDocumentsListUrl(params),
   {
     ...options,
     method: 'GET'
@@ -975,26 +859,7 @@ export function useDocumentsList<TData = Awaited<ReturnType<typeof documentsList
 
 
 
-export type documentsCreateResponse201 = {
-  data: DocumentDto
-  status: 201
-}
-
-export type documentsCreateResponse400 = {
-  data: HttpValidationProblemDetails
-  status: 400
-}
-
-export type documentsCreateResponseSuccess = (documentsCreateResponse201) & {
-  headers: Headers;
-};
-export type documentsCreateResponseError = (documentsCreateResponse400) & {
-  headers: Headers;
-};
-
-export type documentsCreateResponse = (documentsCreateResponseSuccess | documentsCreateResponseError)
-
-export const getDocumentsCreateUrl = () => {
+export const getDocumentsUploadUrl = () => {
 
 
 
@@ -1003,31 +868,22 @@ export const getDocumentsCreateUrl = () => {
 }
 
 /**
- * Create a document record in the current workspace.
- * @summary Create documents
+ * @summary Upload documents
  */
-export const documentsCreate = async (saveDocumentRequest: SaveDocumentRequest, options?: Parameters<typeof customFetch>[1]): Promise<documentsCreateResponse> => {
+export const documentsUpload = async (uploadDocumentForm: UploadDocumentForm, options?: Parameters<typeof customFetch>[1]): Promise<DocumentDto> => {
+    const formData = new FormData();
+formData.append(`title`, uploadDocumentForm.title);
+if(uploadDocumentForm.description !== null) {
+ formData.append(`description`, uploadDocumentForm.description);
+ }
+formData.append(`file`, uploadDocumentForm.file);
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return customFetch<documentsCreateResponse>(getDocumentsCreateUrl(),
+  return customFetch<DocumentDto>(getDocumentsUploadUrl(),
   {
     ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(saveDocumentRequest)
+    method: 'POST'
+    ,
+    body: formData
   }
 );}
 
@@ -1035,13 +891,13 @@ return customFetch<documentsCreateResponse>(getDocumentsCreateUrl(),
 
 
 
-export const getDocumentsCreateMutationKey = () => ['documentsCreate'] as const;
+export const getDocumentsUploadMutationKey = () => ['documentsUpload'] as const;
 
-export const getDocumentsCreateMutationOptions = <TError = HttpValidationProblemDetails,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof documentsCreate>>, TError,DocumentsCreateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof documentsCreate>>, TError,DocumentsCreateMutationVariables, TContext> => {
+export const getDocumentsUploadMutationOptions = <TError = HttpValidationProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof documentsUpload>>, TError,DocumentsUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof documentsUpload>>, TError,DocumentsUploadMutationVariables, TContext> => {
 
-const mutationKey = getDocumentsCreateMutationKey();
+const mutationKey = getDocumentsUploadMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -1051,10 +907,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof documentsCreate>>, DocumentsCreateMutationVariables> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof documentsUpload>>, DocumentsUploadMutationVariables> = (props) => {
           const {data} = props ?? {};
 
-          return  documentsCreate(data,requestOptions)
+          return  documentsUpload(data,requestOptions)
         }
 
 
@@ -1064,43 +920,125 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DocumentsCreateMutationResult = NonNullable<Awaited<ReturnType<typeof documentsCreate>>>
-    export type DocumentsCreateMutationBody = SaveDocumentRequest
-    export type DocumentsCreateMutationError = HttpValidationProblemDetails
-    export type DocumentsCreateMutationVariables = {data: SaveDocumentRequest}
+    export type DocumentsUploadMutationResult = NonNullable<Awaited<ReturnType<typeof documentsUpload>>>
+    export type DocumentsUploadMutationBody = UploadDocumentForm
+    export type DocumentsUploadMutationError = HttpValidationProblemDetails
+    export type DocumentsUploadMutationVariables = {data: UploadDocumentForm}
 
     /**
- * @summary Create documents
+ * @summary Upload documents
  */
-export const useDocumentsCreate = <TError = HttpValidationProblemDetails,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof documentsCreate>>, TError,DocumentsCreateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useDocumentsUpload = <TError = HttpValidationProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof documentsUpload>>, TError,DocumentsUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof documentsCreate>>,
+        Awaited<ReturnType<typeof documentsUpload>>,
         TError,
-        DocumentsCreateMutationVariables,
+        DocumentsUploadMutationVariables,
         TContext
       > => {
-      return useMutation(getDocumentsCreateMutationOptions(options), queryClient);
+      return useMutation(getDocumentsUploadMutationOptions(options), queryClient);
     }
 
-export type documentsUpdateResponse200 = {
-  data: DocumentDto
-  status: 200
+export const getDocumentsDownloadUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/documents/${id}/content`
 }
 
-export type documentsUpdateResponse400 = {
-  data: HttpValidationProblemDetails
-  status: 400
+/**
+ * @summary Download documents
+ */
+export const documentsDownload = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDocumentsDownloadUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDocumentsDownloadQueryKey = (id: string,) => {
+    return [
+    `/api/v1/documents/${id}/content`
+    ] as const;
+    }
+
+
+export const getDocumentsDownloadQueryOptions = <TData = Awaited<ReturnType<typeof documentsDownload>>, TError = void>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof documentsDownload>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDocumentsDownloadQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof documentsDownload>>> = ({ signal }) => documentsDownload(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof documentsDownload>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type documentsUpdateResponseSuccess = (documentsUpdateResponse200) & {
-  headers: Headers;
-};
-export type documentsUpdateResponseError = (documentsUpdateResponse400) & {
-  headers: Headers;
-};
+export type DocumentsDownloadQueryResult = NonNullable<Awaited<ReturnType<typeof documentsDownload>>>
+export type DocumentsDownloadQueryError = void
 
-export type documentsUpdateResponse = (documentsUpdateResponseSuccess | documentsUpdateResponseError)
+
+export function useDocumentsDownload<TData = Awaited<ReturnType<typeof documentsDownload>>, TError = void>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof documentsDownload>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof documentsDownload>>,
+          TError,
+          Awaited<ReturnType<typeof documentsDownload>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDocumentsDownload<TData = Awaited<ReturnType<typeof documentsDownload>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof documentsDownload>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof documentsDownload>>,
+          TError,
+          Awaited<ReturnType<typeof documentsDownload>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDocumentsDownload<TData = Awaited<ReturnType<typeof documentsDownload>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof documentsDownload>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Download documents
+ */
+
+export function useDocumentsDownload<TData = Awaited<ReturnType<typeof documentsDownload>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof documentsDownload>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDocumentsDownloadQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getDocumentsUpdateUrl = (id: string,) => {
 
@@ -1111,11 +1049,11 @@ export const getDocumentsUpdateUrl = (id: string,) => {
 }
 
 /**
- * Update document content in the current workspace.
+ * Update document metadata in the current workspace.
  * @summary Update documents
  */
 export const documentsUpdate = async (id: string,
-    saveDocumentRequest: SaveDocumentRequest, options?: Parameters<typeof customFetch>[1]): Promise<documentsUpdateResponse> => {
+    updateDocumentRequest: UpdateDocumentRequest, options?: Parameters<typeof customFetch>[1]): Promise<DocumentDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1131,12 +1069,12 @@ export const documentsUpdate = async (id: string,
     }
     return headers;
   };
-return customFetch<documentsUpdateResponse>(getDocumentsUpdateUrl(id),
+return customFetch<DocumentDto>(getDocumentsUpdateUrl(id),
   {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(saveDocumentRequest)
+    body: JSON.stringify(updateDocumentRequest)
   }
 );}
 
@@ -1174,9 +1112,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type DocumentsUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof documentsUpdate>>>
-    export type DocumentsUpdateMutationBody = SaveDocumentRequest
+    export type DocumentsUpdateMutationBody = UpdateDocumentRequest
     export type DocumentsUpdateMutationError = HttpValidationProblemDetails
-    export type DocumentsUpdateMutationVariables = {id: string;data: SaveDocumentRequest}
+    export type DocumentsUpdateMutationVariables = {id: string;data: UpdateDocumentRequest}
 
     /**
  * @summary Update documents
@@ -1192,25 +1130,6 @@ export const useDocumentsUpdate = <TError = HttpValidationProblemDetails,
       return useMutation(getDocumentsUpdateMutationOptions(options), queryClient);
     }
 
-export type documentsDeleteResponse204 = {
-  data: void
-  status: 204
-}
-
-export type documentsDeleteResponse400 = {
-  data: HttpValidationProblemDetails
-  status: 400
-}
-
-export type documentsDeleteResponseSuccess = (documentsDeleteResponse204) & {
-  headers: Headers;
-};
-export type documentsDeleteResponseError = (documentsDeleteResponse400) & {
-  headers: Headers;
-};
-
-export type documentsDeleteResponse = (documentsDeleteResponseSuccess | documentsDeleteResponseError)
-
 export const getDocumentsDeleteUrl = (id: string,) => {
 
 
@@ -1223,7 +1142,7 @@ export const getDocumentsDeleteUrl = (id: string,) => {
  * @summary Delete documents
  */
 export const documentsDelete = async (id: string,
-    deleteDocumentRequest: DeleteDocumentRequest, options?: Parameters<typeof customFetch>[1]): Promise<documentsDeleteResponse> => {
+    deleteDocumentRequest: DeleteDocumentRequest, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1239,7 +1158,7 @@ export const documentsDelete = async (id: string,
     }
     return headers;
   };
-return customFetch<documentsDeleteResponse>(getDocumentsDeleteUrl(id),
+return customFetch<void>(getDocumentsDeleteUrl(id),
   {
     ...options,
     method: 'DELETE',
@@ -1300,18 +1219,6 @@ export const useDocumentsDelete = <TError = HttpValidationProblemDetails,
       return useMutation(getDocumentsDeleteMutationOptions(options), queryClient);
     }
 
-export type documentsArchiveResponse204 = {
-  data: void
-  status: 204
-}
-
-export type documentsArchiveResponseSuccess = (documentsArchiveResponse204) & {
-  headers: Headers;
-};
-;
-
-export type documentsArchiveResponse = (documentsArchiveResponseSuccess)
-
 export const getDocumentsArchiveUrl = (id: string,) => {
 
 
@@ -1323,9 +1230,9 @@ export const getDocumentsArchiveUrl = (id: string,) => {
 /**
  * @summary Archive documents
  */
-export const documentsArchive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<documentsArchiveResponse> => {
+export const documentsArchive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<documentsArchiveResponse>(getDocumentsArchiveUrl(id),
+  return customFetch<void>(getDocumentsArchiveUrl(id),
   {
     ...options,
     method: 'POST'
@@ -1386,18 +1293,6 @@ export const useDocumentsArchive = <TError = unknown,
       return useMutation(getDocumentsArchiveMutationOptions(options), queryClient);
     }
 
-export type documentsRestoreResponse204 = {
-  data: void
-  status: 204
-}
-
-export type documentsRestoreResponseSuccess = (documentsRestoreResponse204) & {
-  headers: Headers;
-};
-;
-
-export type documentsRestoreResponse = (documentsRestoreResponseSuccess)
-
 export const getDocumentsRestoreUrl = (id: string,) => {
 
 
@@ -1409,9 +1304,9 @@ export const getDocumentsRestoreUrl = (id: string,) => {
 /**
  * @summary Restore documents
  */
-export const documentsRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<documentsRestoreResponse> => {
+export const documentsRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<documentsRestoreResponse>(getDocumentsRestoreUrl(id),
+  return customFetch<void>(getDocumentsRestoreUrl(id),
   {
     ...options,
     method: 'POST'
@@ -1472,28 +1367,6 @@ export const useDocumentsRestore = <TError = unknown,
       return useMutation(getDocumentsRestoreMutationOptions(options), queryClient);
     }
 
-export type accountProfileGetResponse200TextPlain = {
-  data: AccountProfileResponse
-  status: 200
-}
-
-export type accountProfileGetResponse200ApplicationJson = {
-  data: AccountProfileResponse
-  status: 200
-}
-
-export type accountProfileGetResponse200TextJson = {
-  data: AccountProfileResponse
-  status: 200
-}
-
-export type accountProfileGetResponseSuccess = (accountProfileGetResponse200TextPlain | accountProfileGetResponse200ApplicationJson | accountProfileGetResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type accountProfileGetResponse = (accountProfileGetResponseSuccess)
-
 export const getAccountProfileGetUrl = () => {
 
 
@@ -1505,9 +1378,9 @@ export const getAccountProfileGetUrl = () => {
 /**
  * @summary Get account profile
  */
-export const accountProfileGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<accountProfileGetResponse> => {
+export const accountProfileGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<AccountProfileResponse> => {
 
-  return customFetch<accountProfileGetResponse>(getAccountProfileGetUrl(),
+  return customFetch<AccountProfileResponse>(getAccountProfileGetUrl(),
   {
     ...options,
     method: 'GET'
@@ -1595,28 +1468,6 @@ export function useAccountProfileGet<TData = Awaited<ReturnType<typeof accountPr
 
 
 
-export type accountProfileUpdateResponse200TextPlain = {
-  data: AccountProfileResponse
-  status: 200
-}
-
-export type accountProfileUpdateResponse200ApplicationJson = {
-  data: AccountProfileResponse
-  status: 200
-}
-
-export type accountProfileUpdateResponse200TextJson = {
-  data: AccountProfileResponse
-  status: 200
-}
-
-export type accountProfileUpdateResponseSuccess = (accountProfileUpdateResponse200TextPlain | accountProfileUpdateResponse200ApplicationJson | accountProfileUpdateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type accountProfileUpdateResponse = (accountProfileUpdateResponseSuccess)
-
 export const getAccountProfileUpdateUrl = () => {
 
 
@@ -1628,7 +1479,7 @@ export const getAccountProfileUpdateUrl = () => {
 /**
  * @summary Update account profile
  */
-export const accountProfileUpdate = async (updateAccountProfileRequest: UpdateAccountProfileRequest, options?: Parameters<typeof customFetch>[1]): Promise<accountProfileUpdateResponse> => {
+export const accountProfileUpdate = async (updateAccountProfileRequest: UpdateAccountProfileRequest, options?: Parameters<typeof customFetch>[1]): Promise<AccountProfileResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1644,7 +1495,7 @@ export const accountProfileUpdate = async (updateAccountProfileRequest: UpdateAc
     }
     return headers;
   };
-return customFetch<accountProfileUpdateResponse>(getAccountProfileUpdateUrl(),
+return customFetch<AccountProfileResponse>(getAccountProfileUpdateUrl(),
   {
     ...options,
     method: 'PUT',
@@ -1705,18 +1556,6 @@ export const useAccountProfileUpdate = <TError = unknown,
       return useMutation(getAccountProfileUpdateMutationOptions(options), queryClient);
     }
 
-export type accountProfileChangePasswordResponse200 = {
-  data: void
-  status: 200
-}
-
-export type accountProfileChangePasswordResponseSuccess = (accountProfileChangePasswordResponse200) & {
-  headers: Headers;
-};
-;
-
-export type accountProfileChangePasswordResponse = (accountProfileChangePasswordResponseSuccess)
-
 export const getAccountProfileChangePasswordUrl = () => {
 
 
@@ -1728,7 +1567,7 @@ export const getAccountProfileChangePasswordUrl = () => {
 /**
  * @summary Change password account profile
  */
-export const accountProfileChangePassword = async (changeAccountPasswordRequest: ChangeAccountPasswordRequest, options?: Parameters<typeof customFetch>[1]): Promise<accountProfileChangePasswordResponse> => {
+export const accountProfileChangePassword = async (changeAccountPasswordRequest: ChangeAccountPasswordRequest, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1744,7 +1583,7 @@ export const accountProfileChangePassword = async (changeAccountPasswordRequest:
     }
     return headers;
   };
-return customFetch<accountProfileChangePasswordResponse>(getAccountProfileChangePasswordUrl(),
+return customFetch<void>(getAccountProfileChangePasswordUrl(),
   {
     ...options,
     method: 'POST',
@@ -1805,28 +1644,6 @@ export const useAccountProfileChangePassword = <TError = unknown,
       return useMutation(getAccountProfileChangePasswordMutationOptions(options), queryClient);
     }
 
-export type accountSecurityReauthenticateResponse200TextPlain = {
-  data: RecentAssuranceGrant
-  status: 200
-}
-
-export type accountSecurityReauthenticateResponse200ApplicationJson = {
-  data: RecentAssuranceGrant
-  status: 200
-}
-
-export type accountSecurityReauthenticateResponse200TextJson = {
-  data: RecentAssuranceGrant
-  status: 200
-}
-
-export type accountSecurityReauthenticateResponseSuccess = (accountSecurityReauthenticateResponse200TextPlain | accountSecurityReauthenticateResponse200ApplicationJson | accountSecurityReauthenticateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type accountSecurityReauthenticateResponse = (accountSecurityReauthenticateResponseSuccess)
-
 export const getAccountSecurityReauthenticateUrl = () => {
 
 
@@ -1838,7 +1655,7 @@ export const getAccountSecurityReauthenticateUrl = () => {
 /**
  * @summary Reauthenticate account security
  */
-export const accountSecurityReauthenticate = async (reauthenticationRequest: ReauthenticationRequest, options?: Parameters<typeof customFetch>[1]): Promise<accountSecurityReauthenticateResponse> => {
+export const accountSecurityReauthenticate = async (reauthenticationRequest: ReauthenticationRequest, options?: Parameters<typeof customFetch>[1]): Promise<RecentAssuranceGrant> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1854,7 +1671,7 @@ export const accountSecurityReauthenticate = async (reauthenticationRequest: Rea
     }
     return headers;
   };
-return customFetch<accountSecurityReauthenticateResponse>(getAccountSecurityReauthenticateUrl(),
+return customFetch<RecentAssuranceGrant>(getAccountSecurityReauthenticateUrl(),
   {
     ...options,
     method: 'POST',
@@ -1915,28 +1732,6 @@ export const useAccountSecurityReauthenticate = <TError = unknown,
       return useMutation(getAccountSecurityReauthenticateMutationOptions(options), queryClient);
     }
 
-export type accountSecuritySetupMfaResponse200TextPlain = {
-  data: PendingMfaSetup
-  status: 200
-}
-
-export type accountSecuritySetupMfaResponse200ApplicationJson = {
-  data: PendingMfaSetup
-  status: 200
-}
-
-export type accountSecuritySetupMfaResponse200TextJson = {
-  data: PendingMfaSetup
-  status: 200
-}
-
-export type accountSecuritySetupMfaResponseSuccess = (accountSecuritySetupMfaResponse200TextPlain | accountSecuritySetupMfaResponse200ApplicationJson | accountSecuritySetupMfaResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type accountSecuritySetupMfaResponse = (accountSecuritySetupMfaResponseSuccess)
-
 export const getAccountSecuritySetupMfaUrl = () => {
 
 
@@ -1948,7 +1743,7 @@ export const getAccountSecuritySetupMfaUrl = () => {
 /**
  * @summary Setup mfa account security
  */
-export const accountSecuritySetupMfa = async (mfaGrantRequest: MfaGrantRequest, options?: Parameters<typeof customFetch>[1]): Promise<accountSecuritySetupMfaResponse> => {
+export const accountSecuritySetupMfa = async (mfaGrantRequest: MfaGrantRequest, options?: Parameters<typeof customFetch>[1]): Promise<PendingMfaSetup> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1964,7 +1759,7 @@ export const accountSecuritySetupMfa = async (mfaGrantRequest: MfaGrantRequest, 
     }
     return headers;
   };
-return customFetch<accountSecuritySetupMfaResponse>(getAccountSecuritySetupMfaUrl(),
+return customFetch<PendingMfaSetup>(getAccountSecuritySetupMfaUrl(),
   {
     ...options,
     method: 'POST',
@@ -2025,28 +1820,6 @@ export const useAccountSecuritySetupMfa = <TError = unknown,
       return useMutation(getAccountSecuritySetupMfaMutationOptions(options), queryClient);
     }
 
-export type accountSecurityEnableMfaResponse200TextPlain = {
-  data: MfaRecoveryCodes
-  status: 200
-}
-
-export type accountSecurityEnableMfaResponse200ApplicationJson = {
-  data: MfaRecoveryCodes
-  status: 200
-}
-
-export type accountSecurityEnableMfaResponse200TextJson = {
-  data: MfaRecoveryCodes
-  status: 200
-}
-
-export type accountSecurityEnableMfaResponseSuccess = (accountSecurityEnableMfaResponse200TextPlain | accountSecurityEnableMfaResponse200ApplicationJson | accountSecurityEnableMfaResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type accountSecurityEnableMfaResponse = (accountSecurityEnableMfaResponseSuccess)
-
 export const getAccountSecurityEnableMfaUrl = () => {
 
 
@@ -2058,7 +1831,7 @@ export const getAccountSecurityEnableMfaUrl = () => {
 /**
  * @summary Enable mfa account security
  */
-export const accountSecurityEnableMfa = async (mfaCodeRequest: MfaCodeRequest, options?: Parameters<typeof customFetch>[1]): Promise<accountSecurityEnableMfaResponse> => {
+export const accountSecurityEnableMfa = async (mfaCodeRequest: MfaCodeRequest, options?: Parameters<typeof customFetch>[1]): Promise<MfaRecoveryCodes> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -2074,7 +1847,7 @@ export const accountSecurityEnableMfa = async (mfaCodeRequest: MfaCodeRequest, o
     }
     return headers;
   };
-return customFetch<accountSecurityEnableMfaResponse>(getAccountSecurityEnableMfaUrl(),
+return customFetch<MfaRecoveryCodes>(getAccountSecurityEnableMfaUrl(),
   {
     ...options,
     method: 'POST',
@@ -2135,18 +1908,6 @@ export const useAccountSecurityEnableMfa = <TError = unknown,
       return useMutation(getAccountSecurityEnableMfaMutationOptions(options), queryClient);
     }
 
-export type accountSecurityCancelMfaEnrollmentResponse204 = {
-  data: void
-  status: 204
-}
-
-export type accountSecurityCancelMfaEnrollmentResponseSuccess = (accountSecurityCancelMfaEnrollmentResponse204) & {
-  headers: Headers;
-};
-;
-
-export type accountSecurityCancelMfaEnrollmentResponse = (accountSecurityCancelMfaEnrollmentResponseSuccess)
-
 export const getAccountSecurityCancelMfaEnrollmentUrl = () => {
 
 
@@ -2158,7 +1919,7 @@ export const getAccountSecurityCancelMfaEnrollmentUrl = () => {
 /**
  * @summary Cancel mfa enrollment account security
  */
-export const accountSecurityCancelMfaEnrollment = async (mfaEnrollmentRequest: MfaEnrollmentRequest, options?: Parameters<typeof customFetch>[1]): Promise<accountSecurityCancelMfaEnrollmentResponse> => {
+export const accountSecurityCancelMfaEnrollment = async (mfaEnrollmentRequest: MfaEnrollmentRequest, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -2174,7 +1935,7 @@ export const accountSecurityCancelMfaEnrollment = async (mfaEnrollmentRequest: M
     }
     return headers;
   };
-return customFetch<accountSecurityCancelMfaEnrollmentResponse>(getAccountSecurityCancelMfaEnrollmentUrl(),
+return customFetch<void>(getAccountSecurityCancelMfaEnrollmentUrl(),
   {
     ...options,
     method: 'POST',
@@ -2235,28 +1996,6 @@ export const useAccountSecurityCancelMfaEnrollment = <TError = unknown,
       return useMutation(getAccountSecurityCancelMfaEnrollmentMutationOptions(options), queryClient);
     }
 
-export type accountSecurityRegenerateRecoveryCodesResponse200TextPlain = {
-  data: MfaRecoveryCodes
-  status: 200
-}
-
-export type accountSecurityRegenerateRecoveryCodesResponse200ApplicationJson = {
-  data: MfaRecoveryCodes
-  status: 200
-}
-
-export type accountSecurityRegenerateRecoveryCodesResponse200TextJson = {
-  data: MfaRecoveryCodes
-  status: 200
-}
-
-export type accountSecurityRegenerateRecoveryCodesResponseSuccess = (accountSecurityRegenerateRecoveryCodesResponse200TextPlain | accountSecurityRegenerateRecoveryCodesResponse200ApplicationJson | accountSecurityRegenerateRecoveryCodesResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type accountSecurityRegenerateRecoveryCodesResponse = (accountSecurityRegenerateRecoveryCodesResponseSuccess)
-
 export const getAccountSecurityRegenerateRecoveryCodesUrl = () => {
 
 
@@ -2268,7 +2007,7 @@ export const getAccountSecurityRegenerateRecoveryCodesUrl = () => {
 /**
  * @summary Regenerate recovery codes account security
  */
-export const accountSecurityRegenerateRecoveryCodes = async (mfaGrantRequest: MfaGrantRequest, options?: Parameters<typeof customFetch>[1]): Promise<accountSecurityRegenerateRecoveryCodesResponse> => {
+export const accountSecurityRegenerateRecoveryCodes = async (mfaGrantRequest: MfaGrantRequest, options?: Parameters<typeof customFetch>[1]): Promise<MfaRecoveryCodes> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -2284,7 +2023,7 @@ export const accountSecurityRegenerateRecoveryCodes = async (mfaGrantRequest: Mf
     }
     return headers;
   };
-return customFetch<accountSecurityRegenerateRecoveryCodesResponse>(getAccountSecurityRegenerateRecoveryCodesUrl(),
+return customFetch<MfaRecoveryCodes>(getAccountSecurityRegenerateRecoveryCodesUrl(),
   {
     ...options,
     method: 'POST',
@@ -2345,18 +2084,6 @@ export const useAccountSecurityRegenerateRecoveryCodes = <TError = unknown,
       return useMutation(getAccountSecurityRegenerateRecoveryCodesMutationOptions(options), queryClient);
     }
 
-export type accountSecurityDisableMfaResponse204 = {
-  data: void
-  status: 204
-}
-
-export type accountSecurityDisableMfaResponseSuccess = (accountSecurityDisableMfaResponse204) & {
-  headers: Headers;
-};
-;
-
-export type accountSecurityDisableMfaResponse = (accountSecurityDisableMfaResponseSuccess)
-
 export const getAccountSecurityDisableMfaUrl = () => {
 
 
@@ -2368,7 +2095,7 @@ export const getAccountSecurityDisableMfaUrl = () => {
 /**
  * @summary Disable mfa account security
  */
-export const accountSecurityDisableMfa = async (mfaGrantRequest: MfaGrantRequest, options?: Parameters<typeof customFetch>[1]): Promise<accountSecurityDisableMfaResponse> => {
+export const accountSecurityDisableMfa = async (mfaGrantRequest: MfaGrantRequest, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -2384,7 +2111,7 @@ export const accountSecurityDisableMfa = async (mfaGrantRequest: MfaGrantRequest
     }
     return headers;
   };
-return customFetch<accountSecurityDisableMfaResponse>(getAccountSecurityDisableMfaUrl(),
+return customFetch<void>(getAccountSecurityDisableMfaUrl(),
   {
     ...options,
     method: 'POST',
@@ -2445,28 +2172,6 @@ export const useAccountSecurityDisableMfa = <TError = unknown,
       return useMutation(getAccountSecurityDisableMfaMutationOptions(options), queryClient);
     }
 
-export type authenticationAntiforgeryResponse200TextPlain = {
-  data: AntiforgeryResponse
-  status: 200
-}
-
-export type authenticationAntiforgeryResponse200ApplicationJson = {
-  data: AntiforgeryResponse
-  status: 200
-}
-
-export type authenticationAntiforgeryResponse200TextJson = {
-  data: AntiforgeryResponse
-  status: 200
-}
-
-export type authenticationAntiforgeryResponseSuccess = (authenticationAntiforgeryResponse200TextPlain | authenticationAntiforgeryResponse200ApplicationJson | authenticationAntiforgeryResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type authenticationAntiforgeryResponse = (authenticationAntiforgeryResponseSuccess)
-
 export const getAuthenticationAntiforgeryUrl = () => {
 
 
@@ -2478,9 +2183,9 @@ export const getAuthenticationAntiforgeryUrl = () => {
 /**
  * @summary Antiforgery authentication
  */
-export const authenticationAntiforgery = async ( options?: Parameters<typeof customFetch>[1]): Promise<authenticationAntiforgeryResponse> => {
+export const authenticationAntiforgery = async ( options?: Parameters<typeof customFetch>[1]): Promise<AntiforgeryResponse> => {
 
-  return customFetch<authenticationAntiforgeryResponse>(getAuthenticationAntiforgeryUrl(),
+  return customFetch<AntiforgeryResponse>(getAuthenticationAntiforgeryUrl(),
   {
     ...options,
     method: 'GET'
@@ -2568,28 +2273,6 @@ export function useAuthenticationAntiforgery<TData = Awaited<ReturnType<typeof a
 
 
 
-export type authenticationLoginResponse200TextPlain = {
-  data: SessionResponse
-  status: 200
-}
-
-export type authenticationLoginResponse200ApplicationJson = {
-  data: SessionResponse
-  status: 200
-}
-
-export type authenticationLoginResponse200TextJson = {
-  data: SessionResponse
-  status: 200
-}
-
-export type authenticationLoginResponseSuccess = (authenticationLoginResponse200TextPlain | authenticationLoginResponse200ApplicationJson | authenticationLoginResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type authenticationLoginResponse = (authenticationLoginResponseSuccess)
-
 export const getAuthenticationLoginUrl = () => {
 
 
@@ -2601,7 +2284,7 @@ export const getAuthenticationLoginUrl = () => {
 /**
  * @summary Login authentication
  */
-export const authenticationLogin = async (loginRequest: LoginRequest, options?: Parameters<typeof customFetch>[1]): Promise<authenticationLoginResponse> => {
+export const authenticationLogin = async (loginRequest: LoginRequest, options?: Parameters<typeof customFetch>[1]): Promise<SessionResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -2617,7 +2300,7 @@ export const authenticationLogin = async (loginRequest: LoginRequest, options?: 
     }
     return headers;
   };
-return customFetch<authenticationLoginResponse>(getAuthenticationLoginUrl(),
+return customFetch<SessionResponse>(getAuthenticationLoginUrl(),
   {
     ...options,
     method: 'POST',
@@ -2678,28 +2361,6 @@ export const useAuthenticationLogin = <TError = unknown,
       return useMutation(getAuthenticationLoginMutationOptions(options), queryClient);
     }
 
-export type authenticationLoginMfaResponse200TextPlain = {
-  data: SessionResponse
-  status: 200
-}
-
-export type authenticationLoginMfaResponse200ApplicationJson = {
-  data: SessionResponse
-  status: 200
-}
-
-export type authenticationLoginMfaResponse200TextJson = {
-  data: SessionResponse
-  status: 200
-}
-
-export type authenticationLoginMfaResponseSuccess = (authenticationLoginMfaResponse200TextPlain | authenticationLoginMfaResponse200ApplicationJson | authenticationLoginMfaResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type authenticationLoginMfaResponse = (authenticationLoginMfaResponseSuccess)
-
 export const getAuthenticationLoginMfaUrl = () => {
 
 
@@ -2711,7 +2372,7 @@ export const getAuthenticationLoginMfaUrl = () => {
 /**
  * @summary Login mfa authentication
  */
-export const authenticationLoginMfa = async (mfaLoginRequest: MfaLoginRequest, options?: Parameters<typeof customFetch>[1]): Promise<authenticationLoginMfaResponse> => {
+export const authenticationLoginMfa = async (mfaLoginRequest: MfaLoginRequest, options?: Parameters<typeof customFetch>[1]): Promise<SessionResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -2727,7 +2388,7 @@ export const authenticationLoginMfa = async (mfaLoginRequest: MfaLoginRequest, o
     }
     return headers;
   };
-return customFetch<authenticationLoginMfaResponse>(getAuthenticationLoginMfaUrl(),
+return customFetch<SessionResponse>(getAuthenticationLoginMfaUrl(),
   {
     ...options,
     method: 'POST',
@@ -2788,28 +2449,6 @@ export const useAuthenticationLoginMfa = <TError = unknown,
       return useMutation(getAuthenticationLoginMfaMutationOptions(options), queryClient);
     }
 
-export type authenticationSessionResponse200TextPlain = {
-  data: SessionResponse
-  status: 200
-}
-
-export type authenticationSessionResponse200ApplicationJson = {
-  data: SessionResponse
-  status: 200
-}
-
-export type authenticationSessionResponse200TextJson = {
-  data: SessionResponse
-  status: 200
-}
-
-export type authenticationSessionResponseSuccess = (authenticationSessionResponse200TextPlain | authenticationSessionResponse200ApplicationJson | authenticationSessionResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type authenticationSessionResponse = (authenticationSessionResponseSuccess)
-
 export const getAuthenticationSessionUrl = () => {
 
 
@@ -2821,9 +2460,9 @@ export const getAuthenticationSessionUrl = () => {
 /**
  * @summary Session authentication
  */
-export const authenticationSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<authenticationSessionResponse> => {
+export const authenticationSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<SessionResponse> => {
 
-  return customFetch<authenticationSessionResponse>(getAuthenticationSessionUrl(),
+  return customFetch<SessionResponse>(getAuthenticationSessionUrl(),
   {
     ...options,
     method: 'GET'
@@ -2911,18 +2550,6 @@ export function useAuthenticationSession<TData = Awaited<ReturnType<typeof authe
 
 
 
-export type authenticationLogoutResponse200 = {
-  data: void
-  status: 200
-}
-
-export type authenticationLogoutResponseSuccess = (authenticationLogoutResponse200) & {
-  headers: Headers;
-};
-;
-
-export type authenticationLogoutResponse = (authenticationLogoutResponseSuccess)
-
 export const getAuthenticationLogoutUrl = () => {
 
 
@@ -2934,9 +2561,9 @@ export const getAuthenticationLogoutUrl = () => {
 /**
  * @summary Logout authentication
  */
-export const authenticationLogout = async ( options?: Parameters<typeof customFetch>[1]): Promise<authenticationLogoutResponse> => {
+export const authenticationLogout = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<authenticationLogoutResponse>(getAuthenticationLogoutUrl(),
+  return customFetch<void>(getAuthenticationLogoutUrl(),
   {
     ...options,
     method: 'POST'
@@ -2997,28 +2624,6 @@ export const useAuthenticationLogout = <TError = unknown,
       return useMutation(getAuthenticationLogoutMutationOptions(options), queryClient);
     }
 
-export type authenticationForgotPasswordResponse200TextPlain = {
-  data: ForgotPasswordResponse
-  status: 200
-}
-
-export type authenticationForgotPasswordResponse200ApplicationJson = {
-  data: ForgotPasswordResponse
-  status: 200
-}
-
-export type authenticationForgotPasswordResponse200TextJson = {
-  data: ForgotPasswordResponse
-  status: 200
-}
-
-export type authenticationForgotPasswordResponseSuccess = (authenticationForgotPasswordResponse200TextPlain | authenticationForgotPasswordResponse200ApplicationJson | authenticationForgotPasswordResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type authenticationForgotPasswordResponse = (authenticationForgotPasswordResponseSuccess)
-
 export const getAuthenticationForgotPasswordUrl = () => {
 
 
@@ -3030,7 +2635,7 @@ export const getAuthenticationForgotPasswordUrl = () => {
 /**
  * @summary Forgot password authentication
  */
-export const authenticationForgotPassword = async (forgotPasswordRequest: ForgotPasswordRequest, options?: Parameters<typeof customFetch>[1]): Promise<authenticationForgotPasswordResponse> => {
+export const authenticationForgotPassword = async (forgotPasswordRequest: ForgotPasswordRequest, options?: Parameters<typeof customFetch>[1]): Promise<ForgotPasswordResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -3046,7 +2651,7 @@ export const authenticationForgotPassword = async (forgotPasswordRequest: Forgot
     }
     return headers;
   };
-return customFetch<authenticationForgotPasswordResponse>(getAuthenticationForgotPasswordUrl(),
+return customFetch<ForgotPasswordResponse>(getAuthenticationForgotPasswordUrl(),
   {
     ...options,
     method: 'POST',
@@ -3107,18 +2712,6 @@ export const useAuthenticationForgotPassword = <TError = unknown,
       return useMutation(getAuthenticationForgotPasswordMutationOptions(options), queryClient);
     }
 
-export type authenticationResetPasswordResponse200 = {
-  data: void
-  status: 200
-}
-
-export type authenticationResetPasswordResponseSuccess = (authenticationResetPasswordResponse200) & {
-  headers: Headers;
-};
-;
-
-export type authenticationResetPasswordResponse = (authenticationResetPasswordResponseSuccess)
-
 export const getAuthenticationResetPasswordUrl = () => {
 
 
@@ -3130,7 +2723,7 @@ export const getAuthenticationResetPasswordUrl = () => {
 /**
  * @summary Reset password authentication
  */
-export const authenticationResetPassword = async (resetPasswordRequest: ResetPasswordRequest, options?: Parameters<typeof customFetch>[1]): Promise<authenticationResetPasswordResponse> => {
+export const authenticationResetPassword = async (resetPasswordRequest: ResetPasswordRequest, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -3146,7 +2739,7 @@ export const authenticationResetPassword = async (resetPasswordRequest: ResetPas
     }
     return headers;
   };
-return customFetch<authenticationResetPasswordResponse>(getAuthenticationResetPasswordUrl(),
+return customFetch<void>(getAuthenticationResetPasswordUrl(),
   {
     ...options,
     method: 'POST',
@@ -3207,28 +2800,6 @@ export const useAuthenticationResetPassword = <TError = unknown,
       return useMutation(getAuthenticationResetPasswordMutationOptions(options), queryClient);
     }
 
-export type invitationsPreviewResponse200TextPlain = {
-  data: InvitationPreviewResponse
-  status: 200
-}
-
-export type invitationsPreviewResponse200ApplicationJson = {
-  data: InvitationPreviewResponse
-  status: 200
-}
-
-export type invitationsPreviewResponse200TextJson = {
-  data: InvitationPreviewResponse
-  status: 200
-}
-
-export type invitationsPreviewResponseSuccess = (invitationsPreviewResponse200TextPlain | invitationsPreviewResponse200ApplicationJson | invitationsPreviewResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type invitationsPreviewResponse = (invitationsPreviewResponseSuccess)
-
 export const getInvitationsPreviewUrl = (token: string,) => {
 
 
@@ -3240,9 +2811,9 @@ export const getInvitationsPreviewUrl = (token: string,) => {
 /**
  * @summary Preview invitations
  */
-export const invitationsPreview = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<invitationsPreviewResponse> => {
+export const invitationsPreview = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<InvitationPreviewResponse> => {
 
-  return customFetch<invitationsPreviewResponse>(getInvitationsPreviewUrl(token),
+  return customFetch<InvitationPreviewResponse>(getInvitationsPreviewUrl(token),
   {
     ...options,
     method: 'GET'
@@ -3330,28 +2901,6 @@ export function useInvitationsPreview<TData = Awaited<ReturnType<typeof invitati
 
 
 
-export type invitationsActivateResponse200TextPlain = {
-  data: AcceptInvitationResponse
-  status: 200
-}
-
-export type invitationsActivateResponse200ApplicationJson = {
-  data: AcceptInvitationResponse
-  status: 200
-}
-
-export type invitationsActivateResponse200TextJson = {
-  data: AcceptInvitationResponse
-  status: 200
-}
-
-export type invitationsActivateResponseSuccess = (invitationsActivateResponse200TextPlain | invitationsActivateResponse200ApplicationJson | invitationsActivateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type invitationsActivateResponse = (invitationsActivateResponseSuccess)
-
 export const getInvitationsActivateUrl = () => {
 
 
@@ -3363,7 +2912,7 @@ export const getInvitationsActivateUrl = () => {
 /**
  * @summary Activate invitations
  */
-export const invitationsActivate = async (activateOrganizationInvitationRequest: ActivateOrganizationInvitationRequest, options?: Parameters<typeof customFetch>[1]): Promise<invitationsActivateResponse> => {
+export const invitationsActivate = async (activateOrganizationInvitationRequest: ActivateOrganizationInvitationRequest, options?: Parameters<typeof customFetch>[1]): Promise<AcceptInvitationResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -3379,7 +2928,7 @@ export const invitationsActivate = async (activateOrganizationInvitationRequest:
     }
     return headers;
   };
-return customFetch<invitationsActivateResponse>(getInvitationsActivateUrl(),
+return customFetch<AcceptInvitationResponse>(getInvitationsActivateUrl(),
   {
     ...options,
     method: 'POST',
@@ -3440,28 +2989,6 @@ export const useInvitationsActivate = <TError = unknown,
       return useMutation(getInvitationsActivateMutationOptions(options), queryClient);
     }
 
-export type invitationsAcceptResponse200TextPlain = {
-  data: AcceptInvitationResponse
-  status: 200
-}
-
-export type invitationsAcceptResponse200ApplicationJson = {
-  data: AcceptInvitationResponse
-  status: 200
-}
-
-export type invitationsAcceptResponse200TextJson = {
-  data: AcceptInvitationResponse
-  status: 200
-}
-
-export type invitationsAcceptResponseSuccess = (invitationsAcceptResponse200TextPlain | invitationsAcceptResponse200ApplicationJson | invitationsAcceptResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type invitationsAcceptResponse = (invitationsAcceptResponseSuccess)
-
 export const getInvitationsAcceptUrl = () => {
 
 
@@ -3473,7 +3000,7 @@ export const getInvitationsAcceptUrl = () => {
 /**
  * @summary Accept invitations
  */
-export const invitationsAccept = async (acceptInvitationRequest: AcceptInvitationRequest, options?: Parameters<typeof customFetch>[1]): Promise<invitationsAcceptResponse> => {
+export const invitationsAccept = async (acceptInvitationRequest: AcceptInvitationRequest, options?: Parameters<typeof customFetch>[1]): Promise<AcceptInvitationResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -3489,7 +3016,7 @@ export const invitationsAccept = async (acceptInvitationRequest: AcceptInvitatio
     }
     return headers;
   };
-return customFetch<invitationsAcceptResponse>(getInvitationsAcceptUrl(),
+return customFetch<AcceptInvitationResponse>(getInvitationsAcceptUrl(),
   {
     ...options,
     method: 'POST',
@@ -3550,28 +3077,6 @@ export const useInvitationsAccept = <TError = unknown,
       return useMutation(getInvitationsAcceptMutationOptions(options), queryClient);
     }
 
-export type meListOrganizationsResponse200TextPlain = {
-  data: MyOrganizationDto[]
-  status: 200
-}
-
-export type meListOrganizationsResponse200ApplicationJson = {
-  data: MyOrganizationDto[]
-  status: 200
-}
-
-export type meListOrganizationsResponse200TextJson = {
-  data: MyOrganizationDto[]
-  status: 200
-}
-
-export type meListOrganizationsResponseSuccess = (meListOrganizationsResponse200TextPlain | meListOrganizationsResponse200ApplicationJson | meListOrganizationsResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type meListOrganizationsResponse = (meListOrganizationsResponseSuccess)
-
 export const getMeListOrganizationsUrl = () => {
 
 
@@ -3583,9 +3088,9 @@ export const getMeListOrganizationsUrl = () => {
 /**
  * @summary List organizations me
  */
-export const meListOrganizations = async ( options?: Parameters<typeof customFetch>[1]): Promise<meListOrganizationsResponse> => {
+export const meListOrganizations = async ( options?: Parameters<typeof customFetch>[1]): Promise<MyOrganizationDto[]> => {
 
-  return customFetch<meListOrganizationsResponse>(getMeListOrganizationsUrl(),
+  return customFetch<MyOrganizationDto[]>(getMeListOrganizationsUrl(),
   {
     ...options,
     method: 'GET'
@@ -3673,28 +3178,6 @@ export function useMeListOrganizations<TData = Awaited<ReturnType<typeof meListO
 
 
 
-export type modulesListResponse200TextPlain = {
-  data: ModuleDto[]
-  status: 200
-}
-
-export type modulesListResponse200ApplicationJson = {
-  data: ModuleDto[]
-  status: 200
-}
-
-export type modulesListResponse200TextJson = {
-  data: ModuleDto[]
-  status: 200
-}
-
-export type modulesListResponseSuccess = (modulesListResponse200TextPlain | modulesListResponse200ApplicationJson | modulesListResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type modulesListResponse = (modulesListResponseSuccess)
-
 export const getModulesListUrl = () => {
 
 
@@ -3706,9 +3189,9 @@ export const getModulesListUrl = () => {
 /**
  * @summary List modules
  */
-export const modulesList = async ( options?: Parameters<typeof customFetch>[1]): Promise<modulesListResponse> => {
+export const modulesList = async ( options?: Parameters<typeof customFetch>[1]): Promise<ModuleDto[]> => {
 
-  return customFetch<modulesListResponse>(getModulesListUrl(),
+  return customFetch<ModuleDto[]>(getModulesListUrl(),
   {
     ...options,
     method: 'GET'
@@ -3796,28 +3279,6 @@ export function useModulesList<TData = Awaited<ReturnType<typeof modulesList>>, 
 
 
 
-export type organizationAccessGetResponse200TextPlain = {
-  data: OrganizationAccessResponse
-  status: 200
-}
-
-export type organizationAccessGetResponse200ApplicationJson = {
-  data: OrganizationAccessResponse
-  status: 200
-}
-
-export type organizationAccessGetResponse200TextJson = {
-  data: OrganizationAccessResponse
-  status: 200
-}
-
-export type organizationAccessGetResponseSuccess = (organizationAccessGetResponse200TextPlain | organizationAccessGetResponse200ApplicationJson | organizationAccessGetResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type organizationAccessGetResponse = (organizationAccessGetResponseSuccess)
-
 export const getOrganizationAccessGetUrl = () => {
 
 
@@ -3829,9 +3290,9 @@ export const getOrganizationAccessGetUrl = () => {
 /**
  * @summary Get organization access
  */
-export const organizationAccessGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<organizationAccessGetResponse> => {
+export const organizationAccessGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<OrganizationAccessResponse> => {
 
-  return customFetch<organizationAccessGetResponse>(getOrganizationAccessGetUrl(),
+  return customFetch<OrganizationAccessResponse>(getOrganizationAccessGetUrl(),
   {
     ...options,
     method: 'GET'
@@ -3919,28 +3380,6 @@ export function useOrganizationAccessGet<TData = Awaited<ReturnType<typeof organ
 
 
 
-export type rolesListResponse200TextPlain = {
-  data: RoleDto[]
-  status: 200
-}
-
-export type rolesListResponse200ApplicationJson = {
-  data: RoleDto[]
-  status: 200
-}
-
-export type rolesListResponse200TextJson = {
-  data: RoleDto[]
-  status: 200
-}
-
-export type rolesListResponseSuccess = (rolesListResponse200TextPlain | rolesListResponse200ApplicationJson | rolesListResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type rolesListResponse = (rolesListResponseSuccess)
-
 export const getRolesListUrl = (params?: RolesListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -3959,9 +3398,9 @@ export const getRolesListUrl = (params?: RolesListParams,) => {
 /**
  * @summary List roles
  */
-export const rolesList = async (params?: RolesListParams, options?: Parameters<typeof customFetch>[1]): Promise<rolesListResponse> => {
+export const rolesList = async (params?: RolesListParams, options?: Parameters<typeof customFetch>[1]): Promise<RoleDto[]> => {
 
-  return customFetch<rolesListResponse>(getRolesListUrl(params),
+  return customFetch<RoleDto[]>(getRolesListUrl(params),
   {
     ...options,
     method: 'GET'
@@ -4049,28 +3488,6 @@ export function useRolesList<TData = Awaited<ReturnType<typeof rolesList>>, TErr
 
 
 
-export type rolesCreateResponse200TextPlain = {
-  data: RoleDto
-  status: 200
-}
-
-export type rolesCreateResponse200ApplicationJson = {
-  data: RoleDto
-  status: 200
-}
-
-export type rolesCreateResponse200TextJson = {
-  data: RoleDto
-  status: 200
-}
-
-export type rolesCreateResponseSuccess = (rolesCreateResponse200TextPlain | rolesCreateResponse200ApplicationJson | rolesCreateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type rolesCreateResponse = (rolesCreateResponseSuccess)
-
 export const getRolesCreateUrl = () => {
 
 
@@ -4082,7 +3499,7 @@ export const getRolesCreateUrl = () => {
 /**
  * @summary Create roles
  */
-export const rolesCreate = async (saveRoleCommand: SaveRoleCommand, options?: Parameters<typeof customFetch>[1]): Promise<rolesCreateResponse> => {
+export const rolesCreate = async (saveRoleCommand: SaveRoleCommand, options?: Parameters<typeof customFetch>[1]): Promise<RoleDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -4098,7 +3515,7 @@ export const rolesCreate = async (saveRoleCommand: SaveRoleCommand, options?: Pa
     }
     return headers;
   };
-return customFetch<rolesCreateResponse>(getRolesCreateUrl(),
+return customFetch<RoleDto>(getRolesCreateUrl(),
   {
     ...options,
     method: 'POST',
@@ -4159,28 +3576,6 @@ export const useRolesCreate = <TError = unknown,
       return useMutation(getRolesCreateMutationOptions(options), queryClient);
     }
 
-export type rolesGetResponse200TextPlain = {
-  data: RoleDto
-  status: 200
-}
-
-export type rolesGetResponse200ApplicationJson = {
-  data: RoleDto
-  status: 200
-}
-
-export type rolesGetResponse200TextJson = {
-  data: RoleDto
-  status: 200
-}
-
-export type rolesGetResponseSuccess = (rolesGetResponse200TextPlain | rolesGetResponse200ApplicationJson | rolesGetResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type rolesGetResponse = (rolesGetResponseSuccess)
-
 export const getRolesGetUrl = (id: string,) => {
 
 
@@ -4192,9 +3587,9 @@ export const getRolesGetUrl = (id: string,) => {
 /**
  * @summary Get roles
  */
-export const rolesGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<rolesGetResponse> => {
+export const rolesGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<RoleDto> => {
 
-  return customFetch<rolesGetResponse>(getRolesGetUrl(id),
+  return customFetch<RoleDto>(getRolesGetUrl(id),
   {
     ...options,
     method: 'GET'
@@ -4282,28 +3677,6 @@ export function useRolesGet<TData = Awaited<ReturnType<typeof rolesGet>>, TError
 
 
 
-export type rolesUpdateResponse200TextPlain = {
-  data: RoleDto
-  status: 200
-}
-
-export type rolesUpdateResponse200ApplicationJson = {
-  data: RoleDto
-  status: 200
-}
-
-export type rolesUpdateResponse200TextJson = {
-  data: RoleDto
-  status: 200
-}
-
-export type rolesUpdateResponseSuccess = (rolesUpdateResponse200TextPlain | rolesUpdateResponse200ApplicationJson | rolesUpdateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type rolesUpdateResponse = (rolesUpdateResponseSuccess)
-
 export const getRolesUpdateUrl = (id: string,) => {
 
 
@@ -4316,7 +3689,7 @@ export const getRolesUpdateUrl = (id: string,) => {
  * @summary Update roles
  */
 export const rolesUpdate = async (id: string,
-    saveRoleCommand: SaveRoleCommand, options?: Parameters<typeof customFetch>[1]): Promise<rolesUpdateResponse> => {
+    saveRoleCommand: SaveRoleCommand, options?: Parameters<typeof customFetch>[1]): Promise<RoleDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -4332,7 +3705,7 @@ export const rolesUpdate = async (id: string,
     }
     return headers;
   };
-return customFetch<rolesUpdateResponse>(getRolesUpdateUrl(id),
+return customFetch<RoleDto>(getRolesUpdateUrl(id),
   {
     ...options,
     method: 'PUT',
@@ -4393,18 +3766,6 @@ export const useRolesUpdate = <TError = unknown,
       return useMutation(getRolesUpdateMutationOptions(options), queryClient);
     }
 
-export type rolesDeleteResponse200 = {
-  data: void
-  status: 200
-}
-
-export type rolesDeleteResponseSuccess = (rolesDeleteResponse200) & {
-  headers: Headers;
-};
-;
-
-export type rolesDeleteResponse = (rolesDeleteResponseSuccess)
-
 export const getRolesDeleteUrl = (id: string,) => {
 
 
@@ -4417,7 +3778,7 @@ export const getRolesDeleteUrl = (id: string,) => {
  * @summary Delete roles
  */
 export const rolesDelete = async (id: string,
-    deleteRecordCommand: DeleteRecordCommand, options?: Parameters<typeof customFetch>[1]): Promise<rolesDeleteResponse> => {
+    deleteRecordCommand: DeleteRecordCommand, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -4433,7 +3794,7 @@ export const rolesDelete = async (id: string,
     }
     return headers;
   };
-return customFetch<rolesDeleteResponse>(getRolesDeleteUrl(id),
+return customFetch<void>(getRolesDeleteUrl(id),
   {
     ...options,
     method: 'DELETE',
@@ -4494,28 +3855,6 @@ export const useRolesDelete = <TError = unknown,
       return useMutation(getRolesDeleteMutationOptions(options), queryClient);
     }
 
-export type permissionsListResponse200TextPlain = {
-  data: PermissionModuleDto[]
-  status: 200
-}
-
-export type permissionsListResponse200ApplicationJson = {
-  data: PermissionModuleDto[]
-  status: 200
-}
-
-export type permissionsListResponse200TextJson = {
-  data: PermissionModuleDto[]
-  status: 200
-}
-
-export type permissionsListResponseSuccess = (permissionsListResponse200TextPlain | permissionsListResponse200ApplicationJson | permissionsListResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type permissionsListResponse = (permissionsListResponseSuccess)
-
 export const getPermissionsListUrl = () => {
 
 
@@ -4527,9 +3866,9 @@ export const getPermissionsListUrl = () => {
 /**
  * @summary List permissions
  */
-export const permissionsList = async ( options?: Parameters<typeof customFetch>[1]): Promise<permissionsListResponse> => {
+export const permissionsList = async ( options?: Parameters<typeof customFetch>[1]): Promise<PermissionModuleDto[]> => {
 
-  return customFetch<permissionsListResponse>(getPermissionsListUrl(),
+  return customFetch<PermissionModuleDto[]>(getPermissionsListUrl(),
   {
     ...options,
     method: 'GET'
@@ -4617,18 +3956,6 @@ export function usePermissionsList<TData = Awaited<ReturnType<typeof permissions
 
 
 
-export type rolesArchiveResponse200 = {
-  data: void
-  status: 200
-}
-
-export type rolesArchiveResponseSuccess = (rolesArchiveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type rolesArchiveResponse = (rolesArchiveResponseSuccess)
-
 export const getRolesArchiveUrl = (id: string,) => {
 
 
@@ -4640,9 +3967,9 @@ export const getRolesArchiveUrl = (id: string,) => {
 /**
  * @summary Archive roles
  */
-export const rolesArchive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<rolesArchiveResponse> => {
+export const rolesArchive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<rolesArchiveResponse>(getRolesArchiveUrl(id),
+  return customFetch<void>(getRolesArchiveUrl(id),
   {
     ...options,
     method: 'POST'
@@ -4703,18 +4030,6 @@ export const useRolesArchive = <TError = unknown,
       return useMutation(getRolesArchiveMutationOptions(options), queryClient);
     }
 
-export type rolesRestoreResponse200 = {
-  data: void
-  status: 200
-}
-
-export type rolesRestoreResponseSuccess = (rolesRestoreResponse200) & {
-  headers: Headers;
-};
-;
-
-export type rolesRestoreResponse = (rolesRestoreResponseSuccess)
-
 export const getRolesRestoreUrl = (id: string,) => {
 
 
@@ -4726,9 +4041,9 @@ export const getRolesRestoreUrl = (id: string,) => {
 /**
  * @summary Restore roles
  */
-export const rolesRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<rolesRestoreResponse> => {
+export const rolesRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<rolesRestoreResponse>(getRolesRestoreUrl(id),
+  return customFetch<void>(getRolesRestoreUrl(id),
   {
     ...options,
     method: 'POST'
@@ -4789,28 +4104,6 @@ export const useRolesRestore = <TError = unknown,
       return useMutation(getRolesRestoreMutationOptions(options), queryClient);
     }
 
-export type membersListResponse200TextPlain = {
-  data: MemberDto[]
-  status: 200
-}
-
-export type membersListResponse200ApplicationJson = {
-  data: MemberDto[]
-  status: 200
-}
-
-export type membersListResponse200TextJson = {
-  data: MemberDto[]
-  status: 200
-}
-
-export type membersListResponseSuccess = (membersListResponse200TextPlain | membersListResponse200ApplicationJson | membersListResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type membersListResponse = (membersListResponseSuccess)
-
 export const getMembersListUrl = (params?: MembersListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4829,9 +4122,9 @@ export const getMembersListUrl = (params?: MembersListParams,) => {
 /**
  * @summary List members
  */
-export const membersList = async (params?: MembersListParams, options?: Parameters<typeof customFetch>[1]): Promise<membersListResponse> => {
+export const membersList = async (params?: MembersListParams, options?: Parameters<typeof customFetch>[1]): Promise<MemberDto[]> => {
 
-  return customFetch<membersListResponse>(getMembersListUrl(params),
+  return customFetch<MemberDto[]>(getMembersListUrl(params),
   {
     ...options,
     method: 'GET'
@@ -4919,28 +4212,6 @@ export function useMembersList<TData = Awaited<ReturnType<typeof membersList>>, 
 
 
 
-export type membersGetResponse200TextPlain = {
-  data: MemberDto
-  status: 200
-}
-
-export type membersGetResponse200ApplicationJson = {
-  data: MemberDto
-  status: 200
-}
-
-export type membersGetResponse200TextJson = {
-  data: MemberDto
-  status: 200
-}
-
-export type membersGetResponseSuccess = (membersGetResponse200TextPlain | membersGetResponse200ApplicationJson | membersGetResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type membersGetResponse = (membersGetResponseSuccess)
-
 export const getMembersGetUrl = (id: string,) => {
 
 
@@ -4952,9 +4223,9 @@ export const getMembersGetUrl = (id: string,) => {
 /**
  * @summary Get members
  */
-export const membersGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<membersGetResponse> => {
+export const membersGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<MemberDto> => {
 
-  return customFetch<membersGetResponse>(getMembersGetUrl(id),
+  return customFetch<MemberDto>(getMembersGetUrl(id),
   {
     ...options,
     method: 'GET'
@@ -5042,28 +4313,6 @@ export function useMembersGet<TData = Awaited<ReturnType<typeof membersGet>>, TE
 
 
 
-export type membersUpdateResponse200TextPlain = {
-  data: MemberDto
-  status: 200
-}
-
-export type membersUpdateResponse200ApplicationJson = {
-  data: MemberDto
-  status: 200
-}
-
-export type membersUpdateResponse200TextJson = {
-  data: MemberDto
-  status: 200
-}
-
-export type membersUpdateResponseSuccess = (membersUpdateResponse200TextPlain | membersUpdateResponse200ApplicationJson | membersUpdateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type membersUpdateResponse = (membersUpdateResponseSuccess)
-
 export const getMembersUpdateUrl = (id: string,) => {
 
 
@@ -5076,7 +4325,7 @@ export const getMembersUpdateUrl = (id: string,) => {
  * @summary Update members
  */
 export const membersUpdate = async (id: string,
-    updateMembershipCommand: UpdateMembershipCommand, options?: Parameters<typeof customFetch>[1]): Promise<membersUpdateResponse> => {
+    updateMembershipCommand: UpdateMembershipCommand, options?: Parameters<typeof customFetch>[1]): Promise<MemberDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -5092,7 +4341,7 @@ export const membersUpdate = async (id: string,
     }
     return headers;
   };
-return customFetch<membersUpdateResponse>(getMembersUpdateUrl(id),
+return customFetch<MemberDto>(getMembersUpdateUrl(id),
   {
     ...options,
     method: 'PUT',
@@ -5153,18 +4402,6 @@ export const useMembersUpdate = <TError = unknown,
       return useMutation(getMembersUpdateMutationOptions(options), queryClient);
     }
 
-export type membersDeleteResponse200 = {
-  data: void
-  status: 200
-}
-
-export type membersDeleteResponseSuccess = (membersDeleteResponse200) & {
-  headers: Headers;
-};
-;
-
-export type membersDeleteResponse = (membersDeleteResponseSuccess)
-
 export const getMembersDeleteUrl = (id: string,) => {
 
 
@@ -5177,7 +4414,7 @@ export const getMembersDeleteUrl = (id: string,) => {
  * @summary Delete members
  */
 export const membersDelete = async (id: string,
-    deleteRecordCommand: DeleteRecordCommand, options?: Parameters<typeof customFetch>[1]): Promise<membersDeleteResponse> => {
+    deleteRecordCommand: DeleteRecordCommand, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -5193,7 +4430,7 @@ export const membersDelete = async (id: string,
     }
     return headers;
   };
-return customFetch<membersDeleteResponse>(getMembersDeleteUrl(id),
+return customFetch<void>(getMembersDeleteUrl(id),
   {
     ...options,
     method: 'DELETE',
@@ -5254,18 +4491,6 @@ export const useMembersDelete = <TError = unknown,
       return useMutation(getMembersDeleteMutationOptions(options), queryClient);
     }
 
-export type membersArchiveResponse200 = {
-  data: void
-  status: 200
-}
-
-export type membersArchiveResponseSuccess = (membersArchiveResponse200) & {
-  headers: Headers;
-};
-;
-
-export type membersArchiveResponse = (membersArchiveResponseSuccess)
-
 export const getMembersArchiveUrl = (id: string,) => {
 
 
@@ -5277,9 +4502,9 @@ export const getMembersArchiveUrl = (id: string,) => {
 /**
  * @summary Archive members
  */
-export const membersArchive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<membersArchiveResponse> => {
+export const membersArchive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<membersArchiveResponse>(getMembersArchiveUrl(id),
+  return customFetch<void>(getMembersArchiveUrl(id),
   {
     ...options,
     method: 'POST'
@@ -5340,18 +4565,6 @@ export const useMembersArchive = <TError = unknown,
       return useMutation(getMembersArchiveMutationOptions(options), queryClient);
     }
 
-export type membersRestoreResponse200 = {
-  data: void
-  status: 200
-}
-
-export type membersRestoreResponseSuccess = (membersRestoreResponse200) & {
-  headers: Headers;
-};
-;
-
-export type membersRestoreResponse = (membersRestoreResponseSuccess)
-
 export const getMembersRestoreUrl = (id: string,) => {
 
 
@@ -5363,9 +4576,9 @@ export const getMembersRestoreUrl = (id: string,) => {
 /**
  * @summary Restore members
  */
-export const membersRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<membersRestoreResponse> => {
+export const membersRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<membersRestoreResponse>(getMembersRestoreUrl(id),
+  return customFetch<void>(getMembersRestoreUrl(id),
   {
     ...options,
     method: 'POST'
@@ -5426,28 +4639,6 @@ export const useMembersRestore = <TError = unknown,
       return useMutation(getMembersRestoreMutationOptions(options), queryClient);
     }
 
-export type invitationsListResponse200TextPlain = {
-  data: InvitationDto[]
-  status: 200
-}
-
-export type invitationsListResponse200ApplicationJson = {
-  data: InvitationDto[]
-  status: 200
-}
-
-export type invitationsListResponse200TextJson = {
-  data: InvitationDto[]
-  status: 200
-}
-
-export type invitationsListResponseSuccess = (invitationsListResponse200TextPlain | invitationsListResponse200ApplicationJson | invitationsListResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type invitationsListResponse = (invitationsListResponseSuccess)
-
 export const getInvitationsListUrl = (params?: InvitationsListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5466,9 +4657,9 @@ export const getInvitationsListUrl = (params?: InvitationsListParams,) => {
 /**
  * @summary List invitations
  */
-export const invitationsList = async (params?: InvitationsListParams, options?: Parameters<typeof customFetch>[1]): Promise<invitationsListResponse> => {
+export const invitationsList = async (params?: InvitationsListParams, options?: Parameters<typeof customFetch>[1]): Promise<InvitationDto[]> => {
 
-  return customFetch<invitationsListResponse>(getInvitationsListUrl(params),
+  return customFetch<InvitationDto[]>(getInvitationsListUrl(params),
   {
     ...options,
     method: 'GET'
@@ -5556,28 +4747,6 @@ export function useInvitationsList<TData = Awaited<ReturnType<typeof invitations
 
 
 
-export type invitationsCreateResponse200TextPlain = {
-  data: CreateInvitationResponse
-  status: 200
-}
-
-export type invitationsCreateResponse200ApplicationJson = {
-  data: CreateInvitationResponse
-  status: 200
-}
-
-export type invitationsCreateResponse200TextJson = {
-  data: CreateInvitationResponse
-  status: 200
-}
-
-export type invitationsCreateResponseSuccess = (invitationsCreateResponse200TextPlain | invitationsCreateResponse200ApplicationJson | invitationsCreateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type invitationsCreateResponse = (invitationsCreateResponseSuccess)
-
 export const getInvitationsCreateUrl = () => {
 
 
@@ -5589,7 +4758,7 @@ export const getInvitationsCreateUrl = () => {
 /**
  * @summary Create invitations
  */
-export const invitationsCreate = async (createInvitationCommand: CreateInvitationCommand, options?: Parameters<typeof customFetch>[1]): Promise<invitationsCreateResponse> => {
+export const invitationsCreate = async (createInvitationCommand: CreateInvitationCommand, options?: Parameters<typeof customFetch>[1]): Promise<CreateInvitationResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -5605,7 +4774,7 @@ export const invitationsCreate = async (createInvitationCommand: CreateInvitatio
     }
     return headers;
   };
-return customFetch<invitationsCreateResponse>(getInvitationsCreateUrl(),
+return customFetch<CreateInvitationResponse>(getInvitationsCreateUrl(),
   {
     ...options,
     method: 'POST',
@@ -5666,28 +4835,6 @@ export const useInvitationsCreate = <TError = unknown,
       return useMutation(getInvitationsCreateMutationOptions(options), queryClient);
     }
 
-export type invitationsGetResponse200TextPlain = {
-  data: InvitationDto
-  status: 200
-}
-
-export type invitationsGetResponse200ApplicationJson = {
-  data: InvitationDto
-  status: 200
-}
-
-export type invitationsGetResponse200TextJson = {
-  data: InvitationDto
-  status: 200
-}
-
-export type invitationsGetResponseSuccess = (invitationsGetResponse200TextPlain | invitationsGetResponse200ApplicationJson | invitationsGetResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type invitationsGetResponse = (invitationsGetResponseSuccess)
-
 export const getInvitationsGetUrl = (id: string,) => {
 
 
@@ -5699,9 +4846,9 @@ export const getInvitationsGetUrl = (id: string,) => {
 /**
  * @summary Get invitations
  */
-export const invitationsGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<invitationsGetResponse> => {
+export const invitationsGet = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<InvitationDto> => {
 
-  return customFetch<invitationsGetResponse>(getInvitationsGetUrl(id),
+  return customFetch<InvitationDto>(getInvitationsGetUrl(id),
   {
     ...options,
     method: 'GET'
@@ -5789,28 +4936,6 @@ export function useInvitationsGet<TData = Awaited<ReturnType<typeof invitationsG
 
 
 
-export type invitationsUpdateResponse200TextPlain = {
-  data: InvitationDto
-  status: 200
-}
-
-export type invitationsUpdateResponse200ApplicationJson = {
-  data: InvitationDto
-  status: 200
-}
-
-export type invitationsUpdateResponse200TextJson = {
-  data: InvitationDto
-  status: 200
-}
-
-export type invitationsUpdateResponseSuccess = (invitationsUpdateResponse200TextPlain | invitationsUpdateResponse200ApplicationJson | invitationsUpdateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type invitationsUpdateResponse = (invitationsUpdateResponseSuccess)
-
 export const getInvitationsUpdateUrl = (id: string,) => {
 
 
@@ -5823,7 +4948,7 @@ export const getInvitationsUpdateUrl = (id: string,) => {
  * @summary Update invitations
  */
 export const invitationsUpdate = async (id: string,
-    updateInvitationCommand: UpdateInvitationCommand, options?: Parameters<typeof customFetch>[1]): Promise<invitationsUpdateResponse> => {
+    updateInvitationCommand: UpdateInvitationCommand, options?: Parameters<typeof customFetch>[1]): Promise<InvitationDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -5839,7 +4964,7 @@ export const invitationsUpdate = async (id: string,
     }
     return headers;
   };
-return customFetch<invitationsUpdateResponse>(getInvitationsUpdateUrl(id),
+return customFetch<InvitationDto>(getInvitationsUpdateUrl(id),
   {
     ...options,
     method: 'PUT',
@@ -5900,18 +5025,6 @@ export const useInvitationsUpdate = <TError = unknown,
       return useMutation(getInvitationsUpdateMutationOptions(options), queryClient);
     }
 
-export type invitationsDeleteResponse200 = {
-  data: void
-  status: 200
-}
-
-export type invitationsDeleteResponseSuccess = (invitationsDeleteResponse200) & {
-  headers: Headers;
-};
-;
-
-export type invitationsDeleteResponse = (invitationsDeleteResponseSuccess)
-
 export const getInvitationsDeleteUrl = (id: string,) => {
 
 
@@ -5924,7 +5037,7 @@ export const getInvitationsDeleteUrl = (id: string,) => {
  * @summary Delete invitations
  */
 export const invitationsDelete = async (id: string,
-    deleteRecordCommand: DeleteRecordCommand, options?: Parameters<typeof customFetch>[1]): Promise<invitationsDeleteResponse> => {
+    deleteRecordCommand: DeleteRecordCommand, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -5940,7 +5053,7 @@ export const invitationsDelete = async (id: string,
     }
     return headers;
   };
-return customFetch<invitationsDeleteResponse>(getInvitationsDeleteUrl(id),
+return customFetch<void>(getInvitationsDeleteUrl(id),
   {
     ...options,
     method: 'DELETE',
@@ -6001,18 +5114,6 @@ export const useInvitationsDelete = <TError = unknown,
       return useMutation(getInvitationsDeleteMutationOptions(options), queryClient);
     }
 
-export type invitationsRevokeResponse200 = {
-  data: void
-  status: 200
-}
-
-export type invitationsRevokeResponseSuccess = (invitationsRevokeResponse200) & {
-  headers: Headers;
-};
-;
-
-export type invitationsRevokeResponse = (invitationsRevokeResponseSuccess)
-
 export const getInvitationsRevokeUrl = (id: string,) => {
 
 
@@ -6024,9 +5125,9 @@ export const getInvitationsRevokeUrl = (id: string,) => {
 /**
  * @summary Revoke invitations
  */
-export const invitationsRevoke = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<invitationsRevokeResponse> => {
+export const invitationsRevoke = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<invitationsRevokeResponse>(getInvitationsRevokeUrl(id),
+  return customFetch<void>(getInvitationsRevokeUrl(id),
   {
     ...options,
     method: 'POST'
@@ -6087,18 +5188,6 @@ export const useInvitationsRevoke = <TError = unknown,
       return useMutation(getInvitationsRevokeMutationOptions(options), queryClient);
     }
 
-export type invitationsRestoreResponse200 = {
-  data: void
-  status: 200
-}
-
-export type invitationsRestoreResponseSuccess = (invitationsRestoreResponse200) & {
-  headers: Headers;
-};
-;
-
-export type invitationsRestoreResponse = (invitationsRestoreResponseSuccess)
-
 export const getInvitationsRestoreUrl = (id: string,) => {
 
 
@@ -6110,9 +5199,9 @@ export const getInvitationsRestoreUrl = (id: string,) => {
 /**
  * @summary Restore invitations
  */
-export const invitationsRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<invitationsRestoreResponse> => {
+export const invitationsRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<invitationsRestoreResponse>(getInvitationsRestoreUrl(id),
+  return customFetch<void>(getInvitationsRestoreUrl(id),
   {
     ...options,
     method: 'POST'
@@ -6173,28 +5262,6 @@ export const useInvitationsRestore = <TError = unknown,
       return useMutation(getInvitationsRestoreMutationOptions(options), queryClient);
     }
 
-export type auditListResponse200TextPlain = {
-  data: AuditPageDto
-  status: 200
-}
-
-export type auditListResponse200ApplicationJson = {
-  data: AuditPageDto
-  status: 200
-}
-
-export type auditListResponse200TextJson = {
-  data: AuditPageDto
-  status: 200
-}
-
-export type auditListResponseSuccess = (auditListResponse200TextPlain | auditListResponse200ApplicationJson | auditListResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type auditListResponse = (auditListResponseSuccess)
-
 export const getAuditListUrl = (params?: AuditListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6213,9 +5280,9 @@ export const getAuditListUrl = (params?: AuditListParams,) => {
 /**
  * @summary List audit
  */
-export const auditList = async (params?: AuditListParams, options?: Parameters<typeof customFetch>[1]): Promise<auditListResponse> => {
+export const auditList = async (params?: AuditListParams, options?: Parameters<typeof customFetch>[1]): Promise<AuditPageDto> => {
 
-  return customFetch<auditListResponse>(getAuditListUrl(params),
+  return customFetch<AuditPageDto>(getAuditListUrl(params),
   {
     ...options,
     method: 'GET'
@@ -6303,28 +5370,6 @@ export function useAuditList<TData = Awaited<ReturnType<typeof auditList>>, TErr
 
 
 
-export type organizationsListResponse200TextPlain = {
-  data: PagedResultOfOrganizationDto
-  status: 200
-}
-
-export type organizationsListResponse200ApplicationJson = {
-  data: PagedResultOfOrganizationDto
-  status: 200
-}
-
-export type organizationsListResponse200TextJson = {
-  data: PagedResultOfOrganizationDto
-  status: 200
-}
-
-export type organizationsListResponseSuccess = (organizationsListResponse200TextPlain | organizationsListResponse200ApplicationJson | organizationsListResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type organizationsListResponse = (organizationsListResponseSuccess)
-
 export const getOrganizationsListUrl = (params?: OrganizationsListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6343,9 +5388,9 @@ export const getOrganizationsListUrl = (params?: OrganizationsListParams,) => {
 /**
  * @summary List organizations
  */
-export const organizationsList = async (params?: OrganizationsListParams, options?: Parameters<typeof customFetch>[1]): Promise<organizationsListResponse> => {
+export const organizationsList = async (params?: OrganizationsListParams, options?: Parameters<typeof customFetch>[1]): Promise<PagedResultOfOrganizationDto> => {
 
-  return customFetch<organizationsListResponse>(getOrganizationsListUrl(params),
+  return customFetch<PagedResultOfOrganizationDto>(getOrganizationsListUrl(params),
   {
     ...options,
     method: 'GET'
@@ -6433,28 +5478,6 @@ export function useOrganizationsList<TData = Awaited<ReturnType<typeof organizat
 
 
 
-export type organizationsCreateResponse200TextPlain = {
-  data: CreateOrganizationResult
-  status: 200
-}
-
-export type organizationsCreateResponse200ApplicationJson = {
-  data: CreateOrganizationResult
-  status: 200
-}
-
-export type organizationsCreateResponse200TextJson = {
-  data: CreateOrganizationResult
-  status: 200
-}
-
-export type organizationsCreateResponseSuccess = (organizationsCreateResponse200TextPlain | organizationsCreateResponse200ApplicationJson | organizationsCreateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type organizationsCreateResponse = (organizationsCreateResponseSuccess)
-
 export const getOrganizationsCreateUrl = () => {
 
 
@@ -6466,7 +5489,7 @@ export const getOrganizationsCreateUrl = () => {
 /**
  * @summary Create organizations
  */
-export const organizationsCreate = async (createOrganizationRequest: CreateOrganizationRequest, options?: Parameters<typeof customFetch>[1]): Promise<organizationsCreateResponse> => {
+export const organizationsCreate = async (createOrganizationRequest: CreateOrganizationRequest, options?: Parameters<typeof customFetch>[1]): Promise<CreateOrganizationResult> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -6482,7 +5505,7 @@ export const organizationsCreate = async (createOrganizationRequest: CreateOrgan
     }
     return headers;
   };
-return customFetch<organizationsCreateResponse>(getOrganizationsCreateUrl(),
+return customFetch<CreateOrganizationResult>(getOrganizationsCreateUrl(),
   {
     ...options,
     method: 'POST',
@@ -6543,28 +5566,6 @@ export const useOrganizationsCreate = <TError = unknown,
       return useMutation(getOrganizationsCreateMutationOptions(options), queryClient);
     }
 
-export type organizationsGetResponse200TextPlain = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsGetResponse200ApplicationJson = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsGetResponse200TextJson = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsGetResponseSuccess = (organizationsGetResponse200TextPlain | organizationsGetResponse200ApplicationJson | organizationsGetResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type organizationsGetResponse = (organizationsGetResponseSuccess)
-
 export const getOrganizationsGetUrl = (organizationId: string,) => {
 
 
@@ -6576,9 +5577,9 @@ export const getOrganizationsGetUrl = (organizationId: string,) => {
 /**
  * @summary Get organizations
  */
-export const organizationsGet = async (organizationId: string, options?: Parameters<typeof customFetch>[1]): Promise<organizationsGetResponse> => {
+export const organizationsGet = async (organizationId: string, options?: Parameters<typeof customFetch>[1]): Promise<OrganizationDto> => {
 
-  return customFetch<organizationsGetResponse>(getOrganizationsGetUrl(organizationId),
+  return customFetch<OrganizationDto>(getOrganizationsGetUrl(organizationId),
   {
     ...options,
     method: 'GET'
@@ -6666,28 +5667,6 @@ export function useOrganizationsGet<TData = Awaited<ReturnType<typeof organizati
 
 
 
-export type organizationsUpdateResponse200TextPlain = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsUpdateResponse200ApplicationJson = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsUpdateResponse200TextJson = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsUpdateResponseSuccess = (organizationsUpdateResponse200TextPlain | organizationsUpdateResponse200ApplicationJson | organizationsUpdateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type organizationsUpdateResponse = (organizationsUpdateResponseSuccess)
-
 export const getOrganizationsUpdateUrl = (organizationId: string,) => {
 
 
@@ -6700,7 +5679,7 @@ export const getOrganizationsUpdateUrl = (organizationId: string,) => {
  * @summary Update organizations
  */
 export const organizationsUpdate = async (organizationId: string,
-    updateOrganizationRequest: UpdateOrganizationRequest, options?: Parameters<typeof customFetch>[1]): Promise<organizationsUpdateResponse> => {
+    updateOrganizationRequest: UpdateOrganizationRequest, options?: Parameters<typeof customFetch>[1]): Promise<OrganizationDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -6716,7 +5695,7 @@ export const organizationsUpdate = async (organizationId: string,
     }
     return headers;
   };
-return customFetch<organizationsUpdateResponse>(getOrganizationsUpdateUrl(organizationId),
+return customFetch<OrganizationDto>(getOrganizationsUpdateUrl(organizationId),
   {
     ...options,
     method: 'PUT',
@@ -6777,28 +5756,6 @@ export const useOrganizationsUpdate = <TError = unknown,
       return useMutation(getOrganizationsUpdateMutationOptions(options), queryClient);
     }
 
-export type organizationsDeactivateResponse200TextPlain = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsDeactivateResponse200ApplicationJson = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsDeactivateResponse200TextJson = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsDeactivateResponseSuccess = (organizationsDeactivateResponse200TextPlain | organizationsDeactivateResponse200ApplicationJson | organizationsDeactivateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type organizationsDeactivateResponse = (organizationsDeactivateResponseSuccess)
-
 export const getOrganizationsDeactivateUrl = (organizationId: string,) => {
 
 
@@ -6810,9 +5767,9 @@ export const getOrganizationsDeactivateUrl = (organizationId: string,) => {
 /**
  * @summary Deactivate organizations
  */
-export const organizationsDeactivate = async (organizationId: string, options?: Parameters<typeof customFetch>[1]): Promise<organizationsDeactivateResponse> => {
+export const organizationsDeactivate = async (organizationId: string, options?: Parameters<typeof customFetch>[1]): Promise<OrganizationDto> => {
 
-  return customFetch<organizationsDeactivateResponse>(getOrganizationsDeactivateUrl(organizationId),
+  return customFetch<OrganizationDto>(getOrganizationsDeactivateUrl(organizationId),
   {
     ...options,
     method: 'POST'
@@ -6873,28 +5830,6 @@ export const useOrganizationsDeactivate = <TError = unknown,
       return useMutation(getOrganizationsDeactivateMutationOptions(options), queryClient);
     }
 
-export type organizationsReactivateResponse200TextPlain = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsReactivateResponse200ApplicationJson = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsReactivateResponse200TextJson = {
-  data: OrganizationDto
-  status: 200
-}
-
-export type organizationsReactivateResponseSuccess = (organizationsReactivateResponse200TextPlain | organizationsReactivateResponse200ApplicationJson | organizationsReactivateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type organizationsReactivateResponse = (organizationsReactivateResponseSuccess)
-
 export const getOrganizationsReactivateUrl = (organizationId: string,) => {
 
 
@@ -6906,9 +5841,9 @@ export const getOrganizationsReactivateUrl = (organizationId: string,) => {
 /**
  * @summary Reactivate organizations
  */
-export const organizationsReactivate = async (organizationId: string, options?: Parameters<typeof customFetch>[1]): Promise<organizationsReactivateResponse> => {
+export const organizationsReactivate = async (organizationId: string, options?: Parameters<typeof customFetch>[1]): Promise<OrganizationDto> => {
 
-  return customFetch<organizationsReactivateResponse>(getOrganizationsReactivateUrl(organizationId),
+  return customFetch<OrganizationDto>(getOrganizationsReactivateUrl(organizationId),
   {
     ...options,
     method: 'POST'
@@ -6969,28 +5904,6 @@ export const useOrganizationsReactivate = <TError = unknown,
       return useMutation(getOrganizationsReactivateMutationOptions(options), queryClient);
     }
 
-export type outboxListFailuresResponse200TextPlain = {
-  data: PagedResultOfOutboxFailure
-  status: 200
-}
-
-export type outboxListFailuresResponse200ApplicationJson = {
-  data: PagedResultOfOutboxFailure
-  status: 200
-}
-
-export type outboxListFailuresResponse200TextJson = {
-  data: PagedResultOfOutboxFailure
-  status: 200
-}
-
-export type outboxListFailuresResponseSuccess = (outboxListFailuresResponse200TextPlain | outboxListFailuresResponse200ApplicationJson | outboxListFailuresResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type outboxListFailuresResponse = (outboxListFailuresResponseSuccess)
-
 export const getOutboxListFailuresUrl = (params?: OutboxListFailuresParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -7009,9 +5922,9 @@ export const getOutboxListFailuresUrl = (params?: OutboxListFailuresParams,) => 
 /**
  * @summary List failures outbox
  */
-export const outboxListFailures = async (params?: OutboxListFailuresParams, options?: Parameters<typeof customFetch>[1]): Promise<outboxListFailuresResponse> => {
+export const outboxListFailures = async (params?: OutboxListFailuresParams, options?: Parameters<typeof customFetch>[1]): Promise<PagedResultOfOutboxFailure> => {
 
-  return customFetch<outboxListFailuresResponse>(getOutboxListFailuresUrl(params),
+  return customFetch<PagedResultOfOutboxFailure>(getOutboxListFailuresUrl(params),
   {
     ...options,
     method: 'GET'
@@ -7099,45 +6012,6 @@ export function useOutboxListFailures<TData = Awaited<ReturnType<typeof outboxLi
 
 
 
-export type outboxRequestReplayResponse202TextPlain = {
-  data: OutboxReplayAccepted
-  status: 202
-}
-
-export type outboxRequestReplayResponse202ApplicationJson = {
-  data: OutboxReplayAccepted
-  status: 202
-}
-
-export type outboxRequestReplayResponse202TextJson = {
-  data: OutboxReplayAccepted
-  status: 202
-}
-
-export type outboxRequestReplayResponse409TextPlain = {
-  data: ProblemDetails
-  status: 409
-}
-
-export type outboxRequestReplayResponse409ApplicationJson = {
-  data: ProblemDetails
-  status: 409
-}
-
-export type outboxRequestReplayResponse409TextJson = {
-  data: ProblemDetails
-  status: 409
-}
-
-export type outboxRequestReplayResponseSuccess = (outboxRequestReplayResponse202TextPlain | outboxRequestReplayResponse202ApplicationJson | outboxRequestReplayResponse202TextJson) & {
-  headers: Headers;
-};
-export type outboxRequestReplayResponseError = (outboxRequestReplayResponse409TextPlain | outboxRequestReplayResponse409ApplicationJson | outboxRequestReplayResponse409TextJson) & {
-  headers: Headers;
-};
-
-export type outboxRequestReplayResponse = (outboxRequestReplayResponseSuccess | outboxRequestReplayResponseError)
-
 export const getOutboxRequestReplayUrl = (messageId: string,) => {
 
 
@@ -7150,7 +6024,7 @@ export const getOutboxRequestReplayUrl = (messageId: string,) => {
  * @summary Request replay outbox
  */
 export const outboxRequestReplay = async (messageId: string,
-    outboxReplayRequestBody: OutboxReplayRequestBody, options?: Parameters<typeof customFetch>[1]): Promise<outboxRequestReplayResponse> => {
+    outboxReplayRequestBody: OutboxReplayRequestBody, options?: Parameters<typeof customFetch>[1]): Promise<OutboxReplayAccepted> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -7166,7 +6040,7 @@ export const outboxRequestReplay = async (messageId: string,
     }
     return headers;
   };
-return customFetch<outboxRequestReplayResponse>(getOutboxRequestReplayUrl(messageId),
+return customFetch<OutboxReplayAccepted>(getOutboxRequestReplayUrl(messageId),
   {
     ...options,
     method: 'POST',
@@ -7227,43 +6101,6 @@ export const useOutboxRequestReplay = <TError = ProblemDetails,
       return useMutation(getOutboxRequestReplayMutationOptions(options), queryClient);
     }
 
-export type outboxGetReplayOutcomeResponse200TextPlain = {
-  data: OutboxReplayOutcome
-  status: 200
-}
-
-export type outboxGetReplayOutcomeResponse200ApplicationJson = {
-  data: OutboxReplayOutcome
-  status: 200
-}
-
-export type outboxGetReplayOutcomeResponse200TextJson = {
-  data: OutboxReplayOutcome
-  status: 200
-}
-
-export type outboxGetReplayOutcomeResponse202TextPlain = {
-  data: OutboxReplayPending
-  status: 202
-}
-
-export type outboxGetReplayOutcomeResponse202ApplicationJson = {
-  data: OutboxReplayPending
-  status: 202
-}
-
-export type outboxGetReplayOutcomeResponse202TextJson = {
-  data: OutboxReplayPending
-  status: 202
-}
-
-export type outboxGetReplayOutcomeResponseSuccess = (outboxGetReplayOutcomeResponse200TextPlain | outboxGetReplayOutcomeResponse200ApplicationJson | outboxGetReplayOutcomeResponse200TextJson | outboxGetReplayOutcomeResponse202TextPlain | outboxGetReplayOutcomeResponse202ApplicationJson | outboxGetReplayOutcomeResponse202TextJson) & {
-  headers: Headers;
-};
-;
-
-export type outboxGetReplayOutcomeResponse = (outboxGetReplayOutcomeResponseSuccess)
-
 export const getOutboxGetReplayOutcomeUrl = (requestId: string,) => {
 
 
@@ -7275,9 +6112,9 @@ export const getOutboxGetReplayOutcomeUrl = (requestId: string,) => {
 /**
  * @summary Get replay outcome outbox
  */
-export const outboxGetReplayOutcome = async (requestId: string, options?: Parameters<typeof customFetch>[1]): Promise<outboxGetReplayOutcomeResponse> => {
+export const outboxGetReplayOutcome = async (requestId: string, options?: Parameters<typeof customFetch>[1]): Promise<OutboxReplayOutcome | OutboxReplayPending> => {
 
-  return customFetch<outboxGetReplayOutcomeResponse>(getOutboxGetReplayOutcomeUrl(requestId),
+  return customFetch<OutboxReplayOutcome | OutboxReplayPending>(getOutboxGetReplayOutcomeUrl(requestId),
   {
     ...options,
     method: 'GET'
@@ -7365,28 +6202,6 @@ export function useOutboxGetReplayOutcome<TData = Awaited<ReturnType<typeof outb
 
 
 
-export type platformUsersListResponse200TextPlain = {
-  data: PagedResultOfPlatformAccessUser
-  status: 200
-}
-
-export type platformUsersListResponse200ApplicationJson = {
-  data: PagedResultOfPlatformAccessUser
-  status: 200
-}
-
-export type platformUsersListResponse200TextJson = {
-  data: PagedResultOfPlatformAccessUser
-  status: 200
-}
-
-export type platformUsersListResponseSuccess = (platformUsersListResponse200TextPlain | platformUsersListResponse200ApplicationJson | platformUsersListResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersListResponse = (platformUsersListResponseSuccess)
-
 export const getPlatformUsersListUrl = (params?: PlatformUsersListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -7405,9 +6220,9 @@ export const getPlatformUsersListUrl = (params?: PlatformUsersListParams,) => {
 /**
  * @summary List platform users
  */
-export const platformUsersList = async (params?: PlatformUsersListParams, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersListResponse> => {
+export const platformUsersList = async (params?: PlatformUsersListParams, options?: Parameters<typeof customFetch>[1]): Promise<PagedResultOfPlatformAccessUser> => {
 
-  return customFetch<platformUsersListResponse>(getPlatformUsersListUrl(params),
+  return customFetch<PagedResultOfPlatformAccessUser>(getPlatformUsersListUrl(params),
   {
     ...options,
     method: 'GET'
@@ -7495,28 +6310,6 @@ export function usePlatformUsersList<TData = Awaited<ReturnType<typeof platformU
 
 
 
-export type platformUsersGrantResponse200TextPlain = {
-  data: PlatformAccessGrant
-  status: 200
-}
-
-export type platformUsersGrantResponse200ApplicationJson = {
-  data: PlatformAccessGrant
-  status: 200
-}
-
-export type platformUsersGrantResponse200TextJson = {
-  data: PlatformAccessGrant
-  status: 200
-}
-
-export type platformUsersGrantResponseSuccess = (platformUsersGrantResponse200TextPlain | platformUsersGrantResponse200ApplicationJson | platformUsersGrantResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersGrantResponse = (platformUsersGrantResponseSuccess)
-
 export const getPlatformUsersGrantUrl = () => {
 
 
@@ -7528,7 +6321,7 @@ export const getPlatformUsersGrantUrl = () => {
 /**
  * @summary Grant platform users
  */
-export const platformUsersGrant = async (grantPlatformAccessRequest: GrantPlatformAccessRequest, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersGrantResponse> => {
+export const platformUsersGrant = async (grantPlatformAccessRequest: GrantPlatformAccessRequest, options?: Parameters<typeof customFetch>[1]): Promise<PlatformAccessGrant> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -7544,7 +6337,7 @@ export const platformUsersGrant = async (grantPlatformAccessRequest: GrantPlatfo
     }
     return headers;
   };
-return customFetch<platformUsersGrantResponse>(getPlatformUsersGrantUrl(),
+return customFetch<PlatformAccessGrant>(getPlatformUsersGrantUrl(),
   {
     ...options,
     method: 'POST',
@@ -7605,28 +6398,6 @@ export const usePlatformUsersGrant = <TError = unknown,
       return useMutation(getPlatformUsersGrantMutationOptions(options), queryClient);
     }
 
-export type platformUsersListRolesResponse200TextPlain = {
-  data: PlatformRoleDefinition[]
-  status: 200
-}
-
-export type platformUsersListRolesResponse200ApplicationJson = {
-  data: PlatformRoleDefinition[]
-  status: 200
-}
-
-export type platformUsersListRolesResponse200TextJson = {
-  data: PlatformRoleDefinition[]
-  status: 200
-}
-
-export type platformUsersListRolesResponseSuccess = (platformUsersListRolesResponse200TextPlain | platformUsersListRolesResponse200ApplicationJson | platformUsersListRolesResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersListRolesResponse = (platformUsersListRolesResponseSuccess)
-
 export const getPlatformUsersListRolesUrl = () => {
 
 
@@ -7638,9 +6409,9 @@ export const getPlatformUsersListRolesUrl = () => {
 /**
  * @summary List roles platform users
  */
-export const platformUsersListRoles = async ( options?: Parameters<typeof customFetch>[1]): Promise<platformUsersListRolesResponse> => {
+export const platformUsersListRoles = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlatformRoleDefinition[]> => {
 
-  return customFetch<platformUsersListRolesResponse>(getPlatformUsersListRolesUrl(),
+  return customFetch<PlatformRoleDefinition[]>(getPlatformUsersListRolesUrl(),
   {
     ...options,
     method: 'GET'
@@ -7728,28 +6499,6 @@ export function usePlatformUsersListRoles<TData = Awaited<ReturnType<typeof plat
 
 
 
-export type platformUsersCreateRoleResponse200TextPlain = {
-  data: PlatformRoleDefinition
-  status: 200
-}
-
-export type platformUsersCreateRoleResponse200ApplicationJson = {
-  data: PlatformRoleDefinition
-  status: 200
-}
-
-export type platformUsersCreateRoleResponse200TextJson = {
-  data: PlatformRoleDefinition
-  status: 200
-}
-
-export type platformUsersCreateRoleResponseSuccess = (platformUsersCreateRoleResponse200TextPlain | platformUsersCreateRoleResponse200ApplicationJson | platformUsersCreateRoleResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersCreateRoleResponse = (platformUsersCreateRoleResponseSuccess)
-
 export const getPlatformUsersCreateRoleUrl = () => {
 
 
@@ -7761,7 +6510,7 @@ export const getPlatformUsersCreateRoleUrl = () => {
 /**
  * @summary Create role platform users
  */
-export const platformUsersCreateRole = async (savePlatformRoleRequest: SavePlatformRoleRequest, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersCreateRoleResponse> => {
+export const platformUsersCreateRole = async (savePlatformRoleRequest: SavePlatformRoleRequest, options?: Parameters<typeof customFetch>[1]): Promise<PlatformRoleDefinition> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -7777,7 +6526,7 @@ export const platformUsersCreateRole = async (savePlatformRoleRequest: SavePlatf
     }
     return headers;
   };
-return customFetch<platformUsersCreateRoleResponse>(getPlatformUsersCreateRoleUrl(),
+return customFetch<PlatformRoleDefinition>(getPlatformUsersCreateRoleUrl(),
   {
     ...options,
     method: 'POST',
@@ -7838,28 +6587,6 @@ export const usePlatformUsersCreateRole = <TError = unknown,
       return useMutation(getPlatformUsersCreateRoleMutationOptions(options), queryClient);
     }
 
-export type platformUsersListPermissionsResponse200TextPlain = {
-  data: PlatformPermissionModuleDefinition[]
-  status: 200
-}
-
-export type platformUsersListPermissionsResponse200ApplicationJson = {
-  data: PlatformPermissionModuleDefinition[]
-  status: 200
-}
-
-export type platformUsersListPermissionsResponse200TextJson = {
-  data: PlatformPermissionModuleDefinition[]
-  status: 200
-}
-
-export type platformUsersListPermissionsResponseSuccess = (platformUsersListPermissionsResponse200TextPlain | platformUsersListPermissionsResponse200ApplicationJson | platformUsersListPermissionsResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersListPermissionsResponse = (platformUsersListPermissionsResponseSuccess)
-
 export const getPlatformUsersListPermissionsUrl = () => {
 
 
@@ -7871,9 +6598,9 @@ export const getPlatformUsersListPermissionsUrl = () => {
 /**
  * @summary List permissions platform users
  */
-export const platformUsersListPermissions = async ( options?: Parameters<typeof customFetch>[1]): Promise<platformUsersListPermissionsResponse> => {
+export const platformUsersListPermissions = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlatformPermissionModuleDefinition[]> => {
 
-  return customFetch<platformUsersListPermissionsResponse>(getPlatformUsersListPermissionsUrl(),
+  return customFetch<PlatformPermissionModuleDefinition[]>(getPlatformUsersListPermissionsUrl(),
   {
     ...options,
     method: 'GET'
@@ -7961,28 +6688,6 @@ export function usePlatformUsersListPermissions<TData = Awaited<ReturnType<typeo
 
 
 
-export type platformUsersUpdateRoleResponse200TextPlain = {
-  data: PlatformRoleDefinition
-  status: 200
-}
-
-export type platformUsersUpdateRoleResponse200ApplicationJson = {
-  data: PlatformRoleDefinition
-  status: 200
-}
-
-export type platformUsersUpdateRoleResponse200TextJson = {
-  data: PlatformRoleDefinition
-  status: 200
-}
-
-export type platformUsersUpdateRoleResponseSuccess = (platformUsersUpdateRoleResponse200TextPlain | platformUsersUpdateRoleResponse200ApplicationJson | platformUsersUpdateRoleResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersUpdateRoleResponse = (platformUsersUpdateRoleResponseSuccess)
-
 export const getPlatformUsersUpdateRoleUrl = (roleKey: string,) => {
 
 
@@ -7995,7 +6700,7 @@ export const getPlatformUsersUpdateRoleUrl = (roleKey: string,) => {
  * @summary Update role platform users
  */
 export const platformUsersUpdateRole = async (roleKey: string,
-    savePlatformRoleRequest: SavePlatformRoleRequest, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersUpdateRoleResponse> => {
+    savePlatformRoleRequest: SavePlatformRoleRequest, options?: Parameters<typeof customFetch>[1]): Promise<PlatformRoleDefinition> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -8011,7 +6716,7 @@ export const platformUsersUpdateRole = async (roleKey: string,
     }
     return headers;
   };
-return customFetch<platformUsersUpdateRoleResponse>(getPlatformUsersUpdateRoleUrl(roleKey),
+return customFetch<PlatformRoleDefinition>(getPlatformUsersUpdateRoleUrl(roleKey),
   {
     ...options,
     method: 'PUT',
@@ -8072,18 +6777,6 @@ export const usePlatformUsersUpdateRole = <TError = unknown,
       return useMutation(getPlatformUsersUpdateRoleMutationOptions(options), queryClient);
     }
 
-export type platformUsersDeleteRoleResponse200 = {
-  data: void
-  status: 200
-}
-
-export type platformUsersDeleteRoleResponseSuccess = (platformUsersDeleteRoleResponse200) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersDeleteRoleResponse = (platformUsersDeleteRoleResponseSuccess)
-
 export const getPlatformUsersDeleteRoleUrl = (roleKey: string,) => {
 
 
@@ -8095,9 +6788,9 @@ export const getPlatformUsersDeleteRoleUrl = (roleKey: string,) => {
 /**
  * @summary Delete role platform users
  */
-export const platformUsersDeleteRole = async (roleKey: string, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersDeleteRoleResponse> => {
+export const platformUsersDeleteRole = async (roleKey: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<platformUsersDeleteRoleResponse>(getPlatformUsersDeleteRoleUrl(roleKey),
+  return customFetch<void>(getPlatformUsersDeleteRoleUrl(roleKey),
   {
     ...options,
     method: 'DELETE'
@@ -8158,28 +6851,6 @@ export const usePlatformUsersDeleteRole = <TError = unknown,
       return useMutation(getPlatformUsersDeleteRoleMutationOptions(options), queryClient);
     }
 
-export type platformUsersGetResponse200TextPlain = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersGetResponse200ApplicationJson = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersGetResponse200TextJson = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersGetResponseSuccess = (platformUsersGetResponse200TextPlain | platformUsersGetResponse200ApplicationJson | platformUsersGetResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersGetResponse = (platformUsersGetResponseSuccess)
-
 export const getPlatformUsersGetUrl = (userId: string,) => {
 
 
@@ -8191,9 +6862,9 @@ export const getPlatformUsersGetUrl = (userId: string,) => {
 /**
  * @summary Get platform users
  */
-export const platformUsersGet = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersGetResponse> => {
+export const platformUsersGet = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<PlatformAccessUser> => {
 
-  return customFetch<platformUsersGetResponse>(getPlatformUsersGetUrl(userId),
+  return customFetch<PlatformAccessUser>(getPlatformUsersGetUrl(userId),
   {
     ...options,
     method: 'GET'
@@ -8281,18 +6952,6 @@ export function usePlatformUsersGet<TData = Awaited<ReturnType<typeof platformUs
 
 
 
-export type platformUsersRevokeResponse200 = {
-  data: void
-  status: 200
-}
-
-export type platformUsersRevokeResponseSuccess = (platformUsersRevokeResponse200) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersRevokeResponse = (platformUsersRevokeResponseSuccess)
-
 export const getPlatformUsersRevokeUrl = (userId: string,) => {
 
 
@@ -8304,9 +6963,9 @@ export const getPlatformUsersRevokeUrl = (userId: string,) => {
 /**
  * @summary Revoke platform users
  */
-export const platformUsersRevoke = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersRevokeResponse> => {
+export const platformUsersRevoke = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<platformUsersRevokeResponse>(getPlatformUsersRevokeUrl(userId),
+  return customFetch<void>(getPlatformUsersRevokeUrl(userId),
   {
     ...options,
     method: 'DELETE'
@@ -8367,28 +7026,6 @@ export const usePlatformUsersRevoke = <TError = unknown,
       return useMutation(getPlatformUsersRevokeMutationOptions(options), queryClient);
     }
 
-export type platformUsersChangeRoleResponse200TextPlain = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersChangeRoleResponse200ApplicationJson = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersChangeRoleResponse200TextJson = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersChangeRoleResponseSuccess = (platformUsersChangeRoleResponse200TextPlain | platformUsersChangeRoleResponse200ApplicationJson | platformUsersChangeRoleResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersChangeRoleResponse = (platformUsersChangeRoleResponseSuccess)
-
 export const getPlatformUsersChangeRoleUrl = (userId: string,) => {
 
 
@@ -8401,7 +7038,7 @@ export const getPlatformUsersChangeRoleUrl = (userId: string,) => {
  * @summary Change role platform users
  */
 export const platformUsersChangeRole = async (userId: string,
-    changePlatformRoleRequest: ChangePlatformRoleRequest, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersChangeRoleResponse> => {
+    changePlatformRoleRequest: ChangePlatformRoleRequest, options?: Parameters<typeof customFetch>[1]): Promise<PlatformAccessUser> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -8417,7 +7054,7 @@ export const platformUsersChangeRole = async (userId: string,
     }
     return headers;
   };
-return customFetch<platformUsersChangeRoleResponse>(getPlatformUsersChangeRoleUrl(userId),
+return customFetch<PlatformAccessUser>(getPlatformUsersChangeRoleUrl(userId),
   {
     ...options,
     method: 'PUT',
@@ -8478,28 +7115,6 @@ export const usePlatformUsersChangeRole = <TError = unknown,
       return useMutation(getPlatformUsersChangeRoleMutationOptions(options), queryClient);
     }
 
-export type platformUsersSuspendResponse200TextPlain = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersSuspendResponse200ApplicationJson = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersSuspendResponse200TextJson = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersSuspendResponseSuccess = (platformUsersSuspendResponse200TextPlain | platformUsersSuspendResponse200ApplicationJson | platformUsersSuspendResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersSuspendResponse = (platformUsersSuspendResponseSuccess)
-
 export const getPlatformUsersSuspendUrl = (userId: string,) => {
 
 
@@ -8511,9 +7126,9 @@ export const getPlatformUsersSuspendUrl = (userId: string,) => {
 /**
  * @summary Suspend platform users
  */
-export const platformUsersSuspend = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersSuspendResponse> => {
+export const platformUsersSuspend = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<PlatformAccessUser> => {
 
-  return customFetch<platformUsersSuspendResponse>(getPlatformUsersSuspendUrl(userId),
+  return customFetch<PlatformAccessUser>(getPlatformUsersSuspendUrl(userId),
   {
     ...options,
     method: 'POST'
@@ -8574,28 +7189,6 @@ export const usePlatformUsersSuspend = <TError = unknown,
       return useMutation(getPlatformUsersSuspendMutationOptions(options), queryClient);
     }
 
-export type platformUsersReactivateResponse200TextPlain = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersReactivateResponse200ApplicationJson = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersReactivateResponse200TextJson = {
-  data: PlatformAccessUser
-  status: 200
-}
-
-export type platformUsersReactivateResponseSuccess = (platformUsersReactivateResponse200TextPlain | platformUsersReactivateResponse200ApplicationJson | platformUsersReactivateResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersReactivateResponse = (platformUsersReactivateResponseSuccess)
-
 export const getPlatformUsersReactivateUrl = (userId: string,) => {
 
 
@@ -8607,9 +7200,9 @@ export const getPlatformUsersReactivateUrl = (userId: string,) => {
 /**
  * @summary Reactivate platform users
  */
-export const platformUsersReactivate = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersReactivateResponse> => {
+export const platformUsersReactivate = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<PlatformAccessUser> => {
 
-  return customFetch<platformUsersReactivateResponse>(getPlatformUsersReactivateUrl(userId),
+  return customFetch<PlatformAccessUser>(getPlatformUsersReactivateUrl(userId),
   {
     ...options,
     method: 'POST'
@@ -8670,28 +7263,6 @@ export const usePlatformUsersReactivate = <TError = unknown,
       return useMutation(getPlatformUsersReactivateMutationOptions(options), queryClient);
     }
 
-export type platformUsersCreateActivationTokenResponse200TextPlain = {
-  data: PlatformActivationTokenResponse
-  status: 200
-}
-
-export type platformUsersCreateActivationTokenResponse200ApplicationJson = {
-  data: PlatformActivationTokenResponse
-  status: 200
-}
-
-export type platformUsersCreateActivationTokenResponse200TextJson = {
-  data: PlatformActivationTokenResponse
-  status: 200
-}
-
-export type platformUsersCreateActivationTokenResponseSuccess = (platformUsersCreateActivationTokenResponse200TextPlain | platformUsersCreateActivationTokenResponse200ApplicationJson | platformUsersCreateActivationTokenResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type platformUsersCreateActivationTokenResponse = (platformUsersCreateActivationTokenResponseSuccess)
-
 export const getPlatformUsersCreateActivationTokenUrl = (userId: string,) => {
 
 
@@ -8703,9 +7274,9 @@ export const getPlatformUsersCreateActivationTokenUrl = (userId: string,) => {
 /**
  * @summary Create activation token platform users
  */
-export const platformUsersCreateActivationToken = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<platformUsersCreateActivationTokenResponse> => {
+export const platformUsersCreateActivationToken = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<PlatformActivationTokenResponse> => {
 
-  return customFetch<platformUsersCreateActivationTokenResponse>(getPlatformUsersCreateActivationTokenUrl(userId),
+  return customFetch<PlatformActivationTokenResponse>(getPlatformUsersCreateActivationTokenUrl(userId),
   {
     ...options,
     method: 'POST'
@@ -8766,18 +7337,6 @@ export const usePlatformUsersCreateActivationToken = <TError = unknown,
       return useMutation(getPlatformUsersCreateActivationTokenMutationOptions(options), queryClient);
     }
 
-export type platformAccessActivateResponse200 = {
-  data: void
-  status: 200
-}
-
-export type platformAccessActivateResponseSuccess = (platformAccessActivateResponse200) & {
-  headers: Headers;
-};
-;
-
-export type platformAccessActivateResponse = (platformAccessActivateResponseSuccess)
-
 export const getPlatformAccessActivateUrl = () => {
 
 
@@ -8789,7 +7348,7 @@ export const getPlatformAccessActivateUrl = () => {
 /**
  * @summary Activate platform access
  */
-export const platformAccessActivate = async (activatePlatformAccessRequest: ActivatePlatformAccessRequest, options?: Parameters<typeof customFetch>[1]): Promise<platformAccessActivateResponse> => {
+export const platformAccessActivate = async (activatePlatformAccessRequest: ActivatePlatformAccessRequest, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -8805,7 +7364,7 @@ export const platformAccessActivate = async (activatePlatformAccessRequest: Acti
     }
     return headers;
   };
-return customFetch<platformAccessActivateResponse>(getPlatformAccessActivateUrl(),
+return customFetch<void>(getPlatformAccessActivateUrl(),
   {
     ...options,
     method: 'POST',
@@ -8866,18 +7425,6 @@ export const usePlatformAccessActivate = <TError = unknown,
       return useMutation(getPlatformAccessActivateMutationOptions(options), queryClient);
     }
 
-export type workspaceSelectResponse200 = {
-  data: void
-  status: 200
-}
-
-export type workspaceSelectResponseSuccess = (workspaceSelectResponse200) & {
-  headers: Headers;
-};
-;
-
-export type workspaceSelectResponse = (workspaceSelectResponseSuccess)
-
 export const getWorkspaceSelectUrl = () => {
 
 
@@ -8889,7 +7436,7 @@ export const getWorkspaceSelectUrl = () => {
 /**
  * @summary Select workspace
  */
-export const workspaceSelect = async (selectWorkspaceRequest: SelectWorkspaceRequest, options?: Parameters<typeof customFetch>[1]): Promise<workspaceSelectResponse> => {
+export const workspaceSelect = async (selectWorkspaceRequest: SelectWorkspaceRequest, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -8905,7 +7452,7 @@ export const workspaceSelect = async (selectWorkspaceRequest: SelectWorkspaceReq
     }
     return headers;
   };
-return customFetch<workspaceSelectResponse>(getWorkspaceSelectUrl(),
+return customFetch<void>(getWorkspaceSelectUrl(),
   {
     ...options,
     method: 'POST',
@@ -8966,28 +7513,6 @@ export const useWorkspaceSelect = <TError = unknown,
       return useMutation(getWorkspaceSelectMutationOptions(options), queryClient);
     }
 
-export type workspaceCurrentResponse200TextPlain = {
-  data: CurrentWorkspaceResponse
-  status: 200
-}
-
-export type workspaceCurrentResponse200ApplicationJson = {
-  data: CurrentWorkspaceResponse
-  status: 200
-}
-
-export type workspaceCurrentResponse200TextJson = {
-  data: CurrentWorkspaceResponse
-  status: 200
-}
-
-export type workspaceCurrentResponseSuccess = (workspaceCurrentResponse200TextPlain | workspaceCurrentResponse200ApplicationJson | workspaceCurrentResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type workspaceCurrentResponse = (workspaceCurrentResponseSuccess)
-
 export const getWorkspaceCurrentUrl = () => {
 
 
@@ -8999,9 +7524,9 @@ export const getWorkspaceCurrentUrl = () => {
 /**
  * @summary Current workspace
  */
-export const workspaceCurrent = async ( options?: Parameters<typeof customFetch>[1]): Promise<workspaceCurrentResponse> => {
+export const workspaceCurrent = async ( options?: Parameters<typeof customFetch>[1]): Promise<CurrentWorkspaceResponse> => {
 
-  return customFetch<workspaceCurrentResponse>(getWorkspaceCurrentUrl(),
+  return customFetch<CurrentWorkspaceResponse>(getWorkspaceCurrentUrl(),
   {
     ...options,
     method: 'GET'
@@ -9089,18 +7614,6 @@ export function useWorkspaceCurrent<TData = Awaited<ReturnType<typeof workspaceC
 
 
 
-export type workspaceClearResponse200 = {
-  data: void
-  status: 200
-}
-
-export type workspaceClearResponseSuccess = (workspaceClearResponse200) & {
-  headers: Headers;
-};
-;
-
-export type workspaceClearResponse = (workspaceClearResponseSuccess)
-
 export const getWorkspaceClearUrl = () => {
 
 
@@ -9112,9 +7625,9 @@ export const getWorkspaceClearUrl = () => {
 /**
  * @summary Clear workspace
  */
-export const workspaceClear = async ( options?: Parameters<typeof customFetch>[1]): Promise<workspaceClearResponse> => {
+export const workspaceClear = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<workspaceClearResponse>(getWorkspaceClearUrl(),
+  return customFetch<void>(getWorkspaceClearUrl(),
   {
     ...options,
     method: 'DELETE'
@@ -9175,28 +7688,6 @@ export const useWorkspaceClear = <TError = unknown,
       return useMutation(getWorkspaceClearMutationOptions(options), queryClient);
     }
 
-export type workspaceOverviewGetResponse200TextPlain = {
-  data: WorkspaceOverview
-  status: 200
-}
-
-export type workspaceOverviewGetResponse200ApplicationJson = {
-  data: WorkspaceOverview
-  status: 200
-}
-
-export type workspaceOverviewGetResponse200TextJson = {
-  data: WorkspaceOverview
-  status: 200
-}
-
-export type workspaceOverviewGetResponseSuccess = (workspaceOverviewGetResponse200TextPlain | workspaceOverviewGetResponse200ApplicationJson | workspaceOverviewGetResponse200TextJson) & {
-  headers: Headers;
-};
-;
-
-export type workspaceOverviewGetResponse = (workspaceOverviewGetResponseSuccess)
-
 export const getWorkspaceOverviewGetUrl = () => {
 
 
@@ -9208,9 +7699,9 @@ export const getWorkspaceOverviewGetUrl = () => {
 /**
  * @summary Get workspace overview
  */
-export const workspaceOverviewGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<workspaceOverviewGetResponse> => {
+export const workspaceOverviewGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<WorkspaceOverview> => {
 
-  return customFetch<workspaceOverviewGetResponse>(getWorkspaceOverviewGetUrl(),
+  return customFetch<WorkspaceOverview>(getWorkspaceOverviewGetUrl(),
   {
     ...options,
     method: 'GET'

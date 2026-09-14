@@ -76,7 +76,7 @@
       "type": "parameter",
       "datatype": "bool",
       "description": "Include local and S3-compatible object storage adapters.",
-      "defaultValue": "false"
+      "defaultValue": "true"
     },
     "documents": {
       "type": "parameter",
@@ -172,10 +172,6 @@
         {
           "condition": "(!email)",
           "exclude": ["src/Common/Trykatch.Infrastructure/Optional/Email/**"]
-        },
-        {
-          "condition": "(!storage)",
-          "exclude": ["src/Common/Trykatch.Infrastructure/Optional/Storage/**"]
         },
         {
           "condition": "(!documents)",

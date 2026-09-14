@@ -38,3 +38,16 @@ test('rejects mutating tools without human confirmation', () => {
   const declaration = { name: 'trykatch_create_thing', description: 'Create a thing.', risk: 'mutating', requiresHumanConfirmation: false }
   assert.throws(() => buildAssistantContract(specification('post', declaration)), /must require human confirmation/)
 })
+
+test('rejects multipart assistant tools until file references are supported', () => {
+  const declaration = { name: 'trykatch_upload_thing', description: 'Upload a thing.', risk: 'mutating', requiresHumanConfirmation: true }
+  const openApi = specification('post', declaration)
+  openApi.paths['/api/v1/things'].post.requestBody = {
+    content: { 'multipart/form-data': { schema: { type: 'object' } } },
+  }
+
+  assert.throws(
+    () => buildAssistantContract(openApi),
+    /cannot target multipart\/form-data until file references are supported/,
+  )
+})

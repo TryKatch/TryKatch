@@ -13,8 +13,8 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
     public string ModuleId => Descriptor.Id;
 
     public ModuleDescriptor Descriptor { get; } = new(
-        "documents", "Documents", "1.0.0",
-        "Organization-owned document records supplied by an independently packaged full-stack module.",
+        "documents", "Documents", "1.1.0",
+        "Organization-isolated file uploads backed by private S3-compatible object storage.",
         ["projects"], [],
         ModuleCapabilities.Api | ModuleCapabilities.Web | ModuleCapabilities.Data
             | ModuleCapabilities.BackgroundWork | ModuleCapabilities.Assistant,
@@ -29,13 +29,12 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
         Permissions =
         [
             new("documents.read", "View documents", "View documents in the current workspace.", DefaultRoles: ["admin", "member", "viewer"]),
-            new("documents.manage", "Manage documents", "Create, edit, archive, restore, and request deletion of documents in the current workspace.", true, 20, ["admin", "member"])
+            new("documents.manage", "Manage documents", "Upload, edit metadata, archive, restore, and request deletion of documents in the current workspace.", true, 20, ["admin", "member"])
         ],
         AssistantTools =
         [
             new("try" + "katch_list_documents", "Documents_List", "List documents in the current workspace.", AssistantToolRisk.ReadOnly, false),
-            new("try" + "katch_create_document", "Documents_Create", "Create a document record in the current workspace.", AssistantToolRisk.Mutating, true),
-            new("try" + "katch_update_document", "Documents_Update", "Update document content in the current workspace.", AssistantToolRisk.Mutating, true)
+            new("try" + "katch_update_document", "Documents_Update", "Update document metadata in the current workspace.", AssistantToolRisk.Mutating, true)
         ]
     };
 
@@ -67,6 +66,17 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
               ADD COLUMN "DeletedAt" timestamp with time zone NULL,
               ADD COLUMN "DeletedBy" uuid NULL,
               ADD COLUMN "DeletionReason" character varying(500) NULL;
+            """),
+        new("202609141200_object_storage", """
+            ALTER TABLE app.documents
+              ADD COLUMN "FileName" character varying(255) NULL,
+              ADD COLUMN "MediaType" character varying(127) NULL,
+              ADD COLUMN "SizeBytes" bigint NULL,
+              ADD COLUMN "Sha256" character(64) NULL,
+              ADD COLUMN "ObjectKey" character varying(500) NULL;
+            CREATE UNIQUE INDEX "IX_documents_OrganizationId_ObjectKey"
+              ON app.documents ("OrganizationId", "ObjectKey")
+              WHERE "ObjectKey" IS NOT NULL;
             """)
     ];
 

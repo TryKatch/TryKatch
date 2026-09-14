@@ -102,7 +102,7 @@ internal sealed class OrganizationAdministrationStore(OrganizationControlPlaneDb
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 
-    private static IQueryable<T> ApplyLifecycle<T>(IQueryable<T> query, RecordLifecycleFilter lifecycle) where T : Trykatch.Domain.Common.RecoverableEntity =>
+    private static IQueryable<T> ApplyLifecycle<T>(IQueryable<T> query, RecordLifecycleFilter lifecycle) where T : global::Trykatch.Domain.Common.RecoverableEntity =>
         lifecycle switch
         {
             RecordLifecycleFilter.Active => query.Where(x => x.ArchivedAt == null && x.DeletedAt == null),

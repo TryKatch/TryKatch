@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const generatedDirectory = fileURLToPath(new URL('../src/generated/', import.meta.url))
+const generatedFormFileAlias = 'export type IFormFile = Blob;'
 
 async function normalize(directory) {
   for (const entry of await readdir(directory)) {
@@ -14,7 +15,15 @@ async function normalize(directory) {
 
     if (!path.endsWith('.ts')) continue
     const source = await readFile(path, 'utf8')
-    const normalized = `${source.trimEnd()}\n`
+    let content = source
+    if (entry === 'iFormFile.ts') {
+      if (!content.includes(generatedFormFileAlias)) {
+        throw new Error('Generated IFormFile contract no longer has the expected Blob alias.')
+      }
+      content = content.replace(generatedFormFileAlias, 'export type IFormFile = File;')
+    }
+
+    const normalized = `${content.trimEnd()}\n`
     if (source !== normalized) await writeFile(path, normalized)
   }
 }

@@ -30,6 +30,7 @@ using Trykatch.Infrastructure.Modules;
 using Trykatch.Infrastructure.Organizations;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
+using Trykatch.Modules.AspNetCore;
 using Trykatch.Modules.Documents.Infrastructure;
 using Trykatch.Modules.Projects.Infrastructure;
 
@@ -192,6 +193,22 @@ public sealed class AuditIntentAtomicityTests
         database.WasFailureReached(failure).ShouldBeTrue($"The injected {failure} seam was not reached.");
         (await database.CountRolesNamedAsync("Atomic pipeline role")).ShouldBe(0);
         (await database.CountIntentsNamedAsync("Atomic pipeline role")).ShouldBe(0);
+    }
+
+    [TestMethod]
+    public async Task ConfirmedPostgresCommitRejectionCompensatesAnExternalUpload()
+    {
+        await using AuditDatabase database = await AuditDatabase.StartAsync();
+        AdministrationActor actor = await database.SeedAdministrationActorAsync();
+        await database.InstallFailureAsync("commit");
+        using IHost host = await database.StartAdministrationHostAsync(actor);
+        using HttpClient client = host.GetTestClient();
+
+        using HttpResponseMessage response = await client.PostAsync("/test/upload", content: null);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        response.Headers.GetValues("X-Test-SqlState").Single().ShouldBe(PostgresErrorCodes.ForeignKeyViolation);
+        database.UploadExists.ShouldBeFalse();
     }
 
     [TestMethod]
@@ -387,10 +404,12 @@ public sealed class AuditIntentAtomicityTests
         string outboxConnection) : IAsyncDisposable
     {
         private readonly ConcurrentDictionary<string, byte> reachedFailures = new(StringComparer.Ordinal);
+        private readonly RecordingObjectStorage objectStorage = new();
         public string OwnerConnection => ownerConnection;
         public string OrganizationConnection => organizationConnection;
         public string PlatformConnection => platformConnection;
         public string OutboxConnection => outboxConnection;
+        public bool UploadExists => objectStorage.Exists("organizations/test/documents/commit-rejection");
 
         public async Task<AdministrationActor> SeedAdministrationActorAsync()
         {
@@ -428,6 +447,11 @@ public sealed class AuditIntentAtomicityTests
                         services.AddApplication();
                         services.AddModules(context.Configuration, [new ProjectsModule(), new DocumentsModule()]);
                         services.AddInfrastructure(context.Configuration);
+                        foreach (ServiceDescriptor storage in services
+                                     .Where(descriptor => descriptor.ServiceType == typeof(IObjectStorage))
+                                     .ToArray())
+                            services.Remove(storage);
+                        services.AddSingleton<IObjectStorage>(objectStorage);
                         foreach (ServiceDescriptor hostedService in services.Where(descriptor =>
                                      descriptor.ServiceType == typeof(IHostedService)
                                      && descriptor.ImplementationType is Type implementation
@@ -436,6 +460,9 @@ public sealed class AuditIntentAtomicityTests
                             services.Remove(hostedService);
                         services.AddSingleton<IUserDirectory, UnusedUserDirectory>();
                         services.AddSingleton<IWorkspaceContextCookie, UnusedWorkspaceCookie>();
+                        services.AddScoped<ModuleTransactionCompensation>();
+                        services.AddScoped<IModuleTransactionCompensation>(provider =>
+                            provider.GetRequiredService<ModuleTransactionCompensation>());
                         services.AddSingleton<IOptions<AtomicMutationResponseOptions>>(
                             Options.Create(new AtomicMutationResponseOptions { MaximumBytes = 4096 }));
                     })
@@ -486,6 +513,28 @@ public sealed class AuditIntentAtomicityTests
                             context.Response.Headers.Append("X-Atomic-Success", "true");
                             await context.Response.StartAsync();
                             await context.Response.WriteAsJsonAsync(new { id = result.Value!.Id, name = result.Value.Name }, CancellationToken.None);
+                        }).WithMetadata(new OrganizationScopedAttribute()));
+                        app.UseEndpoints(endpoints => endpoints.MapPost("/test/upload", async context =>
+                        {
+                            const string objectKey = "organizations/test/documents/commit-rejection";
+                            IObjectStorage storage = context.RequestServices.GetRequiredService<IObjectStorage>();
+                            await using MemoryStream content = new("upload"u8.ToArray());
+                            await storage.PutAsync(
+                                objectKey,
+                                content,
+                                content.Length,
+                                "text/plain",
+                                context.RequestAborted);
+                            context.RequestServices.GetRequiredService<IModuleTransactionCompensation>()
+                                .EnlistRollback(cancellationToken => storage.DeleteAsync(objectKey, cancellationToken));
+                            OrganizationControlPlaneDbContext control = context.RequestServices
+                                .GetRequiredService<OrganizationControlPlaneDbContext>();
+                            await control.Database.ExecuteSqlInterpolatedAsync($"""
+                                INSERT INTO platform.test_deferred_commit ("Id", "ParentId")
+                                VALUES ({Guid.CreateVersion7()}, {Guid.CreateVersion7()})
+                                """, context.RequestAborted);
+                            context.Response.StatusCode = StatusCodes.Status201Created;
+                            await context.Response.WriteAsJsonAsync(new { uploaded = true }, context.RequestAborted);
                         }).WithMetadata(new OrganizationScopedAttribute()));
                     }))
                 .StartAsync();
@@ -613,5 +662,39 @@ public sealed class AuditIntentAtomicityTests
         public bool TryRead(HttpContext context, out Guid organizationId) { organizationId = Guid.Empty; return false; }
         public void Write(HttpContext context, Guid organizationId, bool persistent) => throw new NotSupportedException();
         public void Clear(HttpContext context) => throw new NotSupportedException();
+    }
+
+    private sealed class RecordingObjectStorage : IObjectStorage
+    {
+        private readonly ConcurrentDictionary<string, byte[]> objects = new(StringComparer.Ordinal);
+
+        public async Task PutAsync(
+            string key,
+            Stream content,
+            long contentLength,
+            string contentType,
+            CancellationToken cancellationToken = default)
+        {
+            _ = contentLength;
+            _ = contentType;
+            using MemoryStream copy = new();
+            await content.CopyToAsync(copy, cancellationToken);
+            objects[key] = copy.ToArray();
+        }
+
+        public Task<Stream> GetAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Stream>(new MemoryStream(objects[key], writable: false));
+        }
+
+        public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            objects.TryRemove(key, out _);
+            return Task.CompletedTask;
+        }
+
+        public bool Exists(string key) => objects.ContainsKey(key);
     }
 }

@@ -140,6 +140,86 @@ public sealed class ModuleProjectGraphTests
             $"{relativePath} should only orchestrate host composition; move setup details behind cohesive hosting extensions.");
     }
 
+    [TestMethod]
+    public void PersistentDevelopmentPostgresUsesAnExplicitAdminPasswordParameter()
+    {
+        string path = Path.Combine(Workspace, "src/API/Trykatch.AppHost/ApplicationHostingExtensions.cs");
+        string source = File.ReadAllText(path);
+
+        source.ShouldContain("builder.AddParameter(\"postgres-admin-password\", \"local-postgres-admin-only\", secret: true)");
+        source.ShouldContain(".AddPostgres(\"postgres\", password: postgresAdminPassword)");
+    }
+
+    [TestMethod]
+    public void DefaultCatalogExposesDistinctProjectAndDocumentReferenceModules()
+    {
+        using JsonDocument catalog = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(Workspace, "trykatch.modules.json")));
+        Dictionary<string, bool> moduleStates = catalog.RootElement.GetProperty("modules")
+            .EnumerateArray()
+            .ToDictionary(
+                module => module.GetProperty("id").GetString()!,
+                module => module.GetProperty("enabled").GetBoolean(),
+                StringComparer.Ordinal);
+
+        moduleStates["projects"].ShouldBeTrue();
+        moduleStates["documents"].ShouldBeTrue(
+            "Documents demonstrates organization-isolated object storage rather than duplicating Projects CRUD.");
+
+        string appHost = File.ReadAllText(Path.Combine(
+            Workspace,
+            "src/API/Trykatch.AppHost/ApplicationHostingExtensions.cs"));
+        appHost.ShouldContain("quay.io/minio/minio");
+        appHost.ShouldContain("Storage__ServiceUrl");
+        appHost.ShouldContain("WithHttpHealthCheck(\"/minio/health/ready\", endpointName: \"s3\")");
+
+        string endpoints = File.ReadAllText(Path.Combine(
+            Workspace,
+            "src/Modules/Documents/Trykatch.Modules.Documents.Presentation/DocumentsEndpoints.cs"));
+        endpoints.ShouldContain("Documents_Upload");
+        endpoints.ShouldContain("Documents_Download");
+    }
+
+    [TestMethod]
+    public void DocumentUploadOpenApiPublishesAMultipartContractAndSample()
+    {
+        using JsonDocument openApi = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            Workspace, "web/packages/api-client/openapi/Trykatch.Api.json")));
+        JsonElement upload = openApi.RootElement.GetProperty("paths")
+            .GetProperty("/api/v1/documents")
+            .GetProperty("post");
+
+        upload.GetProperty("requestBody").GetProperty("content")
+            .TryGetProperty("multipart/form-data", out _).ShouldBeTrue();
+        upload.TryGetProperty("x-trykatch-assistant-tool", out _).ShouldBeFalse(
+            "multipart uploads are not assistant tools until the adapter supports secure file references");
+        string sample = upload.GetProperty("x-codeSamples")[0].GetProperty("source").GetString()!;
+        sample.ShouldContain("new FormData(uploadForm)");
+        sample.ShouldContain("body: formData");
+        sample.ShouldNotContain("'Content-Type': 'application/json'");
+    }
+
+    [TestMethod]
+    public void DocumentDownloadOpenApiPublishesABinaryContractAndSample()
+    {
+        using JsonDocument openApi = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            Workspace, "web/packages/api-client/openapi/Trykatch.Api.json")));
+        JsonElement download = openApi.RootElement.GetProperty("paths")
+            .GetProperty("/api/v1/documents/{id}/content")
+            .GetProperty("get");
+
+        JsonElement binary = download.GetProperty("responses").GetProperty("200")
+            .GetProperty("content").GetProperty("application/octet-stream")
+            .GetProperty("schema");
+        binary.GetProperty("type").GetString().ShouldBe("string");
+        binary.GetProperty("format").GetString().ShouldBe("binary");
+
+        string sample = download.GetProperty("x-codeSamples")[0].GetProperty("source").GetString()!;
+        sample.ShouldContain("Accept: 'application/octet-stream'");
+        sample.ShouldContain("await response.blob()");
+        sample.ShouldNotContain("await response.json()");
+    }
+
     private static string[] DiscoverModules(string root) => Directory
         .EnumerateFiles(Path.Combine(root, "src", "Modules"), "trykatch.module.json", SearchOption.AllDirectories)
         .Select(path => Directory.GetParent(path)!.Name)

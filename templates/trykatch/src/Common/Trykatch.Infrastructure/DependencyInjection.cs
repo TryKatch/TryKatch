@@ -8,6 +8,7 @@ using Trykatch.Infrastructure.Organizations;
 using Trykatch.Infrastructure.Identity;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Infrastructure.Overview;
+using Trykatch.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,9 +18,6 @@ using Trykatch.Modules;
 using Trykatch.Infrastructure.Modules;
 #if TRYKATCH_EMAIL
 using Trykatch.Infrastructure.Modules.Email;
-#endif
-#if TRYKATCH_STORAGE
-using Trykatch.Infrastructure.Modules.Storage;
 #endif
 
 namespace Trykatch.Infrastructure;
@@ -94,9 +92,7 @@ public static class DependencyInjection
         services.AddSingleton<IAccountRecoveryNotifier, NoOpAccountRecoveryNotifier>();
         services.AddSingleton<IInvitationNotifier, NoOpInvitationNotifier>();
 #endif
-#if TRYKATCH_STORAGE
         services.AddStorageModule(configuration);
-#endif
         return services;
     }
 }

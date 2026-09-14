@@ -302,20 +302,22 @@ export function DataTable<T>({
     <div className="data-table-toolbar">
       {searchable && <label className="data-table-search" htmlFor={searchId}><span aria-hidden="true">⌕</span><span className="sr-only">{labels.searchTable}</span><input id={searchId} type="search" value={search} placeholder={searchPlaceholder} onChange={(event) => { setSearch(event.target.value); setPage(1); setExpandedRowId(undefined) }} /></label>}
       {toolbar && <div className="data-table-filters">{toolbar}</div>}
-      <span className="data-table-count" aria-live="polite">{rows.length} {rows.length === 1 ? labels.result : labels.results}</span>
-      <div className="data-table-menu" ref={settingsMenu}>
-        <button className="data-table-menu-trigger" type="button" aria-label={labels.tableSettings} aria-haspopup="dialog" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}>
-          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h2m4 0h10M4 18h7m4 0h5M14 4v4M8 10v4m5 2v4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          {labels.columns}
-        </button>
-        {settingsOpen && <div className="data-table-menu-panel" role="dialog" aria-label={labels.tableSettings}>
-          <div className="data-table-menu-heading"><strong>{labels.tableSettings}</strong><button type="button" aria-label={labels.closeTableSettings} onClick={() => setSettingsOpen(false)}>×</button></div>
-          <fieldset><legend>{labels.rowDensity}</legend><div className="density-options">{(['compact', 'comfortable', 'spacious'] as const).map((value) => <label key={value} className={density === value ? 'selected' : ''}><input type="radio" name={`${searchId}-density`} checked={density === value} onChange={() => setDensity(value)} /><span>{labels[value]}</span></label>)}</div></fieldset>
-          <fieldset><legend>{labels.columns}</legend><div className="column-options">{columns.map((column) => {
-            const required = column.hideable === false
-            return <label key={column.id} className={required ? 'is-required' : ''}><input type="checkbox" aria-label={`${column.header}${required ? ` (${labels.required.toLocaleLowerCase()})` : ''}`} checked={visibleColumns.has(column.id)} disabled={required} onChange={() => toggleColumn(column)} /><span>{column.header}</span>{required && <small>{labels.required}</small>}</label>
-          })}</div></fieldset>
-        </div>}
+      <div className="data-table-actions">
+        <span className="data-table-count" aria-live="polite">{rows.length} {rows.length === 1 ? labels.result : labels.results}</span>
+        <div className="data-table-menu" ref={settingsMenu}>
+          <button className="data-table-menu-trigger" type="button" aria-label={labels.tableSettings} aria-haspopup="dialog" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}>
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h2m4 0h10M4 18h7m4 0h5M14 4v4M8 10v4m5 2v4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            {labels.columns}
+          </button>
+          {settingsOpen && <div className="data-table-menu-panel" role="dialog" aria-label={labels.tableSettings}>
+            <div className="data-table-menu-heading"><strong>{labels.tableSettings}</strong><button type="button" aria-label={labels.closeTableSettings} onClick={() => setSettingsOpen(false)}>×</button></div>
+            <fieldset><legend>{labels.rowDensity}</legend><div className="density-options">{(['compact', 'comfortable', 'spacious'] as const).map((value) => <label key={value} className={density === value ? 'selected' : ''}><input type="radio" name={`${searchId}-density`} checked={density === value} onChange={() => setDensity(value)} /><span>{labels[value]}</span></label>)}</div></fieldset>
+            <fieldset><legend>{labels.columns}</legend><div className="column-options">{columns.map((column) => {
+              const required = column.hideable === false
+              return <label key={column.id} className={required ? 'is-required' : ''}><input type="checkbox" aria-label={`${column.header}${required ? ` (${labels.required.toLocaleLowerCase()})` : ''}`} checked={visibleColumns.has(column.id)} disabled={required} onChange={() => toggleColumn(column)} /><span>{column.header}</span>{required && <small>{labels.required}</small>}</label>
+            })}</div></fieldset>
+          </div>}
+        </div>
       </div>
     </div>
     <div className="table-wrap"><table aria-label={ariaLabel}><thead><tr>{renderExpandedRow && <th className="data-table-disclosure-heading"><span className="sr-only">{labels.details}</span></th>}{displayedColumns.map((column) => <th key={column.id} style={{ width: column.width }} className={column.align === 'right' ? 'is-right' : undefined} aria-sort={sort?.id === column.id ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}>{column.sortValue ? <button type="button" onClick={() => changeSort(column)}>{column.header}<span aria-hidden="true">{sort?.id === column.id ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button> : column.header}</th>)}</tr></thead><tbody>{visibleRows.map((row) => {

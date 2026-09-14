@@ -11,7 +11,7 @@ public sealed class DocumentsModuleTests
     {
         Guid actorId = Guid.CreateVersion7();
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        DocumentRecord document = DocumentRecord.Create(Guid.CreateVersion7(), actorId, "Plan", "First", now);
+        DocumentRecord document = CreateDocument(actorId, "Plan", "First", now);
 
         Should.Throw<InvalidOperationException>(() =>
             document.RequestDeletion(actorId, "No longer needed", now.AddMinutes(1)));
@@ -26,18 +26,28 @@ public sealed class DocumentsModuleTests
     }
 
     [TestMethod]
-    public void DocumentContentUpdateChangesTypedMetadataTimestamp()
+    public void DocumentMetadataUpdateChangesTypedMetadataTimestamp()
     {
         DateTimeOffset createdAt = DateTimeOffset.UtcNow;
         DateTimeOffset updatedAt = createdAt.AddMinutes(5);
-        DocumentRecord document = DocumentRecord.Create(
-            Guid.CreateVersion7(), Guid.CreateVersion7(), "Plan", "First", createdAt);
+        DocumentRecord document = CreateDocument(
+            Guid.CreateVersion7(), "Plan", "First", createdAt);
 
-        document.Update("Revised plan", "Second version", updatedAt);
+        document.UpdateMetadata("Revised plan", "Second version", updatedAt);
 
         document.Title.ShouldBe("Revised plan");
-        document.Content.ShouldBe("Second version");
+        document.Description.ShouldBe("Second version");
         document.UpdatedAt.ShouldBe(updatedAt);
+    }
+
+    [TestMethod]
+    public void UploadPolicyRejectsAPathWithoutAFileName()
+    {
+        using MemoryStream content = new([1]);
+        string? error = DocumentUploadPolicy.Validate(new(
+            "Runbook", null, "../../", "application/pdf", content.Length, new string('A', 64), content));
+
+        error.ShouldBe("File name is required and cannot exceed 255 characters.");
     }
 
     [TestMethod]
@@ -45,10 +55,14 @@ public sealed class DocumentsModuleTests
     {
         RecordingModuleData data = new();
         RecordingDocumentStore store = new();
-        DocumentsUseCases useCases = new(store, data, new DeniedAuthorizer(), TimeProvider.System);
+        DocumentsUseCases useCases = new(
+            store, new RecordingObjectStorage(), new RecordingTransactionCompensation(),
+            data, new DeniedAuthorizer(), TimeProvider.System);
 
-        DocumentOperationResult<DocumentDto> result = await useCases.CreateAsync(
-            new("Blocked", "content"), CancellationToken.None);
+        await using MemoryStream content = new([1, 2, 3]);
+        DocumentOperationResult<DocumentDto> result = await useCases.UploadAsync(
+            new("Blocked", "content", "blocked.pdf", "application/pdf", content.Length,
+                new string('A', 64), content), CancellationToken.None);
 
         result.IsSuccess.ShouldBeFalse();
         result.Code.ShouldBe("forbidden");
@@ -56,10 +70,76 @@ public sealed class DocumentsModuleTests
         store.Saves.ShouldBe(0);
     }
 
+    [TestMethod]
+    public async Task UploadRemovesTheObjectWhenMetadataPersistenceFails()
+    {
+        RecordingModuleData data = new();
+        RecordingDocumentStore store = new() { FailOnSave = true };
+        RecordingObjectStorage storage = new();
+        DocumentsUseCases useCases = new(
+            store, storage, new RecordingTransactionCompensation(),
+            data, new AllowedAuthorizer(), TimeProvider.System);
+
+        await using MemoryStream content = new([1, 2, 3]);
+        await Should.ThrowAsync<InvalidOperationException>(() => useCases.UploadAsync(
+            new("Runbook", "Recovery steps", "../../runbook.pdf", "application/pdf", content.Length,
+                new string('A', 64), content), CancellationToken.None));
+
+        storage.Puts.ShouldBe(1);
+        storage.Deletes.ShouldBe(1);
+        storage.LastKey.ShouldStartWith($"organizations/{data.OrganizationId:N}/documents/");
+        storage.LastKey.ShouldNotContain("runbook.pdf");
+    }
+
+    [TestMethod]
+    public async Task UploadRemovesTheObjectWhenTheRequestTransactionRollsBack()
+    {
+        RecordingModuleData data = new();
+        RecordingDocumentStore store = new();
+        RecordingObjectStorage storage = new();
+        RecordingTransactionCompensation compensation = new();
+        DocumentsUseCases useCases = new(
+            store, storage, compensation, data, new AllowedAuthorizer(), TimeProvider.System);
+
+        await using MemoryStream content = new([1, 2, 3]);
+        DocumentOperationResult<DocumentDto> result = await useCases.UploadAsync(
+            new("Runbook", "Recovery steps", "runbook.pdf", "application/pdf", content.Length,
+                new string('A', 64), content), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        storage.Deletes.ShouldBe(0);
+        await compensation.RollbackAsync();
+        storage.Deletes.ShouldBe(1);
+    }
+
+    private static DocumentRecord CreateDocument(
+        Guid actorId,
+        string title,
+        string description,
+        DateTimeOffset now) =>
+        DocumentRecord.CreateUpload(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            actorId,
+            title,
+            description,
+            "document.pdf",
+            "application/pdf",
+            3,
+            new string('A', 64),
+            $"organizations/test/documents/{Guid.CreateVersion7():N}",
+            now);
+
     private sealed class DeniedAuthorizer : IModulePermissionAuthorizer
     {
         public Task<bool> HasPermissionAsync(string permission, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+    }
+
+    private sealed class AllowedAuthorizer : IModulePermissionAuthorizer
+    {
+        public Task<bool> HasPermissionAsync(string permission, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
     }
 
     private sealed class RecordingModuleData : IOrganizationModuleData
@@ -75,10 +155,48 @@ public sealed class DocumentsModuleTests
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
+    private sealed class RecordingObjectStorage : IObjectStorage
+    {
+        public int Puts { get; private set; }
+        public int Deletes { get; private set; }
+        public string LastKey { get; private set; } = string.Empty;
+
+        public Task PutAsync(string key, Stream content, long contentLength, string contentType,
+            CancellationToken cancellationToken = default)
+        {
+            Puts++;
+            LastKey = key;
+            return Task.CompletedTask;
+        }
+        public Task<Stream> GetAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Stream>(new MemoryStream());
+        public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
+        {
+            Deletes++;
+            LastKey = key;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingTransactionCompensation : IModuleTransactionCompensation
+    {
+        private readonly List<Func<CancellationToken, Task>> callbacks = [];
+
+        public void EnlistRollback(Func<CancellationToken, Task> compensation) => callbacks.Add(compensation);
+
+        public async Task RollbackAsync()
+        {
+            foreach (Func<CancellationToken, Task> callback in callbacks.AsEnumerable().Reverse())
+                await callback(CancellationToken.None);
+            callbacks.Clear();
+        }
+    }
+
     private sealed class RecordingDocumentStore : IDocumentStore
     {
         public int Added { get; private set; }
         public int Saves { get; private set; }
+        public bool FailOnSave { get; init; }
 
         public Task<IReadOnlyList<DocumentRecord>> ListAsync(
             DocumentQueryScope scope,
@@ -96,6 +214,7 @@ public sealed class DocumentsModuleTests
         public Task SaveChangesAsync(CancellationToken cancellationToken)
         {
             Saves++;
+            if (FailOnSave) throw new InvalidOperationException("metadata persistence failed");
             return Task.CompletedTask;
         }
     }

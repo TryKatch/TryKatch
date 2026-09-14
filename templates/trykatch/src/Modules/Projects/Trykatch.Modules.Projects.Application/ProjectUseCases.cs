@@ -96,7 +96,7 @@ public sealed class ProjectUseCases(
             return Result.Failure<ProjectDto>("not_found", "Project was not found.");
         }
 
-        if (project.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Active)
+        if (project.LifecycleState != global::Trykatch.Domain.Common.RecordLifecycleState.Active)
             return Result.Failure<ProjectDto>("conflict", "Restore the project before editing it.");
 
         project.Update(command.Name, command.Description);
@@ -146,7 +146,7 @@ public sealed class ProjectUseCases(
             return Result.Failure<bool>("forbidden", "Projects cannot be changed by this membership.");
         Project? project = await store.FindAsync(context.OrganizationId, projectId, cancellationToken);
         if (project is null) return Result.Failure<bool>("not_found", "Project was not found.");
-        if (project.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Archived)
+        if (project.LifecycleState != global::Trykatch.Domain.Common.RecordLifecycleState.Archived)
             return Result.Failure<bool>("conflict", "Archive the project before requesting deletion.");
         string? validationError = RecordLifecycle.ValidateDeletionReason(command.Reason);
         if (validationError is not null) return Result.Failure<bool>("validation", validationError);

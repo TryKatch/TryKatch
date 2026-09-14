@@ -6,11 +6,4 @@
  * OpenAPI spec version: v1
  */
 
-export interface DocumentMetadataDto {
-  /** @nullable */
-  updatedAt: string | null;
-  mediaType: string;
-  /** @pattern ^-?(?:0|[1-9]\d*)$ */
-  sizeBytes: number | string;
-  sha256: string;
-}
+export type IFormFile = File;

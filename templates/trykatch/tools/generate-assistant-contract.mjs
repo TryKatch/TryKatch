@@ -24,7 +24,7 @@ export function buildAssistantContract(openApi) {
     const declaration = entry.operation['x-trykatch-assistant-tool']
     if (!declaration) continue
 
-    validateDeclaration(declaration, operationId, entry.method)
+    validateDeclaration(declaration, operationId, entry.method, entry.operation)
     const parameters = buildStrictParameters(entry.operation.parameters ?? [])
     tools.push({
       type: 'function',
@@ -65,7 +65,7 @@ export function buildAssistantContract(openApi) {
   }
 }
 
-function validateDeclaration(declaration, operationId, method) {
+function validateDeclaration(declaration, operationId, method, operation) {
   if (!/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/.test(declaration.name ?? '')) {
     throw new Error(`Assistant tool on '${operationId}' has an invalid name.`)
   }
@@ -78,6 +78,11 @@ function validateDeclaration(declaration, operationId, method) {
   }
   if (declaration.risk !== 'read-only' && declaration.requiresHumanConfirmation !== true) {
     throw new Error(`State-changing assistant tool '${declaration.name}' must require human confirmation.`)
+  }
+  if (operation.requestBody?.content?.['multipart/form-data']) {
+    throw new Error(
+      `Assistant tool '${declaration.name}' cannot target multipart/form-data until file references are supported.`,
+    )
   }
 }
 
