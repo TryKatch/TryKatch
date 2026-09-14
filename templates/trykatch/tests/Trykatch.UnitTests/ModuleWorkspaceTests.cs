@@ -385,6 +385,32 @@ public sealed class ModuleWorkspaceTests
     }
 
     [TestMethod]
+    public void InstallCancellationStopsRestoreAndRollsBackEveryWorkspaceFile()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        ModuleWorkspace baseline = new(temporary.Root);
+        baseline.Generate().IsHealthy.ShouldBeTrue();
+        string candidatePath = temporary.WritePackageManifest("reporting", "1.0.0");
+        string catalogPath = Path.Combine(temporary.Root, "try" + "katch.modules.json");
+        string packagesPath = Path.Combine(temporary.Root, "Directory.Packages.props");
+        string catalogBefore = File.ReadAllText(catalogPath);
+        string packagesBefore = File.ReadAllText(packagesPath);
+        using CancellationTokenSource cancellation = new();
+
+        Should.Throw<OperationCanceledException>(() =>
+            new ModuleWorkspace(temporary.Root, new CancelingCommandRunner(cancellation))
+                .InstallPackage(candidatePath, Sha256(candidatePath), cancellation.Token));
+
+        File.ReadAllText(catalogPath).ShouldBe(catalogBefore);
+        File.ReadAllText(packagesPath).ShouldBe(packagesBefore);
+        Directory.EnumerateFiles(
+            Path.Combine(temporary.Root, ".trykatch/modules/reporting"),
+            "*",
+            SearchOption.AllDirectories).ShouldBeEmpty();
+        new ModuleWorkspace(temporary.Root).Inspect().IsHealthy.ShouldBeTrue();
+    }
+
+    [TestMethod]
     public void UpgradeRequiresAForwardVersionAndKeepsPackageIdentityStable()
     {
         using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
@@ -1114,6 +1140,22 @@ public sealed class ModuleWorkspaceTests
                 }
             }
             return new(0, "ok");
+        }
+    }
+
+    private sealed class CancelingCommandRunner(CancellationTokenSource cancellation) : IWorkspaceCommandRunner
+    {
+        private readonly RecordingCommandRunner inner = new();
+
+        public WorkspaceCommandResult Run(
+            string fileName,
+            IReadOnlyList<string> arguments,
+            string workingDirectory)
+        {
+            WorkspaceCommandResult result = inner.Run(fileName, arguments, workingDirectory);
+            if (fileName == "dotnet" && arguments.Count > 0 && arguments[0] == "restore")
+                cancellation.Cancel();
+            return result;
         }
     }
 

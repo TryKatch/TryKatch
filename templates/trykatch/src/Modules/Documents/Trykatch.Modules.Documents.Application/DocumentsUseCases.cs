@@ -95,6 +95,7 @@ public interface IDocumentStore
 public sealed class DocumentsUseCases(
     IDocumentStore store,
     IObjectStorage objectStorage,
+    IModuleTransactionCompensation transactionCompensation,
     IOrganizationModuleData context,
     IModulePermissionAuthorizer authorizer,
     TimeProvider timeProvider)
@@ -136,6 +137,8 @@ public sealed class DocumentsUseCases(
             store.Add(document);
             RecordChange(document, "uploaded");
             await store.SaveChangesAsync(cancellationToken);
+            transactionCompensation.EnlistRollback(
+                compensationToken => objectStorage.DeleteAsync(objectKey, compensationToken));
         }
         catch
         {

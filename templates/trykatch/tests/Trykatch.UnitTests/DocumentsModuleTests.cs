@@ -55,7 +55,9 @@ public sealed class DocumentsModuleTests
     {
         RecordingModuleData data = new();
         RecordingDocumentStore store = new();
-        DocumentsUseCases useCases = new(store, new RecordingObjectStorage(), data, new DeniedAuthorizer(), TimeProvider.System);
+        DocumentsUseCases useCases = new(
+            store, new RecordingObjectStorage(), new RecordingTransactionCompensation(),
+            data, new DeniedAuthorizer(), TimeProvider.System);
 
         await using MemoryStream content = new([1, 2, 3]);
         DocumentOperationResult<DocumentDto> result = await useCases.UploadAsync(
@@ -74,7 +76,9 @@ public sealed class DocumentsModuleTests
         RecordingModuleData data = new();
         RecordingDocumentStore store = new() { FailOnSave = true };
         RecordingObjectStorage storage = new();
-        DocumentsUseCases useCases = new(store, storage, data, new AllowedAuthorizer(), TimeProvider.System);
+        DocumentsUseCases useCases = new(
+            store, storage, new RecordingTransactionCompensation(),
+            data, new AllowedAuthorizer(), TimeProvider.System);
 
         await using MemoryStream content = new([1, 2, 3]);
         await Should.ThrowAsync<InvalidOperationException>(() => useCases.UploadAsync(
@@ -85,6 +89,27 @@ public sealed class DocumentsModuleTests
         storage.Deletes.ShouldBe(1);
         storage.LastKey.ShouldStartWith($"organizations/{data.OrganizationId:N}/documents/");
         storage.LastKey.ShouldNotContain("runbook.pdf");
+    }
+
+    [TestMethod]
+    public async Task UploadRemovesTheObjectWhenTheRequestTransactionRollsBack()
+    {
+        RecordingModuleData data = new();
+        RecordingDocumentStore store = new();
+        RecordingObjectStorage storage = new();
+        RecordingTransactionCompensation compensation = new();
+        DocumentsUseCases useCases = new(
+            store, storage, compensation, data, new AllowedAuthorizer(), TimeProvider.System);
+
+        await using MemoryStream content = new([1, 2, 3]);
+        DocumentOperationResult<DocumentDto> result = await useCases.UploadAsync(
+            new("Runbook", "Recovery steps", "runbook.pdf", "application/pdf", content.Length,
+                new string('A', 64), content), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        storage.Deletes.ShouldBe(0);
+        await compensation.RollbackAsync();
+        storage.Deletes.ShouldBe(1);
     }
 
     private static DocumentRecord CreateDocument(
@@ -150,6 +175,20 @@ public sealed class DocumentsModuleTests
             Deletes++;
             LastKey = key;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingTransactionCompensation : IModuleTransactionCompensation
+    {
+        private readonly List<Func<CancellationToken, Task>> callbacks = [];
+
+        public void EnlistRollback(Func<CancellationToken, Task> compensation) => callbacks.Add(compensation);
+
+        public async Task RollbackAsync()
+        {
+            foreach (Func<CancellationToken, Task> callback in callbacks.AsEnumerable().Reverse())
+                await callback(CancellationToken.None);
+            callbacks.Clear();
         }
     }
 

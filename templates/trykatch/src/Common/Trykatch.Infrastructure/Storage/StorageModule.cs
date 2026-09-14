@@ -58,15 +58,20 @@ internal sealed class S3ObjectStorage(IAmazonS3 client, IConfiguration configura
         try
         {
             if (bucketReady) return;
+            bool createBucket = string.Equals(
+                configuration["Storage:CreateBucket"],
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+            if (!createBucket)
+            {
+                // Production buckets are provisioned outside the application. Avoid
+                // requiring bucket-probe permissions on the runtime identity.
+                bucketReady = true;
+                return;
+            }
             bool exists = await AmazonS3Util.DoesS3BucketExistV2Async(client, Bucket);
             if (!exists)
             {
-                bool createBucket = string.Equals(
-                    configuration["Storage:CreateBucket"],
-                    "true",
-                    StringComparison.OrdinalIgnoreCase);
-                if (!createBucket)
-                    throw new InvalidOperationException($"Object-storage bucket '{Bucket}' does not exist.");
                 await client.PutBucketAsync(Bucket, cancellationToken);
             }
             bucketReady = true;
@@ -155,11 +160,11 @@ public static class StorageModule
                     AuthenticationRegion = configuration["Storage:Region"] ?? "us-east-1",
                     ForcePathStyle = true
                 }));
-            services.AddScoped<IObjectStorage, S3ObjectStorage>();
+            services.AddSingleton<IObjectStorage, S3ObjectStorage>();
             return services;
         }
 #endif
-        services.AddScoped<IObjectStorage, LocalObjectStorage>();
+        services.AddSingleton<IObjectStorage, LocalObjectStorage>();
         return services;
     }
 }

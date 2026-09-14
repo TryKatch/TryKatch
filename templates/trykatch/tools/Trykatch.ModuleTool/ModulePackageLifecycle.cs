@@ -8,9 +8,12 @@ namespace Trykatch.ModuleTool;
 
 public sealed partial class ModuleWorkspace
 {
-    public ModuleDoctorReport RegisterWorkspace(string manifestPath)
+    public ModuleDoctorReport RegisterWorkspace(
+        string manifestPath,
+        CancellationToken cancellationToken = default)
     {
-        using IDisposable mutationLock = AcquirePackageMutationLock();
+        using IDisposable mutationLock = AcquirePackageMutationLock(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
         string absolutePath = Path.GetFullPath(manifestPath, _root);
         string relativePath;
@@ -66,7 +69,11 @@ public sealed partial class ModuleWorkspace
             }
             WriteGeneratedRegistries(catalog, modules);
             WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, JsonOptions) + "\n");
-            RestorePackageGraphs(catalog, manifest.Capabilities.Contains("web", StringComparer.Ordinal));
+            RestorePackageGraphs(
+                catalog,
+                manifest.Capabilities.Contains("web", StringComparer.Ordinal),
+                cancellationToken: cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             packageLocks.Complete();
         }
         catch
@@ -77,9 +84,13 @@ public sealed partial class ModuleWorkspace
         return ToReport(modules, []);
     }
 
-    public ModuleDoctorReport InstallPackage(string manifestPath, string expectedSha256)
+    public ModuleDoctorReport InstallPackage(
+        string manifestPath,
+        string expectedSha256,
+        CancellationToken cancellationToken = default)
     {
-        using IDisposable mutationLock = AcquirePackageMutationLock();
+        using IDisposable mutationLock = AcquirePackageMutationLock(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         CandidatePackage candidate = ReadCandidatePackage(manifestPath, expectedSha256);
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
@@ -88,7 +99,7 @@ public sealed partial class ModuleWorkspace
         ValidateCatalog(catalog, errors);
         if (errors.Count > 0)
             return new([], errors);
-        VerifyCandidatePackage(catalog, candidate);
+        VerifyCandidatePackage(catalog, candidate, cancellationToken);
         if (catalog.Modules.Any(module => string.Equals(module.Id, candidate.Manifest.Id, StringComparison.Ordinal)))
             return new([], [$"Trykatch module '{candidate.Manifest.Id}' is already installed. Use 'module upgrade' for a package update."]);
         foreach (LoadedModule installed in LoadModules(catalog, errors))
@@ -108,12 +119,17 @@ public sealed partial class ModuleWorkspace
         };
         catalog.Modules.Add(registration);
 
-        return MutatePackageWorkspace(catalog, candidate, destination, previousManifestPath: null, remove: false);
+        return MutatePackageWorkspace(
+            catalog, candidate, destination, previousManifestPath: null, remove: false, cancellationToken);
     }
 
-    public ModuleDoctorReport UpgradePackage(string manifestPath, string expectedSha256)
+    public ModuleDoctorReport UpgradePackage(
+        string manifestPath,
+        string expectedSha256,
+        CancellationToken cancellationToken = default)
     {
-        using IDisposable mutationLock = AcquirePackageMutationLock();
+        using IDisposable mutationLock = AcquirePackageMutationLock(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         CandidatePackage candidate = ReadCandidatePackage(manifestPath, expectedSha256);
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
@@ -121,7 +137,7 @@ public sealed partial class ModuleWorkspace
             return new([], errors);
         ValidateCatalog(catalog, errors);
         if (errors.Count == 0)
-            VerifyCandidatePackage(catalog, candidate);
+            VerifyCandidatePackage(catalog, candidate, cancellationToken);
         List<LoadedModule> currentModules = LoadModules(catalog, errors);
         ValidateModules(catalog, currentModules, errors);
         if (errors.Count > 0)
@@ -151,12 +167,16 @@ public sealed partial class ModuleWorkspace
         string previousManifestPath = ResolveInsideRoot(current.Registration.Manifest);
         string destination = PackageManifestPath(candidate.Manifest);
         current.Registration.Manifest = Path.GetRelativePath(_root, destination).Replace(Path.DirectorySeparatorChar, '/');
-        return MutatePackageWorkspace(catalog, candidate, destination, previousManifestPath, remove: false);
+        return MutatePackageWorkspace(
+            catalog, candidate, destination, previousManifestPath, remove: false, cancellationToken);
     }
 
-    public ModuleDoctorReport Unregister(string moduleId)
+    public ModuleDoctorReport Unregister(
+        string moduleId,
+        CancellationToken cancellationToken = default)
     {
-        using IDisposable mutationLock = AcquirePackageMutationLock();
+        using IDisposable mutationLock = AcquirePackageMutationLock(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
@@ -201,7 +221,8 @@ public sealed partial class ModuleWorkspace
             package,
             destinationManifestPath: null,
             previousManifestPath: package is null ? null : ResolveInsideRoot(target.Registration.Manifest),
-            remove: true);
+            remove: true,
+            cancellationToken);
     }
 
     private ModuleDoctorReport MutatePackageWorkspace(
@@ -209,8 +230,10 @@ public sealed partial class ModuleWorkspace
         CandidatePackage? candidate,
         string? destinationManifestPath,
         string? previousManifestPath,
-        bool remove)
+        bool remove,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using PackageLockFileOwnership packageLocks = ReservePackageLockFiles();
         HashSet<string> paths = MutationPaths(catalog, destinationManifestPath, previousManifestPath, packageLocks.ExistingFiles);
         if (!remove && candidate is not null && destinationManifestPath is not null)
@@ -227,7 +250,7 @@ public sealed partial class ModuleWorkspace
         {
             if (destinationManifestPath is not null && candidate is not null)
             {
-                if (!remove) MaterializeVerifiedPackage(candidate, destinationManifestPath);
+                if (!remove) MaterializeVerifiedPackage(candidate, destinationManifestPath, cancellationToken);
                 WriteAtomicBytes(destinationManifestPath, candidate.ManifestBytes);
             }
 
@@ -252,9 +275,14 @@ public sealed partial class ModuleWorkspace
             WriteGeneratedRegistries(catalog, modules);
             WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, JsonOptions) + "\n");
             if (candidate is not null)
-                RestorePackageGraphs(catalog, candidate.Manifest.Distribution.Web is not null, candidate.RestoreCachePath);
+                RestorePackageGraphs(
+                    catalog,
+                    candidate.Manifest.Distribution.Web is not null,
+                    candidate.RestoreCachePath,
+                    cancellationToken);
             if (!remove && candidate is not null)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 VerifyRestoredBackend(candidate);
                 VerifyRestoredWeb(candidate);
             }
@@ -267,6 +295,7 @@ public sealed partial class ModuleWorkspace
                 && !string.Equals(previousManifestPath, destinationManifestPath, StringComparison.Ordinal)
                 && File.Exists(previousManifestPath))
                 File.Delete(previousManifestPath);
+            cancellationToken.ThrowIfCancellationRequested();
             packageLocks.Complete();
             return report;
         }
@@ -309,9 +338,12 @@ public sealed partial class ModuleWorkspace
         return new(manifest, actualSha256, bytes, absolutePath);
     }
 
-    private void VerifyCandidatePackage(ModuleCatalogFile catalog, CandidatePackage candidate)
+    private void VerifyCandidatePackage(
+        ModuleCatalogFile catalog,
+        CandidatePackage candidate,
+        CancellationToken cancellationToken)
     {
-        candidate.VerifiedFiles = VerifyPackageArtifacts(catalog, candidate);
+        candidate.VerifiedFiles = VerifyPackageArtifacts(catalog, candidate, cancellationToken);
     }
 
     private static string ResolvePackageArtifact(string manifestPath, string? relativePath, string subject)

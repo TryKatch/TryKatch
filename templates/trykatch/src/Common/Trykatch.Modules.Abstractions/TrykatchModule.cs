@@ -145,6 +145,15 @@ public interface IObjectStorage
 }
 
 /// <summary>
+/// Enlists non-database side effects that must be compensated when the host-owned
+/// request transaction rolls back. Successful commits discard the callbacks.
+/// </summary>
+public interface IModuleTransactionCompensation
+{
+    void EnlistRollback(Func<CancellationToken, Task> compensation);
+}
+
+/// <summary>
 /// An explicit, provider-neutral allowlist entry for exposing one API operation
 /// to an AI assistant. Authorization remains enforced by the API operation.
 /// </summary>

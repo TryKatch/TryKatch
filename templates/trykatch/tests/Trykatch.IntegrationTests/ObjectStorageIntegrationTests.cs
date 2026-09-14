@@ -46,6 +46,8 @@ public sealed class ObjectStorageIntegrationTests
         await using ServiceProvider provider = services.BuildServiceProvider();
         await using AsyncServiceScope scope = provider.CreateAsyncScope();
         IObjectStorage storage = scope.ServiceProvider.GetRequiredService<IObjectStorage>();
+        await using AsyncServiceScope secondScope = provider.CreateAsyncScope();
+        secondScope.ServiceProvider.GetRequiredService<IObjectStorage>().ShouldBeSameAs(storage);
 
         const string expected = "private organization document";
         await using MemoryStream upload = new(Encoding.UTF8.GetBytes(expected));

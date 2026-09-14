@@ -89,7 +89,7 @@ public sealed partial class ModuleScaffolder
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
-        using IDisposable mutationLock = _workspace.AcquirePackageMutationLock();
+        using IDisposable mutationLock = _workspace.AcquirePackageMutationLock(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
         List<string> errors = [];

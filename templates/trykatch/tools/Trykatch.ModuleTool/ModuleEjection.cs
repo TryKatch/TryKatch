@@ -6,9 +6,14 @@ namespace Trykatch.ModuleTool;
 
 public sealed partial class ModuleWorkspace
 {
-    public ModuleDoctorReport EjectPackage(string moduleId, string sourceBundleRoot, string expectedManifestSha256)
+    public ModuleDoctorReport EjectPackage(
+        string moduleId,
+        string sourceBundleRoot,
+        string expectedManifestSha256,
+        CancellationToken cancellationToken = default)
     {
-        using IDisposable mutationLock = AcquirePackageMutationLock();
+        using IDisposable mutationLock = AcquirePackageMutationLock(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceBundleRoot);
         string bundleRoot = Path.GetFullPath(sourceBundleRoot);
@@ -73,7 +78,10 @@ public sealed partial class ModuleWorkspace
             ]);
         string? verifiedSourceRoot = sourceRoot is null
             ? null
-            : StageVerifiedSourceTree(sourceRoot, source.Manifest.Artifacts.SourceTreeSha256);
+            : StageVerifiedSourceTree(
+                sourceRoot,
+                source.Manifest.Artifacts.SourceTreeSha256,
+                cancellationToken);
 
         string targetManifestPath = Path.Combine(dotnetTargetDirectory, "try" + "katch.module.json");
         string oldManifestPath = ResolveInsideRoot(installed.Registration.Manifest);
@@ -87,11 +95,11 @@ public sealed partial class ModuleWorkspace
         try
         {
             if (verifiedSourceRoot is not null)
-                CopyDirectory(verifiedSourceRoot, dotnetTargetDirectory);
+                CopyDirectory(verifiedSourceRoot, dotnetTargetDirectory, cancellationToken);
             else
-                CopyDirectory(Path.GetDirectoryName(dotnetSource)!, dotnetTargetDirectory);
+                CopyDirectory(Path.GetDirectoryName(dotnetSource)!, dotnetTargetDirectory, cancellationToken);
             if (sourceRoot is null && webSource is not null && webTargetDirectory is not null)
-                CopyDirectory(Path.GetDirectoryName(webSource)!, webTargetDirectory);
+                CopyDirectory(Path.GetDirectoryName(webSource)!, webTargetDirectory, cancellationToken);
             WriteAtomicBytes(targetManifestPath, source.ManifestBytes);
 
             catalog.Modules.Remove(installed.Registration);
@@ -119,13 +127,14 @@ public sealed partial class ModuleWorkspace
 
             WriteGeneratedRegistries(catalog, ejectedModules);
             WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, JsonOptions) + "\n");
-            RestorePackageGraphs(catalog, webTarget is not null);
+            RestorePackageGraphs(catalog, webTarget is not null, cancellationToken: cancellationToken);
             ModuleDoctorReport report = Inspect();
             if (!report.IsHealthy)
                 throw new InvalidOperationException(string.Join(Environment.NewLine, report.Errors));
 
             if (File.Exists(oldManifestPath) && !string.Equals(oldManifestPath, targetManifestPath, StringComparison.Ordinal))
                 File.Delete(oldManifestPath);
+            cancellationToken.ThrowIfCancellationRequested();
             packageLocks.Complete();
             return report;
         }
@@ -195,7 +204,10 @@ public sealed partial class ModuleWorkspace
             throw new InvalidOperationException($"Source bundle {subject} must be inside artifacts.sourceRoot.");
     }
 
-    private static string StageVerifiedSourceTree(string sourceRoot, string expectedSha256)
+    private static string StageVerifiedSourceTree(
+        string sourceRoot,
+        string expectedSha256,
+        CancellationToken cancellationToken)
     {
         if (expectedSha256.Length != 64 || expectedSha256.Any(character => !Uri.IsHexDigit(character)))
             throw new InvalidOperationException("Source bundle must declare a valid artifacts.sourceTreeSha256 digest.");
@@ -213,6 +225,7 @@ public sealed partial class ModuleWorkspace
                                  .Replace(Path.DirectorySeparatorChar, '/')))
                          .OrderBy(item => item.Relative, StringComparer.Ordinal))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 for (FileSystemInfo? item = new FileInfo(file); item is not null && item.FullName != sourceRoot;
                      item = item is FileInfo current ? current.Directory : ((DirectoryInfo)item).Parent)
                     if (item.LinkTarget is not null)
@@ -265,13 +278,20 @@ public sealed partial class ModuleWorkspace
             ?? throw new InvalidOperationException("Ejected web package requires a name.");
     }
 
-    private static void CopyDirectory(string source, string destination)
+    private static void CopyDirectory(
+        string source,
+        string destination,
+        CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(destination);
         foreach (string directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+        }
         foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string target = Path.Combine(destination, Path.GetRelativePath(source, file));
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(file, target, overwrite: false);

@@ -182,18 +182,18 @@ static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToke
         {
             "doctor" when positional.Count == 1 => workspace.Inspect(),
             "list" when positional.Count == 1 => workspace.Inspect(),
-            "generate" when positional.Count == 1 => workspace.Generate(),
-            "enable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: true),
-            "disable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: false),
-            "register" when positional.Count == 2 => workspace.RegisterWorkspace(positional[1]),
+            "generate" when positional.Count == 1 => workspace.Generate(cancellationToken),
+            "enable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: true, cancellationToken),
+            "disable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: false, cancellationToken),
+            "register" when positional.Count == 2 => workspace.RegisterWorkspace(positional[1], cancellationToken),
             "install" when positional.Count == 2 && expectedSha256 is not null =>
-                workspace.InstallPackage(positional[1], expectedSha256),
+                workspace.InstallPackage(positional[1], expectedSha256, cancellationToken),
             "upgrade" when positional.Count == 2 && expectedSha256 is not null =>
-                workspace.UpgradePackage(positional[1], expectedSha256),
+                workspace.UpgradePackage(positional[1], expectedSha256, cancellationToken),
             "eject" when positional.Count == 2 && sourceBundle is not null && expectedSha256 is not null =>
-                workspace.EjectPackage(positional[1], sourceBundle, expectedSha256),
-            "unregister" when positional.Count == 2 => workspace.Unregister(positional[1]),
-            "remove" when positional.Count == 2 => workspace.Unregister(positional[1]),
+                workspace.EjectPackage(positional[1], sourceBundle, expectedSha256, cancellationToken),
+            "unregister" when positional.Count == 2 => workspace.Unregister(positional[1], cancellationToken),
+            "remove" when positional.Count == 2 => workspace.Unregister(positional[1], cancellationToken),
             _ => throw new ArgumentException("Unknown or incomplete module command.")
         };
 

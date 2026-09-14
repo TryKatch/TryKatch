@@ -95,9 +95,10 @@ public sealed partial class ModuleWorkspace
             errors);
     }
 
-    public ModuleDoctorReport Generate()
+    public ModuleDoctorReport Generate(CancellationToken cancellationToken = default)
     {
-        using IDisposable mutationLock = AcquirePackageMutationLock();
+        using IDisposable mutationLock = AcquirePackageMutationLock(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
         if (catalog is null)
@@ -109,13 +110,27 @@ public sealed partial class ModuleWorkspace
         if (errors.Count > 0)
             return ToReport(modules, errors);
 
-        WriteGeneratedRegistries(catalog, modules);
-        return ToReport(modules, []);
+        Dictionary<string, byte[]?> originals = CaptureFiles(catalog);
+        try
+        {
+            WriteGeneratedRegistries(catalog, modules);
+            cancellationToken.ThrowIfCancellationRequested();
+            return ToReport(modules, []);
+        }
+        catch
+        {
+            RestoreFiles(originals);
+            throw;
+        }
     }
 
-    public ModuleDoctorReport SetEnabled(string moduleId, bool enabled)
+    public ModuleDoctorReport SetEnabled(
+        string moduleId,
+        bool enabled,
+        CancellationToken cancellationToken = default)
     {
-        using IDisposable mutationLock = AcquirePackageMutationLock();
+        using IDisposable mutationLock = AcquirePackageMutationLock(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
         List<string> errors = [];
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
@@ -143,6 +158,7 @@ public sealed partial class ModuleWorkspace
         {
             WriteGeneratedRegistries(catalog, modules);
             WriteAtomic(_catalogPath, catalogJson);
+            cancellationToken.ThrowIfCancellationRequested();
         }
         catch
         {
