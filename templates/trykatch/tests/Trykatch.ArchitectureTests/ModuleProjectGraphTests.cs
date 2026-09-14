@@ -191,6 +191,8 @@ public sealed class ModuleProjectGraphTests
 
         upload.GetProperty("requestBody").GetProperty("content")
             .TryGetProperty("multipart/form-data", out _).ShouldBeTrue();
+        upload.TryGetProperty("x-trykatch-assistant-tool", out _).ShouldBeFalse(
+            "multipart uploads are not assistant tools until the adapter supports secure file references");
         string sample = upload.GetProperty("x-codeSamples")[0].GetProperty("source").GetString()!;
         sample.ShouldContain("new FormData(uploadForm)");
         sample.ShouldContain("body: formData");

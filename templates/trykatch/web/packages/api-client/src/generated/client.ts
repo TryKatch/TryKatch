@@ -868,7 +868,6 @@ export const getDocumentsUploadUrl = () => {
 }
 
 /**
- * Upload a document file in the current workspace.
  * @summary Upload documents
  */
 export const documentsUpload = async (uploadDocumentForm: UploadDocumentForm, options?: Parameters<typeof customFetch>[1]): Promise<DocumentDto> => {

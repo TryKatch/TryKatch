@@ -34,7 +34,6 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
         AssistantTools =
         [
             new("try" + "katch_list_documents", "Documents_List", "List documents in the current workspace.", AssistantToolRisk.ReadOnly, false),
-            new("try" + "katch_upload_document", "Documents_Upload", "Upload a document file in the current workspace.", AssistantToolRisk.Mutating, true),
             new("try" + "katch_update_document", "Documents_Update", "Update document metadata in the current workspace.", AssistantToolRisk.Mutating, true)
         ]
     };
