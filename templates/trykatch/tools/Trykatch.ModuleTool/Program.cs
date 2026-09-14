@@ -146,9 +146,14 @@ static Task<int> RunAsync(string[] arguments)
             Console.WriteLine($"Module '{created.ModuleId}' created, registered, and enabled.");
             foreach (string path in created.CreatedPaths)
                 Console.WriteLine($"  created: {path}");
-            Console.WriteLine($"  API: /api/v1/{resource}");
+            Console.WriteLine("  endpoints:");
+            foreach (string endpoint in created.Endpoints)
+                Console.WriteLine($"    {endpoint}");
+            Console.WriteLine("  permissions:");
+            foreach (string permission in created.Permissions)
+                Console.WriteLine($"    {permission}");
             if (created.IncludeWeb) Console.WriteLine($"  Web: /{resource}");
-            Console.WriteLine("Run 'trykatch start' to apply migrations and start the application.");
+            Console.WriteLine($"Run '{created.StartCommand}' to apply migrations and start the application.");
             return Task.FromResult(0);
         }
 

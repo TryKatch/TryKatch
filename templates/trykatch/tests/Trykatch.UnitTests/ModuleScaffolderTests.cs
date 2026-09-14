@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Xml.Linq;
 using Shouldly;
 using Trykatch.ModuleTool;
 
@@ -34,6 +35,40 @@ public sealed class ModuleScaffolderTests
         string solution = File.ReadAllText(Path.Combine(workspace.Root, "Kametal.slnx"));
         solution.ShouldContain("/src/Modules/Invoicing/");
         solution.ShouldContain("/tests/Modules/Invoicing/");
+
+        result.Endpoints.ShouldBe([
+            "GET /api/v1/invoices",
+            "GET /api/v1/invoices/{id}",
+            "POST /api/v1/invoices",
+            "PUT /api/v1/invoices/{id}",
+            "POST /api/v1/invoices/{id}/archive",
+            "POST /api/v1/invoices/{id}/restore",
+            "DELETE /api/v1/invoices/{id}"
+        ]);
+        result.Permissions.ShouldBe(["invoicing.read", "invoicing.manage"]);
+        result.StartCommand.ShouldBe("trykatch start");
+
+        string integrationEvents = File.ReadAllText(Path.Combine(
+            moduleRoot, "Kametal.Modules.Invoicing.IntegrationEvents/InvoiceIntegrationEvents.cs"));
+        integrationEvents.ShouldContain("record InvoiceCreated(");
+        integrationEvents.ShouldContain("record InvoiceUpdated(");
+        integrationEvents.ShouldContain("record InvoiceArchived(");
+        integrationEvents.ShouldContain("record InvoiceRestored(");
+        integrationEvents.ShouldContain("record InvoiceDeletionRequested(");
+        integrationEvents.ShouldNotContain("string Operation");
+        File.ReadAllText(Path.Combine(
+                moduleRoot, "Kametal.Modules.Invoicing.Application/InvoicingUseCases.cs"))
+            .ShouldNotContain("context.Enqueue<object>");
+
+        string endpoints = File.ReadAllText(Path.Combine(
+            moduleRoot, "Kametal.Modules.Invoicing.Presentation/InvoicingEndpoints.cs"));
+        foreach (string operationId in new[]
+                 {
+                     "Invoicing_List", "Invoicing_Get", "Invoicing_Create", "Invoicing_Update",
+                     "Invoicing_Archive", "Invoicing_Restore", "Invoicing_RequestDeletion"
+                 })
+            endpoints.ShouldContain($".WithName(\"{operationId}\")");
+        endpoints.ShouldContain("Task<Results<Ok<InvoiceDto[]>, ForbidHttpResult, ValidationProblem>>");
     }
 
     [TestMethod]
@@ -199,6 +234,34 @@ public sealed class ModuleScaffolderTests
     }
 
     [TestMethod]
+    public void RestoreFailurePreservesForeignLockFileCreatedDuringTheTransaction()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string foreignLock = Path.Combine(workspace.Root, "external-restore/packages.lock.json");
+
+        Should.Throw<InvalidOperationException>(() => new ModuleScaffolder(
+            workspace.Root,
+            new ForeignLockFileFailingRunner(foreignLock)).Create(new(
+                "Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: false)));
+
+        File.ReadAllText(foreignLock).ShouldBe("foreign restore output\n");
+    }
+
+    [TestMethod]
+    public void RestoreFailureDeletesOnlyLockFileReservedByTheGenerator()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string ownedLock = Path.Combine(workspace.Root, "src/API/Kametal.Api/packages.lock.json");
+
+        Should.Throw<InvalidOperationException>(() => new ModuleScaffolder(
+            workspace.Root,
+            new OwnedLockFileFailingRunner(ownedLock)).Create(new(
+                "Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: false)));
+
+        File.Exists(ownedLock).ShouldBeFalse();
+    }
+
+    [TestMethod]
     public void BackendVerificationFailureRestoresApplicationSpecificOpenApiOutput()
     {
         using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
@@ -351,6 +414,142 @@ public sealed class ModuleScaffolderTests
         Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
     }
 
+    [TestMethod]
+    public void SolutionEditFailureRollsBackEveryMutation() =>
+        AssertInjectedFailureRollsBack(ModuleCreationPhase.SolutionEdit, includeWeb: false);
+
+    [TestMethod]
+    public void RegistrationAndCatalogFailureRollsBackEveryMutation() =>
+        AssertInjectedFailureRollsBack(ModuleCreationPhase.RegistrationAndCatalogMutation, includeWeb: false);
+
+    [TestMethod]
+    public void RestorePhaseFailureRollsBackEveryMutation() =>
+        AssertInjectedFailureRollsBack(ModuleCreationPhase.Restore, includeWeb: false);
+
+    [TestMethod]
+    public void WebInstallPhaseFailureRollsBackEveryMutation() =>
+        AssertInjectedFailureRollsBack(ModuleCreationPhase.WebInstall, includeWeb: true);
+
+    [TestMethod]
+    public void WebVerificationPhaseFailureRollsBackEveryMutation() =>
+        AssertInjectedFailureRollsBack(ModuleCreationPhase.WebVerification, includeWeb: true);
+
+    [TestMethod]
+    public void DoctorValidationPhaseFailureRollsBackEveryMutation() =>
+        AssertInjectedFailureRollsBack(ModuleCreationPhase.DoctorValidation, includeWeb: true);
+
+    [TestMethod]
+    public void SolutionOrderingDoesNotDependOnModuleCreationOrder()
+    {
+        using ScaffolderWorkspace first = ScaffolderWorkspace.Create(includeWeb: true);
+        using ScaffolderWorkspace second = ScaffolderWorkspace.Create(includeWeb: true);
+
+        CreateTwoModules(first.Root, "Zebra", "ZebraRecord", "zebra_records", "Alpha", "AlphaRecord", "alpha_records");
+        CreateTwoModules(second.Root, "Alpha", "AlphaRecord", "alpha_records", "Zebra", "ZebraRecord", "zebra_records");
+
+        File.ReadAllText(Path.Combine(first.Root, "Kametal.slnx"))
+            .ShouldBe(File.ReadAllText(Path.Combine(second.Root, "Kametal.slnx")));
+    }
+
+    [TestMethod]
+    public void SolutionOrderingPreservesRootCommentsAndProcessingInstructions()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string solutionPath = Path.Combine(workspace.Root, "Kametal.slnx");
+        XDocument solution = XDocument.Load(solutionPath);
+        XElement root = solution.Root!;
+        root.Add(new XComment(" preserve this solution marker exactly "));
+        root.Add(new XProcessingInstruction("trykatch", "preserve=true"));
+        solution.Save(solutionPath);
+
+        new ModuleScaffolder(workspace.Root, new SuccessfulRunner()).Create(new(
+            "Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: false));
+
+        XDocument updated = XDocument.Load(solutionPath);
+        XNode[] rootNodes = updated.Root!.Nodes().ToArray();
+        XComment comment = rootNodes.OfType<XComment>().Single();
+        XProcessingInstruction instruction = rootNodes.OfType<XProcessingInstruction>().Single();
+        comment.Value.ShouldBe(" preserve this solution marker exactly ");
+        instruction.Target.ShouldBe("trykatch");
+        instruction.Data.ShouldBe("preserve=true");
+        Array.IndexOf(rootNodes, comment).ShouldBeLessThan(Array.IndexOf(rootNodes, instruction));
+        Array.IndexOf(rootNodes, instruction).ShouldBeLessThan(
+            Array.FindIndex(rootNodes, node => node is XElement));
+    }
+
+    [TestMethod]
+    [DataRow("Aux", "Invoice")]
+    [DataRow("Com1", "Invoice")]
+    [DataRow("Invoicing", "Lpt9")]
+    public void WindowsReservedNamesAreRejectedBeforeMutation(string module, string entity)
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string catalog = File.ReadAllText(Path.Combine(workspace.Root, "trykatch.modules.json"));
+
+        Should.Throw<ArgumentException>(() => new ModuleScaffolder(workspace.Root, new SuccessfulRunner()).Create(new(
+            module, entity, "invoices", "organization", null, IncludeWeb: false)))
+            .Message.ShouldContain("reserved");
+
+        File.ReadAllText(Path.Combine(workspace.Root, "trykatch.modules.json")).ShouldBe(catalog);
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules", module)).ShouldBeFalse();
+    }
+
+    private static void AssertInjectedFailureRollsBack(ModuleCreationPhase phase, bool includeWeb)
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string[] trackedPaths =
+        [
+            "Kametal.slnx",
+            "trykatch.modules.json",
+            "trykatch.modules.lock.json",
+            "src/API/Kametal.Api/Kametal.Api.csproj",
+            "src/API/Kametal.Migrator/Kametal.Migrator.csproj",
+            "src/API/Kametal.Api/Modules/EnabledModules.cs",
+            "src/API/Kametal.Migrator/Modules/EnabledModules.cs",
+            "web/apps/web/package.json",
+            "web/pnpm-lock.yaml",
+            "web/src/modules.ts"
+        ];
+        Dictionary<string, byte[]?> before = trackedPaths.ToDictionary(
+            relative => relative,
+            relative => File.Exists(Path.Combine(workspace.Root, relative))
+                ? File.ReadAllBytes(Path.Combine(workspace.Root, relative))
+                : null,
+            StringComparer.Ordinal);
+
+        Should.Throw<InvalidOperationException>(() => new ModuleScaffolder(
+            workspace.Root,
+            new SuccessfulRunner(),
+            new PhaseFailureInjector(phase)).Create(new(
+                "Invoicing", "Invoice", "invoices", "organization", null, includeWeb)))
+            .Message.ShouldContain("workspace was restored");
+
+        foreach ((string relative, byte[]? expected) in before)
+        {
+            string path = Path.Combine(workspace.Root, relative);
+            if (expected is null)
+                File.Exists(path).ShouldBeFalse($"Expected {relative} to remain absent.");
+            else
+                File.ReadAllBytes(path).ShouldBe(expected, $"Expected {relative} to be restored byte-for-byte.");
+        }
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
+        Directory.Exists(Path.Combine(workspace.Root, "tests/Modules/Invoicing")).ShouldBeFalse();
+    }
+
+    private static void CreateTwoModules(
+        string root,
+        string firstModule,
+        string firstEntity,
+        string firstResource,
+        string secondModule,
+        string secondEntity,
+        string secondResource)
+    {
+        ModuleScaffolder scaffolder = new(root, new SuccessfulRunner());
+        scaffolder.Create(new(firstModule, firstEntity, firstResource, "organization", null, IncludeWeb: false));
+        scaffolder.Create(new(secondModule, secondEntity, secondResource, "organization", null, IncludeWeb: false));
+    }
+
     private static string Snapshot(string root, string relativeDirectory) => string.Join(
         "\n---\n",
         Directory.EnumerateFiles(Path.Combine(root, relativeDirectory), "*", SearchOption.AllDirectories)
@@ -368,10 +567,39 @@ public sealed class ModuleScaffolderTests
         }
     }
 
+    private sealed class PhaseFailureInjector(ModuleCreationPhase phase) : IModuleCreationFailureInjector
+    {
+        public void ThrowIfRequested(ModuleCreationPhase currentPhase)
+        {
+            if (currentPhase == phase)
+                throw new InvalidOperationException($"simulated {phase} failure");
+        }
+    }
+
     private sealed class FailingRunner : IWorkspaceCommandRunner
     {
         public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory) =>
             new(17, "simulated restore failure");
+    }
+
+    private sealed class ForeignLockFileFailingRunner(string foreignLock) : IWorkspaceCommandRunner
+    {
+        public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(foreignLock)!);
+            File.WriteAllText(foreignLock, "foreign restore output\n");
+            return new(17, "simulated restore failure after a foreign restore wrote its lock file");
+        }
+    }
+
+    private sealed class OwnedLockFileFailingRunner(string ownedLock) : IWorkspaceCommandRunner
+    {
+        public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
+        {
+            File.Exists(ownedLock).ShouldBeTrue("The transaction must reserve missing project lock paths before restore.");
+            File.WriteAllText(ownedLock, "generator restore output\n");
+            return new(17, "simulated restore failure after writing a generator-owned lock file");
+        }
     }
 
     private sealed class WebVerificationFailingRunner : IWorkspaceCommandRunner

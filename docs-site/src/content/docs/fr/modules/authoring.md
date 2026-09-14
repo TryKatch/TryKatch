@@ -31,7 +31,7 @@ trykatch module create Invoicing \
   --fields "number:string:required:max(40),total:decimal:required,dueDate:date:required,status:enum(Draft,Sent,Paid):required,notes:string:optional:max(2000)"
 ```
 
-`Invoicing` et `Invoice` doivent être des identifiants .NET en PascalCase. `invoices` doit être un identifiant PostgreSQL explicite en snake_case minuscule, ne doit pas être un mot-clé PostgreSQL et ne doit pas dupliquer une relation du schéma `app` déclarée par un autre module enregistré. La version 1 exige volontairement `--ownership organization` et ne devine jamais la frontière de sécurité. Ces contrôles s’exécutent avant toute préparation ou modification du workspace.
+`Invoicing` et `Invoice` doivent être des identifiants .NET PascalCase portables : Trykatch rejette aussi les noms réservés de l’hôte et de Windows comme `CON`, `AUX`, `COM1` et `LPT1`. `invoices` doit être un identifiant PostgreSQL explicite en snake_case minuscule, ne doit pas être un mot-clé PostgreSQL et ne doit pas dupliquer une relation du schéma `app` déclarée par un autre module enregistré. La version 1 exige volontairement `--ownership organization` et ne devine jamais la frontière de sécurité. Ces contrôles s’exécutent avant toute préparation ou modification du workspace.
 
 ## Générer un module full-stack
 
@@ -88,9 +88,9 @@ tests/Modules/Invoicing/
 └── Horizon.Modules.Invoicing.ArchitectureTests/
 ```
 
-La commande ajoute aussi les projets à la solution, enregistre l’Infrastructure auprès de l’API et du migrateur, ajoute et active l’entrée du catalogue, régénère les registres, restaure les dépendances, compile le backend, exécute les tests générés et le diagnostic des modules. Avec `--with-web`, elle génère également le client OpenAPI puis exécute le typage, les tests et le build de production du frontend.
+La commande ajoute aussi les projets à la solution dans un ordre déterministe, enregistre l’Infrastructure auprès de l’API et du migrateur, ajoute et active l’entrée du catalogue, régénère les registres, restaure les dépendances, compile le backend, exécute les tests générés et le diagnostic des modules. Avec `--with-web`, elle génère également le client OpenAPI puis exécute le typage, les tests et le build de production du frontend. Le résultat final affiche chaque endpoint, les deux permissions et la commande exacte de démarrage.
 
-L’opération est atomique. Le rendu se fait dans un répertoire privé de préparation. Si l’enregistrement, la restauration, la compilation, les tests, la génération du client ou la validation échoue, Trykatch restaure le catalogue, la solution, les projets, les registres, les sorties OpenAPI/client et les lockfiles, puis supprime le nouveau module. Une commande identique répétée signale que le module existe déjà sans rien modifier ; la version 1 ne propose aucun écrasement.
+L’opération est atomique. Le rendu se fait dans un répertoire privé de préparation, où le manifeste complet et le catalogue projeté sont validés avant l’installation du moindre fichier de module. Si l’édition de la solution, l’enregistrement, la restauration, la compilation, les tests, la génération du client ou le diagnostic échoue, Trykatch restaure le catalogue, la solution, les projets, les registres, les sorties OpenAPI/client et les lockfiles, puis supprime le nouveau module. Une commande identique répétée signale que le module existe déjà sans rien modifier ; la version 1 ne propose aucun écrasement.
 
 ## Contrat de sécurité généré
 
@@ -106,7 +106,7 @@ POST   /api/v1/invoices/{id}/restore
 DELETE /api/v1/invoices/{id}
 ```
 
-Les lectures exigent `invoicing.read` et les mutations `invoicing.manage`. Les cas d’utilisation répètent l’autorisation, les mutations exigent la protection antiforgery et les écritures créent les preuves d’audit et d’outbox dans la transaction de l’hôte.
+Les lectures exigent `invoicing.read` et les mutations `invoicing.manage`. Les cas d’utilisation répètent l’autorisation, les mutations exigent la protection antiforgery et les écritures créent les preuves d’audit et d’outbox dans la transaction de l’hôte. Les handlers Minimal API utilisent des unions de résultats typés et des noms d’opération OpenAPI stables (`Invoicing_List` à `Invoicing_RequestDeletion`). L’outbox publie cinq contrats immuables distincts — `InvoiceCreated`, `InvoiceUpdated`, `InvoiceArchived`, `InvoiceRestored` et `InvoiceDeletionRequested` — au lieu d’une chaîne d’opération libre.
 
 ## Démarrer et vérifier le résultat
 

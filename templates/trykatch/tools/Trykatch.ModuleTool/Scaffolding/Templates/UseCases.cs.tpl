@@ -67,7 +67,9 @@ public sealed class __MODULE__UseCases(
             __COMMAND_TO_DOMAIN_ARGUMENTS__,
             timeProvider.GetUtcNow());
         store.Add(record);
-        RecordChange(record, "created");
+        DateTimeOffset occurredAt = timeProvider.GetUtcNow();
+        RecordChange(record, "created", new __ENTITY__Created(
+            record.Id, record.OrganizationId, context.ActorId, occurredAt));
         await store.SaveChangesAsync(cancellationToken);
         return __ENTITY__Operation.Success(ToDto(record));
     }
@@ -82,16 +84,22 @@ public sealed class __MODULE__UseCases(
         record.Update(
             __COMMAND_TO_DOMAIN_ARGUMENTS__,
             timeProvider.GetUtcNow());
-        RecordChange(record, "updated");
+        DateTimeOffset occurredAt = timeProvider.GetUtcNow();
+        RecordChange(record, "updated", new __ENTITY__Updated(
+            record.Id, record.OrganizationId, context.ActorId, occurredAt));
         await store.SaveChangesAsync(cancellationToken);
         return __ENTITY__Operation.Success(ToDto(record));
     }
 
     public Task<__ENTITY__OperationResult<bool>> ArchiveAsync(Guid id, CancellationToken cancellationToken) =>
-        ChangeLifecycleAsync(id, "archived", static (record, context, now) => record.Archive(context.ActorId, now), false, cancellationToken);
+        ChangeLifecycleAsync(id, "archived", static (record, context, now) => record.Archive(context.ActorId, now),
+            static (record, actorId, occurredAt) => new __ENTITY__Archived(record.Id, record.OrganizationId, actorId, occurredAt),
+            false, cancellationToken);
 
     public Task<__ENTITY__OperationResult<bool>> RestoreAsync(Guid id, CancellationToken cancellationToken) =>
-        ChangeLifecycleAsync(id, "restored", static (record, _, _) => record.Restore(), true, cancellationToken);
+        ChangeLifecycleAsync(id, "restored", static (record, _, _) => record.Restore(),
+            static (record, actorId, occurredAt) => new __ENTITY__Restored(record.Id, record.OrganizationId, actorId, occurredAt),
+            true, cancellationToken);
 
     public async Task<__ENTITY__OperationResult<bool>> RequestDeletionAsync(Guid id, string? requestedReason, CancellationToken cancellationToken)
     {
@@ -105,22 +113,27 @@ public sealed class __MODULE__UseCases(
             return __ENTITY__Operation.Failure<bool>("conflict", "Archive the record before requesting deletion.");
         if (record.RequestDeletion(context.ActorId, reason, timeProvider.GetUtcNow()))
         {
-            RecordChange(record, "deleted");
+            DateTimeOffset occurredAt = timeProvider.GetUtcNow();
+            RecordChange(record, "deletion-requested", new __ENTITY__DeletionRequested(
+                record.Id, record.OrganizationId, context.ActorId, occurredAt, reason));
             await store.SaveChangesAsync(cancellationToken);
         }
         return __ENTITY__Operation.Success(true);
     }
 
-    private async Task<__ENTITY__OperationResult<bool>> ChangeLifecycleAsync(Guid id, string operation,
-        Func<__ENTITY__Record, IOrganizationModuleData, DateTimeOffset, bool> change, bool includeRecoverable,
+    private async Task<__ENTITY__OperationResult<bool>> ChangeLifecycleAsync<TIntegrationEvent>(Guid id, string operation,
+        Func<__ENTITY__Record, IOrganizationModuleData, DateTimeOffset, bool> change,
+        Func<__ENTITY__Record, Guid, DateTimeOffset, TIntegrationEvent> createIntegrationEvent, bool includeRecoverable,
         CancellationToken cancellationToken)
+        where TIntegrationEvent : notnull
     {
         if (!await CanManage(cancellationToken)) return Forbidden<bool>();
         __ENTITY__Record? record = await store.FindAsync(id, includeRecoverable, cancellationToken);
         if (record is null) return NotFound<bool>();
         if (change(record, context, timeProvider.GetUtcNow()))
         {
-            RecordChange(record, operation);
+            DateTimeOffset occurredAt = timeProvider.GetUtcNow();
+            RecordChange(record, operation, createIntegrationEvent(record, context.ActorId, occurredAt));
             await store.SaveChangesAsync(cancellationToken);
         }
         return __ENTITY__Operation.Success(true);
@@ -128,11 +141,14 @@ public sealed class __MODULE__UseCases(
 
     private Task<bool> CanManage(CancellationToken cancellationToken) => authorizer.HasPermissionAsync("__MODULE_ID__.manage", cancellationToken);
 
-    private void RecordChange(__ENTITY__Record record, string operation)
+    private void RecordChange<TIntegrationEvent>(
+        __ENTITY__Record record,
+        string operation,
+        TIntegrationEvent integrationEvent)
+        where TIntegrationEvent : notnull
     {
         context.RecordAudit("__MODULE_ID__." + operation, "__ENTITY__", record.Id.ToString(), __AUDIT_DISPLAY__);
-        context.Enqueue(new __ENTITY__Changed(record.Id, record.OrganizationId, operation, context.ActorId,
-            timeProvider.GetUtcNow(), record.DeletionReason));
+        context.Enqueue(integrationEvent);
     }
 
     private static string NormalizeAuditDisplay(string? value, Guid id)

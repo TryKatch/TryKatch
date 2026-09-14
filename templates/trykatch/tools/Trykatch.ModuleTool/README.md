@@ -35,9 +35,12 @@ the domain, API, database and generated React CRUD surface. Supported types are
 `string`, `decimal`, `int`, `long`, `bool`, `date`, `datetime`, `guid`, and
 `enum(...)`; omit it for the compatible Name/Description starter. Add `--with-web`
 for the React surface. The command stages
-the source privately, registers and enables the module, restores both package
-graphs, builds and tests the result, and rolls every changed file back if any
-phase fails. Run it from the generated application root or pass `--root`.
+the source privately, validates the rendered manifest and projected catalog,
+registers and enables the module, restores both package graphs, builds and tests
+the result, and rolls every changed file back if any phase fails. It prints every
+endpoint, the generated permissions, and the start command. Generated writes emit
+distinct created, updated, archived, restored, and deletion-requested integration
+event contracts. Run it from the generated application root or pass `--root`.
 
 `trykatch.modules.lock.json` is machine-owned and records the manifest digest mode,
 digest, version, enablement state, distribution kind, package pairing, and license
