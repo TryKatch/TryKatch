@@ -70,6 +70,8 @@ grep -Fq -- '--ownership organization' <<<"$create_help_output" ||
   fail 'module create help does not require an explicit ownership boundary'
 grep -Fq -- '--with-web' <<<"$create_help_output" ||
   fail 'module create help does not document optional React generation'
+grep -Fq -- '--fields <contract>' <<<"$create_help_output" ||
+  fail 'module create help does not document contract-driven business fields'
 template_help_output=$("$test_root/tools/trykatch" template help)
 grep -Fq 'trykatch template install [--version <version>] [--force]' <<<"$template_help_output" ||
   fail 'template help does not document installation options'
@@ -187,23 +189,31 @@ grep -RFq --include='*.cs' 'WithVolume("horizon-otel-queue", "/var/lib/otelcol")
   --entity Invoice \
   --resource invoices \
   --ownership organization \
+  --fields 'number:string:required:max(40),total:decimal:required,dueDate:date:required,status:enum(Draft,Sent,Paid):required' \
   --root "$test_root/Horizon"
 test -f "$test_root/Horizon/src/Modules/Billing/Horizon.Modules.Billing.Infrastructure/BillingModule.cs" ||
   fail 'backend module generation did not create its composition root'
 grep -Fq 'ALTER TABLE app.invoices FORCE ROW LEVEL SECURITY' \
   "$test_root/Horizon/src/Modules/Billing/Horizon.Modules.Billing.Infrastructure/BillingModule.cs" ||
   fail 'backend module generation omitted forced PostgreSQL RLS'
+grep -Fq 'public decimal Total { get; private set; }' \
+  "$test_root/Horizon/src/Modules/Billing/Horizon.Modules.Billing.Domain/InvoiceRecord.cs" ||
+  fail 'backend module generation did not apply its business field contract'
 
 "$test_root/tools/trykatch" module create Inventory \
   --entity Product \
   --resource inventory_items \
   --ownership organization \
+  --fields 'sku:string:required:max(64),price:decimal:required,discount:decimal:optional,sequence:long:required,available:bool:required,availableAt:datetime:optional,category:enum(Standard,Premium):required,notes:string:optional:max(1000)' \
   --with-web \
   --root "$test_root/Horizon"
 test -f "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
   fail 'full-stack module generation did not create its React entrypoint'
 grep -Fq 'fr:' "$test_root/Horizon/src/Modules/Inventory/Web/src/messages.ts" ||
   fail 'full-stack module generation omitted French messages'
+grep -Fq "body: JSON.stringify({ sku, price, discount: discount || null, sequence, available, availableAt: availableAt === '' ? null : toUtcDateTime(availableAt, editing?.availableAt), category, notes: notes || null })" \
+  "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
+  fail 'full-stack module generation did not apply its field contract to React'
 inventory_web_package=$(jq -r '.entrypoints.web.specifier' \
   "$test_root/Horizon/src/Modules/Inventory/trykatch.module.json")
 test "$(jq -r --arg package "$inventory_web_package" '.dependencies[$package] // empty' \

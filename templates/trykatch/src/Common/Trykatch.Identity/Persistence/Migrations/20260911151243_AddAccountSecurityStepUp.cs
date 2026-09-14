@@ -8,6 +8,9 @@ namespace Trykatch.Identity.Persistence.Migrations
     /// <inheritdoc />
     public partial class AddAccountSecurityStepUp : Migration
     {
+        private static readonly string[] AccountSecurityEventIndexColumns = ["UserId", "OccurredAt"];
+        private static readonly string[] RecentAssuranceGrantIndexColumns = ["UserId", "ExpiresAt"];
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -81,13 +84,13 @@ namespace Trykatch.Identity.Persistence.Migrations
                 name: "IX_account_security_events_UserId_OccurredAt",
                 schema: "identity",
                 table: "account_security_events",
-                columns: new[] { "UserId", "OccurredAt" });
+                columns: AccountSecurityEventIndexColumns);
 
             migrationBuilder.CreateIndex(
                 name: "IX_recent_assurance_grants_UserId_ExpiresAt",
                 schema: "identity",
                 table: "recent_assurance_grants",
-                columns: new[] { "UserId", "ExpiresAt" });
+                columns: RecentAssuranceGrantIndexColumns);
         }
 
         /// <inheritdoc />

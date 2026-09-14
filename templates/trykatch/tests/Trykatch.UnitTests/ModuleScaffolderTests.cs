@@ -58,6 +58,106 @@ public sealed class ModuleScaffolderTests
     }
 
     [TestMethod]
+    public void FieldContractGeneratesTheSameBusinessShapeAcrossBackendDatabaseAndReact()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        ModuleScaffolder scaffolder = new(workspace.Root, new SuccessfulRunner());
+
+        scaffolder.Create(new(
+            "Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: true,
+            FieldSpecification: "number:string:required:max(40),total:decimal:required,sequence:long:required,dueDate:date:required,issuedAt:datetime:optional,status:enum(Draft,Sent,Paid):required,notes:string:optional:max(2000)"));
+
+        string moduleRoot = Path.Combine(workspace.Root, "src/Modules/Invoicing");
+        string domain = File.ReadAllText(Path.Combine(
+            moduleRoot, "Kametal.Modules.Invoicing.Domain/InvoiceRecord.cs"));
+        domain.ShouldContain("public string Number { get; private set; } = string.Empty;");
+        domain.ShouldContain("public decimal Total { get; private set; }");
+        domain.ShouldContain("public DateOnly DueDate { get; private set; }");
+        domain.ShouldContain("public InvoiceStatus Status { get; private set; }");
+        domain.ShouldContain("public string? Notes { get; private set; }");
+        domain.ShouldNotContain("public string Name");
+
+        string useCases = File.ReadAllText(Path.Combine(
+            moduleRoot, "Kametal.Modules.Invoicing.Application/InvoicingUseCases.cs"));
+        useCases.ShouldContain("string? Number");
+        useCases.ShouldContain("string? Total");
+        useCases.ShouldContain("string? Sequence");
+        useCases.ShouldContain("DateOnly? DueDate");
+        useCases.ShouldContain("string? Status");
+        useCases.ShouldContain("string Number");
+        useCases.ShouldContain("string Total");
+        useCases.ShouldContain("string Sequence");
+        useCases.ShouldContain("DateOnly DueDate");
+        useCases.ShouldContain("string Status");
+        useCases.ShouldContain("Enum.Parse<InvoiceStatus>");
+        useCases.ShouldContain("decimal.Parse(command.Total!, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture)");
+        useCases.ShouldContain("long.Parse(command.Sequence!, NumberStyles.Integer, CultureInfo.InvariantCulture)");
+        useCases.ShouldContain("record.Total.ToString(CultureInfo.InvariantCulture)");
+        useCases.ShouldContain("NormalizeAuditDisplay(record.Number, record.Id)");
+
+        string persistence = File.ReadAllText(Path.Combine(
+            moduleRoot, "Kametal.Modules.Invoicing.Infrastructure/InvoicingModelContributor.cs"));
+        persistence.ShouldContain("entity.Property(record => record.Number).HasMaxLength(40)");
+        persistence.ShouldContain("entity.Property(record => record.Total).HasPrecision(18, 2)");
+        persistence.ShouldContain("entity.Property(record => record.Status).HasConversion<string>()");
+
+        string migration = File.ReadAllText(Path.Combine(
+            moduleRoot, "Kametal.Modules.Invoicing.Infrastructure/InvoicingModule.cs"));
+        migration.ShouldContain("\"Number\" character varying(40) NOT NULL");
+        migration.ShouldContain("\"Total\" numeric(18, 2) NOT NULL");
+        migration.ShouldContain("\"Sequence\" bigint NOT NULL");
+        migration.ShouldContain("\"IssuedAt\" timestamp with time zone NULL");
+        migration.ShouldContain("\"DueDate\" date NOT NULL");
+        migration.ShouldContain("\"Status\" character varying(5) NOT NULL");
+        migration.ShouldContain("\"Notes\" character varying(2000) NULL");
+
+        string web = File.ReadAllText(Path.Combine(moduleRoot, "Web/src/index.tsx"));
+        web.ShouldContain("const [number, setNumber] = useState('')");
+        web.ShouldContain("const [total, setTotal] = useState('')");
+        web.ShouldContain("<option value=\"Draft\">{t('fieldStatusDraft')}</option>");
+        web.ShouldContain("total, sequence");
+        web.ShouldContain("issuedAt: issuedAt === '' ? null : toUtcDateTime(issuedAt, editing?.issuedAt)");
+        web.ShouldContain("toDateTimeLocal(record.issuedAt)");
+        web.ShouldContain("type=\"datetime-local\" step=\"0.001\"");
+        web.ShouldNotContain("Number(total)");
+        web.ShouldNotContain("Number(sequence)");
+        web.ShouldContain("record.number");
+
+        string dateTimeTests = File.ReadAllText(Path.Combine(moduleRoot, "Web/src/dateTime.test.ts"));
+        dateTimeTests.ShouldContain("preserves the exact original instant");
+
+        string messages = File.ReadAllText(Path.Combine(moduleRoot, "Web/src/messages.ts"));
+        messages.ShouldContain("fieldDueDate: 'Due date'");
+        messages.ShouldContain("fieldDueDate: 'Date d’échéance'");
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("organizationId:guid:required")]
+    [DataRow("total:money:required")]
+    [DataRow("status:enum(Draft,Draft):required")]
+    [DataRow("name:string:required:optional")]
+    [DataRow("notes:string:max(0)")]
+    [DataRow("params:string:required")]
+    [DataRow("archive:string:required")]
+    [DataRow("save:string:required")]
+    [DataRow("await:string:required")]
+    [DataRow("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab:string:required")]
+    public void InvalidFieldContractsAreRejectedBeforeWorkspaceMutation(string fields)
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string catalogPath = Path.Combine(workspace.Root, "trykatch.modules.json");
+        string originalCatalog = File.ReadAllText(catalogPath);
+
+        Should.Throw<ArgumentException>(() => new ModuleScaffolder(workspace.Root, new SuccessfulRunner()).Create(new(
+            "Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: true,
+            FieldSpecification: fields)));
+
+        File.ReadAllText(catalogPath).ShouldBe(originalCatalog);
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
+    }
+
+    [TestMethod]
     public void InvalidOrDuplicateRequestsDoNotChangeTheWorkspace()
     {
         using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
