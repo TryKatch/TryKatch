@@ -158,6 +158,8 @@ runtime_password="$(openssl rand -hex 24)"
 signing_certificate_password="$(openssl rand -hex 24)"
 encryption_certificate_password="$(openssl rand -hex 24)"
 data_protection_certificate_password="$(openssl rand -hex 24)"
+storage_access_key=acceptance-storage
+storage_secret_key="$(openssl rand -hex 24)"
 
 mkdir -p "$artifact_parent" "$test_root/package"
 artifact_root=$(mktemp -d "$artifact_parent/run.XXXXXX")
@@ -215,6 +217,15 @@ EOF
 
 cat >"$compose_override" <<EOF
 services:
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: $storage_access_key
+      MINIO_ROOT_PASSWORD: $storage_secret_key
+    tmpfs: [/data]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
   web:
     environment:
       TRYKATCH_INGRESS_PROXY_IP: 127.0.0.1
@@ -224,6 +235,12 @@ services:
       - "$test_root/acceptance-tls.conf:/etc/nginx/conf.d/acceptance-tls.conf:ro"
       - "$test_root/ingress.crt:/run/acceptance-tls/ingress.crt:ro"
       - "$test_root/ingress.key:/run/acceptance-tls/ingress.key:ro"
+  api:
+    environment:
+      Storage__CreateBucket: "true"
+    depends_on:
+      minio:
+        condition: service_started
 EOF
 
 cat >"$environment_file" <<EOF
@@ -238,6 +255,11 @@ TRYKATCH_ORG_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Userna
 TRYKATCH_PLATFORM_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_platform_runtime;Password=$runtime_password-platform
 TRYKATCH_IDENTITY_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_identity_runtime;Password=$runtime_password-identity
 TRYKATCH_OUTBOX_WORKER_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_outbox_worker;Password=$runtime_password-outbox
+TRYKATCH_STORAGE_SERVICE_URL=http://minio:9000
+TRYKATCH_STORAGE_ACCESS_KEY=$storage_access_key
+TRYKATCH_STORAGE_SECRET_KEY=$storage_secret_key
+TRYKATCH_STORAGE_BUCKET=trykatch-documents
+TRYKATCH_STORAGE_REGION=us-east-1
 TRYKATCH_PUBLIC_URL=$web_url
 TRYKATCH_NETWORK_SUBNET=$network_prefix.0/24
 TRYKATCH_NETWORK_DYNAMIC_RANGE=$network_prefix.128/25
