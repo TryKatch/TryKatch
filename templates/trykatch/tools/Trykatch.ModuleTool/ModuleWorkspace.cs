@@ -44,7 +44,7 @@ public sealed partial class ModuleWorkspace
     }
 
     internal static string NormalizeWorkspaceRoot(string root) =>
-        Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        ResolvePhysicalDirectoryPath(root);
 
     private static string ResolvePhysicalDirectoryPath(string path)
     {
@@ -843,7 +843,7 @@ public sealed partial class ModuleWorkspace
 
     private string ResolveInsideRoot(string path)
     {
-        string resolved = Path.GetFullPath(path, _root);
+        string resolved = ResolvePhysicalDirectoryPath(Path.GetFullPath(path, _root));
         string rootPrefix = _root.EndsWith(Path.DirectorySeparatorChar)
             ? _root
             : _root + Path.DirectorySeparatorChar;

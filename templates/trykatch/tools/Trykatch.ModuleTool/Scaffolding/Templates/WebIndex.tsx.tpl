@@ -19,8 +19,7 @@ export function __MODULE__Page() {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState<__ENTITY__Dto | null | undefined>(undefined)
   const [viewing, setViewing] = useState<__ENTITY__Dto>()
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
+  __WEB_FIELD_STATE__
   const records = useQuery({
     queryKey: ['__MODULE_ID__s'],
     queryFn: () => loadResult(() => customFetch<__ENTITY__Dto[]>('/api/v1/__RESOURCE__/?lifecycle=active', { method: 'GET' })),
@@ -30,14 +29,14 @@ export function __MODULE__Page() {
     queryFn: () => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET' }),
   })
   const canManage = (access.data?.permissions ?? []).includes('__MODULE_ID__.manage')
-  const closeEditor = () => { setEditing(undefined); setName(''); setDescription('') }
+  const closeEditor = () => { setEditing(undefined); __WEB_FIELD_RESET__ }
   const save = useMutation({
     mutationFn: () => customFetch<__ENTITY__Dto>(editing
       ? `/api/v1/__RESOURCE__/${encodeURIComponent(editing.id)}`
       : '/api/v1/__RESOURCE__/', {
         method: editing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description: description || null }),
+        body: JSON.stringify({ __WEB_REQUEST_BODY__ }),
       }),
     onSuccess: async () => {
       closeEditor()
@@ -53,8 +52,8 @@ export function __MODULE__Page() {
       ])
     },
   })
-  const openCreate = () => { setEditing(null); setName(''); setDescription('') }
-  const openEdit = (record: __ENTITY__Dto) => { setEditing(record); setName(record.name); setDescription(record.description ?? '') }
+  const openCreate = () => { setEditing(null); __WEB_FIELD_RESET__ }
+  const openEdit = (record: __ENTITY__Dto) => { setEditing(record); __WEB_FIELD_EDIT__ }
   const actionsFor = (record: __ENTITY__Dto): RowAction[] => [
     { label: t('view'), icon: 'view', onSelect: () => setViewing(record) },
     ...(canManage ? [
@@ -63,9 +62,8 @@ export function __MODULE__Page() {
     ] satisfies RowAction[] : []),
   ]
   const columns: DataTableColumn<__ENTITY__Dto>[] = [
-    { id: 'name', header: t('name'), cell: (record) => <strong>{record.name}</strong>, sortValue: (record) => record.name, hideable: false },
-    { id: 'description', header: t('description'), cell: (record) => record.description ?? t('noDescription') },
-    { id: 'actions', header: '', cell: (record) => <RowActions label={t('actionsFor', { name: record.name })} actions={actionsFor(record)} />, hideable: false, align: 'right', width: 54 },
+    __WEB_COLUMNS__
+    { id: 'actions', header: '', cell: (record) => <RowActions label={t('actionsFor', { name: __WEB_DISPLAY_VALUE__ })} actions={actionsFor(record)} />, hideable: false, align: 'right', width: 54 },
   ]
   const failure = records.data?.failure ?? access.error?.message ?? records.error?.message
   const activeRecords = records.data?.value ?? []
@@ -88,8 +86,7 @@ export function __MODULE__Page() {
     <Dialog open={editing !== undefined} onOpenChange={(open) => !open && closeEditor()}
       title={t(editing ? 'editRecord' : 'createRecord')} description={t('editorDescription')}>
       <form className="dialog-form" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
-        <label>{t('name')}<input required autoFocus maxLength={200} value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label>{t('description')}<textarea maxLength={2000} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+        __WEB_FORM_FIELDS__
         {save.error && <div className="form-error" role="alert">{save.error.message}</div>}
         <div className="dialog-actions">
           <Button type="button" variant="ghost" onClick={closeEditor}>{t('cancel')}</Button>
@@ -98,10 +95,10 @@ export function __MODULE__Page() {
       </form>
     </Dialog>
     <Dialog open={viewing !== undefined} onOpenChange={(open) => !open && setViewing(undefined)}
-      title={viewing?.name ?? '__ENTITY__'} description={t('recordDetails')}>
+      title={viewing ? __WEB_VIEWING_DISPLAY_VALUE__ : '__ENTITY__'} description={t('recordDetails')}>
       {viewing && <dl className="record-details">
         <div><dt>{t('status')}</dt><dd>{viewing.lifecycle.status}</dd></div>
-        <div><dt>{t('description')}</dt><dd>{viewing.description ?? t('noDescription')}</dd></div>
+        __WEB_DETAIL_FIELDS__
       </dl>}
     </Dialog>
   </>
@@ -125,7 +122,7 @@ export const __MODULE_CAMEL__Module = defineWebModule({
     managePermission: '__MODULE_ID__.manage',
     async load() {
       const records = await customFetch<__ENTITY__Dto[]>('/api/v1/__RESOURCE__/?lifecycle=recoverable', { method: 'GET' })
-      return records.map((record) => ({ id: record.id, title: record.name, description: record.description ?? '', lifecycle: record.lifecycle as ArchiveLifecycle }))
+      return records.map((record) => ({ id: record.id, title: __WEB_DISPLAY_VALUE__, description: __WEB_DESCRIPTION_VALUE__, lifecycle: record.lifecycle as ArchiveLifecycle }))
     },
     restore: (id: string) => customFetch<void>(`/api/v1/__RESOURCE__/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
     requestDeletion: (id: string, reason: string) => customFetch<void>(`/api/v1/__RESOURCE__/${encodeURIComponent(id)}`, {

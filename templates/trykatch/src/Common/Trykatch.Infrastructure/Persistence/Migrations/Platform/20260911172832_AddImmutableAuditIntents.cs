@@ -8,6 +8,8 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
     /// <inheritdoc />
     public partial class AddImmutableAuditIntents : Migration
     {
+        private static readonly string[] AuditIntentIndexColumns = ["OrganizationId", "OccurredAt", "Id"];
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -35,7 +37,7 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                 name: "IX_audit_intents_OrganizationId_OccurredAt_Id",
                 schema: "platform",
                 table: "audit_intents",
-                columns: new[] { "OrganizationId", "OccurredAt", "Id" });
+                columns: AuditIntentIndexColumns);
 
             migrationBuilder.Sql("""
                 ALTER TABLE platform.audit_intents

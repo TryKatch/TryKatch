@@ -67,6 +67,7 @@ static Task<int> RunAsync(string[] arguments)
     string? resource = null;
     string? ownership = null;
     string? description = null;
+    string? fieldSpecification = null;
     bool includeWeb = false;
     List<string> positional = [];
     for (int index = 1; index < arguments.Length; index++)
@@ -113,6 +114,12 @@ static Task<int> RunAsync(string[] arguments)
                 return Task.FromResult(Fail("--description requires text."));
             description = arguments[index];
         }
+        else if (string.Equals(arguments[index], "--fields", StringComparison.Ordinal))
+        {
+            if (++index >= arguments.Length)
+                return Task.FromResult(Fail("--fields requires a field contract."));
+            fieldSpecification = arguments[index];
+        }
         else if (string.Equals(arguments[index], "--with-web", StringComparison.Ordinal))
         {
             includeWeb = true;
@@ -133,7 +140,7 @@ static Task<int> RunAsync(string[] arguments)
             if (positional.Count != 2 || entity is null || resource is null || ownership is null)
                 return Task.FromResult(ShowModuleCreateHelp(1));
             ModuleCreationResult created = new ModuleScaffolder(root).Create(new(
-                positional[1], entity, resource, ownership, description, includeWeb));
+                positional[1], entity, resource, ownership, description, includeWeb, fieldSpecification));
             PrintModules(created.Report.Modules);
             Console.WriteLine();
             Console.WriteLine($"Module '{created.ModuleId}' created, registered, and enabled.");
@@ -422,7 +429,7 @@ static int ShowModuleHelp(int exitCode = 0)
     Console.WriteLine("  trykatch module list [--root <path>]");
     Console.WriteLine("  trykatch module doctor [--root <path>]");
     Console.WriteLine("  trykatch module generate [--root <path>]");
-    Console.WriteLine("  trykatch module create <name> --entity <name> --resource <name> --ownership organization [--with-web] [--root <path>]");
+    Console.WriteLine("  trykatch module create <name> --entity <name> --resource <name> --ownership organization [--fields <contract>] [--with-web] [--root <path>]");
     Console.WriteLine("  trykatch module enable <id> [--root <path>]");
     Console.WriteLine("  trykatch module disable <id> [--root <path>]");
     Console.WriteLine("  trykatch module register <manifest> [--root <path>]");
@@ -446,6 +453,9 @@ static int ShowModuleCreateHelp(int exitCode = 0)
     Console.WriteLine("  --resource <name>     Explicit snake_case API resource and PostgreSQL table name.");
     Console.WriteLine("  --ownership <value>   Must be organization in version 1.");
     Console.WriteLine("  --description <text>  Module description; defaults to an organization-owned description.");
+    Console.WriteLine("  --fields <contract>   Comma-separated business fields; defaults to required Name and optional Description.");
+    Console.WriteLine("                        Example: number:string:required:max(40),total:decimal:required,status:enum(Draft,Paid)");
+    Console.WriteLine("                        Types: string, decimal, int, long, bool, date, datetime, guid, enum(...).");
     Console.WriteLine("  --with-web            Also generate and verify a React module contribution.");
     Console.WriteLine("  --root <path>         Generated application root; defaults to the current directory.");
     Console.WriteLine();

@@ -6,9 +6,9 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "/Users/sudi/Documents/Sudi/Projects/Trykatch/docs-site/public/diagrams/trykatch-platform.html",
-    "sha256": "abbd29c133b06f9e921a8b4c7c1f13769c706ebeab22c5ed00f9a169e6f59e9e",
-    "bytes": 719933
+    "path": "/Users/sudi/Documents/Sudi/Projects/Trykatch-contract-driven-modules/docs-site/public/diagrams/trykatch-platform.html",
+    "sha256": "0510c208055238523589b1d8e5c69a953009da95db918b1ea1b7cd657ceeb487",
+    "bytes": 719916
   },
   "state": {
     "detail": "read",

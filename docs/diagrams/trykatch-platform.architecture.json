@@ -21,7 +21,7 @@
         "id": "module-seam",
         "label": "Inspect the module seam",
         "focus": ["security_kernel", "module_runtime", "projects_module", "federation_module"],
-        "note": "The CLI generates five-layer backend modules and optional React contributions, then validates them without replacing the security kernel."
+        "note": "One field contract generates the five backend layers and optional React CRUD, then validates them without replacing the security kernel."
       },
       {
         "id": "operations",
@@ -87,7 +87,7 @@
       "id": "projects_module",
       "type": "backend",
       "label": "Generated module",
-      "sublabel": "five layers + optional React",
+      "sublabel": "contract → API + React",
       "pos": [1080, 160],
       "size": [160, 64],
       "sources": [{ "path": "docs/module-authoring.md", "label": "module generator" }]

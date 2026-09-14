@@ -9,6 +9,11 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application;
 [Migration("20260911210000_AddOutboxRecovery")]
 public partial class AddOutboxRecovery : Migration
 {
+    private static readonly string[] OutboxPendingIndexColumns = ["ProcessedAt", "ExhaustedAt", "OccurredAt", "Id"];
+    private static readonly string[] ReplayRequestIndexColumns = ["RequestedAt", "RequestId"];
+    private static readonly string[] RecoveryEventTimelineIndexColumns = ["OccurredAt", "MessageId", "ReplayGeneration"];
+    private static readonly string[] RecoveryEventIdentityIndexColumns = ["MessageId", "ReplayGeneration", "Outcome"];
+
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.AddColumn<DateTimeOffset>(
@@ -61,20 +66,20 @@ public partial class AddOutboxRecovery : Migration
             table: "outbox_messages");
         migrationBuilder.CreateIndex(
             name: "IX_outbox_messages_ProcessedAt_ExhaustedAt_OccurredAt_Id", schema: "platform",
-            table: "outbox_messages", columns: new[] { "ProcessedAt", "ExhaustedAt", "OccurredAt", "Id" });
+            table: "outbox_messages", columns: OutboxPendingIndexColumns);
         migrationBuilder.CreateIndex(
             name: "IX_outbox_replay_requests_RequestedAt_RequestId", schema: "platform",
-            table: "outbox_replay_requests", columns: new[] { "RequestedAt", "RequestId" });
+            table: "outbox_replay_requests", columns: ReplayRequestIndexColumns);
         migrationBuilder.CreateIndex(
             name: "IX_outbox_recovery_events_OccurredAt_MessageId_ReplayGeneration", schema: "platform",
-            table: "outbox_recovery_events", columns: new[] { "OccurredAt", "MessageId", "ReplayGeneration" });
+            table: "outbox_recovery_events", columns: RecoveryEventTimelineIndexColumns);
         migrationBuilder.CreateIndex(
             name: "IX_outbox_recovery_events_RequestId", schema: "platform",
             table: "outbox_recovery_events", column: "RequestId", unique: true,
             filter: "\"RequestId\" IS NOT NULL");
         migrationBuilder.CreateIndex(
             name: "IX_outbox_recovery_events_MessageId_ReplayGeneration_Outcome", schema: "platform",
-            table: "outbox_recovery_events", columns: new[] { "MessageId", "ReplayGeneration", "Outcome" },
+            table: "outbox_recovery_events", columns: RecoveryEventIdentityIndexColumns,
             unique: true, filter: "\"Outcome\" = 'terminal'");
 
         migrationBuilder.Sql("""

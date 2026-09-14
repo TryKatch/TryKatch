@@ -27,7 +27,7 @@ This file is the compact repository map for coding agents. The architectural dec
 
 Add a capability through module interfaces and a versioned manifest registered in `trykatch.modules.json`. Regenerate both explicit registries with the module tool. Do not use runtime assembly scanning or import another module's private implementation. Publish a named extension point when another module needs to contribute UI or behavior.
 
-Each business module has Domain, Application, IntegrationEvents, Presentation, and Infrastructure projects plus a `Web` package. The host references only Infrastructure. Presentation never references Infrastructure; Domain and IntegrationEvents never reference implementation projects; another module may reference IntegrationEvents only. `Trykatch.ArchitectureTests` and module-local ArchUnitNET tests enforce these rules.
+Each business module has Domain, Application, IntegrationEvents, Presentation, and Infrastructure projects. A module that declares the `web` capability also has a `Web` package; backend-only modules intentionally omit it. The host references only Infrastructure. Presentation never references Infrastructure; Domain and IntegrationEvents never reference implementation projects; another module may reference IntegrationEvents only. `Trykatch.ArchitectureTests` and module-local ArchUnitNET tests enforce these rules.
 
 ## API and AI workflow
 

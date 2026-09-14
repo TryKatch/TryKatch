@@ -20,7 +20,7 @@
         "id": "module-seam",
         "label": "Examiner la frontière des modules",
         "focus": ["security_kernel", "module_runtime", "projects_module", "federation_module"],
-        "note": "La CLI génère cinq couches backend et une contribution React optionnelle, puis les valide sans remplacer le noyau de sécurité."
+        "note": "Un contrat de champs génère les cinq couches backend et le CRUD React optionnel, puis les valide sans remplacer le noyau de sécurité."
       },
       {
         "id": "operations",
@@ -86,7 +86,7 @@
       "id": "projects_module",
       "type": "backend",
       "label": "Module généré",
-      "sublabel": "cinq couches + React optionnel",
+      "sublabel": "contrat → backend + React",
       "pos": [1080, 160],
       "size": [160, 64],
       "sources": [{ "path": "docs/module-authoring.md", "label": "générateur de module" }]

@@ -8,7 +8,8 @@ using __ROOT_NAMESPACE__.Modules.__MODULE__.Application;
 
 namespace __ROOT_NAMESPACE__.Modules.__MODULE__.Presentation;
 
-public sealed record Save__ENTITY__Request(string Name, string? Description);
+public sealed record Save__ENTITY__Request(
+    __COMMAND_FIELDS__);
 public sealed record Delete__ENTITY__Request(string? Reason);
 
 public sealed class __MODULE__Endpoints : IOrganizationEndpointContributor
@@ -50,14 +51,15 @@ public sealed class __MODULE__Endpoints : IOrganizationEndpointContributor
 
     private static async Task<IResult> CreateAsync(Save__ENTITY__Request request, __MODULE__UseCases useCases, CancellationToken cancellationToken)
     {
-        __ENTITY__OperationResult<__ENTITY__Dto> result = await useCases.CreateAsync(new(request.Name, request.Description), cancellationToken);
+        __ENTITY__OperationResult<__ENTITY__Dto> result = await useCases.CreateAsync(
+            new(__REQUEST_ARGUMENTS__), cancellationToken);
         return result.IsSuccess && result.Value is not null
             ? TypedResults.Created($"/api/v1/__RESOURCE__/{result.Value.Id}", result.Value)
             : ToResult(result);
     }
 
     private static async Task<IResult> UpdateAsync(Guid id, Save__ENTITY__Request request, __MODULE__UseCases useCases, CancellationToken cancellationToken) =>
-        ToResult(await useCases.UpdateAsync(id, new(request.Name, request.Description), cancellationToken));
+        ToResult(await useCases.UpdateAsync(id, new(__REQUEST_ARGUMENTS__), cancellationToken));
     private static async Task<IResult> ArchiveAsync(Guid id, __MODULE__UseCases useCases, CancellationToken cancellationToken) =>
         ToResult(await useCases.ArchiveAsync(id, cancellationToken));
     private static async Task<IResult> RestoreAsync(Guid id, __MODULE__UseCases useCases, CancellationToken cancellationToken) =>

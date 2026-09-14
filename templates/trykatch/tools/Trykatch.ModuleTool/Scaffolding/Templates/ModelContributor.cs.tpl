@@ -14,8 +14,7 @@ public sealed class __MODULE__ModelContributor : IApplicationModelContributor
         {
             entity.ToTable("__RESOURCE__", "app", table => table.ExcludeFromMigrations());
             entity.HasKey(record => record.Id);
-            entity.Property(record => record.Name).HasMaxLength(200);
-            entity.Property(record => record.Description).HasMaxLength(2000);
+            __MODEL_FIELD_CONFIGURATION__
             entity.Property(record => record.DeletionReason).HasMaxLength(500);
             entity.Ignore(record => record.LifecycleState);
             entity.HasIndex(record => new { record.OrganizationId, record.CreatedAt });

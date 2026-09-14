@@ -1,13 +1,17 @@
+using System.Globalization;
 using __ROOT_NAMESPACE__.Modules;
 using __ROOT_NAMESPACE__.Modules.__MODULE__.Domain;
 using __ROOT_NAMESPACE__.Modules.__MODULE__.IntegrationEvents;
 
 namespace __ROOT_NAMESPACE__.Modules.__MODULE__.Application;
 
-public sealed record Save__ENTITY__Command(string Name, string? Description);
+public sealed record Save__ENTITY__Command(
+    __COMMAND_FIELDS__);
 public sealed record __ENTITY__LifecycleDto(string Status, DateTimeOffset? ArchivedAt, Guid? ArchivedBy,
     DateTimeOffset? DeletedAt, Guid? DeletedBy, string? DeletionReason);
-public sealed record __ENTITY__Dto(Guid Id, string Name, string? Description, DateTimeOffset CreatedAt,
+public sealed record __ENTITY__Dto(Guid Id,
+    __DTO_FIELDS__,
+    DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt, __ENTITY__LifecycleDto Lifecycle);
 public sealed record __ENTITY__OperationResult<T>(bool IsSuccess, T? Value, string? Code, string? Error);
 
@@ -59,7 +63,9 @@ public sealed class __MODULE__UseCases(
         if (!await CanManage(cancellationToken)) return Forbidden<__ENTITY__Dto>();
         string? error = Validate(command);
         if (error is not null) return __ENTITY__Operation.Failure<__ENTITY__Dto>("validation", error);
-        __ENTITY__Record record = __ENTITY__Record.Create(context.OrganizationId, context.ActorId, command.Name, command.Description, timeProvider.GetUtcNow());
+        __ENTITY__Record record = __ENTITY__Record.Create(context.OrganizationId, context.ActorId,
+            __COMMAND_TO_DOMAIN_ARGUMENTS__,
+            timeProvider.GetUtcNow());
         store.Add(record);
         RecordChange(record, "created");
         await store.SaveChangesAsync(cancellationToken);
@@ -73,7 +79,9 @@ public sealed class __MODULE__UseCases(
         if (error is not null) return __ENTITY__Operation.Failure<__ENTITY__Dto>("validation", error);
         __ENTITY__Record? record = await store.FindAsync(id, false, cancellationToken);
         if (record is null) return NotFound<__ENTITY__Dto>();
-        record.Update(command.Name, command.Description, timeProvider.GetUtcNow());
+        record.Update(
+            __COMMAND_TO_DOMAIN_ARGUMENTS__,
+            timeProvider.GetUtcNow());
         RecordChange(record, "updated");
         await store.SaveChangesAsync(cancellationToken);
         return __ENTITY__Operation.Success(ToDto(record));
@@ -122,15 +130,17 @@ public sealed class __MODULE__UseCases(
 
     private void RecordChange(__ENTITY__Record record, string operation)
     {
-        context.RecordAudit("__MODULE_ID__." + operation, "__ENTITY__", record.Id.ToString(), record.Name);
+        context.RecordAudit("__MODULE_ID__." + operation, "__ENTITY__", record.Id.ToString(), __AUDIT_DISPLAY__);
         context.Enqueue(new __ENTITY__Changed(record.Id, record.OrganizationId, operation, context.ActorId,
             timeProvider.GetUtcNow(), record.DeletionReason));
     }
 
-    private static string? Validate(Save__ENTITY__Command command) =>
-        string.IsNullOrWhiteSpace(command.Name) || command.Name.Trim().Length > 200
-            ? "Name is required and cannot exceed 200 characters."
-            : command.Description?.Length > 2000 ? "Description cannot exceed 2000 characters." : null;
+    private static string? Validate(Save__ENTITY__Command command)
+    {
+        List<string> errors = [];
+        __FIELD_VALIDATION__
+        return errors.Count == 0 ? null : string.Join(" ", errors);
+    }
 
     private static __ENTITY__OperationResult<T> Forbidden<T>() =>
         __ENTITY__Operation.Failure<T>("forbidden", "Records cannot be changed by this membership.");
@@ -138,7 +148,9 @@ public sealed class __MODULE__UseCases(
         __ENTITY__Operation.Failure<T>("not_found", "Record was not found.");
 
     private static __ENTITY__Dto ToDto(__ENTITY__Record record) => new(
-        record.Id, record.Name, record.Description, record.CreatedAt, record.UpdatedAt,
+        record.Id,
+        __DTO_ARGUMENTS__,
+        record.CreatedAt, record.UpdatedAt,
         new(record.LifecycleState.ToString(), record.ArchivedAt, record.ArchivedBy,
             record.DeletedAt, record.DeletedBy, record.DeletionReason));
 }

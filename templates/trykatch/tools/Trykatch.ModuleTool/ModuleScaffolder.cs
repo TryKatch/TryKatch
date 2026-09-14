@@ -13,7 +13,8 @@ public sealed record ModuleCreateRequest(
     string ResourceName,
     string Ownership,
     string? Description,
-    bool IncludeWeb);
+    bool IncludeWeb,
+    string? FieldSpecification = null);
 
 public sealed record ModuleCreationResult(
     string ModuleId,
@@ -244,8 +245,9 @@ public sealed partial class ModuleWorkspace
             throw new ArgumentException("--description cannot exceed 500 characters.");
         if (description.Any(char.IsControl))
             throw new ArgumentException("--description must be a single line without control characters.");
+        IReadOnlyList<ModuleFieldDefinition> fields = ModuleFieldContract.Parse(request.FieldSpecification);
         return new(rootNamespace, npmScope, publisher, module, moduleId, entity, resource, description,
-            $"@{npmScope}-modules/{moduleId}", request.IncludeWeb);
+            $"@{npmScope}-modules/{moduleId}", request.IncludeWeb, fields);
     }
 
     private static void RenderModule(string moduleRoot, string testRoot, ScaffoldNames names, bool includeWeb)
@@ -624,6 +626,8 @@ public sealed partial class ModuleWorkspace
                 ? "ModuleCapabilities.Api | ModuleCapabilities.Data | ModuleCapabilities.Web"
                 : "ModuleCapabilities.Api | ModuleCapabilities.Data", StringComparison.Ordinal)
             .Replace("__DESCRIPTION__", EscapeDescription(templateName, names.Description), StringComparison.Ordinal);
+        foreach ((string token, string value) in ModuleFieldRenderer.Render(names.Entity, names.Fields))
+            contents = contents.Replace(token, value, StringComparison.Ordinal);
         WriteUtf8(outputPath, contents);
     }
 
@@ -658,5 +662,6 @@ public sealed partial class ModuleWorkspace
 
     private sealed record ScaffoldNames(
         string RootNamespace, string NpmScope, string Publisher, string Module, string ModuleId,
-        string Entity, string Resource, string Description, string WebPackage, bool IncludeWeb);
+        string Entity, string Resource, string Description, string WebPackage, bool IncludeWeb,
+        IReadOnlyList<ModuleFieldDefinition> Fields);
 }
