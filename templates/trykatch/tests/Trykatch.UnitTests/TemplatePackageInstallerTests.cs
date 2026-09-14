@@ -232,6 +232,28 @@ public sealed class TemplatePackageInstallerTests
     }
 
     [TestMethod]
+    public async Task ForcedUpdatePreservesForceInTheRetryCommand()
+    {
+        const string unexpectedEof = "Received an unexpected EOF or 0 bytes from the transport stream.";
+        RecordingTemplateEngine engine = new(new(103, string.Empty, unexpectedEof))
+        {
+            IsRequestedVersionInstalled = true
+        };
+        StringWriter error = new();
+        TemplatePackageInstaller installer = new(engine, TextWriter.Null, error, isInteractive: false);
+
+        int exitCode = await installer.UpdateAsync(
+            "0.1.0-preview.20",
+            forceReinstall: true,
+            CancellationToken.None);
+
+        exitCode.ShouldBe(103);
+        engine.Force.ShouldBeTrue();
+        error.ToString().ShouldContain(
+            "Retry: trykatch update --version 0.1.0-preview.20 --force");
+    }
+
+    [TestMethod]
     public async Task UninstallUsesTheOfficialTemplateEngineAndExplainsCliRemoval()
     {
         RecordingTemplateEngine engine = new(new(0, "uninstalled", string.Empty));

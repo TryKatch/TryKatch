@@ -87,7 +87,7 @@ La mise à jour du modèle s’applique aux futurs projets générés ; elle ne 
 
 ### Si un téléchargement NuGet est interrompu
 
-Lorsque NuGet signale une fin de flux inattendue (EOF) ou un flux de transport vide, Trykatch regroupe les messages répétés du SDK en une seule erreur exploitable. Réessayez d’abord la commande affichée par la CLI. Si le téléchargement échoue encore, videz uniquement le cache HTTP de NuGet, puis relancez la mise à jour :
+Lorsque NuGet signale une fin de flux inattendue (EOF) ou un flux de transport vide, Trykatch regroupe les messages répétés du SDK en une seule erreur exploitable. Réessayez d’abord exactement la commande affichée par la CLI. Si vous aviez lancé une réparation explicite avec `--force`, la commande de nouvelle tentative conserve aussi `--force` afin de ne pas devenir une mise à jour ordinaire sans effet. Si le téléchargement échoue encore, videz uniquement le cache HTTP de NuGet, puis relancez la mise à jour :
 
 ```bash
 dotnet nuget locals http-cache --clear
