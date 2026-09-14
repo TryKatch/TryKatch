@@ -10,7 +10,7 @@ trykatch new Horizon
 trykatch template help
 trykatch start
 trykatch module help
-trykatch module create Invoicing --entity Invoice --resource invoices --ownership organization
+trykatch module create Invoicing --entity Invoice --resource invoices --ownership organization --fields "number:string:required:max(40),total:decimal:required,status:enum(Draft,Paid)" --with-web
 trykatch module doctor --root /path/to/application
 trykatch module register src/My.Module/module-manifest.json
 trykatch module install ./downloaded/module-manifest.json --sha256 <published-digest>
@@ -30,10 +30,17 @@ inside a Git worktree remains part of its parent repository.
 `start` discovers the generated Aspire AppHost from the current directory or `--root`, then runs its HTTPS launch profile with inherited terminal output. `template uninstall` removes `Trykatch.Templates` through the official .NET template engine; remove the global CLI separately with `dotnet tool uninstall --global Trykatch.Cli`.
 
 `module create` scaffolds an organization-owned CRUD module inside an existing
-Trykatch application. Add `--with-web` for its React surface. The command stages
-the source privately, registers and enables the module, restores both package
-graphs, builds and tests the result, and rolls every changed file back if any
-phase fails. Run it from the generated application root or pass `--root`.
+Trykatch application. Use `--fields` to define the business contract once across
+the domain, API, database and generated React CRUD surface. Supported types are
+`string`, `decimal`, `int`, `long`, `bool`, `date`, `datetime`, `guid`, and
+`enum(...)`; omit it for the compatible Name/Description starter. Add `--with-web`
+for the React surface. The command stages
+the source privately, validates the rendered manifest and projected catalog,
+registers and enables the module, restores both package graphs, builds and tests
+the result, and rolls every changed file back if any phase fails. It prints every
+endpoint, the generated permissions, and the start command. Generated writes emit
+distinct created, updated, archived, restored, and deletion-requested integration
+event contracts. Run it from the generated application root or pass `--root`.
 
 `trykatch.modules.lock.json` is machine-owned and records the manifest digest mode,
 digest, version, enablement state, distribution kind, package pairing, and license

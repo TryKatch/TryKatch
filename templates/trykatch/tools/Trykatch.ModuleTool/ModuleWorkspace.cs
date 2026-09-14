@@ -19,6 +19,7 @@ public sealed partial class ModuleWorkspace
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         WriteIndented = true
     };
+    internal static JsonSerializerOptions SerializerOptions => JsonOptions;
 
     private static readonly HashSet<string> KnownCapabilities = new(StringComparer.Ordinal)
     {
@@ -44,7 +45,7 @@ public sealed partial class ModuleWorkspace
     }
 
     internal static string NormalizeWorkspaceRoot(string root) =>
-        Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        ResolvePhysicalDirectoryPath(root);
 
     private static string ResolvePhysicalDirectoryPath(string path)
     {
@@ -162,7 +163,7 @@ public sealed partial class ModuleWorkspace
                 module.Registration.Manifest)).ToArray(),
             errors);
 
-    private void ValidateCatalog(ModuleCatalogFile catalog, List<string> errors)
+    internal void ValidateCatalog(ModuleCatalogFile catalog, List<string> errors)
     {
         if (catalog.SchemaVersion != SupportedSchemaVersion)
             errors.Add($"Unsupported module catalog schema version '{catalog.SchemaVersion}'. Expected '{SupportedSchemaVersion}'.");
@@ -205,7 +206,7 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    private List<LoadedModule> LoadModules(ModuleCatalogFile catalog, List<string> errors)
+    internal List<LoadedModule> LoadModules(ModuleCatalogFile catalog, List<string> errors)
     {
         List<LoadedModule> loaded = [];
         foreach (ModuleRegistration registration in catalog.Modules)
@@ -236,7 +237,11 @@ public sealed partial class ModuleWorkspace
         return loaded;
     }
 
-    private void ValidateModules(ModuleCatalogFile catalog, IReadOnlyCollection<LoadedModule> modules, List<string> errors)
+    internal void ValidateModules(
+        ModuleCatalogFile catalog,
+        IReadOnlyCollection<LoadedModule> modules,
+        List<string> errors,
+        bool requireCommittedWorkspaceArtifacts = true)
     {
         EnsureUnique(modules.Select(module => module.Manifest.Id), "manifest module id", errors);
         bool webEnabled = HasWebSurface();
@@ -275,7 +280,7 @@ public sealed partial class ModuleWorkspace
             if (overlap is not null)
                 errors.Add($"Module '{manifest.Id}' declares '{overlap}' as both required and optional.");
 
-            ValidateEntrypoints(module, webEnabled, errors);
+            ValidateEntrypoints(module, webEnabled, errors, requireCommittedWorkspaceArtifacts);
             ValidateContributions(manifest, errors);
         }
 
@@ -352,14 +357,23 @@ public sealed partial class ModuleWorkspace
             errors.Add($"Module '{manifest.Id}' is incompatible with Trykatch host {hostVersion}. Supported range is [{minimum}, {maximum}).");
     }
 
-    private void ValidateEntrypoints(LoadedModule module, bool webEnabled, List<string> errors)
+    private void ValidateEntrypoints(
+        LoadedModule module,
+        bool webEnabled,
+        List<string> errors,
+        bool requireCommittedWorkspaceArtifacts)
     {
         ModuleManifest manifest = module.Manifest;
         if (string.IsNullOrWhiteSpace(manifest.Entrypoints.Dotnet.Type)
             || !DotnetTypeRegex().IsMatch(manifest.Entrypoints.Dotnet.Type))
             errors.Add($"Module '{manifest.Id}' requires a fully qualified .NET registration type.");
         if (string.Equals(manifest.Distribution.Kind, "workspace", StringComparison.Ordinal))
-            ValidateArtifact(manifest.Id, manifest.Artifacts.DotnetProject, "dotnet project", errors);
+        {
+            if (requireCommittedWorkspaceArtifacts)
+                ValidateArtifact(manifest.Id, manifest.Artifacts.DotnetProject, "dotnet project", errors);
+            else
+                ValidateRelativePath(manifest.Artifacts.DotnetProject, $"dotnet project for '{manifest.Id}'", errors);
+        }
 
         if (!manifest.Capabilities.Contains("web", StringComparer.Ordinal))
             return;
@@ -368,7 +382,12 @@ public sealed partial class ModuleWorkspace
             || !JavaScriptIdentifierRegex().IsMatch(manifest.Entrypoints.Web.Export))
             errors.Add($"Web module '{manifest.Id}' requires a valid import specifier and export.");
         if (webEnabled && string.Equals(manifest.Distribution.Kind, "workspace", StringComparison.Ordinal))
-            ValidateArtifact(manifest.Id, manifest.Artifacts.WebPackage, "web package", errors);
+        {
+            if (requireCommittedWorkspaceArtifacts)
+                ValidateArtifact(manifest.Id, manifest.Artifacts.WebPackage, "web package", errors);
+            else
+                ValidateRelativePath(manifest.Artifacts.WebPackage, $"web package for '{manifest.Id}'", errors);
+        }
     }
 
     private void ValidateDistribution(ModuleCatalogFile catalog, ModuleManifest manifest, List<string> errors)
@@ -590,7 +609,7 @@ public sealed partial class ModuleWorkspace
             errors.Add($"Generated {subject} '{relativePath}' has drifted. Run 'trykatch module generate'.");
     }
 
-    private void WriteGeneratedRegistries(ModuleCatalogFile catalog, IReadOnlyCollection<LoadedModule> modules)
+    internal void WriteGeneratedRegistries(ModuleCatalogFile catalog, IReadOnlyCollection<LoadedModule> modules)
     {
         WriteAtomic(
             ResolveInsideRoot(catalog.Outputs.Backend),
@@ -768,7 +787,7 @@ public sealed partial class ModuleWorkspace
         return paths.ToDictionary(path => path, path => File.Exists(path) ? File.ReadAllBytes(path) : null, StringComparer.Ordinal);
     }
 
-    private static void RestoreFiles(IReadOnlyDictionary<string, byte[]?> originals)
+    internal static void RestoreFiles(IReadOnlyDictionary<string, byte[]?> originals)
     {
         foreach ((string path, byte[]? content) in originals)
         {
@@ -785,7 +804,7 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    private static void WriteAtomic(string path, string content)
+    internal static void WriteAtomic(string path, string content)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string temporary = $"{path}.{Guid.NewGuid():N}.tmp";
@@ -801,7 +820,7 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    private T? ReadJson<T>(string path, List<string> errors, string subject)
+    internal T? ReadJson<T>(string path, List<string> errors, string subject)
     {
         if (!File.Exists(path))
         {
@@ -841,9 +860,9 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    private string ResolveInsideRoot(string path)
+    internal string ResolveInsideRoot(string path)
     {
-        string resolved = Path.GetFullPath(path, _root);
+        string resolved = ResolvePhysicalDirectoryPath(Path.GetFullPath(path, _root));
         string rootPrefix = _root.EndsWith(Path.DirectorySeparatorChar)
             ? _root
             : _root + Path.DirectorySeparatorChar;
@@ -855,7 +874,7 @@ public sealed partial class ModuleWorkspace
         return resolved;
     }
 
-    private string ResolveHostProject(string generatedRegistryPath, string registryNamespace, string subject)
+    internal string ResolveHostProject(string generatedRegistryPath, string registryNamespace, string subject)
     {
         string registryPath = ResolveInsideRoot(generatedRegistryPath);
         string? hostDirectory = Directory.GetParent(registryPath)?.Parent?.FullName;
@@ -907,7 +926,7 @@ public sealed partial class ModuleWorkspace
             : string.Empty;
     }
 
-    private string ResolveSolution()
+    internal string ResolveSolution()
     {
         string[] solutions = Directory.GetFiles(_root, "*.slnx", SearchOption.TopDirectoryOnly);
         if (solutions.Length != 1)
@@ -915,7 +934,7 @@ public sealed partial class ModuleWorkspace
         return solutions[0];
     }
 
-    private bool HasWebSurface() => Directory.Exists(Path.Combine(_root, "web"));
+    internal bool HasWebSurface() => Directory.Exists(Path.Combine(_root, "web"));
 
     private static void EnsureUnique(IEnumerable<string> values, string subject, List<string> errors)
     {
@@ -927,7 +946,7 @@ public sealed partial class ModuleWorkspace
             errors.Add($"Duplicate {subject} '{duplicate}'.");
     }
 
-    private static bool TryParseVersion(string value, out Version? version)
+    internal static bool TryParseVersion(string value, out Version? version)
     {
         version = null;
         if (!SemanticVersionRegex().IsMatch(value))
@@ -1008,7 +1027,7 @@ public sealed partial class ModuleWorkspace
     [GeneratedRegex("^[a-z][a-z0-9_]*$", RegexOptions.CultureInvariant)]
     private static partial Regex SqlIdentifierRegex();
 
-    private sealed record LoadedModule(
+    internal sealed record LoadedModule(
         ModuleRegistration Registration,
         ModuleManifest Manifest,
         string ManifestSha256,

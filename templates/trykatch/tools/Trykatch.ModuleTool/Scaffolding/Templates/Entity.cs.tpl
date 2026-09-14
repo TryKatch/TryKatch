@@ -4,24 +4,26 @@ namespace __ROOT_NAMESPACE__.Modules.__MODULE__.Domain;
 
 public enum __ENTITY__LifecycleState { Active = 1, Archived = 2, Deleted = 3 }
 
+__FIELD_ENUMS__
+
 public sealed class __ENTITY__Record : IOrganizationOwned
 {
     private __ENTITY__Record() { }
 
-    private __ENTITY__Record(Guid organizationId, Guid actorId, string name, string? description, DateTimeOffset now)
+    private __ENTITY__Record(Guid organizationId, Guid actorId,
+        __DOMAIN_FIELD_PARAMETERS__,
+        DateTimeOffset now)
     {
         Id = Guid.CreateVersion7();
         OrganizationId = organizationId;
         CreatedBy = actorId;
-        Name = name.Trim();
-        Description = description?.Trim();
+        __DOMAIN_FIELD_ASSIGNMENTS__
         CreatedAt = now;
     }
 
     public Guid Id { get; private init; }
     public Guid OrganizationId { get; private init; }
-    public string Name { get; private set; } = string.Empty;
-    public string? Description { get; private set; }
+    __DOMAIN_FIELD_PROPERTIES__
     public Guid CreatedBy { get; private init; }
     public DateTimeOffset CreatedAt { get; private init; }
     public DateTimeOffset? UpdatedAt { get; private set; }
@@ -35,15 +37,18 @@ public sealed class __ENTITY__Record : IOrganizationOwned
         ? __ENTITY__LifecycleState.Deleted
         : ArchivedAt is not null ? __ENTITY__LifecycleState.Archived : __ENTITY__LifecycleState.Active;
 
-    public static __ENTITY__Record Create(Guid organizationId, Guid actorId, string name, string? description, DateTimeOffset now) =>
-        new(organizationId, actorId, name, description, now);
+    public static __ENTITY__Record Create(Guid organizationId, Guid actorId,
+        __DOMAIN_FIELD_PARAMETERS__,
+        DateTimeOffset now) =>
+        new(organizationId, actorId, __DOMAIN_FIELD_ARGUMENTS__, now);
 
-    public void Update(string name, string? description, DateTimeOffset now)
+    public void Update(
+        __DOMAIN_FIELD_PARAMETERS__,
+        DateTimeOffset now)
     {
         if (LifecycleState != __ENTITY__LifecycleState.Active)
             throw new InvalidOperationException("Restore the record before editing it.");
-        Name = name.Trim();
-        Description = description?.Trim();
+        __DOMAIN_FIELD_ASSIGNMENTS__
         UpdatedAt = now;
     }
 

@@ -27,10 +27,11 @@ cd /path/to/Horizon
 trykatch module create Invoicing \
   --entity Invoice \
   --resource invoices \
-  --ownership organization
+  --ownership organization \
+  --fields "number:string:required:max(40),total:decimal:required,dueDate:date:required,status:enum(Draft,Sent,Paid):required,notes:string:optional:max(2000)"
 ```
 
-`Invoicing` and `Invoice` must be PascalCase .NET identifiers. `invoices` must be an explicit lower-case snake_case PostgreSQL identifier, must not be a PostgreSQL keyword, and must not duplicate an `app` schema relation declared by another registered module. Version 1 deliberately requires `--ownership organization`; it never guesses the security boundary. These checks run before staging or modifying any workspace file.
+`Invoicing` and `Invoice` must be portable PascalCase .NET identifiers: Trykatch also rejects host names and Windows device names such as `CON`, `AUX`, `COM1`, and `LPT1`. `invoices` must be an explicit lower-case snake_case PostgreSQL identifier, must not be a PostgreSQL keyword, and must not duplicate an `app` schema relation declared by another registered module. Version 1 deliberately requires `--ownership organization`; it never guesses the security boundary. These checks run before staging or modifying any workspace file.
 
 ## Generate a full-stack module
 
@@ -41,11 +42,34 @@ trykatch module create Invoicing \
   --entity Invoice \
   --resource invoices \
   --ownership organization \
+  --fields "number:string:required:max(40),total:decimal:required,dueDate:date:required,status:enum(Draft,Sent,Paid):required,notes:string:optional:max(2000)" \
   --description "Organization invoice management." \
   --with-web
 ```
 
 Use `trykatch module create --help` for the complete command contract.
+
+## Describe the business fields once
+
+`--fields` is the authoritative business shape for the generated CRUD slice. The generator applies it consistently to the domain entity, create/update contract, DTO, validation, EF Core configuration, PostgreSQL migration, OpenAPI document and—when `--with-web` is present—the React table, form, details view and English/French message catalogs.
+
+Each definition uses `lowerCamelCase:type`, followed by optional modifiers. Fields are required by default; write `optional` when `null` is a valid business value. Strings accept `max(length)` from 1 through 10,000. Up to 24 fields are supported.
+
+| Contract type | Generated .NET type | Generated React control |
+| --- | --- | --- |
+| `string` | `string` | text input or textarea |
+| `decimal` | `decimal` with `numeric(18,2)` persistence | invariant string transport and exact decimal input |
+| `int` | `int` | whole-number input |
+| `long` | `long` | invariant string transport and exact 64-bit integer input |
+| `bool` | `bool` | checkbox or optional selector |
+| `date` | `DateOnly` | date input |
+| `datetime` | UTC-normalized `DateTimeOffset` | local date-time input converted to an ISO UTC instant |
+| `guid` | `Guid` | identifier input |
+| `enum(Draft,Sent,Paid)` | strongly typed `InvoiceStatus` | translated selector |
+
+If `--fields` is omitted, the compatible starter contract remains `name:string:required:max(200),description:string:optional:max(2000)`. Platform-managed fields such as `Id`, `OrganizationId`, audit timestamps and deletion metadata cannot be declared or exposed as writable fields.
+
+Field identifiers are limited to 63 ASCII characters so PostgreSQL cannot silently truncate a generated column name. Decimal values accept at most 16 integer digits and 2 fractional digits, matching `numeric(18,2)` exactly. Decimal and 64-bit integer values cross JSON as invariant strings so JavaScript cannot round them. Generated date-time values are normalized to UTC before persistence and converted between the browser's local editor and ISO UTC transport.
 
 ## What the command creates
 
@@ -64,9 +88,9 @@ tests/Modules/Invoicing/
 └── Horizon.Modules.Invoicing.ArchitectureTests/
 ```
 
-The command also adds the projects to the solution, registers the Infrastructure entrypoint with the API and migrator, adds and enables the catalog entry, regenerates all registries, restores dependencies, builds the backend, runs the generated tests and module doctor, and—when requested—generates the OpenAPI client and runs frontend type checking, tests, and the production build.
+The command also adds the projects to the solution in deterministic folder/project order, registers the Infrastructure entrypoint with the API and migrator, adds and enables the catalog entry, regenerates all registries, restores dependencies, builds the backend, runs the generated tests and module doctor, and—when requested—generates the OpenAPI client and runs frontend type checking, tests, and the production build. Success output lists every generated endpoint, both permissions, and the exact start command.
 
-The operation is atomic. Rendering happens in a private staging directory. If registration, restore, build, testing, client generation, or validation fails, Trykatch restores the catalog, solution, project files, registries, OpenAPI/client output, and lockfiles, then removes the new module. Repeating the same command reports that the module exists and makes no changes; v1 has no overwrite option.
+The operation is atomic. Rendering happens in a private staging directory, where the complete rendered manifest and projected module catalog are validated before any module file is committed. If solution editing, registration, restore, build, testing, client generation, or doctor validation fails, Trykatch restores the catalog, solution, project files, registries, OpenAPI/client output, and lockfiles, then removes the new module. Repeating the same command reports that the module exists and makes no changes; v1 has no overwrite option.
 
 ## Generated security contract
 
@@ -82,7 +106,7 @@ POST   /api/v1/invoices/{id}/restore
 DELETE /api/v1/invoices/{id}
 ```
 
-Reads require `invoicing.read`; mutations require `invoicing.manage`, permission checks are repeated in the application use cases, mutation endpoints require antiforgery protection, and writes record audit and outbox evidence in the host transaction.
+Reads require `invoicing.read`; mutations require `invoicing.manage`, permission checks are repeated in the application use cases, mutation endpoints require antiforgery protection, and writes record audit and outbox evidence in the host transaction. Minimal API handlers use typed result unions and stable OpenAPI operation names (`Invoicing_List` through `Invoicing_RequestDeletion`). The outbox publishes distinct immutable contracts—`InvoiceCreated`, `InvoiceUpdated`, `InvoiceArchived`, `InvoiceRestored`, and `InvoiceDeletionRequested`—instead of a free-form operation string.
 
 ## Start and verify the result
 
@@ -106,7 +130,7 @@ trykatch module doctor
 
 ## Extend the generated entity safely
 
-Add domain behavior to the entity instead of public setters. Add explicit request/DTO fields and validation in Application, map persistence in the module model contributor, and create a new immutable forward-only module migration. Keep all organization access through `IOrganizationModuleData`; never inject a host DbContext or accept an organization ID from a request. Preserve stable endpoint names, permissions, event contracts, table name, and RLS policy unless you are deliberately versioning that public contract.
+Add domain behavior to the entity instead of public setters. The generated fields are a starting contract; after the module has shipped, evolve it through explicit request/DTO changes and a new immutable forward-only module migration instead of rerunning the generator over existing source. Keep all organization access through `IOrganizationModuleData`; never inject a host DbContext or accept an organization ID from a request. Preserve stable endpoint names, permissions, event contracts, table name, and RLS policy unless you are deliberately versioning that public contract.
 
 Persistent modules must also satisfy the [module data-isolation contract](/architecture/module-data-isolation/). Modules cannot opt out of organization scoping or receive direct access to host database contexts.
 

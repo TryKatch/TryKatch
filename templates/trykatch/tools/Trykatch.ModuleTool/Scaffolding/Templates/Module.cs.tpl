@@ -37,8 +37,7 @@ public sealed class __MODULE__Module : IModule, IModuleMigrationContributor
             (
                 "Id" uuid PRIMARY KEY,
                 "OrganizationId" uuid NOT NULL,
-                "Name" character varying(200) NOT NULL,
-                "Description" character varying(2000) NULL,
+                __MIGRATION_FIELDS__
                 "CreatedBy" uuid NOT NULL,
                 "CreatedAt" timestamp with time zone NOT NULL,
                 "UpdatedAt" timestamp with time zone NULL,

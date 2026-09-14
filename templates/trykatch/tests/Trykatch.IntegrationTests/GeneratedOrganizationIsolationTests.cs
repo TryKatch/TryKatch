@@ -18,6 +18,16 @@ namespace Trykatch.IntegrationTests;
 public sealed class GeneratedOrganizationIsolationTests
 {
     [TestMethod]
+    public void MutationMarkerRespectsTheSelectedColumnLength()
+    {
+        FixtureColumn marker = new(
+            "Status", "character varying", "varchar",
+            false, false, false, false, 5);
+
+        FitTextToColumn(marker, "updated").ShouldBe("updat");
+    }
+
+    [TestMethod]
     public async Task TamperedHostFunctionNeverReceivesRuntimeExecuteGrants()
     {
         await using DatabaseServer server = await DatabaseServer.StartAsync();
@@ -261,7 +271,7 @@ public sealed class GeneratedOrganizationIsolationTests
             IsolationFixture source = new(
                 new("sources", schema, "sources", ModuleDataOwnership.Organization,
                     "Fixture.Source", "source_organization_isolation"),
-                [new("Id", "uuid", "uuid", false, false, false, false)],
+                [new("Id", "uuid", "uuid", false, false, false, false, null)],
                 "TargetExternalKey",
                 []);
             ForeignKeyFixture foreignKey = new(
@@ -376,7 +386,8 @@ public sealed class GeneratedOrganizationIsolationTests
         command.CommandText = """
             SELECT column_name, data_type, udt_name,
                    is_nullable = 'YES', column_default IS NOT NULL,
-                   is_identity = 'YES', is_generated <> 'NEVER'
+                   is_identity = 'YES', is_generated <> 'NEVER',
+                   character_maximum_length
             FROM information_schema.columns
             WHERE table_schema = @schema AND table_name = @table
             ORDER BY ordinal_position
@@ -388,7 +399,8 @@ public sealed class GeneratedOrganizationIsolationTests
         while (await reader.ReadAsync())
             columns.Add(new(
                 reader.GetString(0), reader.GetString(1), reader.GetString(2),
-                reader.GetBoolean(3), reader.GetBoolean(4), reader.GetBoolean(5), reader.GetBoolean(6)));
+                reader.GetBoolean(3), reader.GetBoolean(4), reader.GetBoolean(5), reader.GetBoolean(6),
+                reader.IsDBNull(7) ? null : reader.GetInt32(7)));
         if (columns.Count == 0)
             throw new InvalidOperationException($"Declared relation '{resource.Schema}.{resource.Table}' does not exist.");
 
@@ -523,8 +535,11 @@ public sealed class GeneratedOrganizationIsolationTests
                 "ActorId" or "CreatedBy" => actorId,
                 _ => column.DataType switch
                 {
-                    "text" or "character varying" or "character" => marker,
-                    "timestamp with time zone" or "timestamp without time zone" => DateTimeOffset.UtcNow,
+                    "text" or "character varying" or "character" => FitTextToColumn(column, marker),
+                    "timestamp with time zone" => DateTimeOffset.UtcNow,
+                    "timestamp without time zone" => DateTime.UtcNow,
+                    "date" => DateOnly.FromDateTime(DateTime.UtcNow),
+                    "uuid" => Guid.CreateVersion7(),
                     "boolean" => false,
                     "smallint" or "integer" or "bigint" or "numeric" => 0,
                     _ when column.UdtName is "json" or "jsonb" => "{}",
@@ -551,12 +566,25 @@ public sealed class GeneratedOrganizationIsolationTests
     {
         await using NpgsqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = delete
-            ? $"DELETE FROM {fixture.Relation} WHERE \"OrganizationId\" = @organization"
-            : $"UPDATE {fixture.Relation} SET {QuoteIdentifier(fixture.MarkerColumn)} = 'updated' WHERE \"OrganizationId\" = @organization";
+        if (delete)
+        {
+            command.CommandText = $"DELETE FROM {fixture.Relation} WHERE \"OrganizationId\" = @organization";
+        }
+        else
+        {
+            FixtureColumn markerColumn = fixture.Columns.Single(column =>
+                string.Equals(column.Name, fixture.MarkerColumn, StringComparison.Ordinal));
+            command.CommandText = $"UPDATE {fixture.Relation} SET {QuoteIdentifier(fixture.MarkerColumn)} = @marker WHERE \"OrganizationId\" = @organization";
+            command.Parameters.AddWithValue("marker", FitTextToColumn(markerColumn, "updated"));
+        }
         command.Parameters.AddWithValue("organization", organizationId);
         return await command.ExecuteNonQueryAsync();
     }
+
+    private static string FitTextToColumn(FixtureColumn column, string value) =>
+        column.MaximumLength is int maximumLength && value.Length > maximumLength
+            ? value[..maximumLength]
+            : value;
 
     private static string QuoteIdentifier(string identifier) => $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 
@@ -604,7 +632,8 @@ public sealed class GeneratedOrganizationIsolationTests
         bool IsNullable,
         bool HasDefault,
         bool IsIdentity,
-        bool IsGenerated);
+        bool IsGenerated,
+        int? MaximumLength);
 
     private sealed class DatabaseServer(PostgreSqlContainer? container, string connectionString) : IAsyncDisposable
     {

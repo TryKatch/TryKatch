@@ -74,7 +74,8 @@ Run the generator from the application root—the directory containing the solut
 trykatch module create Invoicing \
   --entity Invoice \
   --resource invoices \
-  --ownership organization
+  --ownership organization \
+  --fields "number:string:required:max(40),total:decimal:required,dueDate:date:required,status:enum(Draft,Sent,Paid):required,notes:string:optional:max(2000)"
 ```
 
 Add `--with-web` for a React Query list/create/edit surface, navigation and Archive integration:
@@ -84,6 +85,7 @@ trykatch module create Invoicing \
   --entity Invoice \
   --resource invoices \
   --ownership organization \
+  --fields "number:string:required:max(40),total:decimal:required,dueDate:date:required,status:enum(Draft,Sent,Paid):required,notes:string:optional:max(2000)" \
   --description "Organization invoice management." \
   --with-web
 ```
@@ -93,6 +95,12 @@ The command creates the five backend layers, unit and architecture test projects
 Creation is transactional. The generator stages output privately and restores every catalog, solution, project, registry, generated-client and lockfile mutation if a verification phase fails. It never overwrites an existing module. Version 1 intentionally accepts only explicit `organization` ownership.
 
 The explicit `--resource` value must be lower-case snake_case, must not be a PostgreSQL keyword, and must not duplicate an `app` schema relation declared by any registered module. The generator enforces these constraints before staging or changing workspace files.
+
+`--fields` is the single business-shape contract for generated CRUD. It accepts up to 24 lower-camel-case fields with `string`, `decimal`, `int`, `long`, `bool`, `date`, `datetime`, `guid`, or `enum(...)` types. Fields are required by default; add `optional` when `null` is meaningful and `max(length)` to constrain strings. Field identifiers are capped at PostgreSQL's 63-byte identifier boundary. The generator carries that shape through the domain entity, command and DTO contracts, validation, EF Core configuration, forward-only PostgreSQL migration, OpenAPI, and—when `--with-web` is selected—the React form, table, details view and English/French message catalogs. Omitting `--fields` retains the compatible required-Name/optional-Description starter.
+
+Decimal values are validated against `numeric(18,2)`, and decimal plus 64-bit integer values use invariant JSON strings to prevent JavaScript precision loss. Date-time fields are converted from the browser's local editor to ISO UTC, then normalized to UTC before persistence. This is deliberate API behavior: do not change these generated transports to JavaScript `number` or store a non-UTC `DateTimeOffset`.
+
+Platform-managed fields such as `Id`, `OrganizationId`, audit timestamps, archive metadata and deletion metadata are reserved. They are derived from the authenticated organization and actor context and are never accepted from generated HTTP requests.
 
 ## Lifecycle commands
 
