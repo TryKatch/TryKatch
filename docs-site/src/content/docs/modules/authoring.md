@@ -18,13 +18,95 @@ A Trykatch module is a full-stack capability package with an explicit contract. 
 
 Identity, organization resolution, RLS, antiforgery, permission enforcement, audit integrity, and module validation are not extension points.
 
-## Development flow
+## Generate a backend module
 
-1. Declare stable module and contribution identifiers.
-2. Register backend and React contributions in the paired module catalog.
-3. Implement domain, application, infrastructure, API, and UI behavior inside the module boundary.
-4. Add permissions, organization defaults, migrations, RLS policies, audit events, and outbox behavior.
-5. Run the module doctor, dependency checks, disablement tests, and the generated-template matrix.
+Run the generator from the root of an application already created with Trykatch—the directory containing the solution file, `src/`, `tests/`, and `trykatch.modules.json`:
+
+```bash
+cd /path/to/Horizon
+trykatch module create Invoicing \
+  --entity Invoice \
+  --resource invoices \
+  --ownership organization
+```
+
+`Invoicing` and `Invoice` must be PascalCase .NET identifiers. `invoices` must be an explicit lower-case snake_case PostgreSQL identifier, must not be a PostgreSQL keyword, and must not duplicate an `app` schema relation declared by another registered module. Version 1 deliberately requires `--ownership organization`; it never guesses the security boundary. These checks run before staging or modifying any workspace file.
+
+## Generate a full-stack module
+
+Add `--with-web` to include a React Query list/create/edit surface, navigation, Archive integration, and module-owned English/French messages:
+
+```bash
+trykatch module create Invoicing \
+  --entity Invoice \
+  --resource invoices \
+  --ownership organization \
+  --description "Organization invoice management." \
+  --with-web
+```
+
+Use `trykatch module create --help` for the complete command contract.
+
+## What the command creates
+
+```text
+src/Modules/Invoicing/
+├── Horizon.Modules.Invoicing.Domain/
+├── Horizon.Modules.Invoicing.Application/
+├── Horizon.Modules.Invoicing.IntegrationEvents/
+├── Horizon.Modules.Invoicing.Presentation/
+├── Horizon.Modules.Invoicing.Infrastructure/
+├── Web/                         # only with --with-web
+├── trykatch.module.json
+└── README.md
+tests/Modules/Invoicing/
+├── Horizon.Modules.Invoicing.UnitTests/
+└── Horizon.Modules.Invoicing.ArchitectureTests/
+```
+
+The command also adds the projects to the solution, registers the Infrastructure entrypoint with the API and migrator, adds and enables the catalog entry, regenerates all registries, restores dependencies, builds the backend, runs the generated tests and module doctor, and—when requested—generates the OpenAPI client and runs frontend type checking, tests, and the production build.
+
+The operation is atomic. Rendering happens in a private staging directory. If registration, restore, build, testing, client generation, or validation fails, Trykatch restores the catalog, solution, project files, registries, OpenAPI/client output, and lockfiles, then removes the new module. Repeating the same command reports that the module exists and makes no changes; v1 has no overwrite option.
+
+## Generated security contract
+
+The generated entity implements `IOrganizationOwned`. The host applies the named organization query filter and validates the `OrganizationId` shape and tenant-first index. Its PostgreSQL migration creates `app.invoices`, enables and forces RLS, and defines `invoices_organization_isolation` with both `USING` and `WITH CHECK`. The API exposes:
+
+```text
+GET    /api/v1/invoices/
+GET    /api/v1/invoices/{id}
+POST   /api/v1/invoices/
+PUT    /api/v1/invoices/{id}
+POST   /api/v1/invoices/{id}/archive
+POST   /api/v1/invoices/{id}/restore
+DELETE /api/v1/invoices/{id}
+```
+
+Reads require `invoicing.read`; mutations require `invoicing.manage`, permission checks are repeated in the application use cases, mutation endpoints require antiforgery protection, and writes record audit and outbox evidence in the host transaction.
+
+## Start and verify the result
+
+From the application root:
+
+```bash
+trykatch start
+```
+
+Open the Aspire dashboard, select the **api** resource, then use its HTTPS URL. `/docs` opens Scalar and `/openapi/v1.json` exposes the generated contract in Development. With `--with-web`, open `/invoices` on the React resource. You can re-run the deterministic checks directly with:
+
+```bash
+dotnet build Horizon.slnx
+dotnet test tests/Modules/Invoicing/Horizon.Modules.Invoicing.UnitTests
+dotnet test tests/Modules/Invoicing/Horizon.Modules.Invoicing.ArchitectureTests
+corepack pnpm --dir web typecheck
+corepack pnpm --dir web test
+corepack pnpm --dir web build
+trykatch module doctor
+```
+
+## Extend the generated entity safely
+
+Add domain behavior to the entity instead of public setters. Add explicit request/DTO fields and validation in Application, map persistence in the module model contributor, and create a new immutable forward-only module migration. Keep all organization access through `IOrganizationModuleData`; never inject a host DbContext or accept an organization ID from a request. Preserve stable endpoint names, permissions, event contracts, table name, and RLS policy unless you are deliberately versioning that public contract.
 
 Persistent modules must also satisfy the [module data-isolation contract](/architecture/module-data-isolation/). Modules cannot opt out of organization scoping or receive direct access to host database contexts.
 
@@ -34,5 +116,5 @@ trykatch module doctor --root ./Horizon
 ```
 
 :::caution
-Third-party package acquisition, upgrade, eject, unregister, and purge workflows remain release gates. The current seam is deliberately build-time and validated; it is not arbitrary runtime plugin loading.
+The generator creates source modules inside an existing application. It does not turn untrusted packages into arbitrary runtime plugins; separately distributed packages still pass the signed package lifecycle and the same build-time validation boundary.
 :::

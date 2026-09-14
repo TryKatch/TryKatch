@@ -41,7 +41,9 @@ static Task<int> RunAsync(string[] arguments)
     if (arguments.Length >= 2
         && string.Equals(arguments[0], "module", StringComparison.Ordinal)
         && (IsHelp(arguments[1]) || arguments.Skip(2).Any(IsHelpOption)))
-        return Task.FromResult(ShowModuleHelp());
+        return Task.FromResult(string.Equals(arguments[1], "create", StringComparison.Ordinal)
+            ? ShowModuleCreateHelp()
+            : ShowModuleHelp());
 
     if (string.Equals(arguments[0], "template", StringComparison.Ordinal))
         return RunTemplateAsync(arguments);
@@ -61,6 +63,11 @@ static Task<int> RunAsync(string[] arguments)
     string root = Directory.GetCurrentDirectory();
     string? expectedSha256 = null;
     string? sourceBundle = null;
+    string? entity = null;
+    string? resource = null;
+    string? ownership = null;
+    string? description = null;
+    bool includeWeb = false;
     List<string> positional = [];
     for (int index = 1; index < arguments.Length; index++)
     {
@@ -82,6 +89,34 @@ static Task<int> RunAsync(string[] arguments)
                 return Task.FromResult(Fail("--source-bundle requires a path."));
             sourceBundle = arguments[index];
         }
+        else if (string.Equals(arguments[index], "--entity", StringComparison.Ordinal))
+        {
+            if (++index >= arguments.Length)
+                return Task.FromResult(Fail("--entity requires a PascalCase entity name."));
+            entity = arguments[index];
+        }
+        else if (string.Equals(arguments[index], "--resource", StringComparison.Ordinal))
+        {
+            if (++index >= arguments.Length)
+                return Task.FromResult(Fail("--resource requires a snake_case resource name."));
+            resource = arguments[index];
+        }
+        else if (string.Equals(arguments[index], "--ownership", StringComparison.Ordinal))
+        {
+            if (++index >= arguments.Length)
+                return Task.FromResult(Fail("--ownership requires 'organization'."));
+            ownership = arguments[index];
+        }
+        else if (string.Equals(arguments[index], "--description", StringComparison.Ordinal))
+        {
+            if (++index >= arguments.Length)
+                return Task.FromResult(Fail("--description requires text."));
+            description = arguments[index];
+        }
+        else if (string.Equals(arguments[index], "--with-web", StringComparison.Ordinal))
+        {
+            includeWeb = true;
+        }
         else
         {
             positional.Add(arguments[index]);
@@ -93,6 +128,23 @@ static Task<int> RunAsync(string[] arguments)
 
     try
     {
+        if (string.Equals(positional[0], "create", StringComparison.Ordinal))
+        {
+            if (positional.Count != 2 || entity is null || resource is null || ownership is null)
+                return Task.FromResult(ShowModuleCreateHelp(1));
+            ModuleCreationResult created = new ModuleScaffolder(root).Create(new(
+                positional[1], entity, resource, ownership, description, includeWeb));
+            PrintModules(created.Report.Modules);
+            Console.WriteLine();
+            Console.WriteLine($"Module '{created.ModuleId}' created, registered, and enabled.");
+            foreach (string path in created.CreatedPaths)
+                Console.WriteLine($"  created: {path}");
+            Console.WriteLine($"  API: /api/v1/{resource}");
+            if (created.IncludeWeb) Console.WriteLine($"  Web: /{resource}");
+            Console.WriteLine("Run 'trykatch start' to apply migrations and start the application.");
+            return Task.FromResult(0);
+        }
+
         ModuleWorkspace workspace = new(root);
         ModuleDoctorReport report = positional[0] switch
         {
@@ -370,6 +422,7 @@ static int ShowModuleHelp(int exitCode = 0)
     Console.WriteLine("  trykatch module list [--root <path>]");
     Console.WriteLine("  trykatch module doctor [--root <path>]");
     Console.WriteLine("  trykatch module generate [--root <path>]");
+    Console.WriteLine("  trykatch module create <name> --entity <name> --resource <name> --ownership organization [--with-web] [--root <path>]");
     Console.WriteLine("  trykatch module enable <id> [--root <path>]");
     Console.WriteLine("  trykatch module disable <id> [--root <path>]");
     Console.WriteLine("  trykatch module register <manifest> [--root <path>]");
@@ -378,6 +431,25 @@ static int ShowModuleHelp(int exitCode = 0)
     Console.WriteLine("  trykatch module eject <id> --source-bundle <path> --sha256 <digest> [--root <path>]");
     Console.WriteLine("  trykatch module unregister <id> [--root <path>]");
     Console.WriteLine("  trykatch module remove <id> [--root <path>]  Alias for unregister.");
+    return exitCode;
+}
+
+static int ShowModuleCreateHelp(int exitCode = 0)
+{
+    Console.WriteLine("Create an organization-owned Trykatch module");
+    Console.WriteLine();
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  trykatch module create <ModuleName> --entity <EntityName> --resource <snake_case_name> --ownership organization [options]");
+    Console.WriteLine();
+    Console.WriteLine("Options:");
+    Console.WriteLine("  --entity <name>       PascalCase domain entity name, for example Invoice.");
+    Console.WriteLine("  --resource <name>     Explicit snake_case API resource and PostgreSQL table name.");
+    Console.WriteLine("  --ownership <value>   Must be organization in version 1.");
+    Console.WriteLine("  --description <text>  Module description; defaults to an organization-owned description.");
+    Console.WriteLine("  --with-web            Also generate and verify a React module contribution.");
+    Console.WriteLine("  --root <path>         Generated application root; defaults to the current directory.");
+    Console.WriteLine();
+    Console.WriteLine("The operation is atomic: source, registration, restore, and verification roll back together on failure.");
     return exitCode;
 }
 

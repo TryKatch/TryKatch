@@ -93,7 +93,12 @@
                 "additionalProperties": false,
                 "required": ["name", "schema", "table", "ownership"],
                 "properties": {
-                  "name": { "$ref": "#/$defs/contractId" },
+                  "name": {
+                    "anyOf": [
+                      { "$ref": "#/$defs/contractId" },
+                      { "$ref": "#/$defs/sqlIdentifier" }
+                    ]
+                  },
                   "schema": { "$ref": "#/$defs/sqlIdentifier" },
                   "table": { "$ref": "#/$defs/sqlIdentifier" },
                   "ownership": { "$ref": "#/$defs/ownership" },
@@ -120,7 +125,7 @@
         "sourceRoot": ["sourceTreeSha256"],
         "sourceTreeSha256": ["sourceRoot"]
       },
-      "required": ["dotnetProject", "webPackage"],
+      "required": ["dotnetProject"],
       "properties": {
         "dotnetProject": { "type": "string" },
         "webPackage": { "type": "string" },
@@ -131,7 +136,7 @@
     "entrypoints": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["dotnet", "web"],
+      "required": ["dotnet"],
       "properties": {
         "dotnet": {
           "type": "object",
@@ -220,6 +225,22 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "capabilities": { "contains": { "const": "web" } }
+        },
+        "required": ["capabilities"]
+      },
+      "then": {
+        "properties": {
+          "artifacts": { "required": ["webPackage"] },
+          "entrypoints": { "required": ["web"] }
+        }
+      }
+    }
+  ],
   "$defs": {
     "moduleId": {
       "type": "string",

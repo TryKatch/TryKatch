@@ -43,6 +43,7 @@
   <ItemGroup>
     <None Include="../../src/Modules/Projects/try&#x6B;atch.module.json" Link="fixtures/projects.module.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../src/Modules/Federation/try&#x6B;atch.module.json" Link="fixtures/federation.module.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Golden/inventory.module.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

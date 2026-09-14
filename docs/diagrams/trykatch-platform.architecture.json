@@ -8,7 +8,7 @@
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/TryKatch/TryKatch",
-      "revision": "9f5a866e357594b197e187306c6ea3796177f8d7"
+      "revision": "6d41f2aaac2183995702e271f1345b460adcdcc5"
     },
     "views": [
       {
@@ -21,7 +21,7 @@
         "id": "module-seam",
         "label": "Inspect the module seam",
         "focus": ["security_kernel", "module_runtime", "projects_module", "federation_module"],
-        "note": "Modules contribute capabilities through validated contracts without replacing the security kernel."
+        "note": "The CLI generates five-layer backend modules and optional React contributions, then validates them without replacing the security kernel."
       },
       {
         "id": "operations",
@@ -86,11 +86,11 @@
     {
       "id": "projects_module",
       "type": "backend",
-      "label": "Projects module",
-      "sublabel": "reference vertical slice",
+      "label": "Generated module",
+      "sublabel": "five layers + optional React",
       "pos": [1080, 160],
       "size": [160, 64],
-      "sources": [{ "path": "docs/module-authoring.md", "label": "reference module" }]
+      "sources": [{ "path": "docs/module-authoring.md", "label": "module generator" }]
     },
     {
       "id": "federation_module",
@@ -170,7 +170,7 @@
       "title": "Modules stay replaceable",
       "items": [
         "Backend and React contributions are explicit, paired, and validated",
-        "Projects demonstrates the complete module contract; Federation proves an optional adapter"
+        "The CLI scaffolds, registers, restores, tests, and rolls back a complete module atomically"
       ]
     },
     {

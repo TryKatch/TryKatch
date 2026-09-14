@@ -18,13 +18,95 @@ Un module Trykatch est un ensemble fonctionnel full-stack doté d’un contrat e
 
 L’identité, la résolution de l’organisation, la RLS, la protection antiforgery, l’application des permissions, l’intégrité de l’audit et la validation des modules ne sont pas des points d’extension.
 
-## Parcours de développement
+## Générer un module backend
 
-1. Déclarez des identifiants stables pour le module et ses contributions.
-2. Enregistrez les contributions backend et React dans les catalogues de modules correspondants.
-3. Implémentez le domaine, l’application, l’infrastructure, l’API et l’interface dans la frontière du module.
-4. Ajoutez les permissions, valeurs par défaut d’organisation, migrations, politiques RLS, événements d’audit et comportement de l’outbox.
-5. Exécutez le diagnostic des modules, les contrôles de dépendances, les tests de désactivation et la matrice du modèle généré.
+Exécutez le générateur depuis la racine d’une application déjà créée avec Trykatch — le dossier qui contient la solution, `src/`, `tests/` et `trykatch.modules.json` :
+
+```bash
+cd /chemin/vers/Horizon
+trykatch module create Invoicing \
+  --entity Invoice \
+  --resource invoices \
+  --ownership organization
+```
+
+`Invoicing` et `Invoice` doivent être des identifiants .NET en PascalCase. `invoices` doit être un identifiant PostgreSQL explicite en snake_case minuscule, ne doit pas être un mot-clé PostgreSQL et ne doit pas dupliquer une relation du schéma `app` déclarée par un autre module enregistré. La version 1 exige volontairement `--ownership organization` et ne devine jamais la frontière de sécurité. Ces contrôles s’exécutent avant toute préparation ou modification du workspace.
+
+## Générer un module full-stack
+
+Ajoutez `--with-web` pour inclure une interface React Query de consultation, création et modification, la navigation, l’intégration aux archives et des messages anglais/français appartenant au module :
+
+```bash
+trykatch module create Invoicing \
+  --entity Invoice \
+  --resource invoices \
+  --ownership organization \
+  --description "Gestion des factures de l’organisation." \
+  --with-web
+```
+
+Utilisez `trykatch module create --help` pour afficher le contrat complet de la commande.
+
+## Fichiers générés
+
+```text
+src/Modules/Invoicing/
+├── Horizon.Modules.Invoicing.Domain/
+├── Horizon.Modules.Invoicing.Application/
+├── Horizon.Modules.Invoicing.IntegrationEvents/
+├── Horizon.Modules.Invoicing.Presentation/
+├── Horizon.Modules.Invoicing.Infrastructure/
+├── Web/                         # uniquement avec --with-web
+├── trykatch.module.json
+└── README.md
+tests/Modules/Invoicing/
+├── Horizon.Modules.Invoicing.UnitTests/
+└── Horizon.Modules.Invoicing.ArchitectureTests/
+```
+
+La commande ajoute aussi les projets à la solution, enregistre l’Infrastructure auprès de l’API et du migrateur, ajoute et active l’entrée du catalogue, régénère les registres, restaure les dépendances, compile le backend, exécute les tests générés et le diagnostic des modules. Avec `--with-web`, elle génère également le client OpenAPI puis exécute le typage, les tests et le build de production du frontend.
+
+L’opération est atomique. Le rendu se fait dans un répertoire privé de préparation. Si l’enregistrement, la restauration, la compilation, les tests, la génération du client ou la validation échoue, Trykatch restaure le catalogue, la solution, les projets, les registres, les sorties OpenAPI/client et les lockfiles, puis supprime le nouveau module. Une commande identique répétée signale que le module existe déjà sans rien modifier ; la version 1 ne propose aucun écrasement.
+
+## Contrat de sécurité généré
+
+L’entité générée implémente `IOrganizationOwned`. L’hôte applique le filtre d’organisation nommé et valide `OrganizationId` ainsi que l’index commençant par l’organisation. La migration PostgreSQL crée `app.invoices`, active et force la RLS, puis définit `invoices_organization_isolation` avec `USING` et `WITH CHECK`. L’API expose :
+
+```text
+GET    /api/v1/invoices/
+GET    /api/v1/invoices/{id}
+POST   /api/v1/invoices/
+PUT    /api/v1/invoices/{id}
+POST   /api/v1/invoices/{id}/archive
+POST   /api/v1/invoices/{id}/restore
+DELETE /api/v1/invoices/{id}
+```
+
+Les lectures exigent `invoicing.read` et les mutations `invoicing.manage`. Les cas d’utilisation répètent l’autorisation, les mutations exigent la protection antiforgery et les écritures créent les preuves d’audit et d’outbox dans la transaction de l’hôte.
+
+## Démarrer et vérifier le résultat
+
+Depuis la racine de l’application :
+
+```bash
+trykatch start
+```
+
+Ouvrez le tableau de bord Aspire, sélectionnez la ressource **api**, puis utilisez son URL HTTPS. `/docs` ouvre Scalar et `/openapi/v1.json` expose le contrat généré en environnement Development. Avec `--with-web`, ouvrez `/invoices` sur la ressource React. Pour relancer les contrôles déterministes :
+
+```bash
+dotnet build Horizon.slnx
+dotnet test tests/Modules/Invoicing/Horizon.Modules.Invoicing.UnitTests
+dotnet test tests/Modules/Invoicing/Horizon.Modules.Invoicing.ArchitectureTests
+corepack pnpm --dir web typecheck
+corepack pnpm --dir web test
+corepack pnpm --dir web build
+trykatch module doctor
+```
+
+## Étendre l’entité générée sans risque
+
+Ajoutez le comportement métier dans l’entité plutôt que des setters publics. Ajoutez des champs explicites aux requêtes/DTO et leur validation dans Application, mappez la persistance dans le contributeur de modèle du module et créez une nouvelle migration immuable et uniquement progressive. Conservez tout accès d’organisation derrière `IOrganizationModuleData` ; n’injectez jamais un DbContext de l’hôte et n’acceptez jamais un identifiant d’organisation venant d’une requête. Préservez les noms d’opérations, permissions, événements, table et politique RLS stables sauf si vous versionnez volontairement ce contrat public.
 
 Les modules persistants doivent également respecter le [contrat d’isolation des données des modules](/fr/architecture/module-data-isolation/). Aucun module ne peut désactiver le cloisonnement par organisation ni accéder directement aux contextes de base de données de l’hôte.
 
@@ -34,5 +116,5 @@ trykatch module doctor --root ./Horizon
 ```
 
 :::caution
-L’acquisition, la mise à niveau, l’extraction, le désenregistrement et la purge de packages tiers restent des critères de livraison. La frontière actuelle est volontairement validée à la compilation ; elle ne charge pas des plugins arbitraires à l’exécution.
+Le générateur crée des modules source dans une application existante. Il ne transforme pas des packages non fiables en plugins d’exécution arbitraires ; les packages distribués séparément passent toujours par le cycle de vie signé et la même validation à la compilation.
 :::

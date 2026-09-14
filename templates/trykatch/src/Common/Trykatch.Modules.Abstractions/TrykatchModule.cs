@@ -1,8 +1,8 @@
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
 
 namespace Trykatch.Modules;
 
@@ -329,7 +329,7 @@ public sealed class ModuleCatalog
         foreach (DataResourceDescriptor resource in descriptor.DataResources)
         {
             ModuleDataResourceRules.Validate(resource);
-            if (!StableContractId.IsMatch(resource.Name)
+            if ((!StableContractId.IsMatch(resource.Name) && !StableToolName.IsMatch(resource.Name))
                 || !StableId.IsMatch(resource.Schema)
                 || !StableId.IsMatch(resource.Table.Replace('_', '-')))
                 throw new InvalidOperationException(

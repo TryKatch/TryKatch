@@ -56,6 +56,8 @@ grep -Fq -- '--ui <react|none>' <<<"$help_output" ||
 grep -Fq 'Module lifecycle:' <<<"$help_output" ||
   fail 'CLI help does not document module lifecycle commands'
 module_help_output=$("$test_root/tools/trykatch" module help)
+grep -Fq 'trykatch module create <name>' <<<"$module_help_output" ||
+  fail 'module help does not document source-module creation'
 grep -Fq 'trykatch module doctor' <<<"$module_help_output" ||
   fail 'module help does not document workspace validation'
 grep -Fq 'trykatch module remove <id>' <<<"$module_help_output" ||
@@ -63,6 +65,11 @@ grep -Fq 'trykatch module remove <id>' <<<"$module_help_output" ||
 nested_help_output=$("$test_root/tools/trykatch" module list --help)
 grep -Fq 'Trykatch module lifecycle' <<<"$nested_help_output" ||
   fail 'nested module commands do not support --help'
+create_help_output=$("$test_root/tools/trykatch" module create --help)
+grep -Fq -- '--ownership organization' <<<"$create_help_output" ||
+  fail 'module create help does not require an explicit ownership boundary'
+grep -Fq -- '--with-web' <<<"$create_help_output" ||
+  fail 'module create help does not document optional React generation'
 template_help_output=$("$test_root/tools/trykatch" template help)
 grep -Fq 'trykatch template install [--version <version>] [--force]' <<<"$template_help_output" ||
   fail 'template help does not document installation options'
@@ -149,7 +156,7 @@ generate_and_build() {
   # Each generated solution can produce several gigabytes of runtime assets.
   # Retain the generated source for assertions, but release build intermediates
   # before exercising the next template permutation on constrained CI runners.
-  find "$output" -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
+  find "$output" -path '*/node_modules' -prune -o -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
 }
 
 generate_and_build Horizon
@@ -175,6 +182,50 @@ grep -RFq --include='*.cs' 'WithDataVolume("horizon-postgres-data")' "$test_root
 grep -RFq --include='*.cs' 'WithVolume("horizon-otel-queue", "/var/lib/otelcol")' "$test_root/Horizon/src/API/Horizon.AppHost" ||
   fail 'generated OpenTelemetry queue volume is not scoped to the application name'
 "$test_root/tools/trykatch" module doctor --root "$test_root/Horizon"
+
+"$test_root/tools/trykatch" module create Billing \
+  --entity Invoice \
+  --resource invoices \
+  --ownership organization \
+  --root "$test_root/Horizon"
+test -f "$test_root/Horizon/src/Modules/Billing/Horizon.Modules.Billing.Infrastructure/BillingModule.cs" ||
+  fail 'backend module generation did not create its composition root'
+grep -Fq 'ALTER TABLE app.invoices FORCE ROW LEVEL SECURITY' \
+  "$test_root/Horizon/src/Modules/Billing/Horizon.Modules.Billing.Infrastructure/BillingModule.cs" ||
+  fail 'backend module generation omitted forced PostgreSQL RLS'
+
+"$test_root/tools/trykatch" module create Inventory \
+  --entity Product \
+  --resource inventory_items \
+  --ownership organization \
+  --with-web \
+  --root "$test_root/Horizon"
+test -f "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
+  fail 'full-stack module generation did not create its React entrypoint'
+grep -Fq 'fr:' "$test_root/Horizon/src/Modules/Inventory/Web/src/messages.ts" ||
+  fail 'full-stack module generation omitted French messages'
+inventory_web_package=$(jq -r '.entrypoints.web.specifier' \
+  "$test_root/Horizon/src/Modules/Inventory/trykatch.module.json")
+test "$(jq -r --arg package "$inventory_web_package" '.dependencies[$package] // empty' \
+  "$test_root/Horizon/web/apps/web/package.json")" = 'workspace:*' ||
+  fail 'full-stack module generation did not register its manifest-declared workspace package'
+
+catalog_before_repeat=$(cksum "$test_root/Horizon/trykatch.modules.json")
+if "$test_root/tools/trykatch" module create Billing \
+  --entity Invoice \
+  --resource invoices \
+  --ownership organization \
+  --root "$test_root/Horizon" >"$test_root/repeated-module-create.log" 2>&1; then
+  fail 'repeated module creation unexpectedly succeeded'
+fi
+grep -Eq "already (registered|has source or test directories)" "$test_root/repeated-module-create.log" ||
+  fail 'repeated module creation did not explain that the module already exists'
+test "$(cksum "$test_root/Horizon/trykatch.modules.json")" = "$catalog_before_repeat" ||
+  fail 'repeated module creation mutated the module catalog'
+
+dotnet test "$test_root/Horizon/tests/Horizon.IntegrationTests/Horizon.IntegrationTests.csproj" \
+  --no-build --no-restore \
+  --filter FullyQualifiedName~EveryDeclaredOrganizationRelationIsDefaultDenyUnderTheRealRuntimeRole
 generate_and_build Acme.Tools-Portal --ui none
 generate_and_build Trykatch --ui none
 test ! -e "$test_root/Acme.Tools.Portal/web"
