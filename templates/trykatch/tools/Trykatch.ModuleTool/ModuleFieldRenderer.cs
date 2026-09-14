@@ -30,7 +30,9 @@ internal static partial class ModuleFieldRenderer
             ["__MODEL_FIELD_CONFIGURATION__"] = JoinLines(fields.SelectMany(RenderModelConfiguration), 12),
             ["__MIGRATION_FIELDS__"] = JoinLines(fields.Select(RenderMigrationColumn), 16),
             ["__WEB_FIELD_STATE__"] = JoinLines(fields.Select(RenderWebState), 2),
-            ["__WEB_HELPERS__"] = RenderWebHelpers(fields),
+            ["__WEB_DATETIME_IMPORT__"] = fields.Any(field => field.Kind == ModuleFieldKind.DateTime)
+                ? "import { toDateTimeLocal, toUtcDateTime } from './dateTime'"
+                : string.Empty,
             ["__WEB_FIELD_RESET__"] = string.Join("; ", fields.Select(RenderWebReset)),
             ["__WEB_FIELD_EDIT__"] = string.Join("; ", fields.Select(RenderWebEdit)),
             ["__WEB_REQUEST_BODY__"] = string.Join(", ", fields.Select(RenderWebRequestValue)),
@@ -245,8 +247,8 @@ internal static partial class ModuleFieldRenderer
                 ? $"Number({field.Name})"
                 : $"{field.Name} === '' ? null : Number({field.Name})",
             ModuleFieldKind.DateTime => field.Required
-                ? $"new Date({field.Name}).toISOString()"
-                : $"{field.Name} === '' ? null : new Date({field.Name}).toISOString()",
+                ? $"toUtcDateTime({field.Name}, editing?.{field.Name})"
+                : $"{field.Name} === '' ? null : toUtcDateTime({field.Name}, editing?.{field.Name})",
             ModuleFieldKind.Boolean when field.Required => field.Name,
             ModuleFieldKind.Boolean => $"{field.Name} === '' ? null : {field.Name} === 'true'",
             _ when field.Required => field.Name,
@@ -282,7 +284,7 @@ internal static partial class ModuleFieldRenderer
             ModuleFieldKind.Date =>
                 $"<input type=\"date\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.DateTime =>
-                $"<input type=\"datetime-local\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+                $"<input type=\"datetime-local\" step=\"0.001\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Guid =>
                 $"<input inputMode=\"text\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Boolean when field.Required =>
@@ -312,18 +314,6 @@ internal static partial class ModuleFieldRenderer
 
     private static string RenderWebViewingDisplayValue(ModuleFieldDefinition field) =>
         field.Required ? $"String(viewing.{field.Name})" : $"String(viewing.{field.Name} ?? viewing.id)";
-
-    private static string RenderWebHelpers(IEnumerable<ModuleFieldDefinition> fields) =>
-        fields.Any(field => field.Kind == ModuleFieldKind.DateTime)
-            ? """
-              function toDateTimeLocal(value: string | null | undefined): string {
-                if (!value) return ''
-                const date = new Date(value)
-                if (Number.isNaN(date.getTime())) return ''
-                return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
-              }
-              """
-            : string.Empty;
 
     private static string RenderMessages(IReadOnlyList<ModuleFieldDefinition> fields, bool french)
     {

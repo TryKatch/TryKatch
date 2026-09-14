@@ -116,11 +116,15 @@ public sealed class ModuleScaffolderTests
         web.ShouldContain("const [total, setTotal] = useState('')");
         web.ShouldContain("<option value=\"Draft\">{t('fieldStatusDraft')}</option>");
         web.ShouldContain("total, sequence");
-        web.ShouldContain("issuedAt: issuedAt === '' ? null : new Date(issuedAt).toISOString()");
+        web.ShouldContain("issuedAt: issuedAt === '' ? null : toUtcDateTime(issuedAt, editing?.issuedAt)");
         web.ShouldContain("toDateTimeLocal(record.issuedAt)");
+        web.ShouldContain("type=\"datetime-local\" step=\"0.001\"");
         web.ShouldNotContain("Number(total)");
         web.ShouldNotContain("Number(sequence)");
         web.ShouldContain("record.number");
+
+        string dateTimeTests = File.ReadAllText(Path.Combine(moduleRoot, "Web/src/dateTime.test.ts"));
+        dateTimeTests.ShouldContain("preserves the exact original instant");
 
         string messages = File.ReadAllText(Path.Combine(moduleRoot, "Web/src/messages.ts"));
         messages.ShouldContain("fieldDueDate: 'Due date'");

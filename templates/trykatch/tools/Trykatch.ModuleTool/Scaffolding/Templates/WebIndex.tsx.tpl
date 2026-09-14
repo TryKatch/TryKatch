@@ -5,6 +5,7 @@ import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Surface,
 import { Boxes, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { use__MODULE__Messages } from './messages'
+__WEB_DATETIME_IMPORT__
 
 interface OrganizationAccess { permissions: string[] }
 type LoadResult<T> = { value: T; failure?: never } | { value?: never; failure: string }
@@ -13,8 +14,6 @@ async function loadResult<T>(load: () => Promise<T>): Promise<LoadResult<T>> {
   try { return { value: await load() } }
   catch (error) { return { failure: error instanceof Error ? error.message : 'The request failed.' } }
 }
-
-__WEB_HELPERS__
 
 export function __MODULE__Page() {
   const { t, tableLabels } = use__MODULE__Messages()

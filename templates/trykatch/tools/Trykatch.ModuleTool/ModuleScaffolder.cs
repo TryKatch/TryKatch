@@ -488,6 +488,8 @@ public sealed partial class ModuleWorkspace
         string webRoot = Path.Combine(moduleRoot, "Web");
         WriteTemplate("WebIndex.tsx", Path.Combine(webRoot, "src", "index.tsx"), names);
         WriteTemplate("WebIndex.test.tsx", Path.Combine(webRoot, "src", "index.test.tsx"), names);
+        WriteTemplate("WebDateTime.ts", Path.Combine(webRoot, "src", "dateTime.ts"), names);
+        WriteTemplate("WebDateTime.test.ts", Path.Combine(webRoot, "src", "dateTime.test.ts"), names);
         WriteTemplate("WebMessages.ts", Path.Combine(webRoot, "src", "messages.ts"), names);
         JsonObject package = new()
         {
