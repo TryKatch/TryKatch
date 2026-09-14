@@ -8,20 +8,41 @@ public sealed class DocumentRecord : IOrganizationOwned
 {
     private DocumentRecord() { }
 
-    private DocumentRecord(Guid organizationId, Guid actorId, string title, string content, DateTimeOffset now)
+    private DocumentRecord(
+        Guid id,
+        Guid organizationId,
+        Guid actorId,
+        string title,
+        string description,
+        string fileName,
+        string mediaType,
+        long sizeBytes,
+        string sha256,
+        string objectKey,
+        DateTimeOffset now)
     {
-        Id = Guid.CreateVersion7();
+        Id = id;
         OrganizationId = organizationId;
         CreatedBy = actorId;
         Title = title.Trim();
-        Content = content.Trim();
+        Description = description.Trim();
+        FileName = fileName;
+        MediaType = mediaType;
+        SizeBytes = sizeBytes;
+        Sha256 = sha256;
+        ObjectKey = objectKey;
         CreatedAt = now;
     }
 
     public Guid Id { get; private init; }
     public Guid OrganizationId { get; private init; }
     public string Title { get; private set; } = string.Empty;
-    public string Content { get; private set; } = string.Empty;
+    public string Description { get; private set; } = string.Empty;
+    public string? FileName { get; private set; }
+    public string? MediaType { get; private set; }
+    public long? SizeBytes { get; private set; }
+    public string? Sha256 { get; private set; }
+    public string? ObjectKey { get; private set; }
     public Guid CreatedBy { get; private init; }
     public DateTimeOffset CreatedAt { get; private init; }
     public DateTimeOffset? UpdatedAt { get; private set; }
@@ -34,15 +55,27 @@ public sealed class DocumentRecord : IOrganizationOwned
         ? DocumentLifecycleState.Deleted
         : ArchivedAt is not null ? DocumentLifecycleState.Archived : DocumentLifecycleState.Active;
 
-    public static DocumentRecord Create(Guid organizationId, Guid actorId, string title, string? content, DateTimeOffset now) =>
-        new(organizationId, actorId, title, content ?? string.Empty, now);
+    public static DocumentRecord CreateUpload(
+        Guid id,
+        Guid organizationId,
+        Guid actorId,
+        string title,
+        string? description,
+        string fileName,
+        string mediaType,
+        long sizeBytes,
+        string sha256,
+        string objectKey,
+        DateTimeOffset now) =>
+        new(id, organizationId, actorId, title, description ?? string.Empty, fileName, mediaType,
+            sizeBytes, sha256, objectKey, now);
 
-    public void Update(string title, string? content, DateTimeOffset now)
+    public void UpdateMetadata(string title, string? description, DateTimeOffset now)
     {
         if (LifecycleState != DocumentLifecycleState.Active)
             throw new InvalidOperationException("Restore the document before editing it.");
         Title = title.Trim();
-        Content = content?.Trim() ?? string.Empty;
+        Description = description?.Trim() ?? string.Empty;
         UpdatedAt = now;
     }
 

@@ -6,8 +6,4 @@
  * OpenAPI spec version: v1
  */
 
-export interface SaveDocumentRequest {
-  title: string;
-  /** @nullable */
-  content: string | null;
-}
+export type IFormFile = Blob;

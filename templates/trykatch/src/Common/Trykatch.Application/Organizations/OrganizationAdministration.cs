@@ -152,7 +152,7 @@ public sealed class OrganizationAdministration(
             if (!authority.CanManage([role]))
                 return Forbidden<RoleDto>("You cannot change a role containing authority that you do not hold.");
             if (role.IsSystem) return Result.Failure<RoleDto>("conflict", "System roles are immutable.");
-            if (role.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Active)
+            if (role.LifecycleState != global::Trykatch.Domain.Common.RecordLifecycleState.Active)
                 return Result.Failure<RoleDto>("conflict", "Restore the role before editing it.");
             role.Rename(command.Name);
             role.Describe(command.Description ?? string.Empty);
@@ -228,7 +228,7 @@ public sealed class OrganizationAdministration(
         Role[] selectedRoles = roles.Where(role => command.RoleIds.Contains(role.Id)).ToArray();
         Result<bool> decision = await managementAuthorization.AuthorizeMembershipChangeAsync(authority, membership, selectedRoles, command.IsActive, cancellationToken);
         if (!decision.IsSuccess) return Result.Failure<MemberDto>(decision.ErrorCode!, decision.ErrorMessage!);
-        if (membership.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Active)
+        if (membership.LifecycleState != global::Trykatch.Domain.Common.RecordLifecycleState.Active)
             return Result.Failure<MemberDto>("conflict", "Restore the membership before editing it.");
 
         membership.SetRoles(command.RoleIds);
@@ -381,7 +381,7 @@ public sealed class OrganizationAdministration(
         if (await store.MembershipExistsAsync(invitation.OrganizationId, userId, cancellationToken))
             return Result.Failure<Guid>("conflict", "The account is already a member.");
         Role? invitedRole = await store.FindRoleAsync(invitation.OrganizationId, invitation.RoleId, cancellationToken);
-        if (invitedRole is null || invitedRole.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Active)
+        if (invitedRole is null || invitedRole.LifecycleState != global::Trykatch.Domain.Common.RecordLifecycleState.Active)
             return Result.Failure<Guid>("configuration", "The invitation role is no longer available.");
         Membership membership = Membership.Create(invitation.OrganizationId, userId);
         membership.AssignRole(invitedRole.Id);
@@ -419,7 +419,7 @@ public sealed class OrganizationAdministration(
         if (role.IsSystem) return Result.Failure<bool>("conflict", "System roles cannot be archived or deleted.");
         if ((operation is "archive" or "delete") && await store.RoleIsAssignedAsync(context.OrganizationId, roleId, cancellationToken))
             return Result.Failure<bool>("conflict", "Remove this role from every member before archiving or deleting it.");
-        if (operation == "delete" && role.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Archived)
+        if (operation == "delete" && role.LifecycleState != global::Trykatch.Domain.Common.RecordLifecycleState.Archived)
             return Result.Failure<bool>("conflict", "Archive the role before requesting deletion.");
         if (operation == "delete" && RecordLifecycle.ValidateDeletionReason(reason) is string validationError)
             return Result.Failure<bool>("validation", validationError);
@@ -455,7 +455,7 @@ public sealed class OrganizationAdministration(
         Result<bool> decision = await managementAuthorization.AuthorizeMembershipChangeAsync(
             authority, membership, assignedRoles, operation == "restore" && membership.Status == MembershipStatus.Active, cancellationToken);
         if (!decision.IsSuccess) return decision;
-        if (operation == "delete" && membership.LifecycleState != Trykatch.Domain.Common.RecordLifecycleState.Archived)
+        if (operation == "delete" && membership.LifecycleState != global::Trykatch.Domain.Common.RecordLifecycleState.Archived)
             return Result.Failure<bool>("conflict", "Archive the membership before requesting deletion.");
         if (operation == "delete" && RecordLifecycle.ValidateDeletionReason(reason) is string validationError)
             return Result.Failure<bool>("validation", validationError);

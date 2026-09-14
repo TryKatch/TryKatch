@@ -421,14 +421,19 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    internal void RestorePackageGraphs(ModuleCatalogFile catalog, bool includeWeb, string? packagesPath = null)
+    internal void RestorePackageGraphs(
+        ModuleCatalogFile catalog,
+        bool includeWeb,
+        string? packagesPath = null,
+        CancellationToken cancellationToken = default)
     {
         List<string> restoreArguments = ["restore", ResolveSolution(), "--force-evaluate", "--configfile", ResolveInsideRoot("NuGet.Config")];
         if (packagesPath is not null) restoreArguments.AddRange(["--packages", packagesPath]);
         WorkspaceCommandResult dotnet = _commandRunner.Run(
             "dotnet",
             restoreArguments,
-            _root);
+            _root,
+            cancellationToken);
         if (dotnet.ExitCode != 0)
             throw new InvalidOperationException($".NET package restore failed:{Environment.NewLine}{dotnet.Output}");
 
@@ -437,7 +442,8 @@ public sealed partial class ModuleWorkspace
         WorkspaceCommandResult pnpm = _commandRunner.Run(
             "pnpm",
             ["install", "--lockfile-only", "--ignore-scripts"],
-            ResolveInsideRoot("web"));
+            ResolveInsideRoot("web"),
+            cancellationToken);
         if (pnpm.ExitCode != 0)
             throw new InvalidOperationException($"Web package restore failed:{Environment.NewLine}{pnpm.Output}");
     }
@@ -671,12 +677,32 @@ internal sealed class PackageLockFileOwnership : IDisposable
 internal interface IWorkspaceCommandRunner
 {
     WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory);
+
+    WorkspaceCommandResult Run(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        WorkspaceCommandResult result = Run(fileName, arguments, workingDirectory);
+        cancellationToken.ThrowIfCancellationRequested();
+        return result;
+    }
 }
 
 internal sealed class ProcessWorkspaceCommandRunner : IWorkspaceCommandRunner
 {
     public WorkspaceCommandResult Run(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
+        => Run(fileName, arguments, workingDirectory, CancellationToken.None);
+
+    public WorkspaceCommandResult Run(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ProcessStartInfo startInfo = new(fileName)
         {
             WorkingDirectory = workingDirectory,
@@ -691,10 +717,33 @@ internal sealed class ProcessWorkspaceCommandRunner : IWorkspaceCommandRunner
 
         using Process process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Could not start '{fileName}'.");
-        Task<string> standardOutput = process.StandardOutput.ReadToEndAsync();
-        Task<string> standardError = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
+        // Keep draining redirected pipes after cancellation so terminating a verbose child cannot deadlock.
+        Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        Task<string> standardError = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            process.WaitForExitAsync(cancellationToken).GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException)
+        {
+            TryTerminate(process);
+            throw;
+        }
         Task.WaitAll(standardOutput, standardError);
         return new(process.ExitCode, standardOutput.Result + standardError.Result);
+    }
+
+    private static void TryTerminate(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+            process.WaitForExit();
+        }
+        catch (InvalidOperationException)
+        {
+            // The command exited between the cancellation check and termination.
+        }
     }
 }

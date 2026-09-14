@@ -90,7 +90,9 @@ tests/Modules/Invoicing/
 
 The command also adds the projects to the solution in deterministic folder/project order, registers the Infrastructure entrypoint with the API and migrator, adds and enables the catalog entry, regenerates all registries, restores dependencies, builds the backend, runs the generated tests and module doctor, and—when requested—generates the OpenAPI client and runs frontend type checking, tests, and the production build. Success output lists every generated endpoint, both permissions, and the exact start command.
 
-The operation is atomic. Rendering happens in a private staging directory, where the complete rendered manifest and projected module catalog are validated before any module file is committed. If solution editing, registration, restore, build, testing, client generation, or doctor validation fails, Trykatch restores the catalog, solution, project files, registries, OpenAPI/client output, and lockfiles, then removes the new module. Repeating the same command reports that the module exists and makes no changes; v1 has no overwrite option.
+The operation is atomic. Rendering happens in a private staging directory, where the complete rendered manifest and projected module catalog are validated before any module file is committed. If solution editing, registration, restore, build, testing, client generation, or doctor validation fails—or you interrupt the command with Ctrl+C—Trykatch terminates the active child command, restores the catalog, solution, project files, registries, OpenAPI/client output, and lockfiles, then removes the new module. Repeating the same command reports that the module exists and makes no changes; v1 has no overwrite option.
+
+The starter application enables both reference modules for different reasons: Projects demonstrates ordinary organization-owned CRUD, while Documents demonstrates organization-isolated file upload and download through private S3-compatible storage. Documents is not a second CRUD clone; its metadata is protected by EF filtering and PostgreSQL RLS while file bytes stay outside PostgreSQL.
 
 ## Generated security contract
 

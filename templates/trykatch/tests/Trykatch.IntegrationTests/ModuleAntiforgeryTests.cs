@@ -118,12 +118,14 @@ public sealed class ModuleAntiforgeryTests
         foreach (Mutation mutation in mutations)
         {
             HttpClient client = mutation.IsPlatform ? platform : tenant;
-            using HttpResponseMessage missing = await SendAsync(client, mutation.Method, mutation.Path, mutation.Body);
+            using HttpResponseMessage missing = await SendAsync(client, mutation.Method, mutation.Path, mutation.Body,
+                isMultipart: mutation.IsMultipart);
             missing.StatusCode.ShouldBe(HttpStatusCode.BadRequest, $"{mutation.OperationId}: {await missing.Content.ReadAsStringAsync()}");
             using JsonDocument missingProblem = JsonDocument.Parse(await missing.Content.ReadAsStringAsync());
             missingProblem.RootElement.GetProperty("title").GetString().ShouldBe("Request verification failed");
 
-            using HttpResponseMessage invalid = await SendAsync(client, mutation.Method, mutation.Path, mutation.Body, "invalid-token");
+            using HttpResponseMessage invalid = await SendAsync(client, mutation.Method, mutation.Path, mutation.Body,
+                "invalid-token", mutation.IsMultipart);
             invalid.StatusCode.ShouldBe(HttpStatusCode.BadRequest, mutation.OperationId);
         }
 
@@ -134,7 +136,8 @@ public sealed class ModuleAntiforgeryTests
         {
             HttpClient client = mutation.IsPlatform ? platform : tenant;
             string token = mutation.IsPlatform ? platformToken : tenantToken;
-            using HttpResponseMessage valid = await SendAsync(client, mutation.Method, mutation.Path, mutation.Body, token);
+            using HttpResponseMessage valid = await SendAsync(client, mutation.Method, mutation.Path, mutation.Body,
+                token, mutation.IsMultipart);
             if (mutation.IsCreate)
                 valid.IsSuccessStatusCode.ShouldBeTrue($"{mutation.OperationId}: {await valid.Content.ReadAsStringAsync()}");
             else
@@ -155,8 +158,8 @@ public sealed class ModuleAntiforgeryTests
         new("Projects_Archive", HttpMethod.Post, $"/api/v1/projects/{MissingRecordId}/archive"),
         new("Projects_Restore", HttpMethod.Post, $"/api/v1/projects/{MissingRecordId}/restore"),
         new("Projects_Delete", HttpMethod.Delete, $"/api/v1/projects/{MissingRecordId}", new { reason = "Antiforgery regression coverage" }),
-        new("Documents_Create", HttpMethod.Post, "/api/v1/documents", new { title = "CSRF document", content = "Protected" }, IsCreate: true),
-        new("Documents_Update", HttpMethod.Put, $"/api/v1/documents/{MissingRecordId}", new { title = "Changed", content = "Protected" }),
+        new("Documents_Upload", HttpMethod.Post, "/api/v1/documents", IsCreate: true, IsMultipart: true),
+        new("Documents_Update", HttpMethod.Put, $"/api/v1/documents/{MissingRecordId}", new { title = "Changed", description = "Protected" }),
         new("Documents_Archive", HttpMethod.Post, $"/api/v1/documents/{MissingRecordId}/archive"),
         new("Documents_Restore", HttpMethod.Post, $"/api/v1/documents/{MissingRecordId}/restore"),
         new("Documents_Delete", HttpMethod.Delete, $"/api/v1/documents/{MissingRecordId}", new { reason = "Antiforgery regression coverage" }),
@@ -191,10 +194,20 @@ public sealed class ModuleAntiforgeryTests
     }
 
     private static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string path,
-        object? body = null, string? token = null)
+        object? body = null, string? token = null, bool isMultipart = false)
     {
         using HttpRequestMessage request = new(method, path);
-        if (body is not null) request.Content = JsonContent.Create(body);
+        if (isMultipart)
+        {
+            MultipartFormDataContent multipart = new();
+            multipart.Add(new StringContent("CSRF document"), "title");
+            multipart.Add(new StringContent("Protected upload"), "description");
+            ByteArrayContent file = new("%PDF-1.7 test"u8.ToArray());
+            file.Headers.ContentType = new("application/pdf");
+            multipart.Add(file, "file", "csrf-document.pdf");
+            request.Content = multipart;
+        }
+        else if (body is not null) request.Content = JsonContent.Create(body);
         if (token is not null) request.Headers.Add("X-CSRF-TOKEN", token);
         return await client.SendAsync(request);
     }
@@ -240,5 +253,5 @@ public sealed class ModuleAntiforgeryTests
     }
 
     private sealed record Mutation(string OperationId, HttpMethod Method, string Path, object? Body = null,
-        bool IsPlatform = false, bool IsCreate = false);
+        bool IsPlatform = false, bool IsCreate = false, bool IsMultipart = false);
 }

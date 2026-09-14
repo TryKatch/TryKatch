@@ -42,4 +42,19 @@ describe('customFetch', () => {
     expect(new Headers(options.headers).has('X-Organization')).toBe(false)
     expect(options.credentials).toBe('include')
   })
+
+  it('returns binary download responses as blobs', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/octet-stream' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await customFetch<Blob>('/api/v1/documents/document-id/content', { method: 'GET' })
+
+    expect(result).toBeInstanceOf(Blob)
+    expect(result.size).toBe(3)
+  })
 })

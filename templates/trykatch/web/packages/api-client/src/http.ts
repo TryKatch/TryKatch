@@ -25,5 +25,10 @@ export async function customFetch<T>(url: string, options: RequestInit): Promise
   }
 
   if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
+  const contentType = response.headers.get('Content-Type')?.toLowerCase() ?? ''
+  if (contentType.includes('application/json') || contentType.includes('+json')) {
+    return response.json() as Promise<T>
+  }
+  if (contentType.startsWith('text/')) return response.text() as Promise<T>
+  return response.blob() as Promise<T>
 }

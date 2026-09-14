@@ -6,11 +6,8 @@
  * OpenAPI spec version: v1
  */
 
-export interface DocumentMetadataDto {
+export interface UpdateDocumentRequest {
+  title: string;
   /** @nullable */
-  updatedAt: string | null;
-  mediaType: string;
-  /** @pattern ^-?(?:0|[1-9]\d*)$ */
-  sizeBytes: number | string;
-  sha256: string;
+  description: string | null;
 }

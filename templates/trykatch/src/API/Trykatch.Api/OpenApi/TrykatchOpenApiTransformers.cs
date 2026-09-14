@@ -96,12 +96,25 @@ public sealed partial class ModuleOpenApiOperationTransformer(ModuleCatalog cata
         OpenApiOperation operation,
         OpenApiOperationTransformerContext context)
     {
+        NormalizeBinaryResponses(operation);
         string method = context.Description.HttpMethod?.ToUpperInvariant() ?? "GET";
         string path = "/" + (context.Description.RelativePath ?? string.Empty).Split('?', 2)[0];
         bool hasRequestBody = operation.RequestBody is not null;
+        bool hasMultipartBody = operation.RequestBody?.Content?.ContainsKey("multipart/form-data") == true;
+        bool hasBinaryResponse = operation.Responses?.Values.Any(response =>
+            response.Content?.Any(content =>
+                !content.Key.Contains("json", StringComparison.OrdinalIgnoreCase) &&
+                content.Value.Schema?.Format is "binary" or "byte") == true) == true;
         bool requiresAntiforgery = method is not ("GET" or "HEAD" or "OPTIONS");
 
         List<string> lines = [];
+        if (hasMultipartBody)
+        {
+            lines.Add("const uploadForm = document.querySelector<HTMLFormElement>('#upload-form');");
+            lines.Add("if (!uploadForm) throw new Error('Upload form was not found.');");
+            lines.Add("const formData = new FormData(uploadForm);");
+            lines.Add(string.Empty);
+        }
         if (requiresAntiforgery)
         {
             lines.Add("const { token } = await fetch('/api/v1/auth/antiforgery', {");
@@ -114,18 +127,24 @@ public sealed partial class ModuleOpenApiOperationTransformer(ModuleCatalog cata
         lines.Add($"  method: '{method}',");
         lines.Add("  credentials: 'include',");
         lines.Add("  headers: {");
-        lines.Add("    Accept: 'application/json',");
-        if (hasRequestBody)
+        lines.Add(hasBinaryResponse
+            ? "    Accept: 'application/octet-stream',"
+            : "    Accept: 'application/json',");
+        if (hasRequestBody && !hasMultipartBody)
             lines.Add("    'Content-Type': 'application/json',");
         if (requiresAntiforgery)
             lines.Add("    'X-CSRF-TOKEN': token,");
         lines.Add("  },");
-        if (hasRequestBody)
+        if (hasMultipartBody)
+            lines.Add("  body: formData, // The browser supplies the multipart boundary.");
+        else if (hasRequestBody)
             lines.Add("  body: JSON.stringify({ /* fields from the request schema */ }),");
         lines.Add("});");
         lines.Add(string.Empty);
         lines.Add("if (!response.ok) throw new Error(`Request failed: ${response.status}`);");
-        lines.Add("const result: unknown = response.status === 204 ? undefined : await response.json();");
+        lines.Add(hasBinaryResponse
+            ? "const result: Blob = await response.blob();"
+            : "const result: unknown = response.status === 204 ? undefined : await response.json();");
         lines.Add("// Handle result in memory; never log response bodies, which may contain credentials or personal data.");
         lines.Add("console.log({ status: response.status });");
 
@@ -140,6 +159,25 @@ public sealed partial class ModuleOpenApiOperationTransformer(ModuleCatalog cata
                     source = string.Join('\n', lines)
                 }
             })!));
+    }
+
+    private static void NormalizeBinaryResponses(OpenApiOperation operation)
+    {
+        if (operation.Responses is null) return;
+
+        foreach (OpenApiResponse response in operation.Responses.Values)
+        {
+            if (response.Content is null) continue;
+            foreach ((string mediaType, OpenApiMediaType content) in response.Content)
+            {
+                if (!mediaType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)) continue;
+                content.Schema = new OpenApiSchema
+                {
+                    Type = JsonSchemaType.String,
+                    Format = "binary"
+                };
+            }
+        }
     }
 
     private static string? HumanizeOperationId(string? operationId)

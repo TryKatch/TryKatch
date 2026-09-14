@@ -1,9 +1,28 @@
 using System.Text.Json;
 using Trykatch.ModuleTool;
 
-return await RunAsync(args);
+using CancellationTokenSource shutdown = new();
+ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+    shutdown.Cancel();
+};
+Console.CancelKeyPress += cancelHandler;
+try
+{
+    return await RunAsync(args, shutdown.Token);
+}
+catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
+{
+    Console.Error.WriteLine("Operation canceled. Any in-progress workspace transaction was rolled back.");
+    return 130;
+}
+finally
+{
+    Console.CancelKeyPress -= cancelHandler;
+}
 
-static Task<int> RunAsync(string[] arguments)
+static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToken)
 {
     if (arguments.Length == 0)
         return Task.FromResult(ShowHelp());
@@ -46,16 +65,16 @@ static Task<int> RunAsync(string[] arguments)
             : ShowModuleHelp());
 
     if (string.Equals(arguments[0], "template", StringComparison.Ordinal))
-        return RunTemplateAsync(arguments);
+        return RunTemplateAsync(arguments, cancellationToken);
 
     if (string.Equals(arguments[0], "update", StringComparison.Ordinal))
-        return RunTemplateAsync(["template", "update", .. arguments.Skip(1)]);
+        return RunTemplateAsync(["template", "update", .. arguments.Skip(1)], cancellationToken);
 
     if (string.Equals(arguments[0], "start", StringComparison.Ordinal))
-        return RunStartAsync(arguments);
+        return RunStartAsync(arguments, cancellationToken);
 
     if (string.Equals(arguments[0], "new", StringComparison.Ordinal))
-        return RunNewAsync(arguments);
+        return RunNewAsync(arguments, cancellationToken);
 
     if (arguments.Length < 2 || !string.Equals(arguments[0], "module", StringComparison.Ordinal))
         return Task.FromResult(ShowUnknownCommand(arguments[0]));
@@ -140,7 +159,8 @@ static Task<int> RunAsync(string[] arguments)
             if (positional.Count != 2 || entity is null || resource is null || ownership is null)
                 return Task.FromResult(ShowModuleCreateHelp(1));
             ModuleCreationResult created = new ModuleScaffolder(root).Create(new(
-                positional[1], entity, resource, ownership, description, includeWeb, fieldSpecification));
+                positional[1], entity, resource, ownership, description, includeWeb, fieldSpecification),
+                cancellationToken);
             PrintModules(created.Report.Modules);
             Console.WriteLine();
             Console.WriteLine($"Module '{created.ModuleId}' created, registered, and enabled.");
@@ -206,7 +226,7 @@ static Task<int> RunAsync(string[] arguments)
     }
 }
 
-static async Task<int> RunNewAsync(string[] arguments)
+static async Task<int> RunNewAsync(string[] arguments, CancellationToken cancellationToken)
 {
     if (arguments.Length == 1 || arguments.Skip(1).Any(IsHelpOption))
         return ShowNewHelp(arguments.Length == 1 ? 1 : 0);
@@ -214,7 +234,7 @@ static async Task<int> RunNewAsync(string[] arguments)
     try
     {
         ApplicationCreator creator = new(new DotnetApplicationTemplateProcess(), Console.Error);
-        return await creator.CreateAsync(arguments.Skip(1).ToArray(), CancellationToken.None);
+        return await creator.CreateAsync(arguments.Skip(1).ToArray(), cancellationToken);
     }
     catch (Exception exception) when (exception is IOException
         or UnauthorizedAccessException
@@ -225,7 +245,7 @@ static async Task<int> RunNewAsync(string[] arguments)
     }
 }
 
-static async Task<int> RunTemplateAsync(string[] arguments)
+static async Task<int> RunTemplateAsync(string[] arguments, CancellationToken cancellationToken)
 {
     if (arguments.Length == 1
         || IsHelp(arguments[1])
@@ -248,7 +268,7 @@ static async Task<int> RunTemplateAsync(string[] arguments)
                 Console.Out,
                 Console.Error,
                 !Console.IsOutputRedirected && !Console.IsErrorRedirected);
-            return await uninstaller.UninstallAsync(CancellationToken.None);
+            return await uninstaller.UninstallAsync(cancellationToken);
         }
         catch (Exception exception) when (exception is IOException
             or UnauthorizedAccessException
@@ -287,8 +307,8 @@ static async Task<int> RunTemplateAsync(string[] arguments)
             Console.Error,
             !Console.IsOutputRedirected && !Console.IsErrorRedirected);
         return string.Equals(operation, "update", StringComparison.Ordinal)
-            ? await installer.UpdateAsync(version, CancellationToken.None)
-            : await installer.InstallAsync(version, force, CancellationToken.None);
+            ? await installer.UpdateAsync(version, cancellationToken)
+            : await installer.InstallAsync(version, force, cancellationToken);
     }
     catch (Exception exception) when (exception is IOException
         or UnauthorizedAccessException
@@ -299,7 +319,7 @@ static async Task<int> RunTemplateAsync(string[] arguments)
     }
 }
 
-static async Task<int> RunStartAsync(string[] arguments)
+static async Task<int> RunStartAsync(string[] arguments, CancellationToken cancellationToken)
 {
     if (arguments.Skip(1).Any(IsHelpOption))
         return ShowStartHelp();
@@ -320,7 +340,7 @@ static async Task<int> RunStartAsync(string[] arguments)
             new DotnetApplicationProcess(),
             new DockerContainerRuntimeProbe(),
             Console.Out);
-        return await starter.StartAsync(root, CancellationToken.None);
+        return await starter.StartAsync(root, cancellationToken);
     }
     catch (Exception exception) when (exception is IOException
         or UnauthorizedAccessException

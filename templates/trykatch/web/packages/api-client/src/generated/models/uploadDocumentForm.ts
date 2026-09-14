@@ -5,12 +5,11 @@
  * The versioned HTTP contract for Trykatch's platform and organization workspaces. Organization-scoped operations infer their organization from the authenticated workspace context.
  * OpenAPI spec version: v1
  */
+import type { IFormFile } from './iFormFile';
 
-export interface DocumentMetadataDto {
+export interface UploadDocumentForm {
+  title: string;
   /** @nullable */
-  updatedAt: string | null;
-  mediaType: string;
-  /** @pattern ^-?(?:0|[1-9]\d*)$ */
-  sizeBytes: number | string;
-  sha256: string;
+  description: string | null;
+  file: IFormFile;
 }

@@ -129,6 +129,22 @@ public interface IModulePermissionAuthorizer
 }
 
 /// <summary>
+/// Provider-neutral private object storage supplied by the host. Module code owns
+/// object-key construction and authorization; adapters own S3 or filesystem I/O.
+/// </summary>
+public interface IObjectStorage
+{
+    Task PutAsync(
+        string key,
+        Stream content,
+        long contentLength,
+        string contentType,
+        CancellationToken cancellationToken = default);
+    Task<Stream> GetAsync(string key, CancellationToken cancellationToken = default);
+    Task DeleteAsync(string key, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// An explicit, provider-neutral allowlist entry for exposing one API operation
 /// to an AI assistant. Authorization remains enforced by the API operation.
 /// </summary>

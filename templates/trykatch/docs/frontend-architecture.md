@@ -18,7 +18,8 @@ Trykatch keeps reusable interface behavior in the smallest package that can own 
 - stable client-side sorting and collection search;
 - compact, comfortable, and spacious density;
 - per-column visibility with at least one column always visible;
-- empty results, result counts, toolbar layout, and responsive overflow.
+- empty results, result counts, toolbar layout, and responsive overflow;
+- a trailing controls group that keeps the result count and Columns menu attached to the table's right edge at desktop and tablet widths.
 
 Feature-specific filters belong in the `toolbar` slot. Use server filtering and pagination for unbounded collections; use the built-in search for bounded collections already loaded in memory. Column definitions should provide `sortValue` and `searchValue` rather than formatting data outside the module.
 

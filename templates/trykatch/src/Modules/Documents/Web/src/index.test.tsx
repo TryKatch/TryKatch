@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { customFetch, type DocumentDto } from '@trykatch/api-client'
 import { defineWebModule, ModuleProvider, WebModuleCatalog } from '@trykatch/module-sdk'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DocumentsPage, documentsModule } from './index'
@@ -14,9 +14,10 @@ const mockedFetch = vi.mocked(customFetch)
 const document: DocumentDto = {
   id: '0199ca9e-3870-7000-8000-000000000001',
   title: 'Runbook',
-  content: 'Recovery steps',
+  description: 'Recovery steps',
+  fileName: 'runbook.pdf',
   createdAt: '2026-09-10T12:00:00Z',
-  metadata: { updatedAt: null, mediaType: 'text/plain', characterCount: 14 },
+  metadata: { updatedAt: null, mediaType: 'application/pdf', sizeBytes: 4096, sha256: 'A'.repeat(64) },
   lifecycle: { status: 'Active', archivedAt: null, archivedBy: null, deletedAt: null, deletedBy: null, deletionReason: null },
 }
 
@@ -56,20 +57,21 @@ describe('DocumentsPage', () => {
   beforeEach(() => mockedFetch.mockReset())
   afterEach(cleanup)
 
-  it('opens document creation in a focused dialog instead of an inline table form', async () => {
+  it('opens document upload in a focused dialog instead of an inline table form', async () => {
     mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
       ? { permissions: ['documents.read', 'documents.manage'] } as never
       : [] as never)
 
     renderDocuments()
 
-    const create = await screen.findByRole('button', { name: 'New document' })
+    const [create] = await screen.findAllByRole('button', { name: 'Upload document' })
     expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
 
     fireEvent.click(create)
 
-    expect(screen.getByRole('dialog', { name: 'Create document' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Upload document' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Document title' })).toBeInTheDocument()
+    expect(screen.getByLabelText('File')).toHaveAttribute('type', 'file')
   })
 
   it('hides every mutation control from read-only members', async () => {
@@ -112,9 +114,18 @@ describe('DocumentsPage', () => {
 
     renderDocuments()
     await screen.findByText('Runbook')
-    fireEvent.click(screen.getByRole('button', { name: 'New document' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Document title' }), { target: { value: 'New document' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create document' }))
+    const [openUpload] = screen.getAllByRole('button', { name: 'Upload document' })
+    fireEvent.click(openUpload)
+    const uploadDialog = screen.getByRole('dialog', { name: 'Upload document' })
+    fireEvent.change(within(uploadDialog).getByRole('textbox', { name: 'Document title' }), { target: { value: 'New document' } })
+    fireEvent.change(within(uploadDialog).getByLabelText('File'), {
+      target: { files: [new File(['report'], 'report.pdf', { type: 'application/pdf' })] },
+    })
+    fireEvent.submit(uploadDialog.querySelector('form')!)
+    await waitFor(() => expect(mockedFetch).toHaveBeenCalledWith(
+      '/api/v1/documents/',
+      expect.objectContaining({ method: 'POST' }),
+    ))
     expect(await screen.findByText('save failed')).toHaveAttribute('role', 'alert')
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -149,7 +160,7 @@ describe('DocumentsPage', () => {
 
     render(workspace(client, <><DocumentsPage /><ShellAccessProbe /></>))
 
-    expect(await screen.findByRole('button', { name: 'New document' })).toBeInTheDocument()
+    expect((await screen.findAllByRole('button', { name: 'Upload document' })).length).toBeGreaterThan(0)
     expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
     expect(screen.getByText('Shell permissions: documents.read,documents.manage')).toBeInTheDocument()
     expect(client.getQueryData(['access'])).toEqual({ permissions: ['documents.read', 'documents.manage'] })
@@ -163,7 +174,7 @@ describe('DocumentsPage', () => {
       : [] as never)
     const { view } = renderDocuments(client)
 
-    expect(await screen.findByRole('button', { name: 'New document' })).toBeInTheDocument()
+    expect((await screen.findAllByRole('button', { name: 'Upload document' })).length).toBeGreaterThan(0)
     expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
     expect(client.getQueryData(['access'])).toEqual({ permissions: ['documents.read', 'documents.manage'] })
 
