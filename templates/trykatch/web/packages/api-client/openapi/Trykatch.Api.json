@@ -407,7 +407,6 @@
           "Documents"
         ],
         "summary": "Upload documents",
-        "description": "Upload a document file in the current workspace.",
         "operationId": "Documents_Upload",
         "requestBody": {
           "content": {
@@ -448,13 +447,7 @@
             "source": "const uploadForm = document.querySelector<HTMLFormElement>('#upload-form');\nif (!uploadForm) throw new Error('Upload form was not found.');\nconst formData = new FormData(uploadForm);\n\nconst { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/documents/', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: formData, // The browser supplies the multipart boundary.\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ],
-        "x-trykatch-module": "documents",
-        "x-trykatch-assistant-tool": {
-          "name": "trykatch_upload_document",
-          "description": "Upload a document file in the current workspace.",
-          "risk": "mutating",
-          "requiresHumanConfirmation": true
-        }
+        "x-trykatch-module": "documents"
       }
     },
     "/api/v1/documents/{id}/content": {

@@ -6,4 +6,4 @@
  * OpenAPI spec version: v1
  */
 
-export type IFormFile = Blob;
+export type IFormFile = File;

@@ -157,18 +157,6 @@
         ],
         "additionalProperties": false
       }
-    },
-    {
-      "type": "function",
-      "name": "trykatch_upload_document",
-      "description": "Upload a document file in the current workspace.",
-      "strict": true,
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "required": [],
-        "additionalProperties": false
-      }
     }
   ],
   "bindings": {
@@ -206,16 +194,6 @@
       "operationId": "Documents_Update",
       "method": "PUT",
       "path": "/api/v1/documents/{id}",
-      "moduleId": "documents",
-      "risk": "mutating",
-      "requiresHumanConfirmation": true,
-      "authorization": "api-enforced",
-      "organizationContext": "request-derived"
-    },
-    "trykatch_upload_document": {
-      "operationId": "Documents_Upload",
-      "method": "POST",
-      "path": "/api/v1/documents",
       "moduleId": "documents",
       "risk": "mutating",
       "requiresHumanConfirmation": true,

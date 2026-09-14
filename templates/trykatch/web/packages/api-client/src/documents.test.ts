@@ -26,7 +26,7 @@ describe('generated Documents client', () => {
       status: 201, headers: { 'Content-Type': 'application/json' },
     }))
     vi.stubGlobal('fetch', fetchMock)
-    const file = new Blob(['runbook'], { type: 'application/pdf' })
+    const file = new File(['runbook'], 'recovery-runbook.pdf', { type: 'application/pdf' })
 
     await documentsUpload({ title: 'Runbook', description: 'Recovery steps', file })
 
@@ -36,8 +36,9 @@ describe('generated Documents client', () => {
     expect(body).toBeInstanceOf(FormData)
     expect(body.get('title')).toBe('Runbook')
     expect(body.get('description')).toBe('Recovery steps')
-    const uploadedFile = body.get('file') as Blob
-    expect(uploadedFile).toBeInstanceOf(Blob)
+    const uploadedFile = body.get('file') as File
+    expect(uploadedFile).toBeInstanceOf(File)
+    expect(uploadedFile.name).toBe('recovery-runbook.pdf')
     expect(uploadedFile.size).toBe(file.size)
     expect(uploadedFile.type).toBe('application/pdf')
     expect(new Headers(options.headers).has('Content-Type')).toBe(false)

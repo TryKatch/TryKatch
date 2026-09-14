@@ -37,7 +37,6 @@
     "extensions": [{ "id": "documents.projects-presence", "point": "projects.list.after-table" }],
     "assistantTools": [
       { "name": "try\u006batch_list_documents", "operationId": "Documents_List", "risk": "read-only", "requiresHumanConfirmation": false },
-      { "name": "try\u006batch_upload_document", "operationId": "Documents_Upload", "risk": "state-changing", "requiresHumanConfirmation": true },
       { "name": "try\u006batch_update_document", "operationId": "Documents_Update", "risk": "state-changing", "requiresHumanConfirmation": true }
     ]
   }
