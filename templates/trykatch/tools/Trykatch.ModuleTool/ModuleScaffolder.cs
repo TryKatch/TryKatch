@@ -53,6 +53,19 @@ public sealed partial class ModuleWorkspace
         "IntegrationEvents", "Migrator", "Module", "Modules", "Nul", "Prn", "Presentation",
         "Tests", "UnitTests", "Web"
     };
+    private static readonly HashSet<string> PostgreSqlReservedIdentifiers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "all", "analyse", "analyze", "and", "any", "array", "as", "asc", "asymmetric", "both",
+        "case", "cast", "check", "collate", "column", "constraint", "create", "current_catalog",
+        "current_date", "current_role", "current_time", "current_timestamp", "current_user", "default",
+        "deferrable", "desc", "distinct", "do", "else", "end", "except", "false", "fetch", "for",
+        "foreign", "freeze", "from", "full", "grant", "group", "having", "ilike", "in", "initially",
+        "intersect", "into", "is", "isnull", "lateral", "leading", "like", "limit", "localtime",
+        "localtimestamp", "natural", "not", "notnull", "null", "offset", "on", "only", "or", "order",
+        "placing", "primary", "references", "returning", "select", "session_user", "similar", "some",
+        "symmetric", "system_user", "table", "tablesample", "then", "to", "trailing", "true", "union",
+        "unique", "user", "using", "variadic", "verbose", "when", "where", "window", "with"
+    };
 
     internal ModuleCreationResult CreateScaffoldedModule(ModuleCreateRequest request)
     {
@@ -63,9 +76,11 @@ public sealed partial class ModuleWorkspace
         ModuleCatalogFile? catalog = ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
         if (catalog is null) throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
         ValidateCatalog(catalog, errors);
+        List<LoadedModule> installedModules = LoadModules(catalog, errors);
+        ValidateModules(catalog, installedModules, errors);
         if (errors.Count > 0) throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
 
-        ScaffoldNames names = ValidateCreateRequest(request, catalog);
+        ScaffoldNames names = ValidateCreateRequest(request, catalog, installedModules);
         string moduleRoot = ResolveInsideRoot(Path.Combine("src", "Modules", names.Module));
         string testRoot = ResolveInsideRoot(Path.Combine("tests", "Modules", names.Module));
         if (Directory.Exists(moduleRoot) || Directory.Exists(testRoot))
@@ -168,7 +183,10 @@ public sealed partial class ModuleWorkspace
         }
     }
 
-    private ScaffoldNames ValidateCreateRequest(ModuleCreateRequest request, ModuleCatalogFile catalog)
+    private ScaffoldNames ValidateCreateRequest(
+        ModuleCreateRequest request,
+        ModuleCatalogFile catalog,
+        IReadOnlyCollection<LoadedModule> installedModules)
     {
         string module = request.ModuleName?.Trim() ?? string.Empty;
         string entity = request.EntityName?.Trim() ?? string.Empty;
@@ -187,6 +205,8 @@ public sealed partial class ModuleWorkspace
             throw new ArgumentException($"Entity name '{entity}' is reserved by the Trykatch host or filesystem.");
         if (!ResourceIdentifier.IsMatch(resource))
             throw new ArgumentException("--resource must be a lower-case snake_case PostgreSQL identifier, for example 'invoices'.");
+        if (PostgreSqlReservedIdentifiers.Contains(resource))
+            throw new ArgumentException($"Resource name '{resource}' is a PostgreSQL keyword. Choose a descriptive plural name such as '{resource}_records'.");
         if (resource.Length > 35)
             throw new ArgumentException("--resource cannot exceed 35 characters because generated PostgreSQL index names are limited to 63 bytes.");
         if (!string.Equals(request.Ownership, "organization", StringComparison.Ordinal))
@@ -195,6 +215,13 @@ public sealed partial class ModuleWorkspace
         string moduleId = ToKebabCase(module);
         if (catalog.Modules.Any(candidate => string.Equals(candidate.Id, moduleId, StringComparison.Ordinal)))
             throw new InvalidOperationException($"Trykatch module '{moduleId}' is already registered. No files were changed.");
+        LoadedModule? relationOwner = installedModules.FirstOrDefault(candidate =>
+            candidate.Manifest.DataOwnership?.Resources.Any(dataResource =>
+                string.Equals(dataResource.Schema, "app", StringComparison.Ordinal)
+                && string.Equals(dataResource.Table, resource, StringComparison.Ordinal)) == true);
+        if (relationOwner is not null)
+            throw new InvalidOperationException(
+                $"Trykatch module '{relationOwner.Manifest.Id}' already declares data relation 'app.{resource}'. No files were changed.");
         if (!TryParseVersion(catalog.HostVersion, out Version? hostVersion)
             || hostVersion < new Version(0, 1)
             || hostVersion >= new Version(1, 0))

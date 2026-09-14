@@ -202,6 +202,55 @@ public sealed class ModuleScaffolderTests
         Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
     }
 
+    [TestMethod]
+    [DataRow("order")]
+    [DataRow("user")]
+    public void PostgreSqlKeywordsAreRejectedBeforeMutation(string resource)
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string catalogPath = Path.Combine(workspace.Root, "trykatch.modules.json");
+        string originalCatalog = File.ReadAllText(catalogPath);
+
+        Should.Throw<ArgumentException>(() => new ModuleScaffolder(workspace.Root, new SuccessfulRunner()).Create(new(
+            "Invoicing", "Invoice", resource, "organization", null, IncludeWeb: false)))
+            .Message.ShouldContain("PostgreSQL keyword");
+
+        File.ReadAllText(catalogPath).ShouldBe(originalCatalog);
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public void ResourceRelationsAlreadyOwnedByAnotherModuleAreRejectedBeforeMutation()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string manifestPath = Path.Combine(workspace.Root, "src/Modules/Projects/trykatch.module.json");
+        JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        manifest["capabilities"] = new JsonArray("api", "data");
+        manifest["dataOwnership"] = new JsonObject
+        {
+            ["default"] = "organization",
+            ["resources"] = new JsonArray(new JsonObject
+            {
+                ["name"] = "invoices",
+                ["schema"] = "app",
+                ["table"] = "invoices",
+                ["ownership"] = "organization",
+                ["entityType"] = "Kametal.Modules.Projects.Domain.Project",
+                ["isolationPolicy"] = "invoices_organization_isolation"
+            })
+        };
+        File.WriteAllText(manifestPath, manifest.ToJsonString(new() { WriteIndented = true }) + "\n");
+        string catalogPath = Path.Combine(workspace.Root, "trykatch.modules.json");
+        string originalCatalog = File.ReadAllText(catalogPath);
+
+        Should.Throw<InvalidOperationException>(() => new ModuleScaffolder(workspace.Root, new SuccessfulRunner()).Create(new(
+            "Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: false)))
+            .Message.ShouldContain("already declares data relation 'app.invoices'");
+
+        File.ReadAllText(catalogPath).ShouldBe(originalCatalog);
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
+    }
+
     private static string Snapshot(string root, string relativeDirectory) => string.Join(
         "\n---\n",
         Directory.EnumerateFiles(Path.Combine(root, relativeDirectory), "*", SearchOption.AllDirectories)

@@ -92,6 +92,8 @@ The command creates the five backend layers, unit and architecture test projects
 
 Creation is transactional. The generator stages output privately and restores every catalog, solution, project, registry, generated-client and lockfile mutation if a verification phase fails. It never overwrites an existing module. Version 1 intentionally accepts only explicit `organization` ownership.
 
+The explicit `--resource` value must be lower-case snake_case, must not be a PostgreSQL keyword, and must not duplicate an `app` schema relation declared by any registered module. The generator enforces these constraints before staging or changing workspace files.
+
 ## Lifecycle commands
 
 Run these commands from the generated solution root. The packaged tool command is `trykatch`; `dotnet run` works before installing it globally.

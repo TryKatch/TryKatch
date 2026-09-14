@@ -30,7 +30,7 @@ trykatch module create Invoicing \
   --ownership organization
 ```
 
-`Invoicing` and `Invoice` must be PascalCase .NET identifiers. `invoices` must be an explicit lower-case snake_case PostgreSQL identifier. Version 1 deliberately requires `--ownership organization`; it never guesses the security boundary.
+`Invoicing` and `Invoice` must be PascalCase .NET identifiers. `invoices` must be an explicit lower-case snake_case PostgreSQL identifier, must not be a PostgreSQL keyword, and must not duplicate an `app` schema relation declared by another registered module. Version 1 deliberately requires `--ownership organization`; it never guesses the security boundary. These checks run before staging or modifying any workspace file.
 
 ## Generate a full-stack module
 
