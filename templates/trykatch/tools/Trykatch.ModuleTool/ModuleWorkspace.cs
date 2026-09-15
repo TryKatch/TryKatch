@@ -1064,6 +1064,7 @@ public sealed class ModuleCatalogFile
     public string Schema { get; init; } = string.Empty;
     public int SchemaVersion { get; init; }
     public string HostVersion { get; init; } = string.Empty;
+    public List<string> HostCapabilities { get; init; } = [];
     public string LockFile { get; init; } = string.Empty;
     public List<string> TrustedPublishers { get; init; } = [];
     public Dictionary<string, ModulePublisherTrust> PublisherTrust { get; init; } = new(StringComparer.Ordinal);

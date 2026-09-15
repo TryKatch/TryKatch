@@ -87,6 +87,7 @@ static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToke
     string? ownership = null;
     string? description = null;
     string? fieldSpecification = null;
+    string? blueprintPath = null;
     bool includeWeb = false;
     List<string> positional = [];
     for (int index = 1; index < arguments.Length; index++)
@@ -139,6 +140,12 @@ static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToke
                 return Task.FromResult(Fail("--fields requires a field contract."));
             fieldSpecification = arguments[index];
         }
+        else if (string.Equals(arguments[index], "--blueprint", StringComparison.Ordinal))
+        {
+            if (++index >= arguments.Length || blueprintPath is not null)
+                return Task.FromResult(Fail("--blueprint requires one JSON file path."));
+            blueprintPath = Path.GetFullPath(arguments[index]);
+        }
         else if (string.Equals(arguments[index], "--with-web", StringComparison.Ordinal))
         {
             includeWeb = true;
@@ -154,12 +161,31 @@ static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToke
 
     try
     {
+        if (blueprintPath is not null)
+        {
+            if (entity is not null || resource is not null || ownership is not null || fieldSpecification is not null || description is not null)
+                return Task.FromResult(Fail("--blueprint cannot be combined with --entity, --resource, --ownership, --fields or --description."));
+            if (positional[0] is not "create" and not "validate")
+                return Task.FromResult(Fail("--blueprint is supported by module create and module validate."));
+            ModuleBlueprint blueprint = ModuleBlueprint.Load(blueprintPath);
+            entity = blueprint.Entity;
+            resource = blueprint.Resource;
+            ownership = blueprint.Ownership;
+            description = blueprint.Labels.Plural.En;
+            if (positional[0] == "validate")
+            {
+                if (positional.Count != 1) return Task.FromResult(Fail("Usage: trykatch module validate --blueprint <file> [--root <path>] [--with-web]"));
+                new ModuleScaffolder(root).Validate(new(blueprint.Module, entity, resource, ownership, description, includeWeb, BlueprintPath: blueprintPath));
+                Console.WriteLine($"Blueprint '{blueprint.Module}' and workspace are valid. No files were changed.");
+                return Task.FromResult(0);
+            }
+        }
         if (string.Equals(positional[0], "create", StringComparison.Ordinal))
         {
             if (positional.Count != 2 || entity is null || resource is null || ownership is null)
                 return Task.FromResult(ShowModuleCreateHelp(1));
             ModuleCreationResult created = new ModuleScaffolder(root).Create(new(
-                positional[1], entity, resource, ownership, description, includeWeb, fieldSpecification),
+                positional[1], entity, resource, ownership, description, includeWeb, fieldSpecification, blueprintPath),
                 cancellationToken);
             PrintModules(created.Report.Modules);
             Console.WriteLine();
@@ -453,6 +479,8 @@ static int ShowModuleHelp(int exitCode = 0)
     Console.WriteLine("Usage:");
     Console.WriteLine("  trykatch module list [--root <path>]");
     Console.WriteLine("  trykatch module doctor [--root <path>]");
+    Console.WriteLine("  trykatch module validate --blueprint <file> [--root <path>] [--with-web]");
+    Console.WriteLine("  trykatch module create <name> --blueprint <file> [--with-web] [--root <path>]");
     Console.WriteLine("  trykatch module generate [--root <path>]");
     Console.WriteLine("  trykatch module create <name> --entity <name> --resource <name> --ownership organization [--fields <contract>] [--with-web] [--root <path>]");
     Console.WriteLine("  trykatch module enable <id> [--root <path>]");
@@ -482,6 +510,9 @@ static int ShowModuleCreateHelp(int exitCode = 0)
     Console.WriteLine("                        Example: number:string:required:max(40),total:decimal:required,status:enum(Draft,Paid)");
     Console.WriteLine("                        Types: string, decimal, int, long, bool, date, datetime, guid, enum(...).");
     Console.WriteLine("  --with-web            Also generate and verify a React module contribution.");
+    Console.WriteLine("  --blueprint <file>    Versioned JSON fields, rules, workflow actions and EN/FR labels.");
+    Console.WriteLine("                        Replaces --entity, --resource, --ownership, --fields and --description.");
+    Console.WriteLine("                        Example: trykatch module create ShipmentReceptions --blueprint blueprints/shipment-reception.json --with-web");
     Console.WriteLine("  --root <path>         Generated application root; defaults to the current directory.");
     Console.WriteLine();
     Console.WriteLine("The operation is atomic: source, registration, restore, and verification roll back together on failure.");

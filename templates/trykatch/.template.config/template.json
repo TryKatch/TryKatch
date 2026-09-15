@@ -78,6 +78,10 @@
       "description": "Include local and S3-compatible object storage adapters.",
       "defaultValue": "true"
     },
+    "TRYKATCH_STORAGE": {
+      "type": "computed",
+      "value": "(storage)"
+    },
     "documents": {
       "type": "parameter",
       "datatype": "bool",

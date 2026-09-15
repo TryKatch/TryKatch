@@ -13,7 +13,8 @@ public sealed record ModuleCreateRequest(
     string Ownership,
     string? Description,
     bool IncludeWeb,
-    string? FieldSpecification = null);
+    string? FieldSpecification = null,
+    string? BlueprintPath = null);
 
 public sealed record ModuleCreationResult(
     string ModuleId,
@@ -77,6 +78,21 @@ public sealed partial class ModuleScaffolder : IModuleScaffolder
         ModuleCreateRequest request,
         CancellationToken cancellationToken = default) =>
         CreateScaffoldedModule(request, cancellationToken);
+
+    public void Validate(ModuleCreateRequest request)
+    {
+        List<string> errors = [];
+        ModuleCatalogFile? catalog = _workspace.ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
+        if (catalog is null) throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
+        _workspace.ValidateCatalog(catalog, errors);
+        List<ModuleWorkspace.LoadedModule> modules = _workspace.LoadModules(catalog, errors);
+        _workspace.ValidateModules(catalog, modules, errors);
+        if (errors.Count > 0) throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
+        ScaffoldNames names = ValidateCreateRequest(request, catalog, modules);
+        foreach (string prefix in new[] { "src", "tests" })
+            if (Directory.Exists(_workspace.ResolveInsideRoot(Path.Combine(prefix, "Modules", names.Module))))
+                throw new InvalidOperationException($"Module '{names.Module}' already has source or test directories. No files were changed.");
+    }
 }
 
 public sealed partial class ModuleScaffolder
@@ -191,8 +207,8 @@ public sealed partial class ModuleScaffolder
                 names.ModuleId,
                 request.IncludeWeb,
                 [Path.GetRelativePath(_root, moduleRoot), Path.GetRelativePath(_root, testRoot)],
-                GeneratedEndpoints(names.Resource),
-                [names.ModuleId + ".read", names.ModuleId + ".manage"],
+                [.. GeneratedEndpoints(names.Resource), .. names.Blueprint?.Workflow.Actions.Select(a => $"POST /api/v1/{names.Resource}/{{id}}/actions/{ScaffoldingNameRules.ToKebabCase(a.Name)}") ?? []],
+                [names.ModuleId + ".read", names.ModuleId + ".manage", .. names.Blueprint?.Workflow.Actions.Select(a => names.ModuleId + "." + a.Permission).Distinct() ?? []],
                 "trykatch start",
                 report);
         }
@@ -273,9 +289,16 @@ public sealed partial class ModuleScaffolder
             throw new ArgumentException("--description cannot exceed 500 characters.");
         if (description.Any(char.IsControl))
             throw new ArgumentException("--description must be a single line without control characters.");
-        IReadOnlyList<ModuleFieldDefinition> fields = ModuleFieldContract.Parse(request.FieldSpecification);
+        ModuleBlueprint? blueprint = request.BlueprintPath is null ? null : ModuleBlueprint.Load(request.BlueprintPath);
+        if (blueprint is not null && catalog.HostCapabilities?.Contains("business-blueprints-v1", StringComparer.Ordinal) != true)
+            throw new InvalidOperationException("This application does not support business-blueprints-v1. Updating the CLI does not upgrade an existing application's host or React SDK. Use a new coordinated template release or follow the blueprint host upgrade guide. No files were changed.");
+        if (blueprint is not null && (blueprint.Module != module || blueprint.Entity != entity || blueprint.Resource != resource || blueprint.Ownership != request.Ownership))
+            throw new ArgumentException("Blueprint identity must match the requested module.");
+        if (blueprint is not null && request.FieldSpecification is not null)
+            throw new ArgumentException("--fields cannot be combined with --blueprint.");
+        IReadOnlyList<ModuleFieldDefinition> fields = blueprint?.Definitions ?? ModuleFieldContract.Parse(request.FieldSpecification);
         return new(rootNamespace, npmScope, publisher, module, moduleId, entity, resource, description,
-            $"@{npmScope}-modules/{moduleId}", request.IncludeWeb, fields);
+            $"@{npmScope}-modules/{moduleId}", request.IncludeWeb, fields, blueprint);
     }
 
     private static void RenderModule(string moduleRoot, string testRoot, ScaffoldNames names, bool includeWeb)
@@ -283,7 +306,7 @@ public sealed partial class ModuleScaffolder
         Directory.CreateDirectory(moduleRoot);
         Directory.CreateDirectory(testRoot);
         WriteTemplate("Entity.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Domain"), $"{names.Entity}Record.cs"), names);
-        WriteTemplate("UseCases.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), $"{names.Module}UseCases.cs"), names);
+        WriteTemplate("UseCases.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), names.Blueprint is null ? $"{names.Module}UseCases.cs" : $"{names.Entity}Contracts.cs"), names);
         WriteTemplate("IntegrationEvents.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "IntegrationEvents"), $"{names.Entity}IntegrationEvents.cs"), names);
         WriteTemplate("Endpoints.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Presentation"), $"{names.Module}Endpoints.cs"), names);
         WriteTemplate("Module.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Infrastructure"), $"{names.Module}Module.cs"), names);
@@ -294,6 +317,24 @@ public sealed partial class ModuleScaffolder
         WriteReadme(moduleRoot, names, includeWeb);
         WriteTestProjects(testRoot, names);
         if (includeWeb) WriteWebFiles(moduleRoot, names);
+        if (names.Blueprint is not null)
+        {
+            WriteTemplate("BlueprintReadme.md", Path.Combine(moduleRoot, "README.md"), names);
+            WriteUtf8(Path.Combine(moduleRoot, "module.blueprint.json"), JsonSerializer.Serialize(names.Blueprint, ModuleBlueprint.JsonOptions));
+            WriteTemplate("BlueprintWorkflow.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Domain"), names.Entity + "Workflow.cs"), names);
+            WriteTemplate("BlueprintActions.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), names.Module + "Actions.cs"), names);
+            WriteTemplate("BlueprintCrudCommands.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), names.Entity + "Commands.cs"), names);
+            WriteTemplate("BlueprintQueries.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), names.Entity + "Queries.cs"), names);
+            WriteTemplate("BlueprintReadModel.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), names.Entity + "ReadModel.cs"), names);
+            WriteTemplate("BlueprintOperations.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), names.Entity + "Operations.cs"), names);
+            WriteTemplate("BlueprintActionEndpoints.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Presentation"), names.Module + "Actions.cs"), names);
+            WriteTemplate("BlueprintWorkflowTests.cs", Path.Combine(testRoot, $"{names.RootNamespace}.Modules.{names.Module}.UnitTests", names.Entity + "WorkflowTests.cs"), names);
+            if (includeWeb)
+            {
+                WriteTemplate("BlueprintWebWorkflow.ts", Path.Combine(moduleRoot, "Web/src/workflow.ts"), names);
+                WriteTemplate("BlueprintWebWorkflowTests.ts", Path.Combine(moduleRoot, "Web/src/workflow.test.ts"), names);
+            }
+        }
     }
 
     private static string ProjectDirectory(ScaffoldNames names, string layer) =>
@@ -405,7 +446,9 @@ public sealed partial class ModuleScaffolder
             ["entrypoints"] = entrypoints,
             ["contributions"] = new JsonObject
             {
-                ["permissions"] = new JsonArray(names.ModuleId + ".read", names.ModuleId + ".manage"),
+                ["permissions"] = new JsonArray(new[] { names.ModuleId + ".read", names.ModuleId + ".manage" }
+                    .Concat(names.Blueprint?.Workflow.Actions.Select(a => names.ModuleId + "." + a.Permission).Distinct() ?? [])
+                    .Select(value => JsonValue.Create(value)).ToArray()),
                 ["routes"] = routes,
                 ["extensionPoints"] = new JsonArray(),
                 ["extensions"] = new JsonArray(),
@@ -497,7 +540,7 @@ public sealed partial class ModuleScaffolder
             public sealed class {{names.Module}}LayerTests
             {
                 private static readonly ReflectionAssembly Domain = typeof({{names.Entity}}Record).Assembly;
-                private static readonly ReflectionAssembly Application = typeof({{names.Module}}UseCases).Assembly;
+                private static readonly ReflectionAssembly Application = typeof({{(names.Blueprint is null ? names.Module + "UseCases" : "Create" + names.Entity + "CommandHandler")}}).Assembly;
                 private static readonly ReflectionAssembly Events = typeof({{names.Entity}}Created).Assembly;
                 private static readonly ReflectionAssembly Presentation = typeof({{names.Module}}Endpoints).Assembly;
                 private static readonly ReflectionAssembly Infrastructure = typeof({{names.Module}}Module).Assembly;
@@ -728,7 +771,8 @@ public sealed partial class ModuleScaffolder
     private static void WriteTemplate(string templateName, string outputPath, ScaffoldNames names)
     {
         Assembly assembly = typeof(ModuleScaffolder).Assembly;
-        string suffix = ".Scaffolding.Templates." + templateName + ".tpl";
+        string selectedTemplate = names.Blueprint is not null && BlueprintRenderer.Replaces(templateName) ? "Blueprint" + templateName : templateName;
+        string suffix = ".Scaffolding.Templates." + selectedTemplate + ".tpl";
         string resource = assembly.GetManifestResourceNames().Single(name => name.EndsWith(suffix, StringComparison.Ordinal));
         using Stream stream = assembly.GetManifestResourceStream(resource)
             ?? throw new InvalidOperationException($"Embedded scaffold template '{templateName}' is unavailable.");
@@ -750,6 +794,11 @@ public sealed partial class ModuleScaffolder
             .Replace("__DESCRIPTION__", EscapeDescription(templateName, names.Description), StringComparison.Ordinal);
         foreach ((string token, string value) in ModuleFieldRenderer.Render(names.Entity, names.Fields))
             contents = contents.Replace(token, value, StringComparison.Ordinal);
+        if (names.Blueprint is not null)
+        {
+            foreach ((string token, string value) in BlueprintRenderer.Render(names.Blueprint, names.RootNamespace, names.ModuleId))
+                contents = contents.Replace(token, value, StringComparison.Ordinal);
+        }
         WriteUtf8(outputPath, contents);
     }
 
@@ -782,5 +831,5 @@ public sealed partial class ModuleScaffolder
     private sealed record ScaffoldNames(
         string RootNamespace, string NpmScope, string Publisher, string Module, string ModuleId,
         string Entity, string Resource, string Description, string WebPackage, bool IncludeWeb,
-        IReadOnlyList<ModuleFieldDefinition> Fields);
+        IReadOnlyList<ModuleFieldDefinition> Fields, ModuleBlueprint? Blueprint = null);
 }

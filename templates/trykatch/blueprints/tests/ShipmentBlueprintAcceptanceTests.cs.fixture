@@ -1,0 +1,286 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
+using Shouldly;
+using Testcontainers.PostgreSql;
+using Trykatch.Identity;
+using Trykatch.Infrastructure.Organizations;
+using Trykatch.Infrastructure.Persistence;
+using Trykatch.Modules;
+using Trykatch.Modules.Documents.Infrastructure;
+using Trykatch.Modules.Federation.Infrastructure;
+
+namespace Trykatch.IntegrationTests;
+
+[TestClass]
+[TestCategory("Integration")]
+public sealed class ShipmentBlueprintAcceptanceTests
+{
+    private const string PlatformEmail = "platform-csrf@trykatch.test";
+    private const string TenantEmail = "tenant-csrf@trykatch.test";
+    private const string Password = "Local-only!Antiforgery-Password-42";
+    private static readonly Guid MissingRecordId = Guid.Parse("00000000-0000-0000-0000-000000000042");
+
+    [TestMethod]
+    public async Task GeneratedShipmentEnforcesWorkflowValidationConcurrencyAndRecovery()
+    {
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+        await postgres.StartAsync();
+        string connectionString = postgres.GetConnectionString();
+        (string organizationConnection, string platformConnection, string identityConnection, string outboxConnection) =
+            await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(connectionString);
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:trykatchdb"] = identityConnection,
+            ["ConnectionStrings:trykatch-identity"] = identityConnection,
+            ["Federation:AllowInsecureLoopbackIssuer"] = "true"
+        }).Build();
+        IModule[] modules = Trykatch.Api.Modules.EnabledModules.All.ToArray();
+        await MigrateAsync(connectionString, configuration, modules);
+        await RuntimeRoleProvisioner.ProvisionAsync(connectionString, new RuntimeDatabaseRoles(
+            PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.PlatformRole,
+            PostgresRuntimeRoleFixture.IdentityRole, PostgresRuntimeRoleFixture.OutboxRole));
+
+        await using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(webHost =>
+            {
+                webHost.UseEnvironment("Development");
+                webHost.UseSetting("ConnectionStrings:trykatchdb", organizationConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-organization", organizationConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-platform", platformConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-identity", identityConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-outbox", outboxConnection);
+                webHost.ConfigureAppConfiguration((_, settings) => settings.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:trykatchdb"] = organizationConnection,
+                    ["ConnectionStrings:trykatch-organization"] = organizationConnection,
+                    ["ConnectionStrings:trykatch-platform"] = platformConnection,
+                    ["ConnectionStrings:trykatch-identity"] = identityConnection,
+                    ["ConnectionStrings:trykatch-outbox"] = outboxConnection,
+                    ["Bootstrap:PlatformAdminEmail"] = PlatformEmail,
+                    ["Bootstrap:PlatformAdminPassword"] = Password,
+                    ["DevelopmentDemo:Enabled"] = "true",
+                    ["DevelopmentDemo:PlatformAdminEmail"] = PlatformEmail,
+                    ["DevelopmentDemo:TenantAdminEmail"] = TenantEmail,
+                    ["DevelopmentDemo:Password"] = Password,
+                    ["DevelopmentDemo:OrganizationName"] = "Antiforgery workspace",
+                    ["DevelopmentDemo:OrganizationSlug"] = "antiforgery-workspace",
+                    ["Federation:AllowInsecureLoopbackIssuer"] = "true"
+                }));
+                webHost.ConfigureTestServices(services =>
+                {
+                    services.Configure<ProblemDetailsOptions>(options => options.CustomizeProblemDetails = context =>
+                        context.ProblemDetails.Extensions["testException"] = context.HttpContext.Features.Get<IExceptionHandlerFeature>()?.Error.ToString());
+                    // Federation is enabled only in this test's explicit composition.
+                    // Reuse the production module registration and endpoint mapper.
+                    services.RemoveAll<ModuleCatalog>();
+                    services.AddSingleton(new ModuleCatalog(modules));
+
+                });
+            });
+
+        using HttpClient tenant = CreateClient(factory);
+        using HttpClient platform = CreateClient(factory);
+        string tenantToken = await LoginAsync(tenant, TenantEmail);
+
+        Guid organizationId;
+        using (IServiceScope scope = factory.Services.CreateScope())
+        {
+            organizationId = await scope.ServiceProvider.GetRequiredService<PlatformDbContext>()
+                .Organizations.Where(organization => organization.Slug == "antiforgery-workspace")
+                .Select(organization => organization.Id).SingleAsync();
+        }
+        using (HttpResponseMessage selected = await SendAsync(tenant, HttpMethod.Post, "/api/v1/workspace/select",
+                   new { organizationId, remember = false }, tenantToken))
+            selected.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+
+        async Task<JsonElement> CreateShipmentAsync(bool verified)
+        {
+            using HttpResponseMessage response = await SendAsync(tenant, HttpMethod.Post, "/api/v1/shipment_receptions",
+                new { shipmentReference = "SHIP-2026-001", receivedWeight = "95.25", dispatchedWeight = "100.00", documentsVerified = verified }, tenantToken);
+            response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+            return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
+        }
+        async Task<JsonElement> ActionAsync(JsonElement record, string action, object body, HttpStatusCode expected)
+        {
+            using HttpResponseMessage response = await SendAsync(tenant, HttpMethod.Post,
+                $"/api/v1/shipment_receptions/{record.GetProperty("id").GetGuid()}/actions/{action}", body, tenantToken);
+            response.StatusCode.ShouldBe(expected, await response.Content.ReadAsStringAsync());
+            return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
+        }
+
+        JsonElement draft = await CreateShipmentAsync(false);
+        draft.GetProperty("workflowState").GetString().ShouldBe("Draft");
+        draft.GetProperty("canEdit").GetBoolean().ShouldBeTrue();
+        Guid draftVersion = draft.GetProperty("version").GetGuid();
+        using (HttpResponseMessage noCsrf = await SendAsync(tenant, HttpMethod.Post,
+                   $"/api/v1/shipment_receptions/{draft.GetProperty("id").GetGuid()}/actions/submit", new { expectedVersion = draftVersion }))
+            noCsrf.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        JsonElement premature = await ActionAsync(draft, "accept", new { expectedVersion = draftVersion }, HttpStatusCode.Conflict);
+        premature.GetProperty("code").GetString().ShouldBe("invalid_transition");
+        JsonElement submitted = await ActionAsync(draft, "submit", new { expectedVersion = draftVersion }, HttpStatusCode.OK);
+        submitted.GetProperty("workflowState").GetString().ShouldBe("Submitted");
+        submitted.GetProperty("canEdit").GetBoolean().ShouldBeFalse();
+        Guid submittedVersion = submitted.GetProperty("version").GetGuid();
+        submittedVersion.ShouldNotBe(draftVersion);
+        JsonElement stale = await ActionAsync(draft, "submit", new { expectedVersion = draftVersion }, HttpStatusCode.Conflict);
+        stale.GetProperty("code").GetString().ShouldBe("stale_version");
+        JsonElement blocked = await ActionAsync(submitted, "accept", new { expectedVersion = submittedVersion }, HttpStatusCode.BadRequest);
+        blocked.GetProperty("code").GetString().ShouldBe("documents_required");
+        await ActionAsync(submitted, "reject", new { expectedVersion = submittedVersion, reason = "short" }, HttpStatusCode.BadRequest);
+        JsonElement rejected = await ActionAsync(submitted, "reject",
+            new { expectedVersion = submittedVersion, reason = "Shipping documents are incomplete." }, HttpStatusCode.OK);
+        rejected.GetProperty("workflowState").GetString().ShouldBe("Rejected");
+        rejected.GetProperty("decisionReason").GetString().ShouldBe("Shipping documents are incomplete.");
+        await ActionAsync(rejected, "submit", new { expectedVersion = rejected.GetProperty("version").GetGuid() }, HttpStatusCode.Conflict);
+
+        JsonElement verified = await CreateShipmentAsync(true);
+        JsonElement review = await ActionAsync(verified, "submit", new { expectedVersion = verified.GetProperty("version").GetGuid() }, HttpStatusCode.OK);
+        JsonElement accepted = await ActionAsync(review, "accept", new { expectedVersion = review.GetProperty("version").GetGuid() }, HttpStatusCode.OK);
+        accepted.GetProperty("workflowState").GetString().ShouldBe("Accepted");
+        accepted.GetProperty("availableActions").GetArrayLength().ShouldBe(0);
+
+        Guid acceptedId = accepted.GetProperty("id").GetGuid();
+        using (HttpResponseMessage archived = await SendAsync(tenant, HttpMethod.Post, $"/api/v1/shipment_receptions/{acceptedId}/archive",
+                   new { expectedVersion = accepted.GetProperty("version").GetGuid() }, tenantToken))
+            archived.StatusCode.ShouldBe(HttpStatusCode.NoContent, await archived.Content.ReadAsStringAsync());
+        using JsonDocument recovery = JsonDocument.Parse(await tenant.GetStringAsync("/api/v1/shipment_receptions?lifecycle=recoverable"));
+        JsonElement archivedRecord = recovery.RootElement.EnumerateArray().Single(r => r.GetProperty("id").GetGuid() == acceptedId);
+        archivedRecord.GetProperty("workflowState").GetString().ShouldBe("Accepted");
+        using (HttpResponseMessage restored = await SendAsync(tenant, HttpMethod.Post, $"/api/v1/shipment_receptions/{acceptedId}/restore",
+                   new { expectedVersion = archivedRecord.GetProperty("version").GetGuid() }, tenantToken))
+            restored.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        using JsonDocument restoredRecord = JsonDocument.Parse(await tenant.GetStringAsync($"/api/v1/shipment_receptions/{acceptedId}"));
+        restoredRecord.RootElement.GetProperty("workflowState").GetString().ShouldBe("Accepted");
+
+        using HttpResponseMessage invalidWeight = await SendAsync(tenant, HttpMethod.Post, "/api/v1/shipment_receptions",
+            new { shipmentReference = "INVALID", receivedWeight = "0", dispatchedWeight = "100", documentsVerified = false }, tenantToken);
+        invalidWeight.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using HttpResponseMessage overposting = await SendAsync(tenant, HttpMethod.Post, "/api/v1/shipment_receptions",
+            new { shipmentReference = "INVALID", receivedWeight = "95", dispatchedWeight = "100", documentsVerified = true, workflowState = "Accepted" }, tenantToken);
+        overposting.StatusCode.ShouldBe(HttpStatusCode.BadRequest, await overposting.Content.ReadAsStringAsync());
+
+        // Two callers share one version: exactly one transition and one set of evidence may persist.
+        JsonElement concurrent = await CreateShipmentAsync(true);
+        Guid concurrentId = concurrent.GetProperty("id").GetGuid();
+        object submission = new { expectedVersion = concurrent.GetProperty("version").GetGuid() };
+        HttpResponseMessage[] competing = await Task.WhenAll(
+            SendAsync(tenant, HttpMethod.Post, $"/api/v1/shipment_receptions/{concurrentId}/actions/submit", submission, tenantToken),
+            SendAsync(tenant, HttpMethod.Post, $"/api/v1/shipment_receptions/{concurrentId}/actions/submit", submission, tenantToken));
+        try
+        {
+            competing.Count(response => response.StatusCode == HttpStatusCode.OK).ShouldBe(1);
+            competing.Count(response => response.StatusCode == HttpStatusCode.Conflict).ShouldBe(1);
+        }
+        finally { foreach (HttpResponseMessage response in competing) response.Dispose(); }
+        await using NpgsqlConnection evidence = new(connectionString);
+        await evidence.OpenAsync();
+        await using (NpgsqlCommand counts = new("""
+            SELECT
+              (SELECT count(*) FROM platform.audit_entries WHERE "SubjectId" = @id AND "Action" = 'shipment-receptions.submit'),
+              (SELECT count(*) FROM platform.outbox_messages WHERE "Payload"->>'id' = @id AND "Type" LIKE '%.ShipmentReceptionSubmitCompleted')
+            """, evidence))
+        {
+            counts.Parameters.AddWithValue("id", concurrentId.ToString());
+            await using NpgsqlDataReader reader = await counts.ExecuteReaderAsync();
+            (await reader.ReadAsync()).ShouldBeTrue();
+            reader.GetInt64(0).ShouldBe(1);
+            reader.GetInt64(1).ShouldBe(1);
+        }
+
+        // Remove the permission in the database, not just the UI, and prove enforcement on the next request.
+        await using (NpgsqlCommand revoke = new("""
+            DELETE FROM platform.role_permissions
+            WHERE "Permission" = 'shipment-receptions.review'
+              AND "RoleId" IN (SELECT "Id" FROM platform.roles WHERE "OrganizationId" = @organization)
+            """, evidence))
+        {
+            revoke.Parameters.AddWithValue("organization", organizationId);
+            (await revoke.ExecuteNonQueryAsync()).ShouldBeGreaterThan(0);
+        }
+        using JsonDocument pending = JsonDocument.Parse(await tenant.GetStringAsync($"/api/v1/shipment_receptions/{concurrentId}"));
+        pending.RootElement.GetProperty("availableActions").EnumerateArray().Select(value => value.GetString()).ShouldNotContain("accept");
+        using HttpResponseMessage forbidden = await SendAsync(tenant, HttpMethod.Post, $"/api/v1/shipment_receptions/{concurrentId}/actions/accept",
+            new { expectedVersion = pending.RootElement.GetProperty("version").GetGuid() }, tenantToken);
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+    }
+
+    private static HttpClient CreateClient(WebApplicationFactory<Program> factory) => factory.CreateClient(new()
+    {
+        BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false, HandleCookies = true
+    });
+
+    private static async Task<string> LoginAsync(HttpClient client, string email)
+    {
+        string token = await GetTokenAsync(client);
+        using HttpResponseMessage response = await SendAsync(client, HttpMethod.Post, "/api/v1/auth/login",
+            new { email, password = Password, rememberMe = false }, token);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        return await GetTokenAsync(client);
+    }
+
+    private static async Task<string> GetTokenAsync(HttpClient client)
+    {
+        using JsonDocument payload = JsonDocument.Parse(await client.GetStringAsync("/api/v1/auth/antiforgery"));
+        return payload.RootElement.GetProperty("token").GetString() ?? throw new InvalidOperationException("Missing antiforgery token.");
+    }
+
+    private static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string path,
+        object? body = null, string? token = null, bool isMultipart = false)
+    {
+        using HttpRequestMessage request = new(method, path);
+        if (isMultipart)
+        {
+            MultipartFormDataContent multipart = new();
+            multipart.Add(new StringContent("CSRF document"), "title");
+            multipart.Add(new StringContent("Protected upload"), "description");
+            ByteArrayContent file = new("%PDF-1.7 test"u8.ToArray());
+            file.Headers.ContentType = new("application/pdf");
+            multipart.Add(file, "file", "csrf-document.pdf");
+            request.Content = multipart;
+        }
+        else if (body is not null) request.Content = JsonContent.Create(body);
+        if (token is not null) request.Headers.Add("X-CSRF-TOKEN", token);
+        return await client.SendAsync(request);
+    }
+
+    private static async Task MigrateAsync(string connectionString, IConfiguration configuration, IModule[] modules)
+    {
+        await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(connectionString);
+        await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(connectionString).Options);
+        await identity.Database.MigrateAsync();
+        await using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(connectionString).Options);
+        await platform.Database.MigrateAsync();
+        ServiceCollection services = new();
+        ModuleCatalog catalog = services.AddModules(configuration, modules);
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        await using ApplicationDbContext application = new(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options,
+            provider.GetServices<IApplicationModelContributor>(), moduleCatalog: catalog);
+        await application.Database.MigrateAsync();
+        await using NpgsqlConnection connection = new(connectionString);
+        await connection.OpenAsync();
+        foreach (IModuleMigrationContributor contributor in modules.OfType<IModuleMigrationContributor>())
+        foreach (ModuleMigration migration in contributor.Migrations)
+        {
+            await using NpgsqlCommand command = new(migration.Sql, connection);
+            await command.ExecuteNonQueryAsync();
+        }
+        await InstalledSchemaCatalog.SynchronizeAsync(connectionString, modules.SelectMany(module =>
+            module.Descriptor.DataResources.Select(resource => new InstalledDataResource(module.Descriptor.Id, resource))));
+    }
+
+}
