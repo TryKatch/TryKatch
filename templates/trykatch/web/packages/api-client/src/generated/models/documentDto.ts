@@ -16,4 +16,5 @@ export interface DocumentDto {
   createdAt: string;
   metadata: DocumentMetadataDto;
   lifecycle: DocumentLifecycleDto;
+  documentType: string;
 }

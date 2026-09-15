@@ -2,8 +2,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch, type DocumentDto } from '@trykatch/api-client'
 import { defineWebModule, ModuleExtensionSlot, useModuleI18n, type ArchiveLifecycle } from '@trykatch/module-sdk'
 import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
-import { Download, FileText, Plus, Upload } from 'lucide-react'
-import { useState } from 'react'
+import { Download, FileText, LoaderCircle, Upload } from 'lucide-react'
+import { useId, useState } from 'react'
+import './documents.css'
+
+const documentTypes = [
+  { value: 'invoice', label: 'Invoice' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'certificate', label: 'Certificate' },
+  { value: 'report', label: 'Report' },
+  { value: 'other', label: 'Other' },
+]
+const acceptedFiles = '.pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp'
+const maximumFileBytes = 25 * 1024 * 1024
+const documentTypeLabel = (value: string) => documentTypes.find((type) => type.value === value)?.label ?? 'Other'
 
 interface OrganizationAccess { permissions: string[] }
 type LoadResult<T> = { value: T; failure?: never } | { value?: never; failure: string }
@@ -39,6 +51,10 @@ export function DocumentsPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [file, setFile] = useState<File>()
+  const [documentType, setDocumentType] = useState('other')
+  const [fileError, setFileError] = useState<string>()
+  const [fileInputKey, setFileInputKey] = useState(0)
+  const formId = useId()
   const documents = useQuery({
     queryKey: ['documents'],
     queryFn: () => loadResult(() => customFetch<DocumentDto[]>('/api/v1/documents/?lifecycle=active', { method: 'GET' })),
@@ -55,13 +71,14 @@ export function DocumentsPage() {
         return customFetch<DocumentDto>(`/api/v1/documents/${editing.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, description }),
+          body: JSON.stringify({ title, description, documentType }),
         })
       }
       if (!file) throw new Error(t('Choose a file to upload.'))
       const form = new FormData()
       form.append('title', title)
       form.append('description', description)
+      form.append('documentType', documentType)
       form.append('file', file)
       return customFetch<DocumentDto>('/api/v1/documents/', { method: 'POST', body: form })
     },
@@ -80,22 +97,45 @@ export function DocumentsPage() {
     },
   })
   const openUpload = () => {
+    save.reset()
     setEditing(null)
     setTitle('')
     setDescription('')
     setFile(undefined)
+    setDocumentType('other')
+    setFileError(undefined)
+    setFileInputKey((key) => key + 1)
   }
   const openEdit = (document: DocumentDto) => {
+    save.reset()
     setEditing(document)
     setTitle(document.title)
     setDescription(document.description)
     setFile(undefined)
+    setDocumentType(document.documentType)
+    setFileError(undefined)
   }
   const closeEditor = () => {
     setEditing(undefined)
     setTitle('')
     setDescription('')
     setFile(undefined)
+    setFileError(undefined)
+  }
+  const selectFile = (selected: File | undefined) => {
+    // Cancelling the chooser leaves the previous selection intact.
+    if (!selected) return
+    save.reset()
+    const extension = `.${selected.name.split('.').pop()?.toLowerCase()}`
+    const error = selected.size <= 0 || selected.size > maximumFileBytes
+      ? 'Choose a non-empty file no larger than 25 MB.'
+      : !acceptedFiles.split(',').includes(extension)
+        ? 'This file type is not supported. Upload PDF, Office, text, CSV, JPEG, PNG, or WebP files.'
+        : undefined
+    setFileError(error)
+    setFile(error ? undefined : selected)
+    if (error) setFileInputKey((key) => key + 1)
+    if (!error && !title.trim()) setTitle(selected.name.replace(/\.[^.]+$/, '').slice(0, 200))
   }
   const actionsFor = (document: DocumentDto): RowAction[] => [
     { label: t('View'), icon: 'view', onSelect: () => setViewing(document) },
@@ -107,6 +147,7 @@ export function DocumentsPage() {
   const columns: DataTableColumn<DocumentDto>[] = [
     { id: 'title', header: t('Document'), cell: (document) => <div><strong>{document.title}</strong><small>{document.fileName}</small></div>, sortValue: (document) => document.title, hideable: false },
     { id: 'description', header: t('Description'), cell: (document) => document.description || t('No description'), searchValue: (document) => `${document.fileName} ${document.description}` },
+    { id: 'documentType', header: t('Document type'), cell: (document) => <span className="document-type-tag">{t(documentTypeLabel(document.documentType))}</span>, sortValue: (document) => t(documentTypeLabel(document.documentType)), searchValue: (document) => t(documentTypeLabel(document.documentType)) },
     { id: 'type', header: t('File'), cell: (document) => <div><strong>{formatBytes(document.metadata.sizeBytes)}</strong><small>{document.metadata.mediaType}</small></div>, sortValue: (document) => Number(document.metadata.sizeBytes) },
     { id: 'updated', header: t('Updated'), cell: (document) => formatDate(document.metadata.updatedAt ?? document.createdAt, { dateStyle: 'medium', timeStyle: 'short' }), sortValue: (document) => new Date(document.metadata.updatedAt ?? document.createdAt) },
     { id: 'actions', header: '', cell: (document) => <RowActions label={t('Actions for {name}', { name: document.title })} actions={actionsFor(document)} />, hideable: false, align: 'right', width: 54 },
@@ -124,15 +165,28 @@ export function DocumentsPage() {
           : <DataTable labels={dataTableLabels} ariaLabel={t('Documents')} data={documentRecords} columns={columns} getRowId={(document) => document.id} searchPlaceholder={t('Search documents…')} initialSort={{ id: 'updated', direction: 'desc' }} empty={<EmptyState title={t('No documents')} description={t(canManage ? 'Upload the first document for this workspace.' : 'No documents are available in this workspace.')} action={canManage ? <Button variant="primary" onClick={openUpload}>{t('Upload document')}</Button> : undefined} />} />}
       <ModuleExtensionSlot point="documents.list.after-table" context={{ resultCount: documentRecords.length }} permissions={permissions} />
     </Surface>
-    <Dialog open={editing !== undefined} onOpenChange={(open) => !open && closeEditor()} title={t(editing ? 'Edit document' : 'Upload document')} description={t(editing ? 'Update the searchable document metadata.' : 'Choose a supported file up to 25 MB.')}>
-      <form onSubmit={(event) => { event.preventDefault(); save.mutate() }} className="dialog-form">
-        <label>{t('Document title')}<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required autoFocus /></label>
-        <label>{t('Description')}<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} rows={4} /></label>
-        {!editing && <label>{t('File')}<input type="file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp" required onChange={(event) => setFile(event.target.files?.[0])} /></label>}
+    <Dialog className="document-editor" open={editing !== undefined} onOpenChange={(open) => { if (!open && !save.isPending) closeEditor() }} title={t(editing ? 'Edit document' : 'Upload document')} description={t(editing ? 'Update the searchable document metadata.' : 'Add a file and classify it for your workspace.')}>
+      <form onSubmit={(event) => { event.preventDefault(); if (!save.isPending && !fileError && (editing || file)) save.mutate() }} className="dialog-form document-editor-form" aria-busy={save.isPending}>
+        <fieldset disabled={save.isPending} className="document-editor-fields">
+          {!editing && <div className="document-file-field">
+            <label className="document-file-picker">
+              <input key={fileInputKey} type="file" aria-label={t('File')} aria-describedby={`${formId}-file-help${fileError ? ` ${formId}-file-error` : ''}`} aria-invalid={!!fileError} accept={acceptedFiles} required onChange={(event) => selectFile(event.target.files?.[0])} />
+              <span className="document-file-icon" aria-hidden="true">{file ? <FileText size={24} /> : <Upload size={24} />}</span>
+              <span className="document-file-copy"><strong>{file?.name ?? t('Choose a file')}</strong><span>{file ? `${formatBytes(file.size)} · ${t('Click to replace file')}` : t('Browse files on your device')}</span></span>
+            </label>
+            <small id={`${formId}-file-help`} className="document-field-help">{t('PDF, Word, Excel, PowerPoint, text, CSV, or images. Maximum 25 MB.')}</small>
+            {fileError && <div id={`${formId}-file-error`} className="form-error" role="alert">{t(fileError)}</div>}
+          </div>}
+          <label>{t('Document title')}<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required autoFocus placeholder={t('Give this document a clear name')} /></label>
+          <label>{t('Document type')}<select value={documentType} onChange={(event) => setDocumentType(event.target.value)} aria-describedby={`${formId}-type-help`} required>{documentTypes.map((type) => <option key={type.value} value={type.value}>{t(type.label)}</option>)}</select></label>
+          <small id={`${formId}-type-help`} className="document-field-help">{t('Classify its purpose, not its file format.')}</small>
+          <label>{t('Description')}<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} rows={3} placeholder={t('Optional notes to help your team find this document')} /></label>
+        </fieldset>
         {save.error && <div className="form-error" role="alert">{save.error.message}</div>}
-        <div className="dialog-actions">
-          <Button type="button" variant="ghost" onClick={closeEditor}>{t('Cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={save.isPending}>{t(save.isPending ? (editing ? 'Saving…' : 'Uploading…') : editing ? 'Save changes' : 'Upload document')}</Button>
+        {save.isPending && <p className="document-upload-status" role="status">{t(editing ? 'Saving document details. Please wait.' : 'Uploading your file. Keep this window open.')}</p>}
+        <div className="dialog-actions document-editor-actions">
+          <Button type="button" variant="ghost" onClick={closeEditor} disabled={save.isPending}>{t('Cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={save.isPending || !!fileError || (!editing && !file)}>{save.isPending ? <LoaderCircle size={15} className="document-upload-spinner" aria-hidden="true" /> : !editing && <Upload size={15} aria-hidden="true" />}{t(save.isPending ? (editing ? 'Saving…' : 'Uploading…') : editing ? 'Save changes' : 'Upload document')}</Button>
         </div>
       </form>
     </Dialog>
@@ -141,7 +195,8 @@ export function DocumentsPage() {
         <dl className="record-details document-details">
           <div><dt>{t('File')}</dt><dd>{viewing.fileName}</dd></div>
           <div><dt>{t('Size')}</dt><dd>{formatBytes(viewing.metadata.sizeBytes)}</dd></div>
-          <div><dt>{t('Type')}</dt><dd>{viewing.metadata.mediaType}</dd></div>
+          <div><dt>{t('Document type')}</dt><dd>{t(documentTypeLabel(viewing.documentType))}</dd></div>
+          <div><dt>{t('File format')}</dt><dd>{viewing.metadata.mediaType}</dd></div>
           <div><dt>{t('Status')}</dt><dd>{t(viewing.lifecycle.status)}</dd></div>
           <div><dt>{t('Updated')}</dt><dd>{formatDate(viewing.metadata.updatedAt ?? viewing.createdAt, { dateStyle: 'medium', timeStyle: 'short' })}</dd></div>
           <div className="document-content"><dt>{t('Description')}</dt><dd>{viewing.description || t('No description')}</dd></div>
