@@ -32,4 +32,3 @@ public sealed record __ENTITY__DeletionRequested(
     string Reason);
 
 __ACTION_EVENTS__
-

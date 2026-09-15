@@ -156,7 +156,7 @@ export function __MODULE__Page() {
 
 export const __MODULE_CAMEL__Module = defineWebModule({
   id: '__MODULE_ID__',
-  name: __LABEL_PLURAL_EN__, 
+  name: __LABEL_PLURAL_EN__,
   version: '1.0.0',
   description: '__DESCRIPTION__',
   requires: [],
@@ -167,7 +167,7 @@ export const __MODULE_CAMEL__Module = defineWebModule({
   extensions: [],
   archiveResources: [{
     kind: '__MODULE_ID__',
-    typeLabel: __LABEL_SINGULAR_EN__, 
+    typeLabel: __LABEL_SINGULAR_EN__,
     readPermission: '__MODULE_ID__.read',
     managePermission: '__MODULE_ID__.manage',
     async load() {
