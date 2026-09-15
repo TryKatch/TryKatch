@@ -135,7 +135,8 @@ export function __MODULE__Page() {
       </dl>}
     </Dialog>
     <Dialog open={selectedAction !== undefined} onOpenChange={open => !open && closeAction()}
-      title={actionDefinition ? workflowText(actionDefinition.label, locale) : t('actionsFor', { name: '' })}>
+      title={actionDefinition ? workflowText(actionDefinition.label, locale) : t('actionsFor', { name: '' })}
+      description={t('actionDescription')}>
       <form className="dialog-form" onSubmit={event => { event.preventDefault(); transition.mutate() }}>
         {actionDefinition?.inputs.map(input => <label key={input.name}>
           {workflowText(input.label, locale)}

@@ -116,6 +116,7 @@ public sealed partial class ModuleScaffolderTests
         File.ReadAllText(Path.Combine(root, "Kametal.Modules.ShipmentReceptions.Application/ShipmentReceptionQueries.cs"))
             .ShouldContain("class ListShipmentReceptionQueryHandler");
         File.ReadAllText(Path.Combine(root, "Web/src/index.tsx")).ShouldContain("expectedVersion: editing.version");
+        File.ReadAllText(Path.Combine(root, "Web/src/index.tsx")).ShouldContain("description={t('actionDescription')}");
         File.ReadAllText(Path.Combine(root, "Web/src/workflow.ts")).ShouldContain("shipmentReceptionsAccept");
     }
 

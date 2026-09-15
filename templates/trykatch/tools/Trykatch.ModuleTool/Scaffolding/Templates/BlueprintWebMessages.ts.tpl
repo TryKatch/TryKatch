@@ -3,6 +3,7 @@ import type { DataTableLabels } from '@__NPM_SCOPE__/ui'
 
 const defaults = {
   en: {
+    actionDescription: 'Review this decision before confirming. The current state and your permissions will be checked again.',
 
     actionsFor: 'Actions for {name}', application: 'Application', archive: 'Archive', cancel: 'Cancel', columns: 'Columns', comfortable: 'Comfortable', compact: 'Compact',
     createRecord: 'Create __ENTITY_LOWER__', description: 'Description', details: 'Details', edit: 'Edit', editRecord: 'Edit __ENTITY_LOWER__', editorDescription: 'Enter the record details.',
@@ -14,6 +15,7 @@ const defaults = {
     status: 'Status', tableSettings: 'Table settings', closeTableSettings: 'Close table settings', tryAgain: 'Try again', view: 'View', notSet: 'Not set', yes: 'Yes', no: 'No',
   },
   fr: {
+    actionDescription: 'Vérifiez cette décision avant de confirmer. L’état actuel et vos permissions seront de nouveau contrôlés.',
 
     actionsFor: 'Actions pour {name}', application: 'Application', archive: 'Archiver', cancel: 'Annuler', columns: 'Colonnes', comfortable: 'Confortable', compact: 'Compacte',
     createRecord: 'Créer __ENTITY_LOWER__', description: 'Description', details: 'Détails', edit: 'Modifier', editRecord: 'Modifier __ENTITY_LOWER__', editorDescription: 'Saisissez les détails de l’enregistrement.',
