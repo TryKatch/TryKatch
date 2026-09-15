@@ -19,9 +19,23 @@ Existing `--fields` CRUD generation remains supported. Blueprint v1 deliberately
 - [x] English/French authoring documentation and CLI help.
 - [x] CI matrix for packed backend-only/full-stack generation and independent PostgreSQL acceptance.
 - [x] Review corrections: shared bilingual navigation, conservative mixed-guard availability, canonical registry formatting and accessible action confirmations.
-- [ ] Final packed-source matrix, full regression checks and browser UAT on the final commit.
-- [ ] Review and merge feature PR into develop; promote validated develop to main.
-- [ ] Publish coordinated CLI/template preview and verify the public-package installation path and live documentation.
+- [x] Final packed-source matrix and full regression checks on the promoted code.
+- [x] Review and merge feature PR into develop; promote validated develop to main.
+- [x] Repeat browser UAT from the publicly published packages, including object-storage startup.
+- [x] Publish coordinated CLI/template preview and verify the public-package installation path and live documentation.
+
+## Delivery evidence
+
+- Implementation: [PR #96](https://github.com/TryKatch/TryKatch/pull/96); both code-review findings were corrected and resolved.
+- Main promotion: [PR #97](https://github.com/TryKatch/TryKatch/pull/97), commit `7381b50c8a2343db29ef4feadfa16fada3617f4c`.
+- Full promotion regression: [successful run](https://github.com/TryKatch/TryKatch/actions/runs/34973675831).
+- Full main regression: [successful run](https://github.com/TryKatch/TryKatch/actions/runs/34974018471).
+- The backend-only and React blueprint jobs generated from packed artifacts and passed the real PostgreSQL acceptance tests. Local verification also passed 231 host unit tests and 12 architecture tests.
+- Browser qualification exercised shipment creation, submission and acceptance, locked editing after submission, French labels, dark mode and a 390-pixel mobile viewport. Public-package qualification is tracked separately above.
+- Greptile could not perform a new promotion review because the trial credit allowance was exhausted. These results do not claim a new Greptile review or an independent enterprise/security certification.
+- Public release: [preview.21](https://github.com/TryKatch/TryKatch/releases/tag/v0.1.0-preview.21), qualified by [release run](https://github.com/TryKatch/TryKatch/actions/runs/34975352202). Both packages installed from NuGet.org into an isolated tool directory and template hive.
+- Public-package UAT generated `KametalBlueprintDemo`, created its full-stack ShipmentReceptions module, and passed generator verification. Browser checks covered login, Draft → Submitted → Rejected with a reason, French navigation, document upload and byte-for-byte download, and MinIO startup. The live installation guides and landing page showed preview.21.
+- A local PATH mismatch selected pnpm 11.19.0 instead of the project's pinned 10.17.1 during Aspire startup. Selecting the Corepack-compatible Node.js PATH fixed startup without changing application source or deleting dependencies. English and French installation guides document the prerequisite and recovery steps.
 
 ## Acceptance evidence required for release
 

@@ -12,4 +12,6 @@ export interface UploadDocumentForm {
   /** @nullable */
   description: string | null;
   file: IFormFile;
+  /** @nullable */
+  documentType?: string | null;
 }

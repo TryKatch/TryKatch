@@ -10,4 +10,6 @@ export interface UpdateDocumentRequest {
   title: string;
   /** @nullable */
   description: string | null;
+  /** @nullable */
+  documentType?: string | null;
 }

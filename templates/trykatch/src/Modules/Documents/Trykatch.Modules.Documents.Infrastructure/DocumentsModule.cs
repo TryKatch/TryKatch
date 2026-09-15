@@ -77,6 +77,12 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
             CREATE UNIQUE INDEX "IX_documents_OrganizationId_ObjectKey"
               ON app.documents ("OrganizationId", "ObjectKey")
               WHERE "ObjectKey" IS NOT NULL;
+            """),
+        new("202609151400_document_type", """
+            ALTER TABLE app.documents
+              ADD COLUMN "DocumentType" character varying(32) NOT NULL DEFAULT 'other',
+              ADD CONSTRAINT "CK_documents_DocumentType"
+                CHECK ("DocumentType" IN ('invoice', 'contract', 'certificate', 'report', 'other'));
             """)
     ];
 

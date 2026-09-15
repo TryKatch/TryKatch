@@ -12,8 +12,15 @@ Projects and Documents are both enabled in the starter, but they demonstrate dif
 1. Start Docker Desktop or another Aspire-supported container runtime.
 2. Run `trykatch start` from the generated application root.
 3. Sign in, open **Documents**, and choose **Upload document**.
-4. Upload a non-empty PDF, Office document, text, CSV, JPEG, PNG, or WebP file up to 25 MB.
-5. Open the row action and use **Download** to verify the authorized stream.
+4. Choose a non-empty PDF, Office document, text, CSV, JPEG, PNG, or WebP file up to 25 MB. The dialog shows the selected name and size and suggests a title from the filename; you can change that title.
+5. Select a **Document type**: Invoice, Contract, Certificate, Report, or Other. Add an optional description and choose **Upload document**. Keep the dialog open while the upload completes.
+6. The saved type appears in the table and document details. Use **Edit** to change its title, type, or description without uploading the file again. Open **View**, then **Download**, to verify the authorized stream.
+
+## Business classification
+
+Document type describes the file's business purpose, not its format: an invoice can be a PDF or an image. The API uses the stable values `invoice`, `contract`, `certificate`, `report`, and `other`; the UI translates their labels into English or French. Unknown values are rejected by the API and the database constraint.
+
+The additive module migration assigns `other` to existing records without changing their stored files or organization isolation. Older upload clients that omit `documentType` also receive `other`. Older metadata-update clients that omit it preserve the existing classification. The migrator applies this change before the API starts under Aspire. Updating the CLI/template package alone does not modify an already generated application's source code.
 
 `--storage false` keeps the same host contract but uses local filesystem storage. That mode is useful for simple development only and is not appropriate for read-only or horizontally scaled production containers.
 

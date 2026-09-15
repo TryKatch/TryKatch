@@ -16,6 +16,7 @@ const document: DocumentDto = {
   title: 'Runbook',
   description: 'Recovery steps',
   fileName: 'runbook.pdf',
+  documentType: 'report',
   createdAt: '2026-09-10T12:00:00Z',
   metadata: { updatedAt: null, mediaType: 'application/pdf', sizeBytes: 4096, sha256: 'A'.repeat(64) },
   lifecycle: { status: 'Active', archivedAt: null, archivedBy: null, deletedAt: null, deletedBy: null, deletionReason: null },
@@ -90,6 +91,81 @@ describe('DocumentsPage', () => {
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
   })
 
+  it('uploads the business type and shows the selected file without allowing dismissal or duplicate submissions while pending', async () => {
+    let completeUpload: ((value: DocumentDto) => void) | undefined
+    const pendingUpload = new Promise<DocumentDto>((resolve) => { completeUpload = resolve })
+    mockedFetch.mockImplementation(async (url, options) => {
+      if (url === '/api/v1/access') return { permissions: ['documents.read', 'documents.manage'] } as never
+      if (options?.method === 'POST') return await pendingUpload as never
+      return [] as never
+    })
+    renderDocuments()
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Upload document' }))[0])
+    const dialog = screen.getByRole('dialog', { name: 'Upload document' })
+    const submit = within(dialog).getByRole('button', { name: 'Upload document' })
+    expect(submit).toBeDisabled()
+    const file = new File(['invoice bytes'], 'invoice.pdf', { type: 'application/pdf' })
+    fireEvent.change(within(dialog).getByLabelText('File'), { target: { files: [file] } })
+    expect(within(dialog).getByText('invoice.pdf')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Document title')).toHaveValue('invoice')
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Document type' }), { target: { value: 'invoice' } })
+    fireEvent.submit(dialog.querySelector('form')!)
+    await screen.findByRole('status')
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(within(dialog).getByRole('combobox')).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close dialog' }))
+    expect(dialog).toBeInTheDocument()
+    fireEvent.submit(dialog.querySelector('form')!)
+    const writes = mockedFetch.mock.calls.filter(([, options]) => options?.method === 'POST')
+    expect(writes).toHaveLength(1)
+    const body = writes[0][1]?.body
+    expect(body).toBeInstanceOf(FormData)
+    if (!(body instanceof FormData)) throw new Error('Expected multipart upload')
+    expect(body.get('documentType')).toBe('invoice')
+    expect(body.get('file')).toBe(file)
+    completeUpload?.({ ...document, documentType: 'invoice' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('rejects empty, oversized and unsupported files before sending any request', async () => {
+    mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
+      ? { permissions: ['documents.read', 'documents.manage'] } as never : [] as never)
+    renderDocuments()
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Upload document' }))[0])
+    const dialog = screen.getByRole('dialog')
+    const oversized = new File(['large'], 'large.pdf', { type: 'application/pdf' })
+    Object.defineProperty(oversized, 'size', { value: 25 * 1024 * 1024 + 1 })
+    for (const file of [new File([], 'empty.pdf'), oversized, new File(['script'], 'run.exe')]) {
+      fireEvent.change(within(dialog).getByLabelText('File'), { target: { files: [file] } })
+      expect(within(dialog).getByRole('alert')).toBeInTheDocument()
+      expect(within(dialog).getByRole('button', { name: 'Upload document' })).toBeDisabled()
+      fireEvent.submit(dialog.querySelector('form')!)
+    }
+    expect(mockedFetch.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false)
+    fireEvent.change(within(dialog).getByLabelText('File'), { target: { files: [new File(['ok'], 'ok.pdf')] } })
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Upload document' })).toBeEnabled()
+  })
+
+  it('shows the saved business type and updates it without uploading another file', async () => {
+    mockedFetch.mockImplementation(async (url, options) => {
+      if (url === '/api/v1/access') return { permissions: ['documents.read', 'documents.manage'] } as never
+      if (options?.method === 'PUT') return { ...document, documentType: 'contract' } as never
+      return [document] as never
+    })
+    renderDocuments()
+    expect(await screen.findByText('Report')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Runbook' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit document' })
+    expect(within(dialog).queryByLabelText('File')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox')).toHaveValue('report')
+    fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: 'contract' } })
+    fireEvent.submit(dialog.querySelector('form')!)
+    await waitFor(() => expect(mockedFetch).toHaveBeenCalledWith(`/api/v1/documents/${document.id}`,
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ title: 'Runbook', description: 'Recovery steps', documentType: 'contract' }) })))
+  })
+
   it('distinguishes a failed read from an empty collection', async () => {
     mockedFetch.mockImplementation(async (url) => {
       if (url === '/api/v1/access') return { permissions: ['documents.read'] } as never
@@ -128,6 +204,10 @@ describe('DocumentsPage', () => {
     ))
     expect(await screen.findByText('save failed')).toHaveAttribute('role', 'alert')
 
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Upload document' })[0])
+    expect(screen.queryByText('save failed')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Document type' })).toHaveValue('other')
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Runbook' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))

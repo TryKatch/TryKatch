@@ -54,6 +54,16 @@ A global operator with the protected Administrator platform role. Platform admin
 
 The reference organization-owned aggregate used to demonstrate isolation, authorization, auditing, and CRUD.
 
+## Document
+
+An organization-owned file and its descriptive business information, retained for reference or evidence.
+
+## Document type
+
+The business classification of a document, such as an invoice or certificate. It is distinct from the file format: an invoice may be a PDF, image, or another supported format.
+
+_Avoid_: Using “file type” when referring to the business classification.
+
 ## Archive
 
 A durable, reversible inactive state for a record that still has business or historical value. Projects, memberships, and custom roles can be archived. Invitations are revoked or deleted instead of archived.
