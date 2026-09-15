@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "module": "ShipmentReceptions",
+  "entity": "ShipmentReception",
+  "resource": "shipment_receptions",
+  "ownership": "organization",
+  "labels": {
+    "singular": {
+      "en": "Shipment reception",
+      "fr": "Réception de livraison"
+    },
+    "plural": {
+      "en": "Shipment receptions",
+      "fr": "Réceptions de livraisons"
+    }
+  },
+  "fields": [
+    {
+      "name": "shipmentReference",
+      "kind": "string",
+      "required": true,
+      "maximumLength": 80,
+      "label": {
+        "en": "Shipment reference",
+        "fr": "Référence de livraison"
+      }
+    },
+    {
+      "name": "receivedWeight",
+      "kind": "decimal",
+      "required": true,
+      "minimum": 0,
+      "exclusiveMinimum": true,
+      "label": {
+        "en": "Received weight (kg)",
+        "fr": "Poids reçu (kg)"
+      }
+    },
+    {
+      "name": "dispatchedWeight",
+      "kind": "decimal",
+      "required": true,
+      "minimum": 0,
+      "exclusiveMinimum": true,
+      "label": {
+        "en": "Dispatched weight (kg)",
+        "fr": "Poids expédié (kg)"
+      }
+    },
+    {
+      "name": "documentsVerified",
+      "kind": "bool",
+      "required": true,
+      "label": {
+        "en": "Documents verified",
+        "fr": "Documents vérifiés"
+      }
+    }
+  ],
+  "workflow": {
+    "initialState": "Draft",
+    "states": [
+      {
+        "name": "Draft",
+        "label": {
+          "en": "Draft",
+          "fr": "Brouillon"
+        }
+      },
+      {
+        "name": "Submitted",
+        "label": {
+          "en": "Submitted",
+          "fr": "Soumis"
+        }
+      },
+      {
+        "name": "Accepted",
+        "label": {
+          "en": "Accepted",
+          "fr": "Accepté"
+        }
+      },
+      {
+        "name": "Rejected",
+        "label": {
+          "en": "Rejected",
+          "fr": "Rejeté"
+        }
+      }
+    ],
+    "editableStates": [
+      "Draft"
+    ],
+    "actions": [
+      {
+        "name": "Submit",
+        "from": "Draft",
+        "to": "Submitted",
+        "permission": "submit",
+        "label": {
+          "en": "Submit for review",
+          "fr": "Soumettre à la vérification"
+        }
+      },
+      {
+        "name": "Accept",
+        "from": "Submitted",
+        "to": "Accepted",
+        "permission": "review",
+        "label": {
+          "en": "Accept shipment",
+          "fr": "Accepter la livraison"
+        },
+        "guards": [
+          {
+            "op": "eq",
+            "field": "documentsVerified",
+            "value": true,
+            "code": "documents_required",
+            "message": {
+              "en": "Verify the documents before accepting this shipment.",
+              "fr": "Vérifiez les documents avant d’accepter cette livraison."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Reject",
+        "from": "Submitted",
+        "to": "Rejected",
+        "permission": "review",
+        "label": {
+          "en": "Reject shipment",
+          "fr": "Rejeter la livraison"
+        },
+        "inputs": [
+          {
+            "name": "reason",
+            "kind": "string",
+            "required": true,
+            "minimumLength": 10,
+            "maximumLength": 500,
+            "label": {
+              "en": "Rejection reason",
+              "fr": "Motif du rejet"
+            }
+          }
+        ],
+        "assignments": {
+          "decisionReason": "reason"
+        }
+      }
+    ]
+  }
+}

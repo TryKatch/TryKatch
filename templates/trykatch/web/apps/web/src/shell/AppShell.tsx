@@ -49,7 +49,7 @@ function getInitials(value: string) {
 }
 
 export function AppShell() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const queryClient = useQueryClient()
   const accountMenu = useRef<HTMLDivElement>(null)
@@ -150,7 +150,10 @@ export function AppShell() {
       <nav aria-label={t('Organization navigation')}>
         {navSections.map((section) => <section className="sidebar-nav-section" key={section.label} aria-labelledby={`nav-${section.label.toLowerCase()}`}>
           <span className="sidebar-label sidebar-section-label" id={`nav-${section.label.toLowerCase()}`}>{t(section.label)}</span>
-          <div>{section.items.map(({ id, to, label, icon: Icon, exact }) => <Link key={id} to={to} aria-label={t(label)} title={t(label)} activeOptions={{ exact }} activeProps={{ className: 'active' }} onClick={() => setMobileNavOpen(false)}><Icon size={16} /><span className="sidebar-label">{t(label)}</span></Link>)}</div>
+          <div>{section.items.map(({ id, to, label, labels, icon: Icon, exact }) => {
+            const displayLabel = labels ? (locale.startsWith('fr') ? labels.fr : labels.en) : t(label)
+            return <Link key={id} to={to} aria-label={displayLabel} title={displayLabel} activeOptions={{ exact }} activeProps={{ className: 'active' }} onClick={() => setMobileNavOpen(false)}><Icon size={16} /><span className="sidebar-label">{displayLabel}</span></Link>
+          })}</div>
         </section>)}
       </nav>
       <div className="sidebar-bottom" ref={accountMenu}>

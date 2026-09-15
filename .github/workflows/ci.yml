@@ -201,6 +201,29 @@ jobs:
         run: bash scripts/test-artifact-boundaries.sh --runtime
       - run: bash scripts/test-template.sh
 
+  verify-business-blueprint:
+    needs: changes
+    if: needs.changes.outputs.qualification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [backend, web]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Verify packed blueprint generation and PostgreSQL isolation
+        run: bash scripts/test-business-blueprint.sh "${{ matrix.mode }}"
+
   verify-generated-application:
     needs: changes
     if: needs.changes.outputs.qualification == 'true'
@@ -276,6 +299,7 @@ jobs:
       - verify-migrator
       - verify-package
       - verify-generated-application
+      - verify-business-blueprint
       - verify-supply-chain
     runs-on: ubuntu-latest
     steps:

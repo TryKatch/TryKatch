@@ -12,6 +12,7 @@ export interface ArchiveItem {
   title: string
   description: string
   lifecycle: RecordLifecycle
+  version?: string
 }
 
 interface ProjectRecord { id: string; name: string; description: string; lifecycle: RecordLifecycle }
@@ -25,8 +26,8 @@ export interface ArchiveResourceDefinition {
   readPermission: string
   managePermission: string
   load(): Promise<ArchiveItem[]>
-  restore(id: string): Promise<unknown>
-  requestDeletion?(id: string, reason: string): Promise<unknown>
+  restore(id: string, expectedVersion?: string): Promise<unknown>
+  requestDeletion?(id: string, reason: string, expectedVersion?: string): Promise<unknown>
 }
 
 function encode(value: string) {
@@ -149,11 +150,11 @@ export function archiveTimestamp(item: ArchiveItem) {
 export function restoreArchiveItem(item: ArchiveItem) {
   const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
   if (!definition) throw new Error(`Unknown archive resource '${item.kind}'.`)
-  return definition.restore(item.id)
+  return definition.restore(item.id, item.version)
 }
 
 export function requestArchiveItemDeletion(item: ArchiveItem, reason: string) {
   const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
   if (!definition?.requestDeletion) throw new Error(`Archive resource '${item.kind}' cannot request deletion.`)
-  return definition.requestDeletion(item.id, reason)
+  return definition.requestDeletion(item.id, reason, item.version)
 }

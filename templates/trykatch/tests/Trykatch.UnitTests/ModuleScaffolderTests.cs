@@ -6,7 +6,7 @@ using Trykatch.ModuleTool;
 namespace Trykatch.UnitTests;
 
 [TestClass]
-public sealed class ModuleScaffolderTests
+public sealed partial class ModuleScaffolderTests
 {
     [TestMethod]
     public void CreateProducesAnEnabledOrganizationCrudModule()
@@ -728,6 +728,7 @@ public sealed class ModuleScaffolderTests
             File.WriteAllText(Path.Combine(root, "trykatch.modules.json"), """
                 {
                   "schemaVersion": 1, "hostVersion": "0.1.0", "lockFile": "trykatch.modules.lock.json",
+                  "hostCapabilities": ["business-blueprints-v1"],
                   "trustedPublishers": ["kametal"],
                   "outputs": {
                     "backend": "src/API/Kametal.Api/Modules/EnabledModules.cs", "backendNamespace": "Kametal.Api.Modules",

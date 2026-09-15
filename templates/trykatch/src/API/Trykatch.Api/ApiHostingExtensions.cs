@@ -59,6 +59,7 @@ internal static class ApiHostingExtensions
                 "Atomic mutation response limit must be between 1 KiB and 8 MiB.")
             .ValidateOnStart();
         builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
+        builder.Services.AddExceptionHandler<RequestBindingExceptionHandler>();
         builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
         builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();
         builder.Services.AddScoped<ModuleTransactionCompensation>();
