@@ -7,6 +7,31 @@ namespace Trykatch.UnitTests;
 public sealed partial class ModuleScaffolderTests
 {
     [TestMethod]
+    [DataRow("all", true)]
+    [DataRow("any", false)]
+    public void BlueprintAvailabilityPreservesPersistedPredicatesInsideMixedGuards(string operation, bool fieldIsRequired)
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string path = WriteShipmentBlueprint(workspace.Root);
+        JsonNode node = JsonNode.Parse(File.ReadAllText(path))!;
+        JsonNode action = node["workflow"]!["actions"]![2]!;
+        action["guards"] = JsonNode.Parse("""
+            [{"op":"all","code":"review_required","message":{"en":"Review required","fr":"Vérification requise"},"rules":[
+              {"op":"eq","field":"documentsVerified","value":true,"code":"verified","message":{"en":"Verify documents","fr":"Vérifiez les documents"}},
+              {"op":"notEmpty","input":"reason","code":"reason_required","message":{"en":"Enter a reason","fr":"Saisissez un motif"}}
+            ]}]
+            """);
+        action["guards"]![0]!["op"] = operation;
+        File.WriteAllText(path, node.ToJsonString());
+        ModuleBlueprint blueprint = ModuleBlueprint.Load(path);
+        string rendered = BlueprintRenderer.Render(blueprint, "Kametal", "shipment-receptions")["__DOMAIN_ACTIONS__"];
+        string availability = rendered.Split("public bool CanReject() =>", StringSplitOptions.None)[1].Split(';')[0];
+        availability.Contains("DocumentsVerified == true", StringComparison.Ordinal).ShouldBe(fieldIsRequired);
+        availability.ShouldNotContain("reason");
+        rendered.ShouldContain("!string.IsNullOrWhiteSpace(reason)");
+    }
+
+    [TestMethod]
     public void BlueprintValidationDoesNotMutateTheWorkspace()
     {
         using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);

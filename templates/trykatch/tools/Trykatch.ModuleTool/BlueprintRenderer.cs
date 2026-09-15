@@ -49,7 +49,8 @@ internal static partial class BlueprintRenderer
         string guards = string.Join("\n        ", action.Guards.Select(g =>
             $"if (!({Expression(blueprint, action, g)})) throw new BlueprintRuleException({Quote(g.Code)}, {Quote(g.Field ?? g.Input ?? "workflow")}, {Quote(g.Message.En)});"));
         string assignments = string.Join("\n        ", action.Assignments.Select(pair => $"{Pascal(pair.Key)} = {pair.Value}?.Trim();"));
-        string available = string.Join(" && ", action.Guards.Where(g => !NeedsInput(g)).Select(g => "(" + Expression(blueprint, action, g) + ")"));
+        string available = string.Join(" && ", action.Guards.Select(g => AvailabilityExpression(blueprint, action, g))
+            .Where(expression => expression is not null).Select(expression => "(" + expression + ")"));
         return $$"""
             public bool Can{{action.Name}}() => LifecycleState == {{entity}}LifecycleState.Active
                 && WorkflowState == {{entity}}WorkflowState.{{action.From}}{{(available.Length > 0 ? " && " + available : "")}};
@@ -69,7 +70,17 @@ internal static partial class BlueprintRenderer
             """;
     }
 
-    private static bool NeedsInput(BlueprintGuard guard) => guard.Input is not null || guard.Rules?.Any(NeedsInput) == true;
+    // Unknown user input is potentially satisfiable. Keep known conjunctions, but do
+    // not block a disjunction that could still be satisfied by an input branch.
+    private static string? AvailabilityExpression(ModuleBlueprint blueprint, BlueprintAction action, BlueprintGuard guard)
+    {
+        if (guard.Op is not "all" and not "any")
+            return guard.Input is null ? Expression(blueprint, action, guard) : null;
+        string?[] children = guard.Rules!.Select(child => AvailabilityExpression(blueprint, action, child)).ToArray();
+        if (guard.Op == "any" && children.Any(child => child is null)) return null;
+        string[] known = children.OfType<string>().ToArray();
+        return known.Length == 0 ? null : "(" + string.Join(guard.Op == "all" ? " && " : " || ", known) + ")";
+    }
 
     private static string Expression(ModuleBlueprint blueprint, BlueprintAction action, BlueprintGuard guard)
     {

@@ -29,6 +29,7 @@ import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
 import { useI18n } from '../i18n/I18nProvider'
 import { workspaceModules } from '../modules'
 import { applyAppearance, defaultShellColor, type Theme } from './appearance'
+import { navigationLabel } from './navigationLabel'
 
 const coreNavigation: readonly NavigationContribution[] = [
   { id: 'core.overview', section: 'Workspace', order: 10, to: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -138,7 +139,9 @@ export function AppShell() {
   const identity = session.data?.displayName || session.data?.email || t('Account')
   const initials = getInitials(identity)
   const area = pathname.endsWith('/archive') ? 'Recovery' : pathname.includes('/user-management') || pathname.endsWith('/audit') ? 'Administration' : 'Workspace'
-  const permittedNavigation = allNavigation.filter((item) => !item.requiredPermission || access.data?.permissions.includes(item.requiredPermission))
+  const permittedNavigation = allNavigation
+    .filter((item) => !item.requiredPermission || access.data?.permissions.includes(item.requiredPermission))
+    .map((item) => ({ ...item, displayLabel: navigationLabel(item, locale, t) }))
   const navSections = sectionOrder.map((label) => ({ label, items: permittedNavigation.filter((item) => item.section === label) }))
 
   return <div className={`app-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
@@ -150,8 +153,7 @@ export function AppShell() {
       <nav aria-label={t('Organization navigation')}>
         {navSections.map((section) => <section className="sidebar-nav-section" key={section.label} aria-labelledby={`nav-${section.label.toLowerCase()}`}>
           <span className="sidebar-label sidebar-section-label" id={`nav-${section.label.toLowerCase()}`}>{t(section.label)}</span>
-          <div>{section.items.map(({ id, to, label, labels, icon: Icon, exact }) => {
-            const displayLabel = labels ? (locale.startsWith('fr') ? labels.fr : labels.en) : t(label)
+          <div>{section.items.map(({ id, to, displayLabel, icon: Icon, exact }) => {
             return <Link key={id} to={to} aria-label={displayLabel} title={displayLabel} activeOptions={{ exact }} activeProps={{ className: 'active' }} onClick={() => setMobileNavOpen(false)}><Icon size={16} /><span className="sidebar-label">{displayLabel}</span></Link>
           })}</div>
         </section>)}
@@ -193,7 +195,7 @@ export function AppShell() {
     </main>
     <Dialog open={commandOpen} onOpenChange={setCommandOpen} title={t('Jump to')} description={t('Navigate this organization without leaving the keyboard.')}>
       <nav className="command-list" aria-label={t('Jump to')}>
-        {permittedNavigation.map(({ id, to, label, icon: Icon }) => <Link key={id} to={to} onClick={() => setCommandOpen(false)}><Icon size={15} /><span>{t(label)}</span></Link>)}
+        {permittedNavigation.map(({ id, to, displayLabel, icon: Icon }) => <Link key={id} to={to} onClick={() => setCommandOpen(false)}><Icon size={15} /><span>{displayLabel}</span></Link>)}
       </nav>
     </Dialog>
     <SignOutDialog open={signOutOpen} identity={identity} isPending={logout.isPending} error={logout.error?.message} onOpenChange={setSignOutOpen} onConfirm={() => logout.mutate()} />
