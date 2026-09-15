@@ -15,6 +15,8 @@ docker info
 
 Docker est requis pour PostgreSQL et pour toute la chaîne d’observabilité locale : OpenTelemetry Collector, Prometheus, Loki, Tempo et Grafana. L’AppHost crée et coordonne ces conteneurs ; installer uniquement le client Docker ne suffit pas — le démon Docker doit être actif. Aspire 13.5 nécessite Docker CLI 25.0 ou une version ultérieure ; vérifiez donc aussi la version du client avec `docker version`.
 
+Lorsque le stockage est activé (par défaut), Aspire démarre aussi MinIO pour les téléversements de documents locaux. Utilisez `--storage false` à la génération uniquement si vous ne souhaitez pas les adaptateurs de stockage ni MinIO. Preview.21 corrige la condition du template pour inclure réellement cette ressource dans l’AppHost généré ; une mise à jour de la CLI ne réécrit pas l’AppHost d’une application existante.
+
 ## Installer le modèle
 
 Suivez ces étapes dans l’ordre.
