@@ -100,6 +100,14 @@ generate_and_build() {
   test -d "$output/.git" || fail "generated application '$name' was not initialized as a Git repository"
   test "$(git -C "$output" branch --show-current)" = main ||
     fail "generated application '$name' did not use main as its initial Git branch"
+  grep -Fq '<FrameworkReference Include="Microsoft.AspNetCore.App" />' \
+    "$output/tests/Modules/Documents/$namespace_name.Modules.Documents.UnitTests/$namespace_name.Modules.Documents.UnitTests.csproj" ||
+    fail "generated Documents unit tests omit the ASP.NET shared framework used by their composition root"
+  grep -Fq "src/Common/$namespace_name.Modules.Abstractions/$namespace_name.Modules.Abstractions.csproj" \
+    "$output/tests/Modules/Documents/$namespace_name.Modules.Documents.UnitTests/$namespace_name.Modules.Documents.UnitTests.csproj" ||
+    fail "generated Documents unit tests omit their directly consumed module contract"
+  dotnet test \
+    "$output/tests/Modules/Documents/$namespace_name.Modules.Documents.UnitTests/$namespace_name.Modules.Documents.UnitTests.csproj"
   dotnet restore "$output/$namespace_name.slnx"
   dotnet build "$output/$namespace_name.slnx" --no-restore
   dotnet run --project "$output/tools/$namespace_name.ModuleTool" --no-build -- module doctor --root "$output"
