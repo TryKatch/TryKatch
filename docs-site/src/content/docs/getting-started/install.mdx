@@ -17,6 +17,8 @@ Docker is required for PostgreSQL and the complete local observability pipeline:
 
 With storage enabled (the default), Aspire also starts MinIO for local document uploads. Generate with `--storage false` only when you intentionally do not want the storage adapters or MinIO. Preview.21 fixes the template condition so the generated AppHost actually includes this resource when storage is enabled; updating an installed CLI does not rewrite an older application's AppHost.
 
+For React applications, also install Node.js 24 and enable the Corepack pnpm shim with `corepack enable pnpm`. **Inside the generated application directory**, both `pnpm --version` and `corepack pnpm --version` must report the version pinned in `package.json` (currently `10.17.1`). Aspire invokes `pnpm` from its inherited `PATH`; a different global or agent-provided pnpm can conflict with dependencies installed by Corepack. If `web-installer` reports `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`, stop the AppHost, correct the pnpm executable on `PATH`, run `corepack pnpm --dir web install --frozen-lockfile` from the application root, and restart `trykatch start`. Do not change the project's version pin or force-purge dependencies to hide a version mismatch.
+
 ## Install the template
 
 Follow these steps in order.
