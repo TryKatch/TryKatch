@@ -18,6 +18,7 @@ Existing `--fields` CRUD generation remains supported. Blueprint v1 deliberately
 - [x] Host binding-error response correction: invalid JSON/unknown fields return safe client errors rather than 500.
 - [x] English/French authoring documentation and CLI help.
 - [x] CI matrix for packed backend-only/full-stack generation and independent PostgreSQL acceptance.
+- [x] Review corrections: shared bilingual navigation, conservative mixed-guard availability, canonical registry formatting and accessible action confirmations.
 - [ ] Final packed-source matrix, full regression checks and browser UAT on the final commit.
 - [ ] Review and merge feature PR into develop; promote validated develop to main.
 - [ ] Publish coordinated CLI/template preview and verify the public-package installation path and live documentation.
@@ -34,6 +35,8 @@ Existing `--fields` CRUD generation remains supported. Blueprint v1 deliberately
 8. Prove generation failures restore original files and remove the new module.
 
 ## Host upgrade boundary
+
+The coordinated delivery version is `0.1.0-preview.21`. The release job qualifies both packed blueprint modes before publishing either package. Installation commands, landing page and English/French installation guides move together with `RELEASE_VERSION`.
 
 The catalog capability `business-blueprints-v1` declares support for safe HTTP request-binding errors, version-aware Archive integration and bilingual navigation labels. A CLI update does not update an existing generated application's source. The generator refuses an older host without this capability. Do not set the marker until these host changes and their tests have been applied.
 

@@ -39,6 +39,10 @@ jobs:
           pnpm --dir templates/trykatch/web install --frozen-lockfile
       - run: bash scripts/test-template.sh
       - run: bash scripts/test-federation-module.sh
+      - name: Qualify packed backend and React business blueprints
+        run: |
+          bash scripts/test-business-blueprint.sh backend
+          bash scripts/test-business-blueprint.sh web
       - run: dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
       - run: dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
       - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
