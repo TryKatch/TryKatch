@@ -23,6 +23,7 @@
     "$schema": { "type": "string", "format": "uri-reference" },
     "schemaVersion": { "const": 1 },
     "hostVersion": { "$ref": "#/$defs/version" },
+    "hostCapabilities": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" } },
     "lockFile": { "$ref": "#/$defs/relativePath" },
     "trustedPublishers": {
       "type": "array",

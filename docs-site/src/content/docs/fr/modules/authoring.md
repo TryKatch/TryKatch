@@ -144,3 +144,69 @@ trykatch module doctor --root ./Horizon
 :::caution
 Le générateur crée des modules source dans une application existante. Il ne transforme pas des packages non fiables en plugins d’exécution arbitraires ; les packages distribués séparément passent toujours par le cycle de vie signé et la même validation à la compilation.
 :::
+
+## Générer un processus métier à partir d’un blueprint
+
+L’application doit déclarer `business-blueprints-v1` dans `hostCapabilities` de son catalogue. Une mise à jour du CLI ou du package de template ne modifie pas une application existante. Ne rajoutez pas ce marqueur pour contourner le contrôle : générez une application avec la version coordonnée, ou migrez et testez le gestionnaire HTTP des erreurs de liaison, le SDK Archive avec version et les libellés de navigation EN/FR avant de déclarer cette capacité.
+
+Utilisez un blueprint JSON pour décrire les règles métier, pas seulement les champs modifiables. L’exemple livré est `blueprints/shipment-reception.json`. Exécutez ces commandes **à la racine de l’application générée**, et non dans `web/` :
+
+```bash
+cd /chemin/vers/Horizon
+trykatch module validate --blueprint blueprints/shipment-reception.json
+trykatch module create ShipmentReceptions --blueprint blueprints/shipment-reception.json --with-web
+trykatch start
+```
+
+La validation ne modifie aucun fichier. La création ajoute, enregistre, compile et teste le module. Omettez `--with-web` pour générer seulement le backend. Ne combinez pas `--blueprint` avec `--fields`, `--entity`, `--resource`, `--ownership` ou `--description` : le blueprint déclare ces informations.
+
+Dans Aspire, ouvrez la ressource **web**, puis `/shipment_receptions`. La ressource **api**, chemin `/docs`, expose les opérations dans Scalar. Démarrez Docker avant `trykatch start` : PostgreSQL reste nécessaire même sans la pile d’observabilité facultative.
+
+### Règles de l’exemple
+
+- Une réception commence en **Draft** (brouillon), avec une référence obligatoire et des poids reçu/expédié strictement positifs.
+- Le brouillon peut être modifié puis **soumis** à vérification.
+- Une réception soumise peut être **acceptée** seulement si les documents sont vérifiés, ou **rejetée** avec un motif de 10 à 500 caractères.
+- Une décision finale ne peut pas être rouverte en modifiant un champ. Archiver/restaurer change la visibilité, pas la décision métier.
+- La soumission exige `shipment-receptions.submit` ; les décisions exigent `shipment-receptions.review`, accordée par défaut aux administrateurs, pas aux membres ordinaires.
+- Les modifications, transitions et opérations de récupération exigent `expectedVersion`. Une version obsolète produit HTTP 409. Le formulaire conserve les saisies et propose de charger explicitement la version récente avant un nouvel essai.
+
+Ces règles sont imposées côté serveur. Masquer un bouton React n’est jamais une mesure d’autorisation suffisante. Le contrat CRUD ne permet pas d’affecter directement l’état métier.
+
+### Contrat JSON v1
+
+La racine déclare `schemaVersion: 1`, `module`, `entity`, `resource`, `ownership: "organization"`, les libellés singulier/pluriel anglais/français dans `labels`, les `fields` et le `workflow`.
+
+Les champs réutilisent les types CRUD. Ils déclarent un `label` traduit, `required`, des limites textuelles `minimumLength`/`maximumLength` ou numériques `minimum`/`maximum` et `exclusiveMinimum`. Les bornes doivent être représentables ; les décimaux conservent la précision exacte `numeric(18,2)`.
+
+Le workflow contient les `states` nommés et traduits, un `initialState`, les `editableStates` et les `actions`. Une action déclare `name`, `from`, `to`, `permission`, `label` et, facultativement, `inputs`, `guards`, `assignments`. Chaque état doit être accessible depuis l’état initial.
+
+Les gardes sont des données, pas du code exécutable. Opérateurs : `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `notEmpty`, `all`, `any`. Une garde référence un `field` ou un `input`, avec une valeur littérale `value` du bon type ou un `compareToField` du même type. Les groupes contiennent `rules`. Chaque garde fournit un `code` stable et un `message` anglais/français. Exemple de règle facultative :
+
+```json
+{
+  "op": "lte",
+  "field": "receivedWeight",
+  "compareToField": "dispatchedWeight",
+  "code": "received_weight_exceeds_dispatch",
+  "message": {
+    "en": "Received weight cannot exceed dispatched weight.",
+    "fr": "Le poids reçu ne peut pas dépasser le poids expédié."
+  }
+}
+```
+
+**Limites volontaires de v1 :** permissions d’action `submit` ou `review` ; entrées d’action textuelles bornées ; affectation d’une entrée déclarée à `decisionReason` uniquement. Aucun script arbitraire, relation, écriture intermodule, remplacement automatique du code personnalisé ou clé d’idempotence durable. Ajoutez les comportements spécifiques dans le domaine/l’application, avec des tests et une migration évolutive si nécessaire. Un générateur ne certifie pas qu’une application est prête pour toutes les entreprises.
+
+Le blueprint normalisé est conservé dans `src/Modules/ShipmentReceptions/module.blueprint.json`. Les couches restent isolées, avec filtre EF centralisé, RLS PostgreSQL forcée, permissions, antiforgery et audit/outbox transactionnels. Les transitions utilisent un état de domaine privé et la concurrence optimiste EF. React utilise le client OpenAPI généré.
+
+### Vérifier le résultat
+
+```bash
+# Depuis la racine de l’application générée :
+dotnet test tests/Modules/ShipmentReceptions/Horizon.Modules.ShipmentReceptions.UnitTests
+dotnet test tests/Modules/ShipmentReceptions/Horizon.Modules.ShipmentReceptions.ArchitectureTests
+trykatch module doctor
+```
+
+Remplacez `Horizon` par l’espace de noms de votre application. Les tests générés vérifient les invariants de cycle de vie et de version ; ajoutez les tests de vos règles métier. La CI Trykatch exécute également un scénario HTTP indépendant de réception et des tests PostgreSQL interorganisation sur des applications fraîchement générées.

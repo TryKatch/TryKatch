@@ -20,6 +20,7 @@ export interface NavigationContribution {
   order: number
   to: `/${string}`
   label: string
+  labels?: Readonly<{ en: string; fr: string }>
   icon: ComponentType<ModuleIconProps>
   requiredPermission?: string
   exact?: boolean
@@ -60,6 +61,7 @@ export interface ArchiveItem {
   title: string
   description: string
   lifecycle: ArchiveLifecycle
+  version?: string
 }
 
 export interface ArchiveResourceContribution {
@@ -68,8 +70,8 @@ export interface ArchiveResourceContribution {
   readPermission: string
   managePermission: string
   load(): Promise<readonly ArchiveItem[]>
-  restore(id: string): Promise<unknown>
-  requestDeletion?(id: string, reason: string): Promise<unknown>
+  restore(id: string, expectedVersion?: string): Promise<unknown>
+  requestDeletion?(id: string, reason: string, expectedVersion?: string): Promise<unknown>
 }
 
 export interface WebModule {
