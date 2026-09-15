@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="MSTest" />
     <PackageReference Include="Shouldly" />
+    <ProjectReference Include="../../../../src/Common/Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" />
     <ProjectReference Include="../../../../src/Modules/Documents/Trykatch.Modules.Documents.Domain/Trykatch.Modules.Documents.Domain.csproj" />
     <ProjectReference Include="../../../../src/Modules/Documents/Trykatch.Modules.Documents.Application/Trykatch.Modules.Documents.Application.csproj" />
     <ProjectReference Include="../../../../src/Modules/Documents/Trykatch.Modules.Documents.Infrastructure/Trykatch.Modules.Documents.Infrastructure.csproj" />

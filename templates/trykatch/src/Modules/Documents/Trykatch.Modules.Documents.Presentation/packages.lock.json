@@ -27,7 +27,6 @@
       "trykatch.modules.documents.application": {
         "type": "Project",
         "dependencies": {
-          "Microsoft.EntityFrameworkCore": "[10.0.11, )",
           "Trykatch.Modules.Abstractions": "[1.0.0, )",
           "Trykatch.Modules.Documents.Domain": "[1.0.0, )",
           "Trykatch.Modules.Documents.IntegrationEvents": "[1.0.0, )"
