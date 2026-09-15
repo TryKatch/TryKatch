@@ -19,13 +19,15 @@ public sealed class DocumentRecord : IOrganizationOwned
         long sizeBytes,
         string sha256,
         string objectKey,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string documentType)
     {
         Id = id;
         OrganizationId = organizationId;
         CreatedBy = actorId;
         Title = title.Trim();
         Description = description.Trim();
+        DocumentType = DocumentTypes.RequireValid(documentType);
         FileName = fileName;
         MediaType = mediaType;
         SizeBytes = sizeBytes;
@@ -38,6 +40,7 @@ public sealed class DocumentRecord : IOrganizationOwned
     public Guid OrganizationId { get; private init; }
     public string Title { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
+    public string DocumentType { get; private set; } = DocumentTypes.Other;
     public string? FileName { get; private set; }
     public string? MediaType { get; private set; }
     public long? SizeBytes { get; private set; }
@@ -66,16 +69,19 @@ public sealed class DocumentRecord : IOrganizationOwned
         long sizeBytes,
         string sha256,
         string objectKey,
-        DateTimeOffset now) =>
+        DateTimeOffset now,
+        string documentType = DocumentTypes.Other) =>
         new(id, organizationId, actorId, title, description ?? string.Empty, fileName, mediaType,
-            sizeBytes, sha256, objectKey, now);
+            sizeBytes, sha256, objectKey, now, documentType);
 
-    public void UpdateMetadata(string title, string? description, DateTimeOffset now)
+    public void UpdateMetadata(string title, string? description, DateTimeOffset now, string? documentType = null)
     {
         if (LifecycleState != DocumentLifecycleState.Active)
             throw new InvalidOperationException("Restore the document before editing it.");
+        string validatedType = DocumentTypes.RequireValid(documentType ?? DocumentType);
         Title = title.Trim();
         Description = description?.Trim() ?? string.Empty;
+        DocumentType = validatedType;
         UpdatedAt = now;
     }
 

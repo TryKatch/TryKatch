@@ -877,6 +877,9 @@ if(uploadDocumentForm.description !== null) {
  formData.append(`description`, uploadDocumentForm.description);
  }
 formData.append(`file`, uploadDocumentForm.file);
+if(uploadDocumentForm.documentType !== undefined && uploadDocumentForm.documentType !== null) {
+ formData.append(`documentType`, uploadDocumentForm.documentType);
+ }
 
   return customFetch<DocumentDto>(getDocumentsUploadUrl(),
   {

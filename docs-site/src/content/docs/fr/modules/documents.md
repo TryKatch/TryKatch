@@ -12,8 +12,15 @@ Projects et Documents sont tous deux activés dans l’application de départ, m
 1. Démarrez Docker Desktop ou un autre moteur de conteneurs pris en charge par Aspire.
 2. Exécutez `trykatch start` depuis la racine de l’application générée.
 3. Connectez-vous, ouvrez **Documents**, puis choisissez **Envoyer un document**.
-4. Envoyez un fichier PDF, Office, texte, CSV, JPEG, PNG ou WebP non vide de 25 Mo maximum.
-5. Ouvrez l’action de la ligne et utilisez **Télécharger** pour vérifier le flux autorisé.
+4. Choisissez un fichier PDF, Office, texte, CSV, JPEG, PNG ou WebP non vide de 25 Mo maximum. La fenêtre affiche son nom et sa taille et propose un titre à partir du nom du fichier ; vous pouvez modifier ce titre.
+5. Choisissez un **Type de document** : Facture, Contrat, Certificat, Rapport ou Autre. Ajoutez une description facultative, puis choisissez **Envoyer un document**. Gardez la fenêtre ouverte pendant l’envoi.
+6. Le type enregistré apparaît dans le tableau et les détails du document. Utilisez **Modifier** pour changer le titre, le type ou la description sans renvoyer le fichier. Ouvrez **Voir**, puis **Télécharger**, pour vérifier le flux autorisé.
+
+## Classification métier
+
+Le type de document décrit son usage, pas son format : une facture peut être un PDF ou une image. L’API utilise les valeurs stables `invoice`, `contract`, `certificate`, `report` et `other` ; leurs libellés sont traduits en anglais et en français. L’API et la contrainte de base de données rejettent les valeurs inconnues.
+
+La migration additive du module classe les documents existants comme `other`, sans modifier leurs fichiers ni leur isolation par organisation. Un ancien client qui omet `documentType` lors de l’envoi obtient aussi `other`. Lors d’une modification de métadonnées, l’omission conserve la classification existante. Sous Aspire, le migrateur applique ce changement avant le démarrage de l’API. La mise à jour du package CLI/template ne modifie pas à elle seule le code d’une application déjà générée.
 
 `--storage false` conserve le même contrat côté hôte, mais utilise le système de fichiers local. Ce mode convient au développement simple ; il ne convient pas aux conteneurs de production en lecture seule ou répliqués horizontalement.
 

@@ -4801,7 +4801,8 @@
           "fileName",
           "createdAt",
           "metadata",
-          "lifecycle"
+          "lifecycle",
+          "documentType"
         ],
         "type": "object",
         "properties": {
@@ -4827,6 +4828,9 @@
           },
           "lifecycle": {
             "$ref": "#/components/schemas/DocumentLifecycleDto"
+          },
+          "documentType": {
+            "type": "string"
           }
         }
       },
@@ -6304,6 +6308,12 @@
               "null",
               "string"
             ]
+          },
+          "documentType": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -6377,6 +6387,12 @@
           },
           "file": {
             "$ref": "#/components/schemas/IFormFile"
+          },
+          "documentType": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

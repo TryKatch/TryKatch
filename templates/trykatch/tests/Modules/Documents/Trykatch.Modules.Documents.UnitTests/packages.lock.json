@@ -273,11 +273,22 @@
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.11, )"
         }
       },
+      "trykatch.modules.documents.application": {
+        "type": "Project",
+        "dependencies": {
+          "Trykatch.Modules.Abstractions": "[1.0.0, )",
+          "Trykatch.Modules.Documents.Domain": "[1.0.0, )",
+          "Trykatch.Modules.Documents.IntegrationEvents": "[1.0.0, )"
+        }
+      },
       "trykatch.modules.documents.domain": {
         "type": "Project",
         "dependencies": {
           "Trykatch.Modules.Abstractions": "[1.0.0, )"
         }
+      },
+      "trykatch.modules.documents.integrationevents": {
+        "type": "Project"
       },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",

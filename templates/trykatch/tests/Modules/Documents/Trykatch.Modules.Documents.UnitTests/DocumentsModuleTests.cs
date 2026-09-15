@@ -9,6 +9,64 @@ namespace Trykatch.Modules.Documents.UnitTests;
 public sealed class DocumentsModuleTests
 {
     [TestMethod]
+    public void DocumentTypeIsBusinessMetadataAndLegacyEditsPreserveIt()
+    {
+        DocumentRecord document = DocumentRecord.CreateUpload(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Invoice", null, "invoice.pdf", "application/pdf",
+            100, new string('A', 64), "opaque-key", DateTimeOffset.UtcNow, "invoice");
+
+        DocumentsUseCases.ToDto(document).DocumentType.ShouldBe("invoice");
+        document.UpdateMetadata("Renamed invoice", null, DateTimeOffset.UtcNow);
+        document.DocumentType.ShouldBe("invoice");
+        document.UpdateMetadata("Report", null, DateTimeOffset.UtcNow, "report");
+        document.DocumentType.ShouldBe("report");
+        document.MediaType.ShouldBe("application/pdf");
+        document.Archive(Guid.NewGuid(), DateTimeOffset.UtcNow);
+        document.Restore();
+        document.DocumentType.ShouldBe("report");
+    }
+
+    [TestMethod]
+    public void InvalidDocumentTypeCannotPartiallyMutateAnEntity()
+    {
+        DocumentRecord document = DocumentRecord.CreateUpload(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Original", null, "file.pdf", "application/pdf",
+            100, new string('A', 64), "opaque-key", DateTimeOffset.UtcNow);
+
+        document.DocumentType.ShouldBe("other");
+        Should.Throw<ArgumentException>(() => document.UpdateMetadata("Changed", null, DateTimeOffset.UtcNow, "application/pdf"));
+        document.Title.ShouldBe("Original");
+        document.DocumentType.ShouldBe("other");
+    }
+
+    [TestMethod]
+    [DataRow("invoice")]
+    [DataRow("contract")]
+    [DataRow("certificate")]
+    [DataRow("report")]
+    [DataRow("other")]
+    public void UploadPolicyAcceptsTheSupportedBusinessTypes(string documentType)
+    {
+        using MemoryStream content = new([1]);
+        DocumentUploadPolicy.Validate(new("Document", null, "file.pdf", "application/pdf", 1,
+            new string('A', 64), content, documentType)).ShouldBeNull();
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("Invoice")]
+    [DataRow("application/pdf")]
+    [DataRow("unknown")]
+    public void UploadPolicyRejectsUnknownOrNoncanonicalBusinessTypes(string documentType)
+    {
+        using MemoryStream content = new([1]);
+        DocumentUploadPolicy.Validate(new("Document", null, "file.pdf", "application/pdf", 1,
+            new string('A', 64), content, documentType)).ShouldBe("Choose a supported document type.");
+        DocumentUploadPolicy.ValidateMetadata("Document", null, documentType)
+            .ShouldBe("Choose a supported document type.");
+    }
+
+    [TestMethod]
     public void DescriptorResolvesTheModuleOwnedEntity()
     {
         DocumentsModule module = new();

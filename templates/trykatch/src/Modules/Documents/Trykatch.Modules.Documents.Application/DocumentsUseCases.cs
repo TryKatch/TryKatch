@@ -11,13 +11,14 @@ public sealed record UploadDocumentCommand(
     string MediaType,
     long SizeBytes,
     string Sha256,
-    Stream Content);
-public sealed record UpdateDocumentCommand(string Title, string? Description);
+    Stream Content,
+    string? DocumentType = null);
+public sealed record UpdateDocumentCommand(string Title, string? Description, string? DocumentType = null);
 public sealed record DocumentMetadataDto(DateTimeOffset? UpdatedAt, string MediaType, long SizeBytes, string Sha256);
 public sealed record DocumentLifecycleDto(string Status, DateTimeOffset? ArchivedAt, Guid? ArchivedBy,
     DateTimeOffset? DeletedAt, Guid? DeletedBy, string? DeletionReason);
 public sealed record DocumentDto(Guid Id, string Title, string Description, string FileName, DateTimeOffset CreatedAt,
-    DocumentMetadataDto Metadata, DocumentLifecycleDto Lifecycle);
+    DocumentMetadataDto Metadata, DocumentLifecycleDto Lifecycle, string DocumentType);
 public sealed record DocumentDownload(Stream Content, string FileName, string MediaType, long SizeBytes);
 
 public sealed record DocumentOperationResult<T>(bool IsSuccess, T? Value, string? Code, string? Error);
@@ -48,7 +49,7 @@ public static class DocumentUploadPolicy
 
     public static string? Validate(UploadDocumentCommand command)
     {
-        string? metadataError = ValidateMetadata(command.Title, command.Description);
+        string? metadataError = ValidateMetadata(command.Title, command.Description, command.DocumentType);
         if (metadataError is not null) return metadataError;
         if (command.SizeBytes is <= 0 or > MaximumBytes)
             return "Choose a non-empty file no larger than 25 MB.";
@@ -64,12 +65,14 @@ public static class DocumentUploadPolicy
         return null;
     }
 
-    public static string? ValidateMetadata(string title, string? description)
+    public static string? ValidateMetadata(string title, string? description, string? documentType = null)
     {
         if (string.IsNullOrWhiteSpace(title) || title.Trim().Length > 200)
             return "Title is required and cannot exceed 200 characters.";
         if (description?.Trim().Length > 2_000)
             return "Description cannot exceed 2,000 characters.";
+        if (documentType is not null && !DocumentTypes.IsValid(documentType))
+            return "Choose a supported document type.";
         return null;
     }
 
@@ -129,7 +132,7 @@ public sealed class DocumentsUseCases(
         DocumentRecord document = DocumentRecord.CreateUpload(
             id, context.OrganizationId, context.ActorId, command.Title, command.Description,
             safeFileName, command.MediaType, command.SizeBytes, command.Sha256.ToUpperInvariant(),
-            objectKey, timeProvider.GetUtcNow());
+            objectKey, timeProvider.GetUtcNow(), command.DocumentType ?? DocumentTypes.Other);
 
         await objectStorage.PutAsync(objectKey, command.Content, command.SizeBytes, command.MediaType, cancellationToken);
         try
@@ -169,11 +172,11 @@ public sealed class DocumentsUseCases(
         CancellationToken cancellationToken)
     {
         if (!await CanManage(cancellationToken)) return Forbidden<DocumentDto>();
-        string? error = DocumentUploadPolicy.ValidateMetadata(command.Title, command.Description);
+        string? error = DocumentUploadPolicy.ValidateMetadata(command.Title, command.Description, command.DocumentType);
         if (error is not null) return DocumentOperation.Failure<DocumentDto>("validation", error);
         DocumentRecord? document = await store.FindAsync(id, includeRecoverable: false, cancellationToken);
         if (document is null) return NotFound<DocumentDto>();
-        document.UpdateMetadata(command.Title, command.Description, timeProvider.GetUtcNow());
+        document.UpdateMetadata(command.Title, command.Description, timeProvider.GetUtcNow(), command.DocumentType);
         RecordChange(document, "updated");
         await store.SaveChangesAsync(cancellationToken);
         return DocumentOperation.Success(ToDto(document));
@@ -256,5 +259,6 @@ public sealed class DocumentsUseCases(
         document.CreatedAt,
         new(document.UpdatedAt, document.MediaType ?? "text/plain", document.SizeBytes ?? 0, document.Sha256 ?? string.Empty),
         new(document.LifecycleState.ToString(), document.ArchivedAt, document.ArchivedBy,
-            document.DeletedAt, document.DeletedBy, document.DeletionReason));
+            document.DeletedAt, document.DeletedBy, document.DeletionReason),
+        document.DocumentType);
 }

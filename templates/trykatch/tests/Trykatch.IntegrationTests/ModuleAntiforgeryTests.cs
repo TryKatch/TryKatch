@@ -149,6 +149,37 @@ public sealed class ModuleAntiforgeryTests
         (await tenant.GetAsync("/api/v1/projects")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await tenant.GetAsync("/api/v1/documents")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await platform.GetAsync("/api/v1/platform/federation/connections")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // An older client can omit the classification; a current client can persist and edit it.
+        using JsonDocument legacyDocuments = JsonDocument.Parse(await tenant.GetStringAsync("/api/v1/documents"));
+        legacyDocuments.RootElement[0].GetProperty("documentType").GetString().ShouldBe("other");
+        using HttpResponseMessage upload = await SendAsync(tenant, HttpMethod.Post, "/api/v1/documents",
+            token: tenantToken, isMultipart: true, documentType: "invoice");
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        using JsonDocument invoice = JsonDocument.Parse(await upload.Content.ReadAsStringAsync());
+        invoice.RootElement.GetProperty("documentType").GetString().ShouldBe("invoice");
+        Guid documentId = invoice.RootElement.GetProperty("id").GetGuid();
+        string documentPath = $"/api/v1/documents/{documentId}";
+        using HttpResponseMessage edit = await SendAsync(tenant, HttpMethod.Put, documentPath,
+            new { title = "Report", description = "Classified", documentType = "report" }, tenantToken);
+        edit.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using HttpResponseMessage legacyEdit = await SendAsync(tenant, HttpMethod.Put, documentPath,
+            new { title = "Renamed report", description = "Preserved classification" }, tenantToken);
+        legacyEdit.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using JsonDocument preserved = JsonDocument.Parse(await legacyEdit.Content.ReadAsStringAsync());
+        preserved.RootElement.GetProperty("documentType").GetString().ShouldBe("report");
+        using HttpResponseMessage invalidType = await SendAsync(tenant, HttpMethod.Put, documentPath,
+            new { title = "Invalid", description = "Invalid", documentType = "application/pdf" }, tenantToken);
+        invalidType.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using HttpResponseMessage invalidUpload = await SendAsync(tenant, HttpMethod.Post, "/api/v1/documents",
+            token: tenantToken, isMultipart: true, documentType: "unknown");
+        invalidUpload.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using JsonDocument currentDocuments = JsonDocument.Parse(await tenant.GetStringAsync("/api/v1/documents"));
+        currentDocuments.RootElement.GetArrayLength().ShouldBe(2);
+        JsonElement saved = currentDocuments.RootElement.EnumerateArray()
+            .Single(item => item.GetProperty("id").GetGuid() == documentId);
+        saved.GetProperty("documentType").GetString().ShouldBe("report");
+        saved.GetProperty("title").GetString().ShouldBe("Renamed report");
     }
 
     private static Mutation[] CreateMutations() =>
@@ -194,13 +225,14 @@ public sealed class ModuleAntiforgeryTests
     }
 
     private static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string path,
-        object? body = null, string? token = null, bool isMultipart = false)
+        object? body = null, string? token = null, bool isMultipart = false, string? documentType = null)
     {
         using HttpRequestMessage request = new(method, path);
         if (isMultipart)
         {
             MultipartFormDataContent multipart = new();
             multipart.Add(new StringContent("CSRF document"), "title");
+            if (documentType is not null) multipart.Add(new StringContent(documentType), "documentType");
             multipart.Add(new StringContent("Protected upload"), "description");
             ByteArrayContent file = new("%PDF-1.7 test"u8.ToArray());
             file.Headers.ContentType = new("application/pdf");

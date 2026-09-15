@@ -17,6 +17,8 @@ Docker est requis pour PostgreSQL et pour toute la chaîne d’observabilité lo
 
 Lorsque le stockage est activé (par défaut), Aspire démarre aussi MinIO pour les téléversements de documents locaux. Utilisez `--storage false` à la génération uniquement si vous ne souhaitez pas les adaptateurs de stockage ni MinIO. Preview.21 corrige la condition du template pour inclure réellement cette ressource dans l’AppHost généré ; une mise à jour de la CLI ne réécrit pas l’AppHost d’une application existante.
 
+Pour une application React, installez aussi Node.js 24 et activez le relais pnpm de Corepack avec `corepack enable pnpm`. **Depuis le dossier de l’application générée**, `pnpm --version` et `corepack pnpm --version` doivent afficher la version fixée dans `package.json` (actuellement `10.17.1`). Aspire lance le `pnpm` trouvé dans son `PATH` ; une autre version globale ou fournie par un agent peut entrer en conflit avec les dépendances installées par Corepack. Si `web-installer` signale `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`, arrêtez l’AppHost, corrigez l’exécutable pnpm dans le `PATH`, lancez `corepack pnpm --dir web install --frozen-lockfile` depuis la racine de l’application, puis relancez `trykatch start`. Ne modifiez pas la version du projet et ne forcez pas la suppression des dépendances pour masquer une incompatibilité de versions.
+
 ## Installer le modèle
 
 Suivez ces étapes dans l’ordre.
@@ -26,7 +28,7 @@ Suivez ces étapes dans l’ordre.
 Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.21
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.22
 ```
 
 Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
@@ -61,7 +63,7 @@ imbriqué.
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.21
+dotnet new install Trykatch.Templates@0.1.0-preview.22
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -77,7 +79,7 @@ Les noms contenant des points ou des tirets sont normalisés pour produire des e
 Mettez d’abord à jour la CLI, puis utilisez la commande de mise à jour dédiée de Trykatch. La CLI et le modèle restent ainsi sur la même version :
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.21
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.22
 trykatch update
 ```
 
@@ -93,7 +95,7 @@ Lorsque NuGet signale une fin de flux inattendue (EOF) ou un flux de transport v
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.21
+trykatch update --version 0.1.0-preview.22
 ```
 
 Le moteur de modèles .NET peut supprimer l’ancienne version avant la fin d’une mise à jour forcée. Relancer la commande Trykatch restaure le modèle ; les applications déjà générées ne sont pas affectées.

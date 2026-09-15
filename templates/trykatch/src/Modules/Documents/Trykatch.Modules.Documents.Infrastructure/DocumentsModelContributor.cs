@@ -15,6 +15,7 @@ public sealed class DocumentsModelContributor : IApplicationModelContributor
             entity.ToTable("documents", "app", table => table.ExcludeFromMigrations());
             entity.HasKey(document => document.Id);
             entity.Property(document => document.Title).HasMaxLength(200);
+            entity.Property(document => document.DocumentType).HasMaxLength(32).HasDefaultValue(DocumentTypes.Other);
             entity.Property(document => document.Description).HasColumnName("Content").HasMaxLength(2_000);
             entity.Property(document => document.FileName).HasMaxLength(255);
             entity.Property(document => document.MediaType).HasMaxLength(127);

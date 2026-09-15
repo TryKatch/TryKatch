@@ -9,9 +9,9 @@ using Trykatch.Modules.Documents.Application;
 
 namespace Trykatch.Modules.Documents.Presentation;
 
-public sealed record UpdateDocumentRequest(string Title, string? Description);
+public sealed record UpdateDocumentRequest(string Title, string? Description, string? DocumentType = null);
 public sealed record DeleteDocumentRequest(string? Reason);
-public sealed record UploadDocumentForm(string Title, string? Description, IFormFile File);
+public sealed record UploadDocumentForm(string Title, string? Description, IFormFile File, string? DocumentType = null);
 
 public sealed class DocumentsEndpoints : IOrganizationEndpointContributor
 {
@@ -84,7 +84,8 @@ public sealed class DocumentsEndpoints : IOrganizationEndpointContributor
                 mediaType,
                 file.Length,
                 checksum,
-                uploadStream),
+                uploadStream,
+                form.ContainsKey("documentType") ? form["documentType"].ToString() : null),
             cancellationToken);
         return result.IsSuccess && result.Value is not null
             ? Results.Created($"/api/v1/documents/{result.Value.Id}", result.Value)
@@ -111,7 +112,7 @@ public sealed class DocumentsEndpoints : IOrganizationEndpointContributor
         UpdateDocumentRequest request,
         DocumentsUseCases useCases,
         CancellationToken cancellationToken) =>
-        ToResult(await useCases.UpdateAsync(id, new(request.Title, request.Description), cancellationToken));
+        ToResult(await useCases.UpdateAsync(id, new(request.Title, request.Description, request.DocumentType), cancellationToken));
     private static async Task<IResult> ArchiveAsync(Guid id, DocumentsUseCases useCases, CancellationToken cancellationToken) =>
         ToResult(await useCases.ArchiveAsync(id, cancellationToken));
     private static async Task<IResult> RestoreAsync(Guid id, DocumentsUseCases useCases, CancellationToken cancellationToken) =>
