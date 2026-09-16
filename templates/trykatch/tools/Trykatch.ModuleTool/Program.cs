@@ -14,7 +14,9 @@ try
 }
 catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
 {
-    Console.Error.WriteLine("Operation canceled. Any in-progress workspace transaction was rolled back.");
+    Console.Error.WriteLine(args.FirstOrDefault() == "new"
+        ? "Application creation canceled. The template engine may have left partial output; review it before retrying."
+        : "Operation canceled. Any in-progress workspace transaction was rolled back.");
     return 130;
 }
 finally
@@ -184,9 +186,20 @@ static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToke
         {
             if (positional.Count != 2 || entity is null || resource is null || ownership is null)
                 return Task.FromResult(ShowModuleCreateHelp(1));
-            ModuleCreationResult created = new ModuleScaffolder(root).Create(new(
-                positional[1], entity, resource, ownership, description, includeWeb, fieldSpecification, blueprintPath),
-                cancellationToken);
+            using CliOperationProgress progress = new(Console.Out, IsInteractiveProgress());
+            ModuleCreationResult created;
+            try
+            {
+                created = new ModuleScaffolder(root, new ProcessWorkspaceCommandRunner(), progress: progress.Report).Create(new(
+                    positional[1], entity, resource, ownership, description, includeWeb, fieldSpecification, blueprintPath),
+                    cancellationToken);
+                progress.Complete();
+            }
+            catch
+            {
+                progress.Fail();
+                throw;
+            }
             PrintModules(created.Report.Modules);
             Console.WriteLine();
             Console.WriteLine($"Module '{created.ModuleId}' created, registered, and enabled.");
@@ -204,24 +217,46 @@ static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToke
         }
 
         ModuleWorkspace workspace = new(root);
-        ModuleDoctorReport report = positional[0] switch
+        using CliOperationProgress? workspaceProgress = positional[0] is "generate" or "register" or "install" or "upgrade" or "eject"
+            ? new(Console.Out, IsInteractiveProgress(), "Module workspace operation")
+            : null;
+        workspaceProgress?.ReportStep(positional[0] switch
         {
-            "doctor" when positional.Count == 1 => workspace.Inspect(),
-            "list" when positional.Count == 1 => workspace.Inspect(),
-            "generate" when positional.Count == 1 => workspace.Generate(cancellationToken),
-            "enable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: true, cancellationToken),
-            "disable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: false, cancellationToken),
-            "register" when positional.Count == 2 => workspace.RegisterWorkspace(positional[1], cancellationToken),
-            "install" when positional.Count == 2 && expectedSha256 is not null =>
-                workspace.InstallPackage(positional[1], expectedSha256, cancellationToken),
-            "upgrade" when positional.Count == 2 && expectedSha256 is not null =>
-                workspace.UpgradePackage(positional[1], expectedSha256, cancellationToken),
-            "eject" when positional.Count == 2 && sourceBundle is not null && expectedSha256 is not null =>
-                workspace.EjectPackage(positional[1], sourceBundle, expectedSha256, cancellationToken),
-            "unregister" when positional.Count == 2 => workspace.Unregister(positional[1], cancellationToken),
-            "remove" when positional.Count == 2 => workspace.Unregister(positional[1], cancellationToken),
-            _ => throw new ArgumentException("Unknown or incomplete module command.")
-        };
+            "generate" => "Generating module registries and lock file",
+            "register" => "Registering module and restoring dependencies",
+            "install" => "Verifying and installing module packages",
+            "upgrade" => "Verifying and upgrading module packages",
+            _ => "Exporting module source and restoring dependencies"
+        });
+        ModuleDoctorReport report;
+        try
+        {
+            report = positional[0] switch
+            {
+                "doctor" when positional.Count == 1 => workspace.Inspect(),
+                "list" when positional.Count == 1 => workspace.Inspect(),
+                "generate" when positional.Count == 1 => workspace.Generate(cancellationToken),
+                "enable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: true, cancellationToken),
+                "disable" when positional.Count == 2 => workspace.SetEnabled(positional[1], enabled: false, cancellationToken),
+                "register" when positional.Count == 2 => workspace.RegisterWorkspace(positional[1], cancellationToken),
+                "install" when positional.Count == 2 && expectedSha256 is not null =>
+                    workspace.InstallPackage(positional[1], expectedSha256, cancellationToken),
+                "upgrade" when positional.Count == 2 && expectedSha256 is not null =>
+                    workspace.UpgradePackage(positional[1], expectedSha256, cancellationToken),
+                "eject" when positional.Count == 2 && sourceBundle is not null && expectedSha256 is not null =>
+                    workspace.EjectPackage(positional[1], sourceBundle, expectedSha256, cancellationToken),
+                "unregister" when positional.Count == 2 => workspace.Unregister(positional[1], cancellationToken),
+                "remove" when positional.Count == 2 => workspace.Unregister(positional[1], cancellationToken),
+                _ => throw new ArgumentException("Unknown or incomplete module command.")
+            };
+            if (report.IsHealthy) workspaceProgress?.Complete();
+            else workspaceProgress?.Fail();
+        }
+        catch
+        {
+            workspaceProgress?.Fail();
+            throw;
+        }
 
         PrintModules(report.Modules);
         if (!report.IsHealthy)
@@ -257,19 +292,37 @@ static async Task<int> RunNewAsync(string[] arguments, CancellationToken cancell
     if (arguments.Length == 1 || arguments.Skip(1).Any(IsHelpOption))
         return ShowNewHelp(arguments.Length == 1 ? 1 : 0);
 
+    using CliOperationProgress progress = new(Console.Out, IsInteractiveProgress(), "Application generation");
     try
     {
-        ApplicationCreator creator = new(new DotnetApplicationTemplateProcess(), Console.Error);
-        return await creator.CreateAsync(arguments.Skip(1).ToArray(), cancellationToken);
+        ApplicationCreator creator = new(new DotnetApplicationTemplateProcess(), progress.ReportStep);
+        bool verbose = arguments.Skip(1).Contains("--verbose", StringComparer.Ordinal);
+        ApplicationTemplateResult result = await creator.CreateAsync(
+            arguments.Skip(1).Where(argument => argument != "--verbose").ToArray(), cancellationToken);
+        if (result.ExitCode == 0) progress.Complete();
+        else progress.Fail();
+        string displayOutput = ApplicationCreationOutput.Format(result, verbose);
+        if (!string.IsNullOrWhiteSpace(displayOutput))
+            await (result.ExitCode == 0 ? Console.Out : Console.Error).WriteLineAsync(displayOutput);
+        return result.ExitCode;
     }
     catch (Exception exception) when (exception is IOException
         or UnauthorizedAccessException
         or InvalidOperationException
         or System.ComponentModel.Win32Exception)
     {
+        progress.Fail();
         return Fail(exception.Message);
     }
+    catch (OperationCanceledException)
+    {
+        progress.Fail();
+        throw;
+    }
 }
+
+static bool IsInteractiveProgress() => !Console.IsOutputRedirected
+    && !string.Equals(Environment.GetEnvironmentVariable("TERM"), "dumb", StringComparison.Ordinal);
 
 static async Task<int> RunTemplateAsync(string[] arguments, CancellationToken cancellationToken)
 {
@@ -293,7 +346,7 @@ static async Task<int> RunTemplateAsync(string[] arguments, CancellationToken ca
                 new DotnetTemplateEngine(),
                 Console.Out,
                 Console.Error,
-                !Console.IsOutputRedirected && !Console.IsErrorRedirected);
+                IsInteractiveProgress() && !Console.IsErrorRedirected);
             return await uninstaller.UninstallAsync(cancellationToken);
         }
         catch (Exception exception) when (exception is IOException
@@ -331,7 +384,7 @@ static async Task<int> RunTemplateAsync(string[] arguments, CancellationToken ca
             new DotnetTemplateEngine(),
             Console.Out,
             Console.Error,
-            !Console.IsOutputRedirected && !Console.IsErrorRedirected);
+            IsInteractiveProgress() && !Console.IsErrorRedirected);
         return string.Equals(operation, "update", StringComparison.Ordinal)
             ? await installer.UpdateAsync(version, force, cancellationToken)
             : await installer.InstallAsync(version, force, cancellationToken);
@@ -433,9 +486,11 @@ static int ShowNewHelp(int exitCode = 0)
     Console.WriteLine("  --storage           Include local and S3-compatible object storage.");
     Console.WriteLine("  --documents         Include spreadsheet and PDF exporters.");
     Console.WriteLine("  --images            Include image validation and processing.");
+    Console.WriteLine("  --verbose           Show full template engine diagnostics for file conflicts.");
     Console.WriteLine();
     Console.WriteLine("The generated application is initialized as a Git repository on the main branch.");
     Console.WriteLine("When the output is already inside a Git worktree, the parent repository is preserved.");
+    Console.WriteLine("Live progress shows validation and template/Git setup; engine diagnostics follow completion.");
     return exitCode;
 }
 
@@ -516,6 +571,7 @@ static int ShowModuleCreateHelp(int exitCode = 0)
     Console.WriteLine("  --root <path>         Generated application root; defaults to the current directory.");
     Console.WriteLine();
     Console.WriteLine("The operation is atomic: source, registration, restore, and verification roll back together on failure.");
+    Console.WriteLine("Live progress shows the current step and elapsed time; redirected output uses plain log lines.");
     return exitCode;
 }
 

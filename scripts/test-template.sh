@@ -87,6 +87,8 @@ grep -Fq 'trykatch new <name> [options]' <<<"$new_help_output" ||
   fail 'new help does not document application generation'
 grep -Fq 'initialized as a Git repository on the main branch' <<<"$new_help_output" ||
   fail 'new help does not explain Git initialization'
+grep -Fq 'Live progress shows validation and template/Git setup' <<<"$new_help_output" ||
+  fail 'new help does not explain application creation progress'
 cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'Trykatch.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
 test "$cli_informational_version" = 'Trykatch CLI 0.1.0-ci' ||
   fail "packaged CLI reports '$cli_informational_version' instead of its package version"
@@ -96,7 +98,11 @@ generate_and_build() {
   shift
   local namespace_name=${name//-/.}
   local output="$test_root/$namespace_name"
-  dotnet new --debug:custom-hive "$template_hive" trykatch -n "$name" -o "$output" "$@" --allow-scripts yes
+  "$test_root/tools/trykatch" new "$name" --output "$output" "$@" --debug:custom-hive "$template_hive" | tee "$test_root/$namespace_name.creation.log"
+  grep -Fq 'Running application template and packaged Git setup' "$test_root/$namespace_name.creation.log" ||
+    fail 'application creation does not report its active phase'
+  grep -Fq 'Application generation completed in ' "$test_root/$namespace_name.creation.log" ||
+    fail 'application creation does not report completion and elapsed time'
   test -d "$output/.git" || fail "generated application '$name' was not initialized as a Git repository"
   test "$(git -C "$output" branch --show-current)" = main ||
     fail "generated application '$name' did not use main as its initial Git branch"

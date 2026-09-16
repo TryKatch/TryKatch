@@ -4,6 +4,10 @@ Use conventional branches and commits, keep the canonical template runnable, and
 
 Contributions must not copy source or assets from commercial boilerplates. Dependencies must be compatible with commercial Apache-2.0 use.
 
+## CLI creation experience
+
+Every CLI command that creates an application, module, registry or package workspace must provide loading feedback before long-running work. Reuse `CliOperationProgress` for numbered steps, elapsed time, clean success/failure output and plain redirected logs; do not add a separate spinner implementation for a new creation command. Keep progress rendering outside domain/scaffolding logic, preserve underlying diagnostics and cancellation, and do not claim rollback or completion that the operation cannot guarantee. Add tests and corresponding English/French documentation for new creation paths.
+
 ## Release and documentation version policy
 
 `RELEASE_VERSION` is the repository's canonical published package version. Any pull request that changes the CLI or generated template in a way that requires a new package release must update that file and every current-version installation surface in the same change. This includes both NuGet project files, the README, the English and French installation guides, the product landing page, and version-aware tests.
@@ -16,4 +20,4 @@ Run the version contract before opening a pull request:
 bash scripts/check-release-version.sh
 ```
 
-CI runs the same contract on every pull request and branch build. Tagged releases additionally require the tag, such as `v0.1.0-preview.23`, to match `RELEASE_VERSION`; publication fails before packing when they differ.
+CI runs the same contract on every pull request and branch build. Tagged releases additionally require the tag, such as `v0.1.0-preview.24`, to match `RELEASE_VERSION`; publication fails before packing when they differ.

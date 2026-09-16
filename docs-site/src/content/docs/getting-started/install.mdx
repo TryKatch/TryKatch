@@ -28,7 +28,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.23
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.24
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -59,11 +59,13 @@ repository with `main` as its initial branch. If the output directory is already
 inside a Git worktree, Trykatch preserves the parent repository instead of
 creating a nested one.
 
+Creation shows a live spinner, numbered step and elapsed time during option validation and template/Git setup. Template engine messages appear after the spinner stops, so output does not interrupt the progress display. Redirected output and `TERM=dumb` use plain log lines. A failure reports `FAIL` and preserves the engine's diagnostics. Existing-file conflicts show a concise message instead of hundreds of overwrite lines; add `--verbose` to see the full details. Unlike atomic module generation, interrupted project creation may leave partial files: review the output directory before retrying; Trykatch does not delete an existing directory to recover.
+
 :::note[Alternative: install without the Trykatch CLI]
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.23
+dotnet new install Trykatch.Templates@0.1.0-preview.24
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -80,7 +82,7 @@ Names containing dots and hyphens are normalized for C# namespaces, directories,
 Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.23
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.24
 trykatch update
 ```
 
@@ -96,7 +98,7 @@ When NuGet reports an unexpected EOF or an empty transport stream, Trykatch cond
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.23
+trykatch update --version 0.1.0-preview.24
 ```
 
 The .NET template engine can remove the previous template before a forced update finishes. Retrying the Trykatch command restores the template; applications you already generated are not affected.
