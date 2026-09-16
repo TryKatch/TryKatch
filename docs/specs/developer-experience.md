@@ -10,6 +10,7 @@ Improve generated modules, local onboarding, and typed frontend contributions. E
 - Filter lifecycle and searchable string fields in SQL, order by creation date with an ID tie-breaker, then apply offset and limit. Never disable organization query filters or PostgreSQL RLS.
 - Generated screens use server search, ordering and page navigation. The legacy array endpoint remains available for compatibility, including the existing archive surface; it is not the scalable read interface.
 - Basic CRUD gets the same expected-version protection as business blueprints. Reject absent versions at request binding (400) and stale versions with a structured 409. Rotate versions on changes and use an EF concurrency token to catch racing writes. Refresh is explicit and preserves unsaved editor input.
+- Generated frontend tests cover stale-save blocking, explicit refresh with entered-value preservation, refreshed-version retry, failed refresh, and cancellation while a refresh is pending. Late refresh responses must not reopen cancelled editors.
 
 ## Local onboarding
 

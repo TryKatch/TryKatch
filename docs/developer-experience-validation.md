@@ -28,4 +28,20 @@ Missing expected versions fail JSON request binding with 400; stale versions ret
 
 Typed extensions currently cover columns and row actions, not form/filter contracts. Contribution permissions are presentation filtering, not server authorization. Updating the CLI does not retrofit an existing app, module schema or SDK; web generation requires the coordinated `typed-tables-v1` host capability. Do not add the marker without upgrading the implementation.
 
-Idempotency keys, jobs, notifications, upgrade assessments and global search remain future work. No full release qualification matrix or browser end-to-end conflict test was run. Disposable test applications, package hives and PATH shims were moved to macOS Trash after validation and remain recoverable there; source and reports remain in the feature worktree.
+Idempotency keys, jobs, notifications, upgrade assessments and global search remain future work. No full release qualification matrix or live-backend browser conflict test was run. Disposable test applications, package hives and PATH shims were moved to macOS Trash after validation and remain recoverable there; source and reports remain in the feature worktree.
+
+## Conflict recovery continuation — 2026-09-16
+
+The local `test/generated-conflict-recovery` branch extends the existing stack. Generated CRUD and blueprint packages now include component regression tests for stale-save blocking, explicit refresh, preservation of entered values, retry with the refreshed version, failed refresh, and cancellation while refreshing. Test fixtures derive their DTO fields from the module contract; blueprint fixtures also declare workflow metadata and mock their named API operations. Generated packages declare the test dependencies explicitly.
+
+The new cancellation test first failed against the existing plain CRUD editor: a late refresh response reopened a cancelled dialog with reset form fields. The response handler now applies the refreshed record only when an editor is still open for that record. The same test passes after regeneration; workflow editors already had the corresponding guard.
+
+Follow-up evidence:
+
+- `dotnet test tests/Trykatch.UnitTests`: 280 passed, zero failed or skipped. This includes rendering fixtures for all supported field kinds, optional booleans, one-character strings, and blueprint mocks. These generator assertions are not a claim of browser coverage for every possible field contract.
+- `scripts/test-business-blueprint.sh web`, with isolated Corepack shims and pinned pnpm 10.17.1: passed. Actual packed template/CLI output generates ShipmentReceptions and Invoicing; backend/module checks, frontend type checks, regenerated client, component tests, production builds, and module doctor pass.
+- The harness's two selected real-PostgreSQL integration tests passed with no skips. Their assertions cover tenant default deny across generated relations, SQL pagination, required/stale versions, competing CRUD writes, workflow races, permissions, and transactional evidence.
+- Chromium against the packaged production frontend with mocked API responses: stale PUT returns 409, Save is disabled, explicit GET refresh preserves entered text, and the retry sends the refreshed version and preserved text before returning 200 and closing the editor. These are frontend/HTTP-client checks, not a live-backend browser test.
+- Chromium at 390 × 844: invoice editor visually inspected; document width equals viewport width. A held refresh response released after Cancel does not reopen the editor. With read-only access, New/Edit/Archive controls are absent and the row menu contains only View. Browser console errors were the two deliberately mocked 409 resource responses, not JavaScript exceptions.
+
+The browser and preview process were stopped. The four disposable acceptance workspaces and Corepack shim directories from this continuation were moved to macOS Trash and remain recoverable. The earlier blog and research drafts are preserved. No shared database was migrated; no branches were pushed, merged, or released. A full release matrix and live-backend browser conflict test remain unverified.

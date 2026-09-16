@@ -615,6 +615,9 @@ public sealed partial class ModuleScaffolder
             },
             ["devDependencies"] = new JsonObject
             {
+                ["@testing-library/react"] = "16.3.3",
+                ["@testing-library/jest-dom"] = "7.0.1",
+                ["jsdom"] = "27.0.0",
                 ["@types/react"] = "19.2.14",
                 ["@types/react-dom"] = "19.2.3",
                 ["react-dom"] = "19.2.8",
@@ -836,6 +839,11 @@ public sealed partial class ModuleScaffolder
         {
             foreach ((string token, string value) in BlueprintRenderer.Render(names.Blueprint, names.RootNamespace, names.ModuleId))
                 contents = contents.Replace(token, value, StringComparison.Ordinal);
+        }
+        else
+        {
+            contents = contents.Replace("__WEB_TEST_WORKFLOW_FIELDS__", string.Empty, StringComparison.Ordinal)
+                .Replace("__WEB_TEST_API_MOCKS__", string.Empty, StringComparison.Ordinal);
         }
         WriteUtf8(outputPath, contents);
     }

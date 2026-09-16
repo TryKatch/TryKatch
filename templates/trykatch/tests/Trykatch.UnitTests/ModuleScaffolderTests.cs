@@ -175,6 +175,34 @@ public sealed partial class ModuleScaffolderTests
         web.ShouldContain("defineTableExtensionPoint<InvoiceDto>");
         web.ShouldContain("useTableContributions(invoicingTable");
         web.ShouldContain("extensionPoints: [invoicingTable]");
+        string webTests = File.ReadAllText(Path.Combine(workspace.Root, "src/Modules/Invoicing/Web/src/index.test.tsx"));
+        webTests.ShouldContain("name: 'A'");
+        webTests.ShouldContain("version: '0199ca9e-3870-7000-8000-000000000003'");
+        webTests.ShouldContain("preserves entered values and retries only after an explicit version refresh");
+        webTests.ShouldContain("does not reopen a cancelled editor");
+        webTests.ShouldNotContain("__WEB_TEST_");
+        File.ReadAllText(packagePath).ShouldContain("\"jsdom\": \"27.0.0\"");
+    }
+
+    [TestMethod]
+    [DataRow("count:int:required", "count: 1,")]
+    [DataRow("total:decimal:optional", "total: '1',")]
+    [DataRow("sequence:long:required", "sequence: '1',")]
+    [DataRow("enabled:bool:required", "enabled: false,")]
+    [DataRow("enabled:bool:optional", "enabled: false,")]
+    [DataRow("dueDate:date:required", "dueDate: '2026-09-16',")]
+    [DataRow("issuedAt:datetime:optional", "issuedAt: '2026-09-16T12:00:00Z',")]
+    [DataRow("reference:guid:required", "reference: '0199ca9e-3870-7000-8000-000000000002',")]
+    [DataRow("stage:enum(Draft,Sent):required", "stage: 'Draft',")]
+    [DataRow("label:string:required:max(1)", "label: 'A',")]
+    public void WebConflictFixturesRespectTheDeclaredFieldTypes(string fields, string expected)
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        new ModuleScaffolder(workspace.Root, new SuccessfulRunner()).Create(new(
+            "Metrics", "Metric", "metrics", "organization", null, IncludeWeb: true, FieldSpecification: fields));
+        string tests = File.ReadAllText(Path.Combine(workspace.Root, "src/Modules/Metrics/Web/src/index.test.tsx"));
+        tests.ShouldContain(expected);
+        tests.ShouldNotContain("__WEB_TEST_");
     }
 
     [TestMethod]

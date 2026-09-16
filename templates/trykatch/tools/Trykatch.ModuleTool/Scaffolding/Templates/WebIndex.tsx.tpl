@@ -70,7 +70,9 @@ export function __MODULE__Page() {
       if (!editing) throw new Error('Select a record.')
       return customFetch<__ENTITY__Dto>(`/api/v1/__RESOURCE__/${encodeURIComponent(editing.id)}`, { method: 'GET' })
     },
-    onSuccess: latest => { setEditing(latest); save.reset() },
+    onSuccess: latest => {
+      if (editing?.id === latest.id) { setEditing(latest); save.reset() }
+    },
   })
   const actionsFor = (record: __ENTITY__Dto): TableAction[] => [
     { id: '__MODULE_ID__.view', label: t('view'), icon: 'view', onSelect: () => setViewing(record) },

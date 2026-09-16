@@ -41,6 +41,7 @@ internal static partial class ModuleFieldRenderer
             ["__WEB_COLUMNS__"] = JoinLines(fields.Select(RenderWebColumn), 4),
             ["__WEB_FORM_FIELDS__"] = JoinLines(fields.Select((field, index) => RenderWebFormField(field, index == 0)), 8),
             ["__WEB_DETAIL_FIELDS__"] = JoinLines(fields.Select(RenderWebDetail), 8),
+            ["__WEB_TEST_FIELDS__"] = JoinLines(fields.Select(field => $"{field.Name}: {RenderWebTestValue(field)},"), 2),
             ["__WEB_DISPLAY_VALUE__"] = RenderWebDisplayValue(displayField),
             ["__WEB_VIEWING_DISPLAY_VALUE__"] = RenderWebViewingDisplayValue(displayField),
             ["__WEB_DESCRIPTION_VALUE__"] = descriptionField is null ? "''" : $"record.{descriptionField.Name} ?? ''",
@@ -217,6 +218,19 @@ internal static partial class ModuleFieldRenderer
         };
         return $"const [{field.Name}, set{field.PropertyName}] = useState({initial})";
     }
+
+    private static string RenderWebTestValue(ModuleFieldDefinition field) => field.Kind switch
+    {
+        ModuleFieldKind.String => "'A'",
+        ModuleFieldKind.Decimal or ModuleFieldKind.Long => "'1'",
+        ModuleFieldKind.Integer => "1",
+        ModuleFieldKind.Boolean => "false",
+        ModuleFieldKind.Date => "'2026-09-16'",
+        ModuleFieldKind.DateTime => "'2026-09-16T12:00:00Z'",
+        ModuleFieldKind.Guid => "'0199ca9e-3870-7000-8000-000000000002'",
+        ModuleFieldKind.Enum => $"'{field.EnumValues[0]}'",
+        _ => throw new InvalidOperationException($"Unsupported field kind '{field.Kind}'.")
+    };
 
     private static string RenderWebReset(ModuleFieldDefinition field)
     {

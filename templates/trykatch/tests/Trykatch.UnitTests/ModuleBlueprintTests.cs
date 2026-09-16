@@ -118,6 +118,12 @@ public sealed partial class ModuleScaffolderTests
         File.ReadAllText(Path.Combine(root, "Web/src/index.tsx")).ShouldContain("expectedVersion: editing.version");
         File.ReadAllText(Path.Combine(root, "Web/src/index.tsx")).ShouldContain("description={t('actionDescription')}");
         File.ReadAllText(Path.Combine(root, "Web/src/workflow.ts")).ShouldContain("shipmentReceptionsAccept");
+        string webTests = File.ReadAllText(Path.Combine(root, "Web/src/index.test.tsx"));
+        webTests.ShouldContain("workflowState: \"Draft\"");
+        webTests.ShouldContain("canEdit: true, availableActions: []");
+        webTests.ShouldContain("shipmentReceptionsUpdate: (id: string, body: unknown)");
+        webTests.ShouldContain("shipmentReceptionsAccept: vi.fn()");
+        webTests.ShouldNotContain("__WEB_TEST_");
     }
 
     [TestMethod]
