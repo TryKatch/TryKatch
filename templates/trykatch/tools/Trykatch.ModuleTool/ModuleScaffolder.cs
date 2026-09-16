@@ -297,6 +297,8 @@ public sealed partial class ModuleScaffolder
         string npmScope = ResolveNpmScope(catalog.Outputs.WebModuleSdkSpecifier);
         if (request.IncludeWeb && (!_workspace.HasWebSurface() || string.IsNullOrWhiteSpace(npmScope)))
             throw new InvalidOperationException("--with-web requires a generated React workspace and a scoped module SDK package.");
+        if (request.IncludeWeb && catalog.HostCapabilities?.Contains("typed-tables-v1", StringComparer.Ordinal) != true)
+            throw new InvalidOperationException("Generated web modules require typed-tables-v1 and version-aware archive support. Updating the CLI does not upgrade an existing application's React SDK. Upgrade the host and SDK together before generating; no files were changed.");
 
         string description = string.IsNullOrWhiteSpace(request.Description)
             ? $"Organization-owned {module} records."
@@ -313,6 +315,8 @@ public sealed partial class ModuleScaffolder
         if (blueprint is not null && request.FieldSpecification is not null)
             throw new ArgumentException("--fields cannot be combined with --blueprint.");
         IReadOnlyList<ModuleFieldDefinition> fields = blueprint?.Definitions ?? ModuleFieldContract.Parse(request.FieldSpecification);
+        if (request.IncludeWeb && fields.Any(field => string.Equals(field.Name, ToCamelCase(module) + "Table", StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException("A field cannot shadow the generated module's exported table point.");
         return new(rootNamespace, npmScope, publisher, module, moduleId, entity, resource, description,
             $"@{npmScope}-modules/{moduleId}", request.IncludeWeb, fields, blueprint);
     }
@@ -469,7 +473,7 @@ public sealed partial class ModuleScaffolder
                     .Concat(names.Blueprint?.Workflow.Actions.Select(a => names.ModuleId + "." + a.Permission).Distinct() ?? [])
                     .Select(value => JsonValue.Create(value)).ToArray()),
                 ["routes"] = routes,
-                ["extensionPoints"] = new JsonArray(),
+                ["extensionPoints"] = includeWeb ? new JsonArray(new JsonObject { ["id"] = names.ModuleId + ".list.table" }) : new JsonArray(),
                 ["extensions"] = new JsonArray(),
                 ["assistantTools"] = new JsonArray()
             }

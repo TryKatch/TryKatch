@@ -1,6 +1,8 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
+import { hasValidTableBinding, resolveTableContributions, type TableExtensionPoint, type TableParts, type WebTableContribution } from './tables'
+export { defineTableExtensionPoint, defineTableContribution, type TableColumn, type TableAction, type TableParts, type TableExtensionPoint, type WebTableContribution } from './tables'
 
-export { ModuleExtensionSlot, ModuleProvider } from './extensions'
+export { ModuleExtensionSlot, ModuleProvider, useTableContributions } from './extensions'
 export { ModuleI18nProvider, useModuleI18n, type ModuleI18n, type ModuleMessageValues } from './i18n'
 
 export interface ModuleIconProps {
@@ -86,12 +88,14 @@ export interface WebModule {
   extensionPoints: readonly WebExtensionPoint[]
   extensions: readonly WebExtension[]
   archiveResources?: readonly ArchiveResourceContribution[]
+  tableContributions?: readonly WebTableContribution[]
 }
 
 export interface WebOverrides {
   routes?: Readonly<Record<string, WebRoute | null>>
   navigation?: Readonly<Record<string, NavigationContribution | null>>
   extensions?: Readonly<Record<string, WebExtension | null>>
+  tableContributions?: Readonly<Record<string, WebTableContribution | null>>
 }
 
 const stableId = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
@@ -109,11 +113,23 @@ export class WebModuleCatalog {
   readonly extensionPoints: readonly WebExtensionPoint[]
   readonly extensions: readonly WebExtension[]
   readonly archiveResources: readonly ArchiveResourceContribution[]
+  readonly tableContributions: readonly WebTableContribution[]
 
   constructor(modules: readonly WebModule[], overrides: WebOverrides = {}) {
     validateModules(modules)
     this.modules = orderByDependencies(modules)
     this.extensionPoints = this.modules.flatMap((module) => module.extensionPoints)
+    this.tableContributions = applyOverrides(this.modules.flatMap(module => module.tableContributions ?? []), overrides.tableContributions, 'table contribution')
+      .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
+    ensureUnique(this.tableContributions.map(item => item.id), 'table contribution id')
+    for (const item of this.tableContributions) {
+      if (!stableContractId.test(item.id) || !Number.isFinite(item.order)
+        || item.requiredPermission !== undefined && !stableContractId.test(item.requiredPermission))
+        throw new Error(`Invalid Trykatch table contribution '${item.id}'.`)
+      const point = this.extensionPoints.find(point => point.id === item.point.id)
+      if (point !== item.point || point.kind !== 'data-table' || !hasValidTableBinding(item))
+        throw new Error(`Trykatch table contribution '${item.id}' must target the exported data-table point object '${item.point.id}'.`)
+    }
     this.routes = applyOverrides(this.modules.flatMap((module) => module.routes), overrides.routes, 'route')
     this.navigation = applyOverrides(this.modules.flatMap((module) => module.navigation), overrides.navigation, 'navigation contribution')
       .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
@@ -132,6 +148,11 @@ export class WebModuleCatalog {
 
   extensionsFor(point: string) {
     return this.extensions.filter((extension) => extension.point === point)
+  }
+
+  tableFor<Row>(point: TableExtensionPoint<Row>, permissions: readonly string[], base: TableParts<Row> = {}) {
+    if (!this.extensionPoints.includes(point)) throw new Error(`Unknown Trykatch table point '${point.id}'.`)
+    return resolveTableContributions(point, this.tableContributions, permissions, base)
   }
 
   routesFor(surface: 'workspace' | 'platform') {

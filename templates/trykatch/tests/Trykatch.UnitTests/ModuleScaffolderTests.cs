@@ -137,6 +137,22 @@ public sealed partial class ModuleScaffolderTests
     }
 
     [TestMethod]
+    public void WebGenerationRejectsAnOlderSdkBeforeWritingTheModule()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string catalogPath = Path.Combine(workspace.Root, "trykatch.modules.json");
+        JsonObject catalog = JsonNode.Parse(File.ReadAllText(catalogPath))!.AsObject();
+        catalog["hostCapabilities"] = new JsonArray("business-blueprints-v1");
+        File.WriteAllText(catalogPath, catalog.ToJsonString());
+        byte[] before = File.ReadAllBytes(catalogPath);
+        Should.Throw<InvalidOperationException>(() => new ModuleScaffolder(workspace.Root, new SuccessfulRunner())
+            .Create(new("Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: true)))
+            .Message.ShouldContain("typed-tables-v1");
+        File.ReadAllBytes(catalogPath).ShouldBe(before);
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
+    }
+
+    [TestMethod]
     public void CreateWithWebProducesAndRegistersAReactPackage()
     {
         using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
@@ -155,6 +171,30 @@ public sealed partial class ModuleScaffolderTests
         File.ReadAllText(Path.Combine(
             workspace.Root, "src/Modules/Invoicing/Kametal.Modules.Invoicing.Infrastructure/InvoicingModule.cs"))
             .ShouldContain("ModuleCapabilities.Api | ModuleCapabilities.Data | ModuleCapabilities.Web");
+        string web = File.ReadAllText(Path.Combine(workspace.Root, "src/Modules/Invoicing/Web/src/index.tsx"));
+        web.ShouldContain("defineTableExtensionPoint<InvoiceDto>");
+        web.ShouldContain("useTableContributions(invoicingTable");
+        web.ShouldContain("extensionPoints: [invoicingTable]");
+    }
+
+    [TestMethod]
+    [DataRow("version:guid:required")]
+    [DataRow("expectedVersion:guid:required")]
+    [DataRow("search:string")]
+    [DataRow("page:int")]
+    [DataRow("refresh:bool")]
+    [DataRow("table:string")]
+    public void PaginationConcurrencyAndExtensionNamesAreReserved(string fields) =>
+        Should.Throw<ArgumentException>(() => ModuleFieldContract.Parse(fields));
+
+    [TestMethod]
+    public void WebFieldsCannotShadowTheirModulesTypedTablePoint()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        Should.Throw<ArgumentException>(() => new ModuleScaffolder(workspace.Root, new SuccessfulRunner())
+            .Create(new("Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: true, FieldSpecification: "invoicingTable:string")))
+            .Message.ShouldContain("shadow");
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
     }
 
     [TestMethod]
@@ -793,7 +833,7 @@ public sealed partial class ModuleScaffolderTests
             File.WriteAllText(Path.Combine(root, "trykatch.modules.json"), """
                 {
                   "schemaVersion": 1, "hostVersion": "0.1.0", "lockFile": "trykatch.modules.lock.json",
-                  "hostCapabilities": ["business-blueprints-v1"],
+                  "hostCapabilities": ["business-blueprints-v1", "typed-tables-v1"],
                   "trustedPublishers": ["kametal"],
                   "outputs": {
                     "backend": "src/API/Kametal.Api/Modules/EnabledModules.cs", "backendNamespace": "Kametal.Api.Modules",

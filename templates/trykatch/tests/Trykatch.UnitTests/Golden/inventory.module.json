@@ -58,7 +58,11 @@
         "path": "/inventory_items"
       }
     ],
-    "extensionPoints": [],
+    "extensionPoints": [
+      {
+        "id": "inventory.list.table"
+      }
+    ],
     "extensions": [],
     "assistantTools": []
   }

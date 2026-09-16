@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch, type __ENTITY__Dto } from '@__NPM_SCOPE__/api-client'
-import { defineWebModule, type ArchiveLifecycle } from '@__NPM_SCOPE__/module-sdk'
-import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Surface, type DataTableColumn, type RowAction } from '@__NPM_SCOPE__/ui'
+import { defineWebModule, defineTableExtensionPoint, useTableContributions, type TableAction, type ArchiveLifecycle } from '@__NPM_SCOPE__/module-sdk'
+import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Surface, type DataTableColumn } from '@__NPM_SCOPE__/ui'
 import { Boxes, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { use__MODULE__Messages } from './messages'
 __WEB_DATETIME_IMPORT__
 
 interface OrganizationAccess { permissions: string[] }
+export const __MODULE_CAMEL__Table = defineTableExtensionPoint<__ENTITY__Dto>('__MODULE_ID__.list.table', '__MODULE__ list columns and row actions')
 interface RecordPage { items: __ENTITY__Dto[]; page: number; pageSize: number; hasMore: boolean }
 type LoadResult<T> = { value: T; failure?: never } | { value?: never; failure: string }
 function isConflict(error: unknown): boolean {
@@ -71,17 +72,18 @@ export function __MODULE__Page() {
     },
     onSuccess: latest => { setEditing(latest); save.reset() },
   })
-  const actionsFor = (record: __ENTITY__Dto): RowAction[] => [
-    { label: t('view'), icon: 'view', onSelect: () => setViewing(record) },
+  const actionsFor = (record: __ENTITY__Dto): TableAction[] => [
+    { id: '__MODULE_ID__.view', label: t('view'), icon: 'view', onSelect: () => setViewing(record) },
     ...(canManage ? [
-      { label: t('edit'), icon: 'edit', onSelect: () => openEdit(record) },
-      { label: t('archive'), icon: 'archive', disabled: archive.isPending, onSelect: () => archive.mutate(record) },
-    ] satisfies RowAction[] : []),
+      { id: '__MODULE_ID__.edit', label: t('edit'), icon: 'edit', onSelect: () => openEdit(record) },
+      { id: '__MODULE_ID__.archive', label: t('archive'), icon: 'archive', disabled: archive.isPending, onSelect: () => archive.mutate(record) },
+    ] satisfies TableAction[] : []),
   ]
   const columns: DataTableColumn<__ENTITY__Dto>[] = [
     __WEB_COLUMNS__
-    { id: 'actions', header: '', cell: (record) => <RowActions label={t('actionsFor', { name: __WEB_DISPLAY_VALUE__ })} actions={actionsFor(record)} />, hideable: false, align: 'right', width: 54 },
+    { id: 'actions', header: '', cell: (record) => <RowActions label={t('actionsFor', { name: __WEB_DISPLAY_VALUE__ })} actions={table.actions(record)} />, hideable: false, align: 'right', width: 54 },
   ]
+  const table = useTableContributions(__MODULE_CAMEL__Table, access.data?.permissions ?? [], { columns, actions: actionsFor })
   const failure = records.data?.failure ?? access.error?.message ?? records.error?.message
   const activeRecords = records.data?.value?.items ?? []
 
@@ -106,7 +108,7 @@ export function __MODULE__Page() {
         : failure
           ? <EmptyState title={t('loadFailed')} description={failure}
               action={<Button onClick={() => { records.refetch(); access.refetch() }}>{t('tryAgain')}</Button>} />
-          : <DataTable labels={tableLabels} ariaLabel="__MODULE__" data={activeRecords} columns={columns}
+          : <DataTable labels={tableLabels} ariaLabel="__MODULE__" data={activeRecords} columns={table.columns}
               getRowId={(record) => record.id} searchable={false}
               empty={<EmptyState title={t('emptyTitle')} description={t(canManage ? 'emptyManage' : 'emptyReadOnly')}
                 action={canManage ? <Button variant="primary" onClick={openCreate}>{t('createRecord')}</Button> : undefined} />} />}
@@ -148,7 +150,7 @@ export const __MODULE_CAMEL__Module = defineWebModule({
   optionalDependencies: [],
   routes: [{ id: '__MODULE_ID__.list', path: '/__RESOURCE__', component: __MODULE__Page }],
   navigation: [{ id: '__MODULE_ID__.navigation', section: 'Workspace', order: 50, to: '/__RESOURCE__', label: '__MODULE__', icon: Boxes, requiredPermission: '__MODULE_ID__.read' }],
-  extensionPoints: [],
+  extensionPoints: [__MODULE_CAMEL__Table],
   extensions: [],
   archiveResources: [{
     kind: '__MODULE_ID__',

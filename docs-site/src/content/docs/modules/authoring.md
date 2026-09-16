@@ -129,6 +129,38 @@ Generated lists use `/page?lifecycle=active&page=1&pageSize=25&search=invoice&so
 
 All generated updates, archives, restores, and deletion requests now require the DTO's `expectedVersion`. Missing tokens fail request binding (400); stale tokens return 409 with `code: stale_version`. EF concurrency tokens also reject racing writes. The editor preserves unsaved fields and offers an explicit latest-version refresh. These contracts apply to newly generated modules; updating the CLI does not retrofit an existing module or its database migrations.
 
+### Typed table contributions
+
+New web modules export a typed table point, for example `invoicingTable`, and compose contributions through `useTableContributions`. A dependent module can add columns or row actions without changing the owning page:
+
+```ts
+import { defineTableContribution } from '@horizon/module-sdk'
+import { invoicingTable } from '@horizon-modules/invoicing'
+
+const invoiceIds = defineTableContribution(invoicingTable, {
+  id: 'reporting.invoice-ids',
+  order: 20,
+  requiredPermission: 'invoicing.read',
+  columns: [{ id: 'reporting.record-id', header: 'Record ID', cell: invoice => invoice.id }],
+  actions: invoice => [{
+    id: 'reporting.show-id',
+    label: 'Show record ID',
+    icon: 'view',
+    onSelect: () => window.alert(invoice.id),
+  }],
+})
+// In reporting's defineWebModule declaration:
+// requires: ['invoicing'], tableContributions: [invoiceIds]
+```
+
+Import the actual exported point; recreating its string ID is rejected. DTO contracts are invariant and callbacks receive the owning module's row type. Contributions sort by `order`, then stable ID. Duplicate contribution, column or action IDs fail loudly, including collisions with the owning table. Declare the point ID in the owner's manifest `contributions.extensionPoints` (the generator does this). These typed frontend contributions coexist with existing UI slots; they do not add HTTP endpoints or server permissions.
+
+The application-owned `workspaceOverrides.tableContributions` map can disable a contribution with `null` or replace it while preserving its stable ID. Permission filtering is presentation-only: any new data or mutations still need server authorization and tenant isolation. The initial typed seam supports table columns and row actions; typed filters/forms are not yet provided.
+
+Web generation requires `typed-tables-v1` in the host catalog. Do not add the marker alone: the application must contain the matching table SDK, provider integration and version-aware archive host. Generate a new app from the coordinated template or explicitly upgrade and test those pieces together.
+
+### Run the application
+
 From the application root:
 
 ```bash

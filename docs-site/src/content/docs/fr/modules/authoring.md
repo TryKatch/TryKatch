@@ -129,6 +129,18 @@ Les listes générées utilisent `/page?lifecycle=active&page=1&pageSize=25&sear
 
 Les modifications, archivages, restaurations et demandes de suppression exigent maintenant `expectedVersion`. Un jeton absent échoue à la désérialisation (400) ; un jeton périmé retourne 409 avec `code: stale_version`. EF rejette aussi les écritures concurrentes. Le formulaire conserve les saisies et propose un chargement explicite de la version récente. Ces contrats concernent les nouveaux modules ; une mise à jour du CLI ne modifie pas les modules ni les migrations existants.
 
+### Contributions de tableau typées
+
+Les modules web générés exportent un point typé, par exemple `invoicingTable`, et composent leurs contributions avec `useTableContributions`. Un module dépendant peut utiliser `defineTableContribution(invoicingTable, { id, order, requiredPermission, columns, actions })` puis déclarer `requires: ['invoicing']` et `tableContributions: [contribution]`. Les callbacks reçoivent le DTO du module propriétaire sans cast.
+
+Importez le point réellement exporté : recréer son ID texte est refusé. L’ordre est déterministe (ordre numérique puis ID stable). Les collisions d’IDs de contributions, colonnes ou actions, y compris avec le tableau propriétaire, provoquent une erreur. Le générateur déclare le point dans `contributions.extensionPoints` du manifeste propriétaire.
+
+`workspaceOverrides.tableContributions` permet de désactiver une contribution avec `null` ou de la remplacer en conservant son ID. Le filtrage des permissions reste une personnalisation de présentation ; toute donnée ou mutation exige une autorisation serveur et l’isolation organisationnelle. Cette première interface typée couvre les colonnes et actions de ligne ; les filtres et formulaires typés ne sont pas encore fournis. Les UI slots existants restent compatibles.
+
+La génération web exige `typed-tables-v1` dans le catalogue hôte. N’ajoutez pas ce marqueur seul : il faut le SDK tableau correspondant, son provider et l’intégration des archives avec gestion des versions. Générez une nouvelle application depuis le modèle coordonné ou migrez et testez ces éléments ensemble.
+
+### Démarrer l’application
+
 Depuis la racine de l’application :
 
 ```bash
