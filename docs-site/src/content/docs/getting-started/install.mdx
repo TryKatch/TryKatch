@@ -168,6 +168,18 @@ trykatch module help
 
 ## Run the backend and frontend
 
+Before the first run, use the local onboarding commands from the application root:
+
+```bash
+trykatch setup
+trykatch doctor
+trykatch start
+```
+
+`setup` restores locked .NET and pinned frontend dependencies without changing secrets, certificates or databases. Backend-only applications skip Node and pnpm. `doctor` checks the toolchain, both Corepack and PATH pnpm versions, certificate presence, Docker daemon, and module graph; it reports fixes but does not apply them. Corepack may download its pinned tool into its cache. Trust the development certificate manually as described above.
+
+Once running, use `trykatch status --api-url <API origin from Aspire>` to check live and ready health. The URL must be a loopback HTTP(S) origin, and certificate verification remains enabled. Without `--api-url`, status shows configuration and marks runtime health unknown. Each command accepts `--root`; failed checks return exit code 2.
+
 Keep Docker running. From the generated application's root directory, this one command starts **both the ASP.NET Core backend and the React frontend**, together with PostgreSQL, migrations, OpenTelemetry, and the local observability services:
 
 The application root is the directory created by `trykatch new`—for example, `Horizon/`. It contains `Horizon.slnx`, `src/`, `tests/`, and `web/`. Change to that directory before running any restore, build, test, pnpm, or start command:

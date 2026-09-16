@@ -167,6 +167,18 @@ trykatch module help
 
 ## Exécuter le backend et le frontend
 
+Avant le premier démarrage, depuis la racine de l’application :
+
+```bash
+trykatch setup
+trykatch doctor
+trykatch start
+```
+
+`setup` restaure les dépendances .NET verrouillées et les dépendances frontend épinglées, sans modifier les secrets, certificats ni bases de données. Les applications backend-only ignorent Node et pnpm. `doctor` contrôle le SDK, les versions pnpm de Corepack et du PATH, la présence du certificat, Docker et les modules ; il explique les corrections sans les appliquer. Corepack peut télécharger son outil épinglé dans son cache. La confiance du certificat reste une étape manuelle.
+
+Après le démarrage, `trykatch status --api-url <origine API affichée par Aspire>` vérifie les endpoints live et ready. L’origine doit être HTTP(S) en boucle locale ; la vérification du certificat reste active. Sans URL, status décrit la configuration et indique que la santé runtime est inconnue. Chaque commande accepte `--root` ; un contrôle en échec retourne le code 2.
+
 Gardez Docker actif. Depuis la racine de l’application générée, cette commande unique démarre **à la fois le backend ASP.NET Core et le frontend React**, avec PostgreSQL, les migrations, OpenTelemetry et les services d’observabilité locaux :
 
 La racine de l’application est le répertoire créé par `trykatch new`, par exemple `Horizon/`. Il contient `Horizon.slnx`, `src/`, `tests/` et `web/`. Placez-vous dans ce répertoire avant toute commande de restauration, compilation, test, pnpm ou démarrage :

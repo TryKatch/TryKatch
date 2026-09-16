@@ -16,6 +16,10 @@ catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
 {
     Console.Error.WriteLine(args.FirstOrDefault() == "new"
         ? "Application creation canceled. The template engine may have left partial output; review it before retrying."
+        : args.FirstOrDefault() == "setup"
+        ? "Setup canceled. Dependency installation may be partial; rerun setup to finish. No database migrations were run."
+        : args.FirstOrDefault() is "doctor" or "status"
+        ? "Development check canceled."
         : "Operation canceled. Any in-progress workspace transaction was rolled back.");
     return 130;
 }
@@ -56,6 +60,9 @@ static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToke
         && string.Equals(arguments[1], "new", StringComparison.Ordinal))
         return Task.FromResult(ShowNewHelp());
 
+    if (arguments.Length == 2 && IsHelp(arguments[0]) && arguments[1] is "doctor" or "setup" or "status")
+        return RunDevelopmentAsync([arguments[1], "--help"], cancellationToken);
+
     if (arguments.Length == 1 && IsHelp(arguments[0]))
         return Task.FromResult(ShowHelp());
 
@@ -74,6 +81,9 @@ static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToke
 
     if (string.Equals(arguments[0], "start", StringComparison.Ordinal))
         return RunStartAsync(arguments, cancellationToken);
+
+    if (arguments[0] is "doctor" or "setup" or "status")
+        return RunDevelopmentAsync(arguments, cancellationToken);
 
     if (string.Equals(arguments[0], "new", StringComparison.Ordinal))
         return RunNewAsync(arguments, cancellationToken);
@@ -431,6 +441,43 @@ static async Task<int> RunStartAsync(string[] arguments, CancellationToken cance
     }
 }
 
+static async Task<int> RunDevelopmentAsync(string[] arguments, CancellationToken cancellationToken)
+{
+    if (arguments.Skip(1).Any(IsHelpOption))
+    {
+        Console.WriteLine("trykatch doctor [--root <application>]  Check toolchain, Docker, HTTPS certificate and module graph.");
+        Console.WriteLine("trykatch setup [--root <application>]   Restore locked .NET and pinned frontend dependencies.");
+        Console.WriteLine("trykatch status [--root <application>] [--api-url <loopback origin>]  Show configuration or check API health.");
+        Console.WriteLine("Doctor does not repair configuration. Setup does not change secrets, trust certificates or migrate databases.");
+        return 0;
+    }
+    string root = Directory.GetCurrentDirectory();
+    string? apiUrl = null;
+    for (int index = 1; index < arguments.Length; index++)
+    {
+        string option = arguments[index];
+        if (option != "--root" && !(arguments[0] == "status" && option == "--api-url"))
+            return Fail($"Unknown {arguments[0]} option '{option}'.");
+        if (++index >= arguments.Length) return Fail($"{option} requires a value.");
+        if (option == "--root") root = arguments[index]; else apiUrl = arguments[index];
+    }
+    try
+    {
+        using HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false });
+        ApplicationDevelopment development = new(new ProcessWorkspaceCommandRunner(), new DockerContainerRuntimeProbe(), http, Console.Out);
+        if (arguments[0] == "setup") return await development.SetupAsync(root, cancellationToken);
+        if (arguments[0] == "status") return await development.StatusAsync(root, apiUrl, cancellationToken);
+        DevelopmentReport report = await development.DoctorAsync(root, cancellationToken);
+        development.Print(report);
+        return report.IsReady ? 0 : 2;
+    }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException
+        or ArgumentException or JsonException or System.ComponentModel.Win32Exception)
+    {
+        return Fail(exception.Message);
+    }
+}
+
 static void PrintModules(IEnumerable<ModuleStatus> modules)
 {
     foreach (ModuleStatus module in modules.OrderBy(module => module.Id, StringComparer.Ordinal))
@@ -455,6 +502,9 @@ static int ShowHelp()
     Console.WriteLine("  trykatch template uninstall    Remove the installed project template.");
     Console.WriteLine("  trykatch new <name> [options]  Create an application and initialize Git.");
     Console.WriteLine("  trykatch start                  Start a generated application through Aspire.");
+    Console.WriteLine("  trykatch setup                  Restore local dependencies without changing databases or secrets.");
+    Console.WriteLine("  trykatch doctor                 Check the application's local development prerequisites.");
+    Console.WriteLine("  trykatch status                 Show configuration; use --api-url to probe live API health.");
     Console.WriteLine();
     Console.WriteLine("Application options:");
     Console.WriteLine("  --ui <react|none>  Include the React frontend or generate a backend-only application.");
