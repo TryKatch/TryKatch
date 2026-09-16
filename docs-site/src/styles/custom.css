@@ -42,3 +42,16 @@ textarea,
   color: var(--sl-color-gray-3);
   font-size: 0.875rem;
 }
+
+/* Expressive Code adds this live feedback only after a successful copy.
+   Keep its clipboard handling and localized announcement; swap only the icon. */
+.expressive-code .copy:has(.feedback.show) button {
+  opacity: 1;
+}
+
+.expressive-code .copy:has(.feedback.show) button::after {
+  background-color: var(--sl-color-text-accent);
+  --copy-success-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 4 4L19 6'/%3E%3C/svg%3E");
+  -webkit-mask-image: var(--copy-success-icon);
+  mask-image: var(--copy-success-icon);
+}
