@@ -10,6 +10,7 @@ This file is the compact repository map for coding agents. The architectural dec
 - Platform authorization and organization authorization are separate permission catalogs.
 - Business writes belong in focused application use cases, not controllers or React components.
 - Generated OpenAPI clients and `docs/generated/assistant-contract.json` are machine-owned.
+- CLI creation paths must show loading feedback through the shared `CliOperationProgress` presenter. Keep command output from interleaving with its spinner, use plain redirected logs, preserve failure diagnostics, and distinguish atomic module rollback from potentially partial project creation. Add progress tests and English/French docs when adding a creation command.
 
 ## Module map
 

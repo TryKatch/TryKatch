@@ -27,6 +27,15 @@ trykatch template uninstall
 initialization post-action. Standalone output starts on `main`; output already
 inside a Git worktree remains part of its parent repository.
 
+Application creation uses the same numbered-step spinner and elapsed-time display
+as module generation. The template engine's output is captured and shown after
+the spinner stops, with failure details retained. Existing-file conflicts use a
+concise default message; `trykatch new --verbose` exposes full diagnostics. Redirected output and `TERM=dumb`
+use plain lines. Cancellation terminates the engine but may leave partial project
+output; review it before retrying. Module creation retains its separate atomic
+workspace rollback guarantee. `module generate`, `register`, `install`, `upgrade`
+and `eject` also show loading feedback while their workspace operation runs.
+
 `start` discovers the generated Aspire AppHost from the current directory or `--root`, then runs its HTTPS launch profile with inherited terminal output. `template uninstall` removes `Trykatch.Templates` through the official .NET template engine; remove the global CLI separately with `dotnet tool uninstall --global Trykatch.Cli`.
 
 `module create` scaffolds an organization-owned CRUD module inside an existing
@@ -41,6 +50,13 @@ the result, and rolls every changed file back if any phase fails. It prints ever
 endpoint, the generated permissions, and the start command. Generated writes emit
 distinct created, updated, archived, restored, and deletion-requested integration
 event contracts. Run it from the generated application root or pass `--root`.
+
+During creation, a live terminal spinner shows the numbered step and elapsed time,
+including dependency restoration, builds, tests and optional frontend verification.
+Completed steps are marked `OK`. Redirected output and `TERM=dumb` use plain log
+lines. Failures mark the active step `FAIL`, announce rollback and retain the
+underlying command diagnostics. Ctrl+C cancels the child command and restores the
+workspace. The display does not invent an estimated percentage or finish time.
 
 `trykatch.modules.lock.json` is machine-owned and records the manifest digest mode,
 digest, version, enablement state, distribution kind, package pairing, and license
