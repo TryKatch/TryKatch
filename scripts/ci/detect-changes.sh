@@ -23,6 +23,10 @@ classify_path() {
   local path=$1
 
   case "$path" in
+    templates/trykatch/.agents/*|templates/trykatch/docs/development/*|templates/trykatch/docs/ai-assisted-development.md|templates/trykatch/AGENTS.md|scripts/test-development-skills.*)
+      docs=true
+      packaging=true
+      ;;
     .github/workflows/ci.yml|scripts/ci/*|global.json)
       mark_all
       ;;

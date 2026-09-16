@@ -99,6 +99,14 @@ The installed template uses the standard .NET template engine. Rider can install
 
 The generated solution includes organization RBAC, PostgreSQL RLS, a platform-only Tenant Management console with first-owner invitations, customizable platform roles backed by a published permission catalog, a transactional outbox, ASP.NET Core Identity and OpenIddict, cookie/BFF authentication, build-time OpenAPI, development-only Scalar API documentation, a generated TanStack Query client, a deny-by-default assistant tool contract, a reusable React component package, Aspire orchestration, and a provisioned Grafana/Loki/Tempo/Prometheus stack.
 
+## AI-assisted development
+
+Generated applications include an architectural task router and five project-local skills: `trykatch-spec`, `trykatch-build-module`, `trykatch-extend-module`, `trykatch-review`, and `trykatch-verify`. They use the application's module generator, business blueprints, reference code, and verification commands to take a feature brief through implementation and review. They also work with backend-only output and preserve application namespace replacement.
+
+Ask your coding agent to read `.agents/skills/trykatch-build-module/SKILL.md` in the generated application and implement your feature. Automatic discovery depends on the agent; direct file invocation works without installing global skills. See the [bundled workflow guide](templates/trykatch/docs/ai-assisted-development.md). The skills support development; an in-app model runtime and approval UI remain separate work.
+
+Template maintainers can run `bash scripts/test-development-skills.sh` to verify the packed bundle in renamed React and backend-only applications. The [validation guide](docs/development-skills-validation.md) also describes independent behavioral trials.
+
 ## Develop the template
 
 ```bash

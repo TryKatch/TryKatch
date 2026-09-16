@@ -99,6 +99,7 @@ generate_and_build() {
   local namespace_name=${name//-/.}
   local output="$test_root/$namespace_name"
   "$test_root/tools/trykatch" new "$name" --output "$output" "$@" --debug:custom-hive "$template_hive" | tee "$test_root/$namespace_name.creation.log"
+  node "$repository_root/scripts/test-development-skills.mjs" "$output" "$namespace_name"
   grep -Fq 'Running application template and packaged Git setup' "$test_root/$namespace_name.creation.log" ||
     fail 'application creation does not report its active phase'
   grep -Fq 'Application generation completed in ' "$test_root/$namespace_name.creation.log" ||

@@ -71,6 +71,10 @@ The customer-facing workspace word is **organization**. Platform administrators 
 - Password recovery returns an account-neutral response, rate-limits requests, invalidates existing sessions, and uses `TRYKATCH_PUBLIC_URL` as the trusted origin for production email links.
 - External clients use OpenIddict authorization code + PKCE or client credentials. Implicit and password grants are not enabled.
 
+## Build with a coding agent
+
+This application includes five project-local skills for specification, module creation, extension, review, and verification. Start with [AGENTS.md](AGENTS.md) or ask your agent to read `.agents/skills/trykatch-build-module/SKILL.md` and implement a feature brief. Agents without automatic skill discovery can read these files directly. See [AI-assisted development](docs/ai-assisted-development.md) for examples and the scope of each skill.
+
 ## Validate changes
 
 Run these commands from the generated application's root directory—the same directory that contains `Trykatch.slnx`. They restore, compile, test, generate, and validate the application; they do **not** start it. Use `trykatch start` when you want to run the application.

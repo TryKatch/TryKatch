@@ -28,6 +28,10 @@ Before the first API run, apply the migrations with the migrator role as describ
 
 For Compose, copy `.env.example`, set the required immutable `TRYKATCH_RELEASE_VERSION`, and replace every secret placeholder. Protect the directly published API and deny public `/health/*` routes. The base OTLP path is private single-host plaintext; use `compose.observability-tls.yml` for authenticated TLS ingestion. See [operations](docs/operations.md) for sampling, privacy, queues, retention, alerts, validation, and staging drills.
 
+## Build with a coding agent
+
+This application includes five project-local skills for specification, module creation, extension, review, and verification. Start with [AGENTS.md](AGENTS.md) or ask your agent to read `.agents/skills/trykatch-build-module/SKILL.md` and implement a backend feature brief. The skills detect that this application has no web workspace and skip frontend commands. See [AI-assisted development](docs/ai-assisted-development.md).
+
 ## Architecture
 
 - `Domain` contains framework-free organization, membership, role, invitation, audit, and Project models.
