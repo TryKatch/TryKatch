@@ -25,6 +25,8 @@ public sealed record ModuleCreationResult(
     string StartCommand,
     ModuleDoctorReport Report);
 
+internal sealed record ModuleCreationProgress(string Step, bool IsRollback = false);
+
 public interface IModuleScaffolder
 {
     ModuleCreationResult Create(ModuleCreateRequest request, CancellationToken cancellationToken = default);
@@ -57,13 +59,15 @@ public sealed partial class ModuleScaffolder : IModuleScaffolder
     private readonly IWorkspaceCommandRunner _commandRunner;
     private readonly IModuleCreationFailureInjector _failureInjector;
     private readonly ModuleWorkspace _workspace;
+    private readonly Action<ModuleCreationProgress>? _progress;
 
     public ModuleScaffolder(string root) : this(root, new ProcessWorkspaceCommandRunner()) { }
 
     internal ModuleScaffolder(
         string root,
         IWorkspaceCommandRunner commandRunner,
-        IModuleCreationFailureInjector? failureInjector = null)
+        IModuleCreationFailureInjector? failureInjector = null,
+        Action<ModuleCreationProgress>? progress = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         ArgumentNullException.ThrowIfNull(commandRunner);
@@ -72,6 +76,7 @@ public sealed partial class ModuleScaffolder : IModuleScaffolder
         _commandRunner = commandRunner;
         _failureInjector = failureInjector ?? new NoModuleCreationFailureInjector();
         _workspace = new(_root, commandRunner);
+        _progress = progress;
     }
 
     public ModuleCreationResult Create(
@@ -105,9 +110,11 @@ public sealed partial class ModuleScaffolder
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
+        ReportProgress("Waiting for the workspace lock");
         using IDisposable mutationLock = _workspace.AcquirePackageMutationLock(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
+        ReportProgress("Validating module names, contracts and workspace");
         List<string> errors = [];
         ModuleCatalogFile? catalog = _workspace.ReadJson<ModuleCatalogFile>(_catalogPath, errors, "module catalog");
         if (catalog is null) throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
@@ -148,6 +155,7 @@ public sealed partial class ModuleScaffolder
 
         try
         {
+            ReportProgress("Rendering and validating module templates");
             cancellationToken.ThrowIfCancellationRequested();
             RenderModule(stagedModuleRoot, stagedTestRoot, names, request.IncludeWeb);
             cancellationToken.ThrowIfCancellationRequested();
@@ -159,6 +167,7 @@ public sealed partial class ModuleScaffolder
             if (errors.Count > 0)
                 throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
 
+            ReportProgress("Adding module projects to the solution");
             Directory.CreateDirectory(Path.GetDirectoryName(moduleRoot)!);
             Directory.CreateDirectory(Path.GetDirectoryName(testRoot)!);
             Directory.Move(stagedModuleRoot, moduleRoot);
@@ -170,6 +179,7 @@ public sealed partial class ModuleScaffolder
             _workspace.ValidateModules(catalog, modules, errors);
             if (errors.Count > 0) throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
 
+            ReportProgress("Registering and enabling the module");
             string infrastructureProject = Path.Combine(moduleRoot,
                 $"{names.RootNamespace}.Modules.{names.Module}.Infrastructure",
                 $"{names.RootNamespace}.Modules.{names.Module}.Infrastructure.csproj");
@@ -190,12 +200,14 @@ public sealed partial class ModuleScaffolder
             _workspace.WriteGeneratedRegistries(catalog, modules);
             ModuleWorkspace.WriteAtomic(_catalogPath, JsonSerializer.Serialize(catalog, ModuleWorkspace.SerializerOptions) + "\n");
             _failureInjector.ThrowIfRequested(ModuleCreationPhase.RegistrationAndCatalogMutation);
-            _workspace.RestorePackageGraphs(catalog, request.IncludeWeb, cancellationToken: cancellationToken);
+            _workspace.RestorePackageGraphs(catalog, request.IncludeWeb,
+                progress: step => ReportProgress(step), cancellationToken: cancellationToken);
             _failureInjector.ThrowIfRequested(ModuleCreationPhase.Restore);
             VerifyGeneratedBackendWorkspace(solution, names, cancellationToken);
             if (request.IncludeWeb)
                 VerifyGeneratedWebWorkspace(cancellationToken);
 
+            ReportProgress("Checking module health with doctor");
             _failureInjector.ThrowIfRequested(ModuleCreationPhase.DoctorValidation);
             cancellationToken.ThrowIfCancellationRequested();
             ModuleDoctorReport report = _workspace.Inspect();
@@ -214,6 +226,7 @@ public sealed partial class ModuleScaffolder
         }
         catch (Exception exception)
         {
+            ReportProgress("Restoring the original workspace", isRollback: true);
             ModuleWorkspace.RestoreFiles(originals);
             if (hasWebSurface)
                 DeleteNewGeneratedWebFiles(openApiRoot, baselineOpenApiFiles);
@@ -239,6 +252,9 @@ public sealed partial class ModuleScaffolder
                 Directory.Delete(stagingParent);
         }
     }
+
+    private void ReportProgress(string step, bool isRollback = false) =>
+        _progress?.Invoke(new(step, isRollback));
 
     private ScaffoldNames ValidateCreateRequest(
         ModuleCreateRequest request,
@@ -666,12 +682,16 @@ public sealed partial class ModuleScaffolder
         ScaffoldNames names,
         CancellationToken cancellationToken)
     {
+        ReportProgress("Building the backend and generating OpenAPI");
         EnsureCommandSucceeded(
             _commandRunner.Run("dotnet", ["build", solution, "--no-restore", "--no-incremental"], _root, cancellationToken),
             "build the generated backend module");
         string testRoot = _workspace.ResolveInsideRoot(Path.Combine("tests", "Modules", names.Module));
         foreach (string kind in GeneratedTestKinds)
         {
+            ReportProgress(kind == "ArchitectureTests"
+                ? "Running generated architecture tests"
+                : "Running generated unit tests");
             string projectName = $"{names.RootNamespace}.Modules.{names.Module}.{kind}";
             string project = Path.Combine(testRoot, projectName, projectName + ".csproj");
             EnsureCommandSucceeded(
@@ -682,11 +702,21 @@ public sealed partial class ModuleScaffolder
 
     private void VerifyGeneratedWebWorkspace(CancellationToken cancellationToken)
     {
+        ReportProgress("Installing frontend dependencies");
         EnsureCommandSucceeded(_commandRunner.Run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], _workspace.ResolveInsideRoot("web"), cancellationToken),
             "install the generated web workspace");
         _failureInjector.ThrowIfRequested(ModuleCreationPhase.WebInstall);
         foreach (string operation in new[] { "generate", "typecheck", "test", "build" })
+        {
+            ReportProgress(operation switch
+            {
+                "generate" => "Generating the frontend API client",
+                "typecheck" => "Checking frontend types",
+                "test" => "Running frontend tests",
+                _ => "Building the frontend"
+            });
             EnsureCommandSucceeded(_commandRunner.Run("pnpm", ["--dir", "web", operation], _root, cancellationToken), $"run 'pnpm {operation}'");
+        }
         _failureInjector.ThrowIfRequested(ModuleCreationPhase.WebVerification);
     }
 

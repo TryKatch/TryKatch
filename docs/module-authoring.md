@@ -14,6 +14,8 @@ The delivery order is:
 
 CI enforces catalog validity, backend/web registry parity, deterministic generated modules, generated-module build/tests, and organization isolation against PostgreSQL. External third-party module installation remains an architectural capability under development rather than a promise of safe hot-loading of arbitrary code.
 
+`module create` reports named, numbered progress steps with elapsed time. Interactive terminals animate a spinner during dependency restore, builds and tests; redirected output and `TERM=dumb` use plain lines. Optional frontend phases are reported only with `--with-web`. Failures mark the current step, announce rollback and retain command diagnostics; Ctrl+C uses the same rollback path. Progress rendering never changes the generator's security or verification requirements.
+
 ## Generate a business workflow from a blueprint
 
 The application must declare `business-blueprints-v1` in its catalog’s `hostCapabilities`. Updating the CLI or installed template does not modify an existing application. Do not add this marker to bypass the check: generate from the coordinated release, or migrate and test the HTTP binding-error handler, version-aware Archive SDK/host integration and EN/FR navigation labels before declaring this capability.

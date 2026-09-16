@@ -28,15 +28,28 @@ cd "$blueprint_test_root/app"
 "$blueprint_test_root/tools/trykatch" module create --help > "$blueprint_test_root/create-help.txt"
 grep -q -- '--blueprint' "$blueprint_test_root/create-help.txt"
 grep -q -- '--with-web' "$blueprint_test_root/create-help.txt"
+grep -q 'Live progress shows the current step and elapsed time' "$blueprint_test_root/create-help.txt"
 if "$blueprint_test_root/tools/trykatch" module validate --blueprint blueprints/shipment-reception.json --fields name:string; then
   printf 'CLI incorrectly accepted mutually exclusive blueprint/fields arguments.\n' >&2
   exit 1
 fi
 "$blueprint_test_root/tools/trykatch" module validate --blueprint blueprints/shipment-reception.json
 if [[ $mode == web ]]; then
-  "$blueprint_test_root/tools/trykatch" module create ShipmentReceptions --blueprint blueprints/shipment-reception.json --with-web
+  "$blueprint_test_root/tools/trykatch" module create ShipmentReceptions --blueprint blueprints/shipment-reception.json --with-web | tee "$blueprint_test_root/create-progress.txt"
 else
-  "$blueprint_test_root/tools/trykatch" module create ShipmentReceptions --blueprint blueprints/shipment-reception.json
+  "$blueprint_test_root/tools/trykatch" module create ShipmentReceptions --blueprint blueprints/shipment-reception.json | tee "$blueprint_test_root/create-progress.txt"
+fi
+grep -q 'Restoring .NET dependencies' "$blueprint_test_root/create-progress.txt"
+grep -q 'Running generated unit tests' "$blueprint_test_root/create-progress.txt"
+grep -q 'Checking module health with doctor' "$blueprint_test_root/create-progress.txt"
+grep -q 'Module generation completed in ' "$blueprint_test_root/create-progress.txt"
+if [[ $mode == web ]]; then
+  grep -q 'Installing frontend dependencies' "$blueprint_test_root/create-progress.txt"
+  grep -q 'Building the frontend' "$blueprint_test_root/create-progress.txt"
+fi
+if LC_ALL=C grep -q $'\r' "$blueprint_test_root/create-progress.txt"; then
+  printf 'Redirected creation progress must not contain terminal carriage returns.\n' >&2
+  exit 1
 fi
 cp blueprints/tests/ShipmentBlueprintAcceptanceTests.cs.fixture tests/BlueprintAcceptance.IntegrationTests/ShipmentBlueprintAcceptanceTests.cs
 dotnet test tests/BlueprintAcceptance.IntegrationTests --filter 'FullyQualifiedName~ShipmentBlueprintAcceptanceTests|FullyQualifiedName~EveryDeclaredOrganizationRelationIsDefaultDenyUnderTheRealRuntimeRole'

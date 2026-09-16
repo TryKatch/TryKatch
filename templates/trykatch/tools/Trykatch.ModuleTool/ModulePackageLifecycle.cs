@@ -279,7 +279,7 @@ public sealed partial class ModuleWorkspace
                     catalog,
                     candidate.Manifest.Distribution.Web is not null,
                     candidate.RestoreCachePath,
-                    cancellationToken);
+                    cancellationToken: cancellationToken);
             if (!remove && candidate is not null)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -457,8 +457,10 @@ public sealed partial class ModuleWorkspace
         ModuleCatalogFile catalog,
         bool includeWeb,
         string? packagesPath = null,
+        Action<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        progress?.Invoke("Restoring .NET dependencies");
         List<string> restoreArguments = ["restore", ResolveSolution(), "--force-evaluate", "--configfile", ResolveInsideRoot("NuGet.Config")];
         if (packagesPath is not null) restoreArguments.AddRange(["--packages", packagesPath]);
         WorkspaceCommandResult dotnet = _commandRunner.Run(
@@ -471,6 +473,7 @@ public sealed partial class ModuleWorkspace
 
         if (!includeWeb || !HasWebSurface())
             return;
+        progress?.Invoke("Updating the frontend dependency lock file");
         WorkspaceCommandResult pnpm = _commandRunner.Run(
             "pnpm",
             ["install", "--lockfile-only", "--ignore-scripts"],

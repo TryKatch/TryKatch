@@ -9,6 +9,59 @@ namespace Trykatch.UnitTests;
 public sealed partial class ModuleScaffolderTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void CreationReportsBackendAndOptionalFrontendPhases(bool includeWeb)
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        List<ModuleCreationProgress> phases = [];
+        ModuleScaffolder scaffolder = new(workspace.Root, new SuccessfulRunner(), progress: phases.Add);
+        scaffolder.Create(new("Invoicing", "Invoice", "invoices", "organization", null, includeWeb));
+
+        phases.Select(phase => phase.Step).ShouldBe(includeWeb
+            ? ["Waiting for the workspace lock", "Validating module names, contracts and workspace",
+                "Rendering and validating module templates", "Adding module projects to the solution",
+                "Registering and enabling the module", "Restoring .NET dependencies",
+                "Updating the frontend dependency lock file", "Building the backend and generating OpenAPI",
+                "Running generated architecture tests", "Running generated unit tests",
+                "Installing frontend dependencies", "Generating the frontend API client",
+                "Checking frontend types", "Running frontend tests", "Building the frontend",
+                "Checking module health with doctor"]
+            : ["Waiting for the workspace lock", "Validating module names, contracts and workspace",
+                "Rendering and validating module templates", "Adding module projects to the solution",
+                "Registering and enabling the module", "Restoring .NET dependencies",
+                "Building the backend and generating OpenAPI", "Running generated architecture tests",
+                "Running generated unit tests", "Checking module health with doctor"]);
+        phases.Any(phase => phase.IsRollback).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public void FailedCreationReportsRollbackAndRetainsTheUnderlyingError()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        List<ModuleCreationProgress> phases = [];
+        ModuleScaffolder scaffolder = new(workspace.Root, new FailingRunner(), progress: phases.Add);
+        Should.Throw<InvalidOperationException>(() => scaffolder.Create(new(
+            "Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: false)))
+            .Message.ShouldContain("simulated restore failure");
+        phases[^1].ShouldBe(new("Restoring the original workspace", IsRollback: true));
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public void CancellationReportsRollbackAndRemovesTheNewModule()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        using CancellationTokenSource cancellation = new();
+        List<ModuleCreationProgress> phases = [];
+        ModuleScaffolder scaffolder = new(workspace.Root, new CancellingRunner(cancellation), progress: phases.Add);
+        Should.Throw<OperationCanceledException>(() => scaffolder.Create(new(
+            "Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: false), cancellation.Token));
+        phases[^1].IsRollback.ShouldBeTrue();
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
+    }
+
+    [TestMethod]
     public void CreateProducesAnEnabledOrganizationCrudModule()
     {
         using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);

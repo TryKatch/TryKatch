@@ -49,6 +49,18 @@ trykatch module create Invoicing \
 
 Use `trykatch module create --help` for the complete command contract.
 
+### Follow generation progress
+
+The command shows a live spinner, numbered step and elapsed time while it validates, renders, registers, restores dependencies, builds, tests and runs module doctor. With `--with-web`, it also shows frontend dependency installation, API-client generation, type checking, tests and build. Each completed step is marked `OK`; a final summary lists the generated paths, endpoints, permissions and start command. The display reports real steps, not an estimated percentage or completion time.
+
+For example, while .NET dependencies are being restored:
+
+```text
+| [6] Restoring .NET dependencies... (12.4s)
+```
+
+Redirected output and terminals with `TERM=dumb` use plain progress lines without animation. On failure, the failed step is marked `FAIL`, rollback is announced, and the underlying diagnostic output is retained. Ctrl+C stops the child command and triggers the same workspace rollback.
+
 ## Describe the business fields once
 
 `--fields` is the authoritative business shape for the generated CRUD slice. The generator applies it consistently to the domain entity, create/update contract, DTO, validation, EF Core configuration, PostgreSQL migration, OpenAPI document and—when `--with-web` is present—the React table, form, details view and English/French message catalogs.

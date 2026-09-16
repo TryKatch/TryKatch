@@ -49,6 +49,18 @@ trykatch module create Invoicing \
 
 Utilisez `trykatch module create --help` pour afficher le contrat complet de la commande.
 
+### Suivre la progression
+
+La commande affiche un indicateur animé, le numéro de l’étape et le temps écoulé pendant la validation, la génération, l’enregistrement, la restauration des dépendances, la compilation, les tests et le diagnostic des modules. Avec `--with-web`, elle affiche aussi l’installation des dépendances frontend, la génération du client API, la vérification des types, les tests et la compilation frontend. Chaque étape terminée porte la mention `OK` ; un récapitulatif final présente les chemins, les endpoints, les permissions et la commande de démarrage. Il s’agit d’étapes réelles, pas d’un pourcentage ou d’une durée de fin estimés.
+
+Par exemple, pendant la restauration des dépendances .NET :
+
+```text
+| [6] Restoring .NET dependencies... (12.4s)
+```
+
+Une sortie redirigée ou un terminal avec `TERM=dumb` utilise des lignes simples sans animation. En cas d’échec, l’étape est marquée `FAIL`, le retour à l’état initial est annoncé et les détails du diagnostic sont conservés. Ctrl+C arrête la commande enfant et déclenche le même retour à l’état initial du workspace.
+
 ## Décrire les champs métier une seule fois
 
 `--fields` est la forme métier de référence pour le CRUD généré. Le générateur l’applique de façon cohérente à l’entité du domaine, aux contrats de création et de modification, au DTO, à la validation, à la configuration EF Core, à la migration PostgreSQL, au document OpenAPI et—avec `--with-web`—au tableau, au formulaire, à la vue détaillée et aux catalogues de messages anglais/français de React.

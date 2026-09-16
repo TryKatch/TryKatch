@@ -129,7 +129,7 @@ Exit criteria: CI is green, final UAT is approved, installation succeeds on all 
 
 ## Version policy
 
-- Current published preview package: `0.1.0-preview.23`.
+- Current published preview package: `0.1.0-preview.24`.
 - Preview versions may be shared for evaluation but are not represented as production-ready.
 - Release-candidate versions begin only after phases 1–7 pass.
 - The first stable version is published only after phase 8 sign-off.
