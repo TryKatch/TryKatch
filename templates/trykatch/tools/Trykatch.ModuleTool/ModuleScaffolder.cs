@@ -328,10 +328,12 @@ public sealed partial class ModuleScaffolder
         WriteTemplate("Module.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Infrastructure"), $"{names.Module}Module.cs"), names);
         WriteTemplate("ModelContributor.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Infrastructure"), $"{names.Module}ModelContributor.cs"), names);
         WriteTemplate("Store.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Infrastructure"), $"{names.Entity}Store.cs"), names);
+        WriteTemplate("PageContracts.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), $"{names.Entity}Page.cs"), names);
         WriteProjectFiles(moduleRoot, names);
         WriteManifest(moduleRoot, names, includeWeb);
         WriteReadme(moduleRoot, names, includeWeb);
         WriteTestProjects(testRoot, names);
+        WriteTemplate("PageTests.cs", Path.Combine(testRoot, $"{names.RootNamespace}.Modules.{names.Module}.UnitTests", names.Entity + "PageTests.cs"), names);
         if (includeWeb) WriteWebFiles(moduleRoot, names);
         if (names.Blueprint is not null)
         {
@@ -359,6 +361,7 @@ public sealed partial class ModuleScaffolder
     private static IReadOnlyList<string> GeneratedEndpoints(string resource) =>
     [
         $"GET /api/v1/{resource}",
+        $"GET /api/v1/{resource}/page",
         $"GET /api/v1/{resource}/{{id}}",
         $"POST /api/v1/{resource}",
         $"PUT /api/v1/{resource}/{{id}}",
@@ -403,7 +406,7 @@ public sealed partial class ModuleScaffolder
                 <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression><IsPackable>true</IsPackable>
                 <IsCompositeModulePackage>true</IsCompositeModulePackage>
               </PropertyGroup>
-              <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><PackageReference Include="Microsoft.EntityFrameworkCore.Relational" /></ItemGroup>
+              <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><PackageReference Include="Microsoft.EntityFrameworkCore.Relational" /><PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" /></ItemGroup>
               <ItemGroup>
                 <ProjectReference Include="../../../Common/{{names.RootNamespace}}.Modules.Abstractions/{{names.RootNamespace}}.Modules.Abstractions.csproj" PrivateAssets="all" />
                 <ProjectReference Include="../../../Common/{{names.RootNamespace}}.Modules.AspNetCore/{{names.RootNamespace}}.Modules.AspNetCore.csproj" PrivateAssets="all" />
@@ -493,6 +496,7 @@ public sealed partial class ModuleScaffolder
             <Project Sdk="Microsoft.NET.Sdk"><ItemGroup>
               <PackageReference Include="MSTest" /><PackageReference Include="Shouldly" />
               <ProjectReference Include="../../../../src/Modules/{{names.Module}}/{{prefix}}.Domain/{{prefix}}.Domain.csproj" />
+              <ProjectReference Include="../../../../src/Modules/{{names.Module}}/{{prefix}}.Application/{{prefix}}.Application.csproj" />
               <ProjectReference Include="../../../../src/Modules/{{names.Module}}/{{prefix}}.Infrastructure/{{prefix}}.Infrastructure.csproj" />
               <Compile Include="../../../ArchitectureTestSettings.cs" Link="MSTestSettings.cs" />
             </ItemGroup></Project>

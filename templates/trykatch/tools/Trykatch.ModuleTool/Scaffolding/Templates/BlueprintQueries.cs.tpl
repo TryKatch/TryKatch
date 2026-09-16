@@ -10,6 +10,16 @@ using static __ROOT_NAMESPACE__.Modules.__MODULE__.Application.__ENTITY__Operati
 public sealed class List__ENTITY__QueryHandler(
     I__ENTITY__Store store, IModulePermissionAuthorizer authorizer, __ENTITY__ReadModel reader)
 {
+    public async Task<__ENTITY__OperationResult<__ENTITY__Page<__ENTITY__Dto>>> PageAsync(__ENTITY__PageQuery query, CancellationToken cancellationToken)
+    {
+        if (!await authorizer.HasPermissionAsync("__MODULE_ID__.read", cancellationToken)) return Forbidden<__ENTITY__Page<__ENTITY__Dto>>();
+        query.Validate();
+        __ENTITY__Page<__ENTITY__Record> page = await store.PageAsync(query, cancellationToken);
+        List<__ENTITY__Dto> items = [];
+        foreach (__ENTITY__Record record in page.Items) items.Add(await reader.MapAsync(record, cancellationToken));
+        return __ENTITY__Operation.Success(new __ENTITY__Page<__ENTITY__Dto>(items.ToArray(), page.Page, page.PageSize, page.HasMore));
+    }
+
     public async Task<__ENTITY__OperationResult<__ENTITY__Dto[]>> HandleAsync(string lifecycle, CancellationToken cancellationToken)
     {
         if (!await authorizer.HasPermissionAsync("__MODULE_ID__.read", cancellationToken))

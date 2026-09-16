@@ -12,7 +12,7 @@ public sealed record __ENTITY__LifecycleDto(string Status, DateTimeOffset? Archi
 public sealed record __ENTITY__Dto(Guid Id,
     __DTO_FIELDS__,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt, __ENTITY__LifecycleDto Lifecycle);
+    DateTimeOffset? UpdatedAt, __ENTITY__LifecycleDto Lifecycle, Guid Version);
 public sealed record __ENTITY__OperationResult<T>(bool IsSuccess, T? Value, string? Code, string? Error);
 
 public static class __ENTITY__Operation
@@ -25,6 +25,7 @@ public enum __ENTITY__QueryScope { Active, Recoverable }
 
 public interface I__ENTITY__Store
 {
+    Task<__ENTITY__Page<__ENTITY__Record>> PageAsync(__ENTITY__PageQuery query, CancellationToken cancellationToken);
     Task<IReadOnlyList<__ENTITY__Record>> ListAsync(__ENTITY__QueryScope scope, CancellationToken cancellationToken);
     Task<__ENTITY__Record?> FindAsync(Guid id, bool includeRecoverable, CancellationToken cancellationToken);
     void Add(__ENTITY__Record record);
@@ -37,6 +38,14 @@ public sealed class __MODULE__UseCases(
     IModulePermissionAuthorizer authorizer,
     TimeProvider timeProvider)
 {
+    public async Task<__ENTITY__OperationResult<__ENTITY__Page<__ENTITY__Dto>>> PageAsync(__ENTITY__PageQuery query, CancellationToken cancellationToken)
+    {
+        if (!await authorizer.HasPermissionAsync("__MODULE_ID__.read", cancellationToken)) return Forbidden<__ENTITY__Page<__ENTITY__Dto>>();
+        query.Validate();
+        __ENTITY__Page<__ENTITY__Record> page = await store.PageAsync(query, cancellationToken);
+        return __ENTITY__Operation.Success(new __ENTITY__Page<__ENTITY__Dto>(page.Items.Select(ToDto).ToArray(), page.Page, page.PageSize, page.HasMore));
+    }
+
     public async Task<__ENTITY__OperationResult<__ENTITY__Dto[]>> ListAsync(string lifecycle, CancellationToken cancellationToken)
     {
         if (!await authorizer.HasPermissionAsync("__MODULE_ID__.read", cancellationToken))
@@ -74,13 +83,14 @@ public sealed class __MODULE__UseCases(
         return __ENTITY__Operation.Success(ToDto(record));
     }
 
-    public async Task<__ENTITY__OperationResult<__ENTITY__Dto>> UpdateAsync(Guid id, Save__ENTITY__Command command, CancellationToken cancellationToken)
+    public async Task<__ENTITY__OperationResult<__ENTITY__Dto>> UpdateAsync(Guid id, Guid expectedVersion, Save__ENTITY__Command command, CancellationToken cancellationToken)
     {
         if (!await CanManage(cancellationToken)) return Forbidden<__ENTITY__Dto>();
         string? error = Validate(command);
         if (error is not null) return __ENTITY__Operation.Failure<__ENTITY__Dto>("validation", error);
         __ENTITY__Record? record = await store.FindAsync(id, false, cancellationToken);
         if (record is null) return NotFound<__ENTITY__Dto>();
+        record.EnsureVersion(expectedVersion);
         record.Update(
             __COMMAND_TO_DOMAIN_ARGUMENTS__,
             timeProvider.GetUtcNow());
@@ -91,17 +101,17 @@ public sealed class __MODULE__UseCases(
         return __ENTITY__Operation.Success(ToDto(record));
     }
 
-    public Task<__ENTITY__OperationResult<bool>> ArchiveAsync(Guid id, CancellationToken cancellationToken) =>
-        ChangeLifecycleAsync(id, "archived", static (record, context, now) => record.Archive(context.ActorId, now),
+    public Task<__ENTITY__OperationResult<bool>> ArchiveAsync(Guid id, Guid expectedVersion, CancellationToken cancellationToken) =>
+        ChangeLifecycleAsync(id, expectedVersion, "archived", static (record, context, now) => record.Archive(context.ActorId, now),
             static (record, actorId, occurredAt) => new __ENTITY__Archived(record.Id, record.OrganizationId, actorId, occurredAt),
             false, cancellationToken);
 
-    public Task<__ENTITY__OperationResult<bool>> RestoreAsync(Guid id, CancellationToken cancellationToken) =>
-        ChangeLifecycleAsync(id, "restored", static (record, _, _) => record.Restore(),
+    public Task<__ENTITY__OperationResult<bool>> RestoreAsync(Guid id, Guid expectedVersion, CancellationToken cancellationToken) =>
+        ChangeLifecycleAsync(id, expectedVersion, "restored", static (record, _, _) => record.Restore(),
             static (record, actorId, occurredAt) => new __ENTITY__Restored(record.Id, record.OrganizationId, actorId, occurredAt),
             true, cancellationToken);
 
-    public async Task<__ENTITY__OperationResult<bool>> RequestDeletionAsync(Guid id, string? requestedReason, CancellationToken cancellationToken)
+    public async Task<__ENTITY__OperationResult<bool>> RequestDeletionAsync(Guid id, Guid expectedVersion, string? requestedReason, CancellationToken cancellationToken)
     {
         if (!await CanManage(cancellationToken)) return Forbidden<bool>();
         string reason = requestedReason?.Trim() ?? string.Empty;
@@ -109,6 +119,7 @@ public sealed class __MODULE__UseCases(
             return __ENTITY__Operation.Failure<bool>("validation", "A deletion reason containing 10-500 characters is required.");
         __ENTITY__Record? record = await store.FindAsync(id, true, cancellationToken);
         if (record is null) return NotFound<bool>();
+        record.EnsureVersion(expectedVersion);
         if (record.LifecycleState != __ENTITY__LifecycleState.Archived)
             return __ENTITY__Operation.Failure<bool>("conflict", "Archive the record before requesting deletion.");
         if (record.RequestDeletion(context.ActorId, reason, timeProvider.GetUtcNow()))
@@ -121,7 +132,7 @@ public sealed class __MODULE__UseCases(
         return __ENTITY__Operation.Success(true);
     }
 
-    private async Task<__ENTITY__OperationResult<bool>> ChangeLifecycleAsync<TIntegrationEvent>(Guid id, string operation,
+    private async Task<__ENTITY__OperationResult<bool>> ChangeLifecycleAsync<TIntegrationEvent>(Guid id, Guid expectedVersion, string operation,
         Func<__ENTITY__Record, IOrganizationModuleData, DateTimeOffset, bool> change,
         Func<__ENTITY__Record, Guid, DateTimeOffset, TIntegrationEvent> createIntegrationEvent, bool includeRecoverable,
         CancellationToken cancellationToken)
@@ -130,6 +141,7 @@ public sealed class __MODULE__UseCases(
         if (!await CanManage(cancellationToken)) return Forbidden<bool>();
         __ENTITY__Record? record = await store.FindAsync(id, includeRecoverable, cancellationToken);
         if (record is null) return NotFound<bool>();
+        record.EnsureVersion(expectedVersion);
         if (change(record, context, timeProvider.GetUtcNow()))
         {
             DateTimeOffset occurredAt = timeProvider.GetUtcNow();
@@ -175,5 +187,5 @@ public sealed class __MODULE__UseCases(
         __DTO_ARGUMENTS__,
         record.CreatedAt, record.UpdatedAt,
         new(record.LifecycleState.ToString(), record.ArchivedAt, record.ArchivedBy,
-            record.DeletedAt, record.DeletedBy, record.DeletionReason));
+            record.DeletedAt, record.DeletedBy, record.DeletionReason), record.Version);
 }

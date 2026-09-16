@@ -112,6 +112,7 @@ The generated entity implements `IOrganizationOwned`. The host applies the named
 
 ```text
 GET    /api/v1/invoices/
+GET    /api/v1/invoices/page
 GET    /api/v1/invoices/{id}
 POST   /api/v1/invoices/
 PUT    /api/v1/invoices/{id}
@@ -123,6 +124,10 @@ DELETE /api/v1/invoices/{id}
 Reads require `invoicing.read`; mutations require `invoicing.manage`, permission checks are repeated in the application use cases, mutation endpoints require antiforgery protection, and writes record audit and outbox evidence in the host transaction. Minimal API handlers use typed result unions and stable OpenAPI operation names (`Invoicing_List` through `Invoicing_RequestDeletion`). The outbox publishes distinct immutable contracts—`InvoiceCreated`, `InvoiceUpdated`, `InvoiceArchived`, `InvoiceRestored`, and `InvoiceDeletionRequested`—instead of a free-form operation string.
 
 ## Start and verify the result
+
+Generated lists use `/page?lifecycle=active&page=1&pageSize=25&search=invoice&sort=newest`. The response contains `items`, `page`, `pageSize`, and `hasMore`. Sizes are limited to 1–100, search to 200 characters, and ordering to `newest` or `oldest` (creation time plus stable ID). String fields are searched in SQL before pagination; organization isolation remains enabled. The legacy array endpoint is retained for existing consumers and the archive surface, not for scalable lists.
+
+All generated updates, archives, restores, and deletion requests now require the DTO's `expectedVersion`. Missing tokens fail request binding (400); stale tokens return 409 with `code: stale_version`. EF concurrency tokens also reject racing writes. The editor preserves unsaved fields and offers an explicit latest-version refresh. These contracts apply to newly generated modules; updating the CLI does not retrofit an existing module or its database migrations.
 
 From the application root:
 

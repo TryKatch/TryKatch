@@ -27,6 +27,8 @@ internal static partial class ModuleFieldRenderer
             ["__DTO_ARGUMENTS__"] = JoinParameters(fields.Select(RenderDtoArgument), 8),
             ["__FIELD_VALIDATION__"] = JoinLines(fields.SelectMany(field => RenderValidation(entityName, field)), 8),
             ["__AUDIT_DISPLAY__"] = RenderAuditDisplay(displayField),
+            ["__PAGE_SEARCH_PREDICATE__"] = string.Join(" || ", fields.Where(field => field.Kind == ModuleFieldKind.String)
+                .Select(field => $"(record.{field.PropertyName} != null && EF.Functions.ILike(record.{field.PropertyName}, pattern, \"\\\\\"))")) is { Length: > 0 } predicate ? predicate : "false",
             ["__MODEL_FIELD_CONFIGURATION__"] = JoinLines(fields.SelectMany(RenderModelConfiguration), 12),
             ["__MIGRATION_FIELDS__"] = JoinLines(fields.Select(RenderMigrationColumn), 16),
             ["__WEB_FIELD_STATE__"] = JoinLines(fields.Select(RenderWebState), 2),

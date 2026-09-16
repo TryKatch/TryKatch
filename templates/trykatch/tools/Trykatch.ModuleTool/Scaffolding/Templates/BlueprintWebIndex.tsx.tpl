@@ -9,6 +9,7 @@ import { use__MODULE__Messages } from './messages'
 __WEB_DATETIME_IMPORT__
 
 interface OrganizationAccess { permissions: string[] }
+interface RecordPage { items: __ENTITY__Dto[]; page: number; pageSize: number; hasMore: boolean }
 type LoadResult<T> = { value: T; failure?: never } | { value?: never; failure: string }
 
 async function loadResult<T>(load: () => Promise<T>): Promise<LoadResult<T>> {
@@ -26,9 +27,12 @@ export function __MODULE__Page() {
   const [editing, setEditing] = useState<__ENTITY__Dto | null | undefined>(undefined)
   const [viewing, setViewing] = useState<__ENTITY__Dto>()
   __WEB_FIELD_STATE__
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('newest')
   const records = useQuery({
-    queryKey: ['__MODULE_ID__s'],
-    queryFn: () => loadResult(() => __MODULE_CAMEL__List({ lifecycle: 'active' })),
+    queryKey: ['__MODULE_ID__s', page, search, sort],
+    queryFn: () => loadResult(() => customFetch<RecordPage>(`/api/v1/__RESOURCE__/page?${new URLSearchParams({ lifecycle: 'active', page: String(page), pageSize: '25', search, sort })}`, { method: 'GET' })),
   })
   const access = useQuery({
     queryKey: ['access'],
@@ -71,16 +75,13 @@ export function __MODULE__Page() {
   const openAction = (record: __ENTITY__Dto, id: string) => { transition.reset(); setActionRecord(record); setSelectedAction(id); setActionValues({}) }
   const openCreate = () => { save.reset(); setEditing(null); __WEB_FIELD_RESET__ }
   const openEdit = (record: __ENTITY__Dto) => { save.reset(); setEditing(record); __WEB_FIELD_EDIT__ }
-  const refreshEditor = async () => {
-    const result = await records.refetch()
-    const latest = result.data?.value?.find(record => record.id === editing?.id)
-    if (latest) { setEditing(latest); save.reset() }
-  }
-  const refreshAction = async () => {
-    const result = await records.refetch()
-    const latest = result.data?.value?.find(record => record.id === actionRecord?.id)
-    if (latest) { setActionRecord(latest); transition.reset() }
-  }
+  const refresh = useMutation({
+    mutationFn: (id: string) => customFetch<__ENTITY__Dto>(`/api/v1/__RESOURCE__/${encodeURIComponent(id)}`, { method: 'GET' }),
+    onSuccess: latest => {
+      if (editing?.id === latest.id) { setEditing(latest); save.reset() }
+      if (actionRecord?.id === latest.id) { setActionRecord(latest); transition.reset() }
+    },
+  })
   const actionsFor = (record: __ENTITY__Dto): RowAction[] => [
     { label: t('view'), icon: 'view', onSelect: () => setViewing(record) },
     ...(canManage ? [
@@ -95,12 +96,23 @@ export function __MODULE__Page() {
     { id: 'actions', header: '', cell: (record) => <RowActions label={t('actionsFor', { name: __WEB_DISPLAY_VALUE__ })} actions={actionsFor(record)} />, hideable: false, align: 'right', width: 54 },
   ]
   const failure = records.data?.failure ?? access.error?.message ?? records.error?.message
-  const activeRecords = records.data?.value ?? []
+  const activeRecords = records.data?.value?.items ?? []
 
   return <>
     <PageHeader eyebrow={t('application')} title={t('moduleTitle')} description={t('pageDescription')}
       actions={canManage && <Button variant="primary" onClick={openCreate}><Plus size={14} /> {t('newRecord')}</Button>} />
     <Surface className="collection">
+      <form className="dialog-form" onSubmit={event => {
+        event.preventDefault()
+        const values = new FormData(event.currentTarget)
+        setSearch(String(values.get('search') ?? '')); setSort(String(values.get('sort') ?? 'newest')); setPage(1)
+      }}>
+        <label>{t('searchTable')}<input name="search" type="search" maxLength={200} placeholder={t('search')} /></label>
+        <label>{t('sortRecords')}<select name="sort" defaultValue="newest">
+          <option value="newest">{t('newest')}</option><option value="oldest">{t('oldest')}</option>
+        </select></label>
+        <Button type="submit">{t('applyFilters')}</Button>
+      </form>
       {archive.error && <div className="page-alert" role="alert">{workflowError(archive.error, locale)}</div>}
       {records.isLoading || access.isLoading
         ? <p role="status">{t('loading')}</p>
@@ -108,9 +120,14 @@ export function __MODULE__Page() {
           ? <EmptyState title={t('loadFailed')} description={failure}
               action={<Button onClick={() => { records.refetch(); access.refetch() }}>{t('tryAgain')}</Button>} />
           : <DataTable labels={tableLabels} ariaLabel={t('moduleTitle')} data={activeRecords} columns={columns}
-              getRowId={(record) => record.id} searchPlaceholder={t('search')}
+              getRowId={(record) => record.id} searchable={false}
               empty={<EmptyState title={t('emptyTitle')} description={t(canManage ? 'emptyManage' : 'emptyReadOnly')}
                 action={canManage ? <Button variant="primary" onClick={openCreate}>{t('createRecord')}</Button> : undefined} />} />}
+      <nav aria-label={t('pageNavigation')} className="dialog-actions">
+        <Button disabled={page <= 1 || records.isFetching} onClick={() => setPage(value => value - 1)}>{t('previous')}</Button>
+        <span role="status">{t('currentPage', { page })}</span>
+        <Button disabled={!records.data?.value?.hasMore || records.isFetching} onClick={() => setPage(value => value + 1)}>{t('next')}</Button>
+      </nav>
     </Surface>
     <Dialog open={editing !== undefined} onOpenChange={(open) => !open && closeEditor()}
       title={t(editing ? 'editRecord' : 'createRecord')} description={t('editorDescription')}>
@@ -118,7 +135,8 @@ export function __MODULE__Page() {
         __WEB_FORM_FIELDS__
         {save.error && <div className="form-error" role="alert">{workflowError(save.error, locale)}</div>}
         {editing && <p role="status">{t('workflowState')}: {workflowText(editing.workflowState, locale)}</p>}
-        {isStaleConflict(save.error) && <Button type="button" onClick={refreshEditor}>{t('refreshRecord')}</Button>}
+        {refresh.error && <div className="form-error" role="alert">{workflowError(refresh.error, locale)}</div>}
+        {isStaleConflict(save.error) && editing && <Button type="button" disabled={refresh.isPending} onClick={() => refresh.mutate(editing.id)}>{t('refreshRecord')}</Button>}
         <div className="dialog-actions">
           <Button type="button" variant="ghost" onClick={closeEditor}>{t('cancel')}</Button>
           <Button type="submit" variant="primary" disabled={save.isPending || isStaleConflict(save.error) || (editing != null && !editing.canEdit)}>{t(save.isPending ? 'saving' : 'save')}</Button>
@@ -145,7 +163,8 @@ export function __MODULE__Page() {
         </label>)}
         {transition.error && <div className="form-error" role="alert">{workflowError(transition.error, locale)}</div>}
         {actionRecord && <p role="status">{t('workflowState')}: {workflowText(actionRecord.workflowState, locale)}</p>}
-        {isStaleConflict(transition.error) && <Button type="button" onClick={refreshAction}>{t('refreshRecord')}</Button>}
+        {refresh.error && <div className="form-error" role="alert">{workflowError(refresh.error, locale)}</div>}
+        {isStaleConflict(transition.error) && actionRecord && <Button type="button" disabled={refresh.isPending} onClick={() => refresh.mutate(actionRecord.id)}>{t('refreshRecord')}</Button>}
         <div className="dialog-actions">
           <Button type="button" variant="ghost" onClick={closeAction}>{t('cancel')}</Button>
           <Button type="submit" variant="primary" disabled={transition.isPending || isStaleConflict(transition.error) || !actionRecord?.availableActions.includes(selectedAction ?? '')}>{t(transition.isPending ? 'saving' : 'confirmAction')}</Button>

@@ -91,6 +91,7 @@ public sealed partial class ModuleScaffolderTests
 
         result.Endpoints.ShouldBe([
             "GET /api/v1/invoices",
+            "GET /api/v1/invoices/page",
             "GET /api/v1/invoices/{id}",
             "POST /api/v1/invoices",
             "PUT /api/v1/invoices/{id}",
@@ -122,6 +123,17 @@ public sealed partial class ModuleScaffolderTests
                  })
             endpoints.ShouldContain($".WithName(\"{operationId}\")");
         endpoints.ShouldContain("Task<Results<Ok<InvoiceDto[]>, ForbidHttpResult, ValidationProblem>>");
+        endpoints.ShouldContain("Invoicing_Page");
+        endpoints.ShouldContain("request.ExpectedVersion");
+        endpoints.ShouldContain("[\"code\"] = \"stale_version\"");
+        string store = File.ReadAllText(Path.Combine(moduleRoot, "Kametal.Modules.Invoicing.Infrastructure/InvoiceStore.cs"));
+        store.ShouldContain(".Skip((request.Page - 1) * request.PageSize).Take(request.PageSize + 1)");
+        store.ShouldContain(".ThenByDescending(record => record.Id)");
+        store.ShouldContain("IgnoreQueryFilters([\"LifecycleVisibility\"])");
+        store.ShouldNotContain("IgnoreQueryFilters()");
+        store.ShouldContain("catch (DbUpdateConcurrencyException)");
+        File.ReadAllText(Path.Combine(moduleRoot, "Kametal.Modules.Invoicing.Infrastructure/InvoicingModelContributor.cs"))
+            .ShouldContain("record.Version).IsConcurrencyToken()");
     }
 
     [TestMethod]
