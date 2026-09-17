@@ -1,5 +1,7 @@
 # Catalogue UI
 
+**Application UI → Member invitations** présente les gestionnaires sans accès en lecture aux rôles : invitation avec le rôle Membre sélectionné par le serveur, et refus d’autorité conservant l’adresse du destinataire. Le catalogue des rôles restreint n’est jamais demandé.
+
 Depuis la racine de l’application générée, contenant sa solution et `trykatch.modules.json` :
 
 ```bash

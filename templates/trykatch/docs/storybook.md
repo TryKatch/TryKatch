@@ -45,6 +45,8 @@ corepack pnpm --filter @trykatch/web exec playwright install chromium
 
 ## Add a story
 
+**Application UI → Member invitations** demonstrates managers without role-read access using the server's default Member invitation, including authority denial with the recipient preserved. No restricted role catalog is fetched.
+
 Colocate `*.stories.tsx` with shared package source, host source or a module's `Web/src` source (existing module root-level stories are also discovered). Export a default metadata object and named stories using `Meta` and `StoryObj` from `@storybook/react-vite`. Prefer importing the real component over recreating its markup.
 
 Each package containing stories declares `@storybook/react-vite`, `storybook` and, for network fixtures, `msw` as development dependencies. Keep fixtures in story-only files; never import them into application entrypoints. The worker lives only in `web/apps/storybook/public`, not the production app's public directory.

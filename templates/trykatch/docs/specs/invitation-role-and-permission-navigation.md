@@ -32,6 +32,8 @@ Invitation and password-reset notifications share a branded HTML shell with an a
 
 ## Acceptance cases
 
+Review correction: managers with `members.read` and `members.manage` but without `roles.read` can submit an invitation without a role ID, retaining the existing server-selected Member default. The form explains this fallback and never queries the restricted role or permission catalog. Managers with role-read access still select an assignable role; an empty/unassignable catalog does not trigger fallback. Server delegation checks can reject the default role with 403, and the UI preserves the recipient for correction. Unit regression and isolated Storybook success/denial interactions cover this boundary; mocks are not server-security evidence.
+
 1. Select Viewer or Admin, accept through production HTTP and runtime PostgreSQL roles, and receive exactly the selected role's grants.
 2. A Member's attempt to invite, edit the Owner or create a privileged role receives 403 and creates no invitation.
 3. Unknown/foreign role IDs and an equivalent-permission non-Owner attempting an Owner invitation are denied without storing an invitation.
