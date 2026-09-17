@@ -12,7 +12,7 @@ New to this application? Start with [developer onboarding](docs/developer-onboar
 
 For deployment, first read [production identity](docs/production-identity.md): three certificate/password pairs are required, and an existing plaintext key ring needs an explicit privileged dry-run/apply before the API can start.
 
-Prerequisites: .NET SDK 10.0.301+ and Docker.
+Prerequisites: .NET SDK 10.0.301 or a later patch in the 10.0.3xx feature band, and Docker. The generated `global.json` permits patch roll-forward only. See [dependency reproducibility](docs/dependency-reproducibility.md) ([Français](docs/dependency-reproducibility.fr.md)) for first-restore and upgrade boundaries; omit frontend commands.
 
 Open a terminal in the generated application's root directory—the folder that contains `Trykatch.slnx`, `src/`, and `tests/`—then run the commands from there:
 

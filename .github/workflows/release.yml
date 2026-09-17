@@ -6,24 +6,55 @@ on:
 
 permissions:
   contents: read
-  id-token: write
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  nuget:
+  qualify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      source-ci-run-id: ${{ steps.policy.outputs.source-ci-run-id }}
+    env:
+      TRYKATCH_QUALIFICATION_PACKAGES: ${{ github.workspace }}/artifacts/packages
+      TRYKATCH_QUALIFICATION_MANIFEST: ${{ github.workspace }}/artifacts/qualification.json
+      TRYKATCH_QUALIFICATION_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
-      - name: Verify release commit is on main
+      - name: Verify release commit, successful main CI and stable approval policy
+        id: policy
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git fetch origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-      - name: Verify tag, packages, and documentation agree
-        run: bash scripts/check-release-version.sh "${GITHUB_REF_NAME#v}"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.protected')" = true || \
+            { echo 'The main release branch must be protected.' >&2; exit 1; }
+          bash scripts/check-release-version.sh "${GITHUB_REF_NAME#v}"
+          source_ci_run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --event push --commit "$GITHUB_SHA" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          test -n "$source_ci_run" || { echo 'A successful main CI run for this exact commit is required before tagging.' >&2; exit 1; }
+          echo "SOURCE_CI_RUN_ID=$source_ci_run" >> "$GITHUB_ENV"
+          echo "source-ci-run-id=$source_ci_run" >> "$GITHUB_OUTPUT"
+          echo "TRYKATCH_QUALIFICATION_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          if [[ ${GITHUB_REF_NAME#v} != *-* ]]; then
+            if grep -Eq '^\- \[ \] [0-9]{2}:' docs/plans/enterprise-foundation-hardening-plan.md; then
+              echo 'Remaining hardening gates prohibit stable publication.' >&2
+              exit 1
+            fi
+            gh api "repos/$GITHUB_REPOSITORY/environments/stable-release" --jq '.protection_rules[] | select(.type == "required_reviewers") | .reviewers | length' | \
+              awk 'BEGIN { approved = 0 } $1 > 0 { approved = 1 } END { exit !approved }' || \
+              { echo 'Stable publication requires configured stable-release environment reviewers.' >&2; exit 1; }
+          fi
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.3xx
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 10.17.1
@@ -32,32 +63,112 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: templates/trykatch/web/pnpm-lock.yaml
-      - name: Prepare source module validation
+      - name: Prepare source validation and pack release candidates once
         run: |
           dotnet restore templates/trykatch/Trykatch.slnx
           dotnet build templates/trykatch/Trykatch.slnx -c Release --no-restore
           pnpm --dir templates/trykatch/web install --frozen-lockfile
+          dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages -p:PackageVersion="$TRYKATCH_QUALIFICATION_VERSION"
+          dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release -o artifacts/packages -p:PackageVersion="$TRYKATCH_QUALIFICATION_VERSION"
+          node scripts/release-artifacts.mjs create artifacts/packages artifacts/qualification.json "$TRYKATCH_QUALIFICATION_VERSION" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$SOURCE_CI_RUN_ID"
       - run: bash scripts/test-template.sh
       - run: bash scripts/test-federation-module.sh
-      - name: Qualify packed backend and React business blueprints
+      - name: Qualify the candidate CLI and template with both business blueprints
         run: |
           bash scripts/test-business-blueprint.sh backend
           bash scripts/test-business-blueprint.sh web
-      - run: dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
-      - run: dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release -o artifacts/packages -p:PackageVersion=${GITHUB_REF_NAME#v}
+      - name: Qualify the candidate template in generated production containers
+        run: bash scripts/test-generated-application.sh
+      - name: Seal digests only after every required candidate gate succeeds
+        run: |
+          node scripts/release-artifacts.mjs seal artifacts/packages artifacts/qualification.json "$TRYKATCH_QUALIFICATION_VERSION" "$GITHUB_SHA" "$GITHUB_RUN_ID" template-matrix federation blueprint-backend blueprint-web generated-production
+          cd artifacts
+          sha256sum packages/*.nupkg > SHA256SUMS
       - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           path: templates/trykatch
           format: spdx-json
           output-file: artifacts/trykatch-template.spdx.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload
         with:
-          name: trykatch-release
+          name: trykatch-qualified-release-${{ github.run_attempt }}
+          path: |
+            artifacts/packages
+            artifacts/qualification.json
+            artifacts/SHA256SUMS
+            artifacts/trykatch-template.spdx.json
+          if-no-files-found: error
+
+  publish-preview:
+    needs: qualify
+    if: contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.3xx
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.qualify.outputs.artifact-id }}
+          merge-multiple: true
           path: artifacts
+          digest-mismatch: error
+      - name: Verify downloaded qualified bytes before obtaining publication credentials
+        env:
+          SOURCE_CI_RUN_ID: ${{ needs.qualify.outputs.source-ci-run-id }}
+        run: |
+          node scripts/release-artifacts.mjs verify artifacts/packages artifacts/qualification.json "${GITHUB_REF_NAME#v}" "$GITHUB_SHA" "$GITHUB_RUN_ID" --require-qualified --source-ci-run-id "$SOURCE_CI_RUN_ID"
+          cd artifacts
+          sha256sum --check SHA256SUMS
       - name: Exchange GitHub identity for a temporary NuGet API key
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
         id: login
         with:
           user: sudi
-      - name: Publish packages to NuGet.org
-        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+      - name: Publish only the downloaded qualified packages; never rebuild
+        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json
+
+  publish-stable:
+    needs: qualify
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    environment: stable-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.3xx
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.qualify.outputs.artifact-id }}
+          merge-multiple: true
+          path: artifacts
+          digest-mismatch: error
+      - name: Verify downloaded qualified bytes before obtaining publication credentials
+        env:
+          SOURCE_CI_RUN_ID: ${{ needs.qualify.outputs.source-ci-run-id }}
+        run: |
+          node scripts/release-artifacts.mjs verify artifacts/packages artifacts/qualification.json "${GITHUB_REF_NAME#v}" "$GITHUB_SHA" "$GITHUB_RUN_ID" --require-qualified --source-ci-run-id "$SOURCE_CI_RUN_ID"
+          cd artifacts
+          sha256sum --check SHA256SUMS
+      - name: Exchange GitHub identity for a temporary NuGet API key
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
+        id: login
+        with:
+          user: sudi
+      - name: Publish only the downloaded qualified packages; never rebuild
+        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json

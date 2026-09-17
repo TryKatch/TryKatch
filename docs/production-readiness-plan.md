@@ -6,6 +6,8 @@ Move Trykatch from a production-oriented pre-release template to a stable templa
 
 ## Current baseline
 
+The published baseline is **Trykatch 0.1.0-preview.25**. The [2026-09-17 evidence reconciliation](enterprise-foundation-evidence.md) links the release commit, CI runs, shipped security fixes and remaining acceptance criteria. Eight foundation fixes are released; the complete production-readiness gates are not yet closed. Latest release-commit CI passed 282 source unit tests and 236 PostgreSQL integration tests with zero skips. Historical records below remain dated evidence, not today's test counts or a claim of stable readiness.
+
 - The canonical .NET solution builds with zero warnings and errors.
 - Unit, PostgreSQL/Testcontainers integration, web, and generated-client tests pass locally.
 - PostgreSQL row-level security blocks cross-organization access for the runtime role.
@@ -34,7 +36,7 @@ The default React production path is covered by this gate. Backend-only and opti
 
 ## Delivery plan
 
-The [enterprise foundation hardening plan](plans/enterprise-foundation-hardening-plan.md) translates the 2026-09-11 audit into 16 trackable PRs with dependencies, implementation requirements, regression tests and release gates. Its open audit findings qualify earlier completion statements in this document; historical passing checks do not close newly identified defects.
+The [enterprise foundation hardening plan](plans/enterprise-foundation-hardening-plan.md) translates the 2026-09-11 audit into 16 trackable PRs with dependencies, implementation requirements, regression tests and release gates. The [finding-to-PR ledger](enterprise-foundation-evidence.md) reconciles its formerly stale checklist with what has shipped and maps evidence to every production phase. Remaining acceptance criteria qualify earlier completion statements; neither unchecked historical boxes nor generic green CI establish the current state of an individual control.
 
 The mandatory module ownership, tenant data-placement, PostgreSQL isolation, runtime-role separation, signed-module distribution, and independent reference-module work is specified in [the module and tenant data-isolation implementation plan](plans/module-data-isolation-plan.md). Its release criteria are required security gates for the phases below.
 
@@ -46,9 +48,11 @@ The mandatory module ownership, tenant data-placement, PostgreSQL isolation, run
 - Run CI for pull requests and pushes to `develop` and `main`.
 - Require reviewed promotion from `develop` to `main` before creating a version tag.
 - Permit the release workflow to publish only tags whose commit is contained in `main`.
-- Configure the NuGet API key only when the package is approved for publication.
+- Use NuGet trusted publishing to exchange the approved GitHub workflow identity for a temporary publishing credential; do not store a long-lived publishing API key.
 
 Exit criteria: branch policy is documented and enforced; CI succeeds on both long-lived branches; release tags outside `main` are rejected.
+
+2026-09-17 reconciliation: `main` is protected, but `develop` is not protected despite the hardening plan requiring both. Governance remains open until the approved protection/review policy is enforced. This documentation update does not change repository permissions.
 
 ### 1. Product-data and local-development correctness
 

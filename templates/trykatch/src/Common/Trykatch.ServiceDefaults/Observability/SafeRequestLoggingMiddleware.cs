@@ -12,23 +12,54 @@ internal sealed partial class SafeRequestLoggingMiddleware(RequestDelegate next,
     {
         long started = Stopwatch.GetTimestamp();
         bool isOperationalRequest = OperationalRoutePolicy.IsOperationalPath(context.Request.Path);
-        if (isOperationalRequest)
+        string outcome = "completed";
+        int statusCode = context.Response.StatusCode;
+        try
         {
-            using IDisposable suppression = SuppressInstrumentationScope.Begin();
-            await next(context);
+            if (isOperationalRequest)
+            {
+                using IDisposable suppression = SuppressInstrumentationScope.Begin();
+                await next(context);
+            }
+            else
+            {
+                await next(context);
+            }
         }
-        else
+        catch
         {
-            await next(context);
+            outcome = "failed";
+            statusCode = context.Response.HasStarted ? context.Response.StatusCode : StatusCodes.Status500InternalServerError;
+            throw;
         }
+        finally
+        {
+            if (context.RequestAborted.IsCancellationRequested)
+            {
+                outcome = "client_aborted";
+                // Diagnostic status only; do not mutate a response that may already have started.
+                statusCode = 499;
+            }
+            else if (outcome == "completed")
+            {
+                statusCode = context.Response.StatusCode;
+            }
 
-        if (isOperationalRequest && context.Response.StatusCode < 400) return;
-        string route = context.GetEndpoint()?.Metadata.GetMetadata<RouteEndpoint>()?.RoutePattern.RawText ?? "unmatched";
-        if (route.Length > 160) route = "unmatched";
-        LogRequest(logger, context.Request.Method, route, context.Response.StatusCode, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            if (!isOperationalRequest || outcome != "completed" || statusCode >= 400)
+            {
+                string route = (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? "unmatched";
+                if (route.Length > 160) route = "unmatched";
+                string method = context.Request.Method switch
+                {
+                    "GET" or "HEAD" or "POST" or "PUT" or "PATCH" or "DELETE" or "OPTIONS" or "TRACE" or "CONNECT" => context.Request.Method,
+                    _ => "OTHER"
+                };
+                LogRequest(logger, method, route, statusCode, outcome, context.Response.HasStarted, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            }
+        }
     }
 
     [LoggerMessage(5000, LogLevel.Information,
-        "HTTP request {RequestMethod} {RouteTemplate} responded {StatusCode} in {ElapsedMilliseconds:0.0000} ms")]
-    private static partial void LogRequest(ILogger logger, string requestMethod, string routeTemplate, int statusCode, double elapsedMilliseconds);
+        "HTTP request {RequestMethod} {RouteTemplate} completed with {Outcome}, diagnostic status {StatusCode}, response started {ResponseStarted}, in {ElapsedMilliseconds:0.0000} ms")]
+    private static partial void LogRequest(ILogger logger, string requestMethod, string routeTemplate, int statusCode, string outcome, bool responseStarted, double elapsedMilliseconds);
 }
