@@ -32,15 +32,15 @@ cli="$feature_test_root/tools/trykatch"
 "$cli" doctor | tee "$feature_test_root/doctor.txt"
 "$cli" setup | tee "$feature_test_root/setup.txt"
 "$cli" status | tee "$feature_test_root/status.txt"
-rg -q 'Runtime health: unknown' "$feature_test_root/status.txt"
+grep -Fq -- 'Runtime health: unknown' "$feature_test_root/status.txt"
 create_args=(module create Equipment --entity EquipmentItem --resource equipment_items --ownership organization
   --fields 'name:string:required:max(120),dailyRate:decimal:required')
 if [[ $mode == web ]]; then create_args+=(--with-web); fi
 "$cli" "${create_args[@]}" \
   | tee "$feature_test_root/create.txt"
-rg -q "Module 'equipment' created, registered, and enabled" "$feature_test_root/create.txt"
-rg -q 'Running generated unit tests' "$feature_test_root/create.txt"
-rg -q 'Running generated architecture tests' "$feature_test_root/create.txt"
+grep -Fq -- "Module 'equipment' created, registered, and enabled" "$feature_test_root/create.txt"
+grep -Fq -- 'Running generated unit tests' "$feature_test_root/create.txt"
+grep -Fq -- 'Running generated architecture tests' "$feature_test_root/create.txt"
 "$cli" module facts equipment | tee "$feature_test_root/facts.txt"
 "$cli" module doctor
 node --input-type=module - "$mode" <<'JAVASCRIPT'
@@ -89,8 +89,8 @@ assert.match(report, /testName="EveryDeclaredOrganizationRelationIsDefaultDenyUn
 assert.match(report, /<Counters\b[^>]*total="1"[^>]*executed="1"[^>]*passed="1"/);
 JAVASCRIPT
 if [[ $mode == web ]]; then
-  rg -q 'Installing frontend dependencies' "$feature_test_root/create.txt"
-  rg -q 'Building the frontend' "$feature_test_root/create.txt"
+  grep -Fq -- 'Installing frontend dependencies' "$feature_test_root/create.txt"
+  grep -Fq -- 'Building the frontend' "$feature_test_root/create.txt"
   corepack pnpm --dir web generate:check
 else
   test ! -e web
