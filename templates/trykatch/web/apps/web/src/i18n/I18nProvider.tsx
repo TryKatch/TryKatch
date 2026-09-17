@@ -6,6 +6,14 @@ export type AppLocale = 'en' | 'fr'
 const STORAGE_KEY = 'trykatch-locale'
 
 const frenchMessages: Record<string, string> = {
+  'Selected only': 'Sélection uniquement',
+  'Open a module to choose permissions. Search reveals matching permissions automatically.': 'Ouvrez un module pour choisir les permissions. La recherche affiche automatiquement les permissions correspondantes.',
+  'No permissions selected yet.': 'Aucune permission sélectionnée pour le moment.',
+  'Show all permissions': 'Afficher toutes les permissions',
+  '{selected} of {total} selected': '{selected} sur {total} sélectionnées',
+  'System roles are read-only. Create a custom role for tailored access.': 'Les rôles système sont en lecture seule. Créez un rôle personnalisé pour adapter les accès.',
+  'Built-in · read-only': 'Prédéfini · lecture seule',
+  'Outside your grant boundary': 'Hors de votre périmètre d’attribution',
   'Set up MFA': 'Configurer l’authentification à deux facteurs',
   'Replace authenticator': 'Remplacer l’authentificateur',
   'Regenerate recovery codes': 'Régénérer les codes de récupération',

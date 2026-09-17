@@ -22,6 +22,14 @@ Le rôle d’exécution de la base de données ne peut ni posséder les tables n
 
 Les modules qui enregistrent des données doivent également respecter le [contrat d’isolation des données des modules](/fr/architecture/module-data-isolation/) exécutable de Trykatch. Ce contrat valide les modèles EF Core, les politiques PostgreSQL, les rôles d’exécution et le comportement inter-organisation avant toute livraison.
 
+## Vérifier les rôles de l’organisation
+
+Ouvrez **Gestion des utilisateurs → Rôles** pour consulter les rôles système ou créer un rôle personnalisé. Les rôles système sont en lecture seule ; les rôles personnalisés hors de votre périmètre d’attribution ne peuvent pas être modifiés.
+
+Dans l’éditeur, développez un module pour consulter ses permissions. La recherche ouvre les modules correspondants et **Sélection uniquement** permet de vérifier les droits avant l’enregistrement sans perdre les autres sélections. Chaque module affiche le nombre de permissions sélectionnées. Les droits sensibles restent signalés et les permissions que vous ne pouvez pas accorder sont désactivées. Les commandes de sélection s’appliquent aux permissions actuellement visibles.
+
+Ces contrôles facilitent le choix des droits ; le serveur reste responsable de l’application des autorisations.
+
 ## L’accès plateforme est séparé
 
 Les administrateurs de plateforme et les opérateurs de support utilisent des rôles et permissions propres à la plateforme. Les rôles d’organisation n’accordent jamais de privilège plateforme, et les noms de permissions plateforme sont validés par leur propre catalogue défini dans le code.
