@@ -1,5 +1,6 @@
 import type { StorybookConfig } from '@storybook/react-vite'
 import tailwindcss from '@tailwindcss/vite'
+import { fileURLToPath } from 'node:url'
 
 const config: StorybookConfig = {
   stories: [
@@ -14,7 +15,7 @@ const config: StorybookConfig = {
   staticDirs: ['../public'],
   async viteFinal(config) {
     // Do not inherit the web application's API proxy or production entrypoint.
-    return { ...config, plugins: [...(config.plugins ?? []), tailwindcss()], server: { ...config.server, proxy: {} } }
+    return { ...config, plugins: [...(config.plugins ?? []), tailwindcss()], server: { ...config.server, proxy: {}, fs: { ...config.server?.fs, allow: [fileURLToPath(new URL('../../../../', import.meta.url))] } } }
   },
 }
 export default config
