@@ -2,6 +2,8 @@
 
 First check for `web/package.json`. Backend-only applications do not have the host, SDK workspace, or frontend toolchain; skip frontend commands there. A module-local `Web` directory alone does not mean a web host is installed.
 
+Every frontend task starts by consulting [Storybook](../storybook.md) and relevant colocated stories. Use actual components and brand tokens as the reference; maintain stories for changed visual behavior and applicable validation, loading, empty, error, denied and conflict states. Check affected interactions and accessibility plus light/dark, English/French and relevant responsive layouts. Catalogue checks do not replace backend or real application checks.
+
 Read [frontend architecture](../frontend-architecture.md) and the web sections of [module authoring](../modules.md). Then inspect actual exports and reference code:
 
 - `web/packages/module-sdk/src/index.ts` and `extensions.tsx`: module, route, navigation, and extension contracts.
@@ -15,6 +17,8 @@ Use a module's declared entrypoint rather than assuming all `Web` packages have 
 Use the generated API client and existing authentication/antiforgery helpers. Check client exports before choosing an import. Browser storage must not contain access or refresh tokens. UI permissions control affordances; the API remains responsible for authorization.
 
 Keep business constraints on the server and expose useful validation errors. Reuse `DataTable` behavior and existing form/dialog components. Include loading, empty, error, denied, and conflict states where relevant. Preserve user input on conflicting updates, and do not blindly retry a write with a newer version. User-facing module messages need English and French entries in the existing message catalog shape.
+
+Use shared `FloatingInput` and `FloatingTextarea` from the UI package for floating text controls. Their associated labels, error links and focus styles are documented in **Forms → Floating fields**. Keep visible labels on native selects/file inputs. Zod improves immediate feedback; application-layer validators and domain rules remain authoritative.
 
 Use server filtering/pagination for unbounded records. Keep decimal/64-bit integer API values as strings and normalize dates with the existing helpers. Recoverable modules use the Archive extension surface; ordinary lists show active records.
 

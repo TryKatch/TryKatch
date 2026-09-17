@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { customFetch, setAntiforgeryToken } from '@trykatch/api-client'
-import { Button, PasswordField } from '@trykatch/ui'
+import { Button, FloatingInput, PasswordField } from '@trykatch/ui'
 import { ProductLogo } from '../components/ProductLogo'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
 import { useI18n } from '../i18n/I18nProvider'
@@ -114,7 +114,7 @@ export function LoginPage({ navigate = path => window.location.assign(path) }: L
         <Button variant="primary" type="submit" disabled={busy}>{t(busy ? 'Verifying…' : 'Verify and continue')}</Button>
         <Button type="button" variant="ghost" onClick={() => setMfaRequired(false)}>{t('Use a different account')}</Button>
       </form> : <form onSubmit={submitPassword}>
-        <label>{t('Email address')}<input name="email" type="email" autoComplete="email" required /></label>
+        <FloatingInput label={t('Email address')} name="email" type="email" autoComplete="email" required disabled={busy} />
         <PasswordField label={t('Password')} name="password" autoComplete="current-password" visibilityLabel={t('Password').toLowerCase()} showLabel={t('Show')} hideLabel={t('Hide')} required />
         <div className="auth-form-options"><label className="checkbox"><input name="remember" type="checkbox" /> {t('Keep me signed in')}</label><a className="text-button" href="/forgot-password">{t('Forgot password?')}</a></div>
         {error && <div className="form-error" role="alert">{error}</div>}

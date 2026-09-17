@@ -27,9 +27,19 @@ export const SavingFailed: Story = {
   play: async (context) => {
     await CreateForm.play!(context)
     const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole('dialog'))
-    await userEvent.type(dialog.getByRole('textbox', { name: 'Project name' }), 'Delivery programme')
-    await userEvent.click(dialog.getByRole('button', { name: 'Create project' }))
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Name' }), 'Delivery programme')
+    await userEvent.click(dialog.getByRole('button', { name: 'Save project' }))
     await expect(await dialog.findByText('Save failed. Your input is preserved.')).toBeVisible()
+  },
+}
+export const RequiredNameValidation: Story = {
+  play: async (context) => {
+    await CreateForm.play!(context)
+    const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole('dialog'))
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Name' }), '   ')
+    await userEvent.click(dialog.getByRole('button', { name: 'Save project' }))
+    await expect(dialog.getByRole('alert')).toHaveTextContent('Project name is required.')
+    await expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveAttribute('aria-invalid', 'true')
   },
 }
 export const Dark: Story = { globals: { theme: 'dark' } }

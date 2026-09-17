@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { Badge } from './primitives'
 import { DataTable, DeleteConfirmationDialog, DirtyFormBar, FilterBar, PageHeader, RowActions, type DataTableColumn } from './patterns'
 
@@ -61,7 +61,10 @@ export const ClientPagination: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Next' }))
     await expect(canvas.getByText('Showing 5–5 of 5')).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Next' })).toBeDisabled()
-    await userEvent.type(canvas.getByRole('searchbox', { name: 'Search table' }), 'Amina')
+    const search = canvas.getByRole('searchbox', { name: 'Search…' })
+    await userEvent.type(search, 'Amina')
+    const label = canvas.getByText('Search…', { selector: 'label' })
+    await waitFor(() => expect(label.getBoundingClientRect().top).toBeLessThan(search.getBoundingClientRect().top))
     await expect(canvas.getByText('Page 1 of 2')).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: /^Project/ }))
     await expect(canvas.getAllByRole('row')[1]).toHaveTextContent('Delta')
@@ -87,6 +90,23 @@ export const Compact: Story = { render: () => <DataTable ariaLabel="Compact proj
 export const Spacious: Story = { render: () => <DataTable ariaLabel="Spacious projects" data={rows} columns={columns} getRowId={(row) => row.id} initialDensity="spacious" /> }
 export const RowActionMenu: Story = { render: () => <RowActions label="Actions for Atlas" actions={(['view', 'edit', 'archive', 'restore', 'revoke', 'delete'] as const).map((icon) => ({ icon, label: icon, onSelect: () => undefined, danger: icon === 'delete', disabled: icon === 'revoke' }))} /> }
 export const PageAndFilters: Story = { render: () => <><PageHeader eyebrow="Application" title="Projects" description="Organization-owned work." /><FilterBar placeholder="Search projects…"><Badge tone="info">Active records</Badge></FilterBar></> }
+export const SearchFilterDropdown: Story = {
+  render: () => {
+    const [activeOnly, setActiveOnly] = useState(false)
+    return <DataTable ariaLabel="Filtered projects" data={activeOnly ? rows.filter((row) => row.status === 'Active') : rows} columns={columns} getRowId={(row) => row.id} searchFilters={<div className="search-filter-options"><label><input type="checkbox" checked={activeOnly} onChange={(event) => setActiveOnly(event.target.checked)} /><span>Active only</span><small>1</small></label></div>} />
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Filters' }))
+    const filters = within(within(canvasElement.ownerDocument.body).getByRole('dialog', { name: 'Filters' }))
+    await userEvent.click(filters.getByRole('checkbox', { name: /Active only/ }))
+    await expect(canvas.getByRole('table', { name: 'Filtered projects' })).toHaveTextContent('Atlas')
+    await expect(canvas.queryByText('Horizon')).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(canvas.getByRole('button', { name: 'Table settings' }))
+    await expect(within(canvasElement.ownerDocument.body).getByRole('dialog', { name: 'Table settings' })).toBeVisible()
+  },
+}
 export const UnsavedChanges: Story = { render: () => <DirtyFormBar visible onSave={() => undefined} onDiscard={() => undefined} /> }
 function DeleteExample() {
   const [open, setOpen] = useState(true)

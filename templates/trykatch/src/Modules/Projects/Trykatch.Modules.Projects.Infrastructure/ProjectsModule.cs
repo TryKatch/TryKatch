@@ -134,5 +134,6 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
         services.AddSingleton<IApplicationModelContributor, ProjectsModelContributor>();
         services.AddScoped<IWorkspaceOverviewMetricProvider, ProjectsOverviewMetricProvider>();
         services.AddSingleton<IValidator<CreateProjectCommand>, CreateProjectValidator>();
+        services.AddSingleton<IValidator<UpdateProjectCommand>, UpdateProjectValidator>();
     }
 }

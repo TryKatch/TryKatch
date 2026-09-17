@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Button, Dialog } from './primitives'
+import { FloatingInput } from './FloatingField'
+import { SearchField } from './SearchField'
 
 export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode }) {
   return <header className="page-header"><div>{eyebrow && <div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1>{description && <p>{description}</p>}</div><div className="page-actions">{actions}</div></header>
@@ -7,7 +9,11 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
 
 export function FilterBar({ placeholder = 'Filter…', children, ...inputProps }: InputHTMLAttributes<HTMLInputElement> & { children?: ReactNode }) {
   const inputId = useId()
-  return <div className="filter-bar"><label className="sr-only" htmlFor={inputId}>Filter collection</label><input {...inputProps} id={inputId} type="search" placeholder={placeholder} /><div className="filter-actions">{children}</div></div>
+  return <div className="filter-bar"><FloatingInput {...inputProps} id={inputId} label={inputProps['aria-label'] ?? placeholder} type="search" leadingIcon={<SearchIcon />} /><div className="filter-actions">{children}</div></div>
+}
+
+function SearchIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
 }
 
 export function DirtyFormBar({ visible, onSave, onDiscard }: { visible: boolean; onSave(): void; onDiscard(): void }) {
@@ -140,6 +146,7 @@ export interface DataTableProps<T> {
   getRowId(row: T): string
   searchable?: boolean
   searchPlaceholder?: string
+  searchFilters?: ReactNode
   initialSort?: { id: string; direction: DataTableSortDirection }
   initialDensity?: DataTableDensity
   toolbar?: ReactNode
@@ -151,6 +158,8 @@ export interface DataTableProps<T> {
 }
 
 export interface DataTableLabels {
+  filters?: string
+  closeFilters?: string
   searchTable: string
   result: string
   results: string
@@ -196,6 +205,7 @@ export function DataTable<T>({
   getRowId,
   searchable = true,
   searchPlaceholder = 'Search…',
+  searchFilters,
   initialSort,
   initialDensity = 'comfortable',
   toolbar,
@@ -300,7 +310,7 @@ export function DataTable<T>({
 
   return <div className={`data-table data-table-${density}`}>
     <div className="data-table-toolbar">
-      {searchable && <label className="data-table-search" htmlFor={searchId}><span aria-hidden="true">⌕</span><span className="sr-only">{labels.searchTable}</span><input id={searchId} type="search" value={search} placeholder={searchPlaceholder} onChange={(event) => { setSearch(event.target.value); setPage(1); setExpandedRowId(undefined) }} /></label>}
+      {searchable && <div className="data-table-search"><SearchField id={searchId} label={searchPlaceholder} filters={searchFilters} filterLabel={labels.filters} closeFiltersLabel={labels.closeFilters} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); setExpandedRowId(undefined) }} /></div>}
       {toolbar && <div className="data-table-filters">{toolbar}</div>}
       <div className="data-table-actions">
         <span className="data-table-count" aria-live="polite">{rows.length} {rows.length === 1 ? labels.result : labels.results}</span>

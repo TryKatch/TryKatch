@@ -22,6 +22,21 @@ const modules: PermissionModule[] = [
 ]
 
 describe('RoleEditorDialog', () => {
+  it('explains invalid fields without saving and lets the user correct them', () => {
+    const onSave = vi.fn()
+    render(<RoleEditorDialog open modules={modules} isLoading={false} isSaving={false} onOpenChange={vi.fn()} onSave={onSave} />)
+    const name = screen.getByRole('textbox', { name: 'Role name' })
+    fireEvent.change(name, { target: { value: '   ' } })
+    fireEvent.submit(name.closest('form')!)
+    expect(screen.getByRole('alert')).toHaveTextContent('Role names must contain 1-80 characters.')
+    expect(name).toHaveAttribute('aria-invalid', 'true')
+    expect(onSave).not.toHaveBeenCalled()
+    fireEvent.change(name, { target: { value: '  Project operator  ' } })
+    fireEvent.submit(name.closest('form')!)
+    expect(onSave).toHaveBeenCalledWith({ name: 'Project operator', description: '', permissions: [] })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('filters backend catalog metadata and selects a module accessibly', async () => {
     const onSave = vi.fn()
     render(<RoleEditorDialog open role={null} modules={modules} isLoading={false} isSaving={false} onOpenChange={vi.fn()} onSave={onSave} />)

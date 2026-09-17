@@ -34,6 +34,7 @@ const preview: Preview = {
   initialGlobals: { theme: 'light', locale: 'en' },
   parameters: {
     layout: 'padded',
+    options: { storySort: { order: ['Welcome', 'Foundations', 'Buttons', 'Forms', 'DataTables', 'Feedback', 'Application UI', 'Module UI'] } },
     a11y: { test: 'error' },
     viewport: { options: {
       phone: { name: 'Phone 320px', styles: { width: '320px', height: '800px' } },

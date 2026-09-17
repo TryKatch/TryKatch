@@ -1,0 +1,18 @@
+.floating-field-action { position: absolute; top: var(--floating-label-rest, 19px); right: 3px; transform: translateY(-50%); display: flex; }
+.floating-field .floating-control:has(.floating-field-action) > input { padding-right: 38px; }
+.floating-field .floating-control:has(.floating-field-action) > label { max-width: calc(100% - 78px); }
+.search-filter-trigger, .search-filter-close { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius); color: var(--muted); background: transparent; cursor: pointer; }
+.search-filter-trigger:hover, .search-filter-trigger[data-state="open"], .search-filter-close:hover { color: var(--text); background: var(--hover); }
+.search-filter-trigger:focus-visible, .search-filter-close:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.search-filter-trigger:disabled { opacity: .5; cursor: not-allowed; }
+.search-filter-popover { position: fixed; z-index: 60; overflow-y: auto; overscroll-behavior: contain; color: var(--text); background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: 0 12px 36px rgb(0 0 0 / 20%); }
+.search-filter-popover > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.search-filter-popover > header > h2 { margin: 0; font-size: 12px; font-weight: 650; }
+.search-filter-close { font-size: 19px; }
+.search-filter-options > label { min-height: 38px; display: flex; align-items: center; gap: 9px; padding: 8px 12px; cursor: pointer; font-size: 12px; }
+.search-filter-options > label:hover { background: var(--hover); }
+.search-filter-options input { width: 14px; height: 14px; flex: none; accent-color: var(--accent); }
+.search-filter-options small { margin-left: auto; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.search-filter-select-all { border-bottom: 1px solid var(--line); font-weight: 650; }
+.search-filter-content { display: grid; gap: 10px; padding: 12px; }
+.search-filter-content > * { min-width: 0; max-width: 100%; }

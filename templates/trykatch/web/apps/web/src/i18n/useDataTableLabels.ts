@@ -4,6 +4,8 @@ import { useI18n } from './I18nProvider'
 export function useDataTableLabels(): DataTableLabels {
   const { t } = useI18n()
   return {
+    filters: t('Filters'),
+    closeFilters: t('Close filters'),
     searchTable: t('Search table'),
     result: t('result'),
     results: t('results'),
