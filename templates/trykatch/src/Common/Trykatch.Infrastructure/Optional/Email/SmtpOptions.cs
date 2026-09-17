@@ -27,7 +27,11 @@ public sealed class SmtpOptions
             if (isDevelopment)
             {
                 if (string.IsNullOrWhiteSpace(options.Host)) options.Host = "localhost";
-                if (string.IsNullOrWhiteSpace(options.From)) options.From = "Trykatch <noreply@localhost>";
+                if (string.IsNullOrWhiteSpace(options.From))
+                {
+                    string name = configuration["Email:Branding:ApplicationName"] ?? new EmailBrandingOptions().ApplicationName;
+                    options.From = new MailboxAddress(name, "noreply@localhost").ToString();
+                }
                 options.Security ??= SmtpTransportSecurity.StartTls;
             }
             if (string.IsNullOrWhiteSpace(options.Host) || options.Host.Any(char.IsWhiteSpace) || options.Port is < 1 or > 65535 ||

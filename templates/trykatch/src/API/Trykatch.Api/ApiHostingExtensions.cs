@@ -16,6 +16,10 @@ using Trykatch.Infrastructure;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 using Trykatch.Modules.AspNetCore;
+using Trykatch.Modules.AspNetCore.Assistant;
+using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Trykatch.Api;
 
@@ -98,9 +102,33 @@ internal static class ApiHostingExtensions
         builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
         builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
         builder.Services.AddScoped<IAuthorizationHandler, PlatformPermissionAuthorizationHandler>();
+        builder.Services.AddOptions<AssistantOptions>().BindConfiguration("Assistant")
+            .Validate(AssistantProviders.IsValid,
+                "Enabled assistant requires a supported provider, explicit model and valid provider-specific server settings.")
+            .ValidateOnStart();
+        builder.Services.AddScoped<AssistantRuntime>();
+        builder.Services.AddSingleton<AssistantKnowledge>();
+        builder.Services.AddScoped<AssistantConversationTokens>();
+        builder.Services.TryAddSingleton(TimeProvider.System);
+        // Explicit opt-in to the .NET resilience-removal API: a paid provider POST must not
+        // inherit ServiceDefaults' retries/hedging. Test the protocol through a fake provider.
+#pragma warning disable EXTEXP0001
+        builder.Services.AddHttpClient("assistant-provider")
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+            .RemoveAllResilienceHandlers();
+#pragma warning restore EXTEXP0001
+        builder.Services.AddScoped<Microsoft.Extensions.AI.IChatClient>(services => AssistantProviders.Create(
+            services.GetRequiredService<IHttpClientFactory>().CreateClient("assistant-provider"),
+            services.GetRequiredService<Microsoft.Extensions.Options.IOptions<AssistantOptions>>()));
+        builder.Services.AddSingleton<AssistantRequestLimits>();
+        builder.Services.AddOptions<RateLimiterOptions>().Configure<AssistantRequestLimits>((options, limits) => options.GlobalLimiter = limits.Limiter);
         builder.Services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy("assistant", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous",
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
             options.AddPolicy("account-security", context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
@@ -130,17 +158,6 @@ internal static class ApiHostingExtensions
                         Window = TimeSpan.FromMinutes(5),
                         QueueLimit = 0
                     }));
-            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    context.User.Identity?.Name
-                    ?? context.Connection.RemoteIpAddress?.ToString()
-                    ?? "anonymous",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 120,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueLimit = 0
-                    }));
         });
         builder.Services.AddTrustedForwardedHeaders(builder.Configuration);
         builder.Services.AddHealthChecks()
@@ -155,6 +172,7 @@ internal static class ApiHostingExtensions
         this WebApplication app,
         bool isOpenApiGeneration)
     {
+        _ = app.Services.GetRequiredService<AssistantKnowledge>();
         if (isOpenApiGeneration)
         {
             return;

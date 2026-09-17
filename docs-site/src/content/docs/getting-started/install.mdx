@@ -30,7 +30,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.26
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.28
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -67,7 +67,7 @@ Creation shows a live spinner, numbered step and elapsed time during option vali
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.26
+dotnet new install Trykatch.Templates@0.1.0-preview.28
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -84,7 +84,7 @@ Names containing dots and hyphens are normalized for C# namespaces, directories,
 Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.26
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.28
 trykatch update
 ```
 
@@ -100,7 +100,7 @@ When NuGet reports an unexpected EOF or an empty transport stream, Trykatch cond
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.26
+trykatch update --version 0.1.0-preview.28
 ```
 
 The .NET template engine can remove the previous template before a forced update finishes. Retrying the Trykatch command restores the template; applications you already generated are not affected.
@@ -153,6 +153,14 @@ trykatch new Horizon \
 ```
 
 ## Explore available commands
+
+Choose the customer-facing brand separately from the technical project name:
+
+```bash
+trykatch new Kamenta.App --display-name "Kamenta" --email true
+```
+
+`--display-name` defaults to **Trykatch**, independently of dotted namespaces. The generated UI and email brand use this name. Later overrides use `VITE_APPLICATION_NAME` for the web build and `Email:Branding:ApplicationName` for email; keep the verified production sender's `Email:From` display name consistent. See the generated `docs/branding.md` and `docs/branding.fr.md`.
 
 Use the CLI's focused help commands:
 

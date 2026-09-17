@@ -1,3 +1,4 @@
+import { applicationName } from '../branding'
 import { customFetch } from '@trykatch/api-client'
 import { Button, PasswordField } from '@trykatch/ui'
 import { useState, type FormEvent } from 'react'
@@ -40,7 +41,7 @@ export function ResetPasswordPage() {
 
   return <main className="auth-page">
     <div className="auth-language"><LanguageSwitcher compact /></div>
-    <a className="auth-brand" href="/login" aria-label={`Trykatch · ${t('Sign in')}`}><span className="brand-mark"><ProductLogo size={17} /></span><strong>Trykatch</strong></a>
+    <a className="auth-brand" href="/login" aria-label={`${applicationName} · ${t('Sign in')}`}><span className="brand-mark"><ProductLogo size={17} /></span><strong>{applicationName}</strong></a>
     <section className="auth-card">
       {complete ? <div className="recovery-complete" role="status">
         <h1>{t('Password updated')}</h1>

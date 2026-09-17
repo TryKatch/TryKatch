@@ -59,6 +59,10 @@ For `--email true`, set `Email:Host`, `Port`, `From`, and explicit `Security` to
 
 Compose uses `TRYKATCH_SMTP_*`; authenticated relays need a separately mounted password file and `TRYKATCH_SMTP_PASSWORD_FILE` pointing to its container path. AppHost run mode alone starts Mailpit with explicit `None` at the allocated development endpoint. No-email generation retains no-op notifications. Delivery errors omit SMTP replies, MIME content, credentials, and recovery URLs.
 
+Invitations and password resets share branded HTML with inline styles, an action button, a fallback URL and plain-text alternatives. Invitations include the selected role's friendly name. Defaults follow the generated application name and the frontend's blue/neutral styling. Override `Email:Branding:ApplicationName`, `AccentColor` (six-digit hex), and optional `LogoUrl` (HTTPS without embedded credentials); environment variables use double underscores. Configure these alongside your frontend branding, not a recipient's personal theme. Dynamic text is HTML-encoded and invalid branding fails startup.
+
+Use Mailpit for local capture, and a compatible SMTP service for deployment. For a free-tier example, [SMTP2GO](https://support.smtp2go.com/hc/en-gb/articles/223087627-SMTP-Settings) uses `mail.smtp2go.com:587`, `Security=StartTls`, a verified sender and server-side SMTP-user credentials. Check its [current monthly/daily limits](https://support.smtp2go.com/hc/en-gb/articles/223087947-Free-Plan). Disable link tracking for invitation/reset links. Qualify sender-domain authentication, limits, bounces and real delivery separately; this adapter does not automatically provision a provider account.
+
 ## Release gates
 
 Local regressions exercise real HTTP, PostgreSQL key XML, the migrator process, restart/rotation/backup restore, concurrent maintenance and rollback. Loopback SMTP tests use real TLS with a per-client fixture-only CA; machine trust is unchanged. Qualify the target Linux image as a non-root user with a read-only filesystem and real secret mounts, actual relay trust, multi-replica rollout, backup/PITR restore, and maintenance downtime before production.

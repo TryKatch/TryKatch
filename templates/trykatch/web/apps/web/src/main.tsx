@@ -6,6 +6,9 @@ import { router } from './router'
 import { I18nProvider } from './i18n/I18nProvider'
 import { applyAppearance, defaultShellColor, type Theme } from './shell/appearance'
 import './styles.css'
+import { applicationName } from './branding'
+
+document.title = applicationName
 
 const storedTheme = localStorage.getItem('trykatch-theme')
 const theme: Theme = storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'custom' || storedTheme === 'system' ? storedTheme : 'system'

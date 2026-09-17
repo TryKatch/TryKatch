@@ -7,6 +7,7 @@ public interface IInvitationNotifier
     Task SendOrganizationInvitationAsync(
         string recipient,
         string organizationName,
+        string roleName,
         string invitationUrl,
         CancellationToken cancellationToken = default);
 }

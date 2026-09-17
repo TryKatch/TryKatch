@@ -27,6 +27,7 @@ grep -Fq '"author": "Trykatch contributors"' "$template_manifest" ||
 
 source "$repository_root/scripts/lib/qualification-packages.sh"
 prepare_qualification_packages "$test_root/package"
+bash "$repository_root/scripts/test-display-brand.sh" "$qualification_template_package"
 dotnet new --debug:custom-hive "$template_hive" install "$qualification_template_package" --force
 install_qualification_cli "$test_root"
 "$test_root/tools/trykatch" --help >/dev/null

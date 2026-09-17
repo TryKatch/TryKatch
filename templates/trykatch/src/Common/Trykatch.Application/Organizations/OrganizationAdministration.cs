@@ -8,6 +8,7 @@ using Trykatch.Application.Common;
 using Trykatch.Application.Identity;
 using Trykatch.Domain.Organizations;
 using FluentValidation;
+using Trykatch.Domain.Common;
 
 namespace Trykatch.Application.Organizations;
 
@@ -15,7 +16,7 @@ public sealed record RoleDto(Guid Id, string Name, string Description, bool IsSy
 public sealed record PermissionOptionDto(string Key, string Name, string Description, bool IsSensitive, bool CanGrant);
 public sealed record PermissionModuleDto(string Key, string Name, string Description, IReadOnlyList<PermissionOptionDto> Permissions);
 public sealed record MemberDto(Guid Id, Guid UserId, string Email, string DisplayName, string Status, DateTimeOffset JoinedAt, IReadOnlyList<RoleDto> Roles, RecordLifecycleDto Lifecycle);
-public sealed record InvitationDto(Guid Id, string Email, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, string Status, RecordLifecycleDto Lifecycle);
+public sealed record InvitationDto(Guid Id, string Email, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, string Status, RecordLifecycleDto Lifecycle, Guid RoleId);
 public sealed record AuditActorDto(Guid Id, string DisplayName, string Email);
 public sealed record AuditTargetDto(string Type, string Id, string DisplayName);
 public sealed record AuditDto(
@@ -41,9 +42,9 @@ public sealed record AuditPageDto(
     int PageSize,
     long TotalCount,
     AuditFilterOptionsDto Filters);
-public sealed record CreateInvitationCommand(string Email, int ExpiresInDays = 7);
+public sealed record CreateInvitationCommand(string Email, int ExpiresInDays = 7, Guid? RoleId = null);
 public sealed record UpdateInvitationCommand(int ExpiresInDays);
-public sealed record CreateInvitationResult(InvitationDto Invitation, string OrganizationName, string Token);
+public sealed record CreateInvitationResult(InvitationDto Invitation, string OrganizationName, string Token, string RoleName);
 public sealed record InvitationPreviewDto(string Email, string OrganizationName, DateTimeOffset ExpiresAt);
 public sealed record SaveRoleCommand(Guid? Id, string Name, string Description, IReadOnlyList<string> Permissions);
 public sealed record UpdateMembershipCommand(Guid MembershipId, IReadOnlyList<Guid> RoleIds, bool IsActive);
@@ -97,7 +98,11 @@ public sealed class OrganizationAdministration(
     {
         if (!await authorizer.HasPermissionAsync(Permissions.RolesRead, cancellationToken))
             return Forbidden<IReadOnlyList<RoleDto>>("Roles cannot be viewed by this membership.");
-        return Result.Success<IReadOnlyList<RoleDto>>((await store.ListRolesAsync(context.OrganizationId, lifecycle, cancellationToken)).Select(ToRoleDto).ToArray());
+        IReadOnlyList<Role> roles = await store.ListRolesAsync(context.OrganizationId, lifecycle, cancellationToken);
+        Membership? actor = await store.FindMembershipForUserAsync(context.OrganizationId, context.ActorId, cancellationToken);
+        bool isOwner = roles.Any(role => role.LifecycleState == RecordLifecycleState.Active
+            && OrganizationManagementAuthorization.IsOwner(role) && actor?.Roles.Any(link => link.RoleId == role.Id) == true);
+        return Result.Success<IReadOnlyList<RoleDto>>(roles.Select(role => ToRoleDto(role, isOwner)).ToArray());
     }
 
     public async Task<Result<RoleDto>> GetRoleAsync(Guid roleId, CancellationToken cancellationToken)
@@ -284,19 +289,22 @@ public sealed class OrganizationAdministration(
         if (await store.UsableInvitationExistsAsync(context.OrganizationId, email, now, cancellationToken))
             return Result.Failure<CreateInvitationResult>("conflict", "A usable invitation already exists for that email.");
 
-        Role? memberRole = (await store.ListRolesAsync(context.OrganizationId, RecordLifecycleFilter.Active, cancellationToken)).SingleOrDefault(x => x.Name == "Member" && x.IsSystem);
-        if (memberRole is null) return Result.Failure<CreateInvitationResult>("configuration", "The organization Member role is missing.");
-        if (!authorization.Value!.CanManage([memberRole]))
+        IReadOnlyList<Role> activeRoles = await store.ListRolesAsync(context.OrganizationId, RecordLifecycleFilter.Active, cancellationToken);
+        Role? invitedRole = command.RoleId is Guid roleId
+            ? activeRoles.SingleOrDefault(role => role.Id == roleId)
+            : activeRoles.SingleOrDefault(role => role.Name == "Member" && role.IsSystem);
+        if (invitedRole is null) return Result.Failure<CreateInvitationResult>("validation", "Choose an active role in this organization.");
+        if (!authorization.Value!.CanManage([invitedRole]))
             return Forbidden<CreateInvitationResult>("You cannot invite a member whose access exceeds your authority.");
         Organization? organization = await store.FindOrganizationAsync(context.OrganizationId, cancellationToken);
         if (organization is null || !organization.IsActive)
             return Result.Failure<CreateInvitationResult>("configuration", "The destination workspace is not available.");
         string token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
-        Invitation invitation = Invitation.Create(context.OrganizationId, memberRole.Id, email, HashToken(token), now.AddDays(command.ExpiresInDays));
+        Invitation invitation = Invitation.Create(context.OrganizationId, invitedRole.Id, email, HashToken(token), now.AddDays(command.ExpiresInDays));
         await store.AddInvitationAsync(invitation, cancellationToken);
         auditWriter.Record(AuditActions.InvitationCreated, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email));
         await store.SaveChangesAsync(cancellationToken);
-        return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), organization.Name, token));
+        return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), organization.Name, token, invitedRole.Name));
     }
 
     public async Task<Result<InvitationDto>> UpdateInvitationAsync(Guid invitationId, UpdateInvitationCommand command, CancellationToken cancellationToken)
@@ -508,12 +516,13 @@ public sealed class OrganizationAdministration(
         return Result.Success(true);
     }
 
-    private RoleDto ToRoleDto(Role role) => new(
+    private RoleDto ToRoleDto(Role role, bool isOwner = false) => new(
         role.Id,
         role.Name,
         role.Description,
         role.IsSystem,
-        role.Permissions.All(grant => context.Permissions.Contains(grant.Permission)),
+        (!OrganizationManagementAuthorization.IsOwner(role) || isOwner)
+            && role.Permissions.All(grant => context.Permissions.Contains(grant.Permission)),
         role.Permissions.Select(x => x.Permission).Order().ToArray(),
         RecordLifecycle.ToDto(role));
     private MemberDto ToMemberDto(Membership membership, IReadOnlyList<Role> roles, UserSummary? profile) => new(
@@ -523,7 +532,7 @@ public sealed class OrganizationAdministration(
         profile?.DisplayName ?? "Unknown user",
         membership.Status.ToString(),
         membership.JoinedAt,
-        roles.Where(role => membership.Roles.Any(link => link.RoleId == role.Id)).Select(ToRoleDto).ToArray(),
+        roles.Where(role => membership.Roles.Any(link => link.RoleId == role.Id)).Select(role => ToRoleDto(role)).ToArray(),
         RecordLifecycle.ToDto(membership));
     private static InvitationDto ToInvitationDto(Invitation invitation) => new(
         invitation.Id,
@@ -531,7 +540,7 @@ public sealed class OrganizationAdministration(
         invitation.CreatedAt,
         invitation.ExpiresAt,
         invitation.AcceptedAt is not null ? "Accepted" : invitation.RevokedAt is not null ? "Revoked" : invitation.ExpiresAt <= DateTimeOffset.UtcNow ? "Expired" : "Pending",
-        RecordLifecycle.ToDto(invitation));
+        RecordLifecycle.ToDto(invitation), invitation.RoleId);
     private static AuditDto ToAuditDto(AuditEntry entry, UserSummary? actor)
     {
         AuditEventDefinition definition = AuditEventDefinitions.Resolve(entry.Action);

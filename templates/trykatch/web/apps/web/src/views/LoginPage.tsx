@@ -1,3 +1,4 @@
+import { applicationName } from '../branding'
 import { useState, type FormEvent } from 'react'
 import { customFetch, setAntiforgeryToken } from '@trykatch/api-client'
 import { Button, FloatingInput, PasswordField } from '@trykatch/ui'
@@ -102,7 +103,7 @@ export function LoginPage({ navigate = path => window.location.assign(path) }: L
 
   return <main className="auth-page">
     <div className="auth-language"><LanguageSwitcher compact /></div>
-    <a className="auth-brand" href="/" aria-label={`Trykatch · ${t('Home')}`}><span className="brand-mark"><ProductLogo size={17} /></span><strong>Trykatch</strong></a>
+    <a className="auth-brand" href="/" aria-label={`${applicationName} · ${t('Home')}`}><span className="brand-mark"><ProductLogo size={17} /></span><strong>{applicationName}</strong></a>
     <section className="auth-card login-card">
       <h1>{t(mfaRequired ? 'Verify your identity' : 'Sign in')}</h1>
       <p>{t(mfaRequired ? 'Enter an authenticator or recovery code.' : 'Use your verified account to continue.')}</p>
