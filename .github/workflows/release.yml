@@ -77,6 +77,12 @@ jobs:
         run: |
           bash scripts/test-business-blueprint.sh backend
           bash scripts/test-business-blueprint.sh web
+      - name: Install the generated acceptance browser on this clean runner
+        run: |
+          # Runner images can carry an unrelated Chrome apt feed; it is not
+          # needed for Playwright's pinned Chromium and can break apt refresh.
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f -iname '*chrome*' -delete
+          pnpm --dir templates/trykatch/web --filter @trykatch/web exec playwright install --with-deps chromium
       - name: Qualify the candidate template in generated production containers
         run: bash scripts/test-generated-application.sh
       - name: Seal digests only after every required candidate gate succeeds
