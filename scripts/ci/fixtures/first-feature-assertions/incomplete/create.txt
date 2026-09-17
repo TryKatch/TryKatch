@@ -1,0 +1,4 @@
+Running generated unit tests
+Module 'equipment' created, registered, and enabled
+Installing frontend dependencies
+Building the frontend

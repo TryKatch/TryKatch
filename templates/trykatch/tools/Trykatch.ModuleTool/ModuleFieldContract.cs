@@ -70,7 +70,7 @@ internal static partial class ModuleFieldContract
         "archive", "restore", "requestDeletion", "record", "records", "access", "canManage", "editing",
         "viewing", "actionsFor", "columns", "failure", "activeRecords", "closeEditor", "openCreate",
         "openEdit", "queryClient", "save", "tableLabels", "t", "load", "loadResult", "value", "error",
-        "version", "expectedVersion", "ensureVersion", "page", "pageSize", "search", "sort", "refresh", "table", "isConflict",
+        "version", "expectedVersion", "ensureVersion", "page", "pageSize", "search", "sort", "refresh", "refreshScope", "table", "isConflict",
         "setPage", "setSearch", "setSort",
         "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",
         "class", "const", "continue", "decimal", "default", "delegate", "delete", "do", "double",

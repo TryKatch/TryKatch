@@ -39,7 +39,10 @@ assert_scope 'templates/trykatch/AGENTS.md' packaging true
 assert_scope 'scripts/test-development-skills.mjs' packaging true
 assert_scope 'scripts/test-development-skills.sh' packaging true
 assert_scope 'templates/trykatch/src/API/Trykatch.Api/Program.cs' backend true
-assert_scope 'templates/trykatch/src/API/Trykatch.Api/Program.cs' web false
+assert_scope 'templates/trykatch/src/API/Trykatch.Api/Program.cs' web true
+assert_scope '.github/workflows/release.yml' packaging true
+assert_scope 'scripts/lib/qualification-packages.sh' packaging true
+assert_scope 'scripts/release-artifacts.mjs' qualification true
 assert_scope 'templates/trykatch/.editorconfig' backend true
 assert_scope 'templates/trykatch/.editorconfig' qualification true
 assert_scope 'templates/trykatch/.future-template-setting' docs true

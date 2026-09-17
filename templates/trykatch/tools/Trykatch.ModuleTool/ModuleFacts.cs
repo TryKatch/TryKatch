@@ -32,7 +32,7 @@ public sealed partial class ModuleWorkspace
                     module.Manifest.Requires, module.Manifest.OptionalDependencies,
                     module.Manifest.Capabilities, module.Manifest.DataOwnership,
                     module.Manifest.Contributions,
-                    assistantExecution = "Descriptors are metadata; runtime requires an explicitly registered read adapter. Writes are disabled in v1."
+                    assistantExecution = "Descriptors are metadata, not executable configuration or authorization grants. Adapter execution is outside this discovery command."
                 }),
             guides = FactGuides
         }, JsonOptions);

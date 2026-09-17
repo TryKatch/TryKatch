@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CI=true
 
 repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 test_root=$(mktemp -d "${TMPDIR:-/tmp}/trykatch-template.XXXXXX")
@@ -24,19 +25,10 @@ grep -Fq '"groupIdentity": "Trykatch.Templates"' "$template_manifest" ||
 grep -Fq '"author": "Trykatch contributors"' "$template_manifest" ||
   fail 'the template author is not Trykatch contributors'
 
-dotnet pack "$repository_root/Trykatch.Templates.csproj" -c Release -o "$test_root/package"
-package_path=$(find "$test_root/package" -name 'Trykatch.Templates.*.nupkg' -print -quit)
-dotnet new --debug:custom-hive "$template_hive" install "$package_path" --force
-dotnet pack \
-  "$repository_root/templates/trykatch/tools/Trykatch.ModuleTool/Trykatch.ModuleTool.csproj" \
-  -c Release \
-  -o "$test_root/package" \
-  -p:PackageVersion=0.1.0-ci
-dotnet tool install \
-  Trykatch.Cli \
-  --version 0.1.0-ci \
-  --tool-path "$test_root/tools" \
-  --add-source "$test_root/package"
+source "$repository_root/scripts/lib/qualification-packages.sh"
+prepare_qualification_packages "$test_root/package"
+dotnet new --debug:custom-hive "$template_hive" install "$qualification_template_package" --force
+install_qualification_cli "$test_root"
 "$test_root/tools/trykatch" --help >/dev/null
 help_output=$("$test_root/tools/trykatch" help)
 grep -Fq 'Create an application:' <<<"$help_output" ||
@@ -89,8 +81,8 @@ grep -Fq 'initialized as a Git repository on the main branch' <<<"$new_help_outp
   fail 'new help does not explain Git initialization'
 grep -Fq 'Live progress shows validation and template/Git setup' <<<"$new_help_output" ||
   fail 'new help does not explain application creation progress'
-cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/0.1.0-ci" -name 'Trykatch.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
-test "$cli_informational_version" = 'Trykatch CLI 0.1.0-ci' ||
+cli_informational_version=$(dotnet "$(find "$test_root/tools/.store/trykatch.cli/$qualification_cli_version" -name 'Trykatch.ModuleTool.dll' -print -quit)" --version 2>/dev/null || true)
+test "$cli_informational_version" = "Trykatch CLI $qualification_cli_version" ||
   fail "packaged CLI reports '$cli_informational_version' instead of its package version"
 
 generate_and_build() {
@@ -252,7 +244,7 @@ test -f "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
   fail 'full-stack module generation did not create its React entrypoint'
 grep -Fq 'fr:' "$test_root/Horizon/src/Modules/Inventory/Web/src/messages.ts" ||
   fail 'full-stack module generation omitted French messages'
-grep -Fq "body: JSON.stringify({ sku, price, discount: discount || null, sequence, available, availableAt: availableAt === '' ? null : toUtcDateTime(availableAt, editing?.availableAt), category, notes: notes || null })" \
+grep -Fq "body: JSON.stringify({ sku, price, discount: discount || null, sequence, available, availableAt: availableAt === '' ? null : toUtcDateTime(availableAt, editing?.availableAt), category, notes: notes || null, ...(editing ? { expectedVersion: editing.version } : {}) })" \
   "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
   fail 'full-stack module generation did not apply its field contract to React'
 inventory_web_package=$(jq -r '.entrypoints.web.specifier' \
