@@ -375,6 +375,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .token-result code { display: block; max-height: 180px; overflow: auto; padding: 12px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line); border-radius: var(--radius); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .landing-page { min-height: 100vh; color: var(--text); background: var(--bg); }
+.landing-demo { width: min(1160px, calc(100% - 48px)); margin: 0 auto; padding: 0 0 64px; }
+.landing-demo-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 20px; }
+.landing-demo h2 { margin: 9px 0 0; font-size: 26px; letter-spacing: -.035em; }
+.landing-demo-duration { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.landing-demo figure { margin: 0; }
+.landing-demo video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #0d1110; border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.landing-demo video:focus-visible, .landing-demo summary:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 4px; }
+.landing-demo figcaption, .landing-demo-details { margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.landing-demo-details summary { width: fit-content; cursor: pointer; color: var(--text); }
+.landing-demo-details p { max-width: 820px; }
+.landing-demo-details a { color: var(--accent-ink); text-underline-offset: 3px; }
+.landing-demo-details pre { padding: 16px; overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+@media (max-width: 760px) {
+  .landing-demo { width: min(100% - 32px, 620px); padding-bottom: 44px; }
+  .landing-demo-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
+}
 .landing-nav { width: min(1160px, calc(100% - 48px)); height: 66px; display: flex; align-items: center; justify-content: space-between; margin: 0 auto; border-bottom: 1px solid var(--line); }
 .landing-brand { display: inline-flex; align-items: center; gap: 9px; color: var(--text); font-size: 15px; text-decoration: none; }
 .landing-nav-actions { display: flex; align-items: center; gap: 18px; }

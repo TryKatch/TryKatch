@@ -1,5 +1,6 @@
 import { ArrowRight, Boxes, Database, LockKeyhole, Waypoints } from 'lucide-react'
 import { LandingPreferencesMenu } from '../components/LandingPreferencesMenu'
+import { LaunchVideo } from '../components/LaunchVideo'
 import { ProductLogo } from '../components/ProductLogo'
 import { useI18n } from '../i18n/I18nProvider'
 
@@ -53,6 +54,8 @@ export function LandingPage() {
         <small>{t('One security boundary. Explicit modules. Operations designed in.')}</small>
       </aside>
     </section>
+
+    {import.meta.env.VITE_TRYKATCH_LAUNCH_VIDEO === 'true' && <LaunchVideo />}
 
     <section className="landing-problem" aria-labelledby="problem-title">
       <span className="landing-section-number">01</span>
