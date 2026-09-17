@@ -12,6 +12,7 @@ const frenchMessages: Record<string, string> = {
   'Choose a section to see what this role can do.': 'Ouvrez une section pour voir ce que ce rôle permet de faire.',
   'No roles are available to assign. Contact the workspace owner.': 'Aucun rôle ne peut être attribué. Contactez le propriétaire de l’espace.',
   'Role unavailable': 'Rôle indisponible',
+  'This invitation uses the default Member role. The server checks whether you can assign it.': 'Cette invitation utilise le rôle Membre par défaut. Le serveur vérifie si vous pouvez l’attribuer.',
   'Access unavailable': 'Accès indisponible',
   'Only workspace administrators can manage people and roles.': 'Seuls les administrateurs de l’espace peuvent gérer les personnes et les rôles.',
   'Manage projects': 'Gérer les projets',

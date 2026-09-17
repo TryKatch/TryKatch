@@ -32,6 +32,10 @@ Invitation and password-reset notifications share a branded HTML shell with an a
 
 ## Acceptance cases
 
+Review correction: managers with `members.read` and `members.manage` but without `roles.read` can submit the default-role request without a role ID. The form explains this request path and never queries the restricted role or permission catalog. Managers with role-read access still select an assignable role; an empty/unassignable catalog does not trigger fallback. Server delegation checks remain authoritative, and the UI preserves the recipient on denial. Unit regression and isolated Storybook denial interactions cover this boundary; mocks are not server-security evidence.
+
+Fixture correction: the seeded Member role includes `roles.read`, so an actor lacking that permission cannot delegate Member access. The fallback is a request path, not a promise of a successful invitation: its production-equivalent Storybook fixture returns 403 and preserves the recipient. The impossible no-role-read success fixture was removed. Existing role-reading managers still use explicit assignable roles. No new permission grant or authorization exception is introduced. A defensive default-role confirmation label uses the known Member name rather than relying on an intentionally unfetched catalog; this does not imply a reachable success under the seeded permission set.
+
 1. Select Viewer or Admin, accept through production HTTP and runtime PostgreSQL roles, and receive exactly the selected role's grants.
 2. A Member's attempt to invite, edit the Owner or create a privileged role receives 403 and creates no invitation.
 3. Unknown/foreign role IDs and an equivalent-permission non-Owner attempting an Owner invitation are denied without storing an invitation.

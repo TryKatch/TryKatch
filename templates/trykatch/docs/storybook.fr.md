@@ -1,5 +1,7 @@
 # Catalogue UI
 
+**Application UI → Member invitations → Default role forbidden** présente une demande d’invitation sans accès en lecture aux rôles, refusée par le serveur tout en conservant l’adresse du destinataire. Le rôle Membre prédéfini accorde `roles.read` ; ce gestionnaire ne peut donc pas l’attribuer. Aucun catalogue restreint n’est demandé et aucune invitation réussie n’est supposée pour ces permissions.
+
 Depuis la racine de l’application générée, contenant sa solution et `trykatch.modules.json` :
 
 ```bash

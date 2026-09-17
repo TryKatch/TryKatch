@@ -69,3 +69,30 @@ it('does not fetch administration data or offer controls to an ordinary member e
   expect(screen.queryByRole('button', { name: 'Invite person' })).not.toBeInTheDocument()
   expect(vi.mocked(customFetch).mock.calls.map(([url]) => url)).toEqual(['/api/v1/access'])
 })
+
+it('submits the default role without catalog access and preserves input on server denial', async () => {
+  permissions = ['members.read', 'members.manage']
+  const original = vi.mocked(customFetch).getMockImplementation()!
+  vi.mocked(customFetch).mockImplementation((url, options) => url === '/api/v1/invitations' && options?.method === 'POST'
+    ? Promise.reject(new Error('You cannot invite a member whose access exceeds your authority.'))
+    : original(url, options))
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Invite person' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Email address' }), { target: { value: 'new@example.test' } })
+  expect(screen.getByRole('button', { name: 'Create invitation' })).toBeEnabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Create invitation' }))
+  await waitFor(() => expect(customFetch).toHaveBeenCalledWith('/api/v1/invitations', expect.objectContaining({
+    method: 'POST', body: JSON.stringify({ email: 'new@example.test', expiresInDays: 7 }),
+  })))
+  expect(vi.mocked(customFetch).mock.calls.some(([url]) => url.startsWith('/api/v1/roles') || url === '/api/v1/permissions')).toBe(false)
+  expect(await screen.findByRole('alert')).toHaveTextContent('You cannot invite a member whose access exceeds your authority.')
+  expect(screen.getByRole('textbox', { name: 'Email address' })).toHaveValue('new@example.test')
+})
+
+it('does not silently fall back when role readers have no assignable roles', async () => {
+  const original = vi.mocked(customFetch).getMockImplementation()!
+  vi.mocked(customFetch).mockImplementation((url, options) => url.startsWith('/api/v1/roles') ? Promise.resolve([]) : original(url, options))
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Invite person' }))
+  expect(screen.getByRole('button', { name: 'Create invitation' })).toBeDisabled()
+})
