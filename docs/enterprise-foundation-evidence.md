@@ -62,9 +62,9 @@ No overall production phase is marked complete merely because the source CI is g
 
 For each new closure, record the requirement, commit/PR, exact command or CI run, executed/skipped tests, qualified artifact identity, environment, result and remaining limitations. Re-run affected evidence when application/package inputs change. Preserve dated historical evidence instead of relabeling it as a fresh run. No new release, production drill, capacity commitment or independent approval is implied by this documentation reconciliation.
 
-## Unreleased engineering follow-through
+## Preview.26 engineering follow-through
 
-The [implementation/verification record](specs/production-readiness-gates.md) tracks subsequent code changes in 09/10/11 separately from the published preview.25 baseline:
+The [implementation/verification record](specs/production-readiness-gates.md) tracks subsequent code changes in 09/10/11 separately from the published preview.25 baseline. [PR #109](https://github.com/TryKatch/TryKatch/pull/109) was merged into develop at `28ffe762d24bbc543ec37655fb3f909c30924d05`. Its [clean CI run](https://github.com/TryKatch/TryKatch/actions/runs/35234520274) passed all 18 jobs, 282 source unit tests and 247 PostgreSQL integration tests, zero failures/skips. Actual GitHub candidate upload/download and rejection of unqualified publication also passed. The [preview.26 release](releases/0.1.0-preview.26.md) separately requires exact-commit main CI, sealed tag qualification and successful publication; PR CI is not that release attestation.
 
 - Request logging now reads the endpoint instance and records one safe completion on normal, exceptional and aborted paths; the actual privacy sanitizer recognizes its bounded fields/template.
 - Source API-only changes select the web check, which builds OpenAPI before regenerating/comparing clients in the same checkout.
@@ -72,4 +72,4 @@ The [implementation/verification record](specs/production-readiness-gates.md) tr
 - Stable publication remains fail-closed while hardening boxes remain open, and additionally requires configured environment reviewers and their approval. Preview publishing retains its existing environment-free identity. GitHub/NuGet policy configuration is not changed here; [NuGet's trusted-publishing contract](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) documents the environment binding.
 - Generated projects now receive a patch-roll-forward SDK policy matching the tested feature band, pinned workflow actions and first-restore-safe cache configuration. Source/generated CI SDK selection is aligned.
 
-These are local implementation changes, not newly released controls. Full gate 09 still needs end-to-end ingestion/alert proof; 10 still needs locked-restore and OS/IDE qualification; 11 still needs integrated workflow/transfer evidence and an approved release. Other ledger rows remain unchanged.
+These changes do not close the full hardening contracts. Gate 09 still needs end-to-end ingestion/alert proof; 10 still needs locked-restore and OS/IDE qualification; 11 still needs the revised tag-release publication and stable approval evidence. Other ledger rows remain unchanged. Neither preview publication nor PR CI permits stable promotion.

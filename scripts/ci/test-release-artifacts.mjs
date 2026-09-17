@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createManifest, qualificationGates, sealManifest, verifyManifest } from '../release-artifacts.mjs';
 
-const version = '0.1.0-preview.25';
+const version = '0.1.0-preview.26';
 const commit = 'a'.repeat(40);
 const runId = '456';
 
@@ -103,4 +103,12 @@ test('workflow keeps publication dependent on verified downloads and preserves p
   assert.match(workflow, /branches\/main.*protected/);
   assert.match(workflow, /required_reviewers/);
   assert.match(workflow, /Remaining hardening gates prohibit stable publication/);
+});
+
+test('clean release qualification installs Chromium before generated browser acceptance', () => {
+  const workflow = readFileSync(new URL('../../.github/workflows/release.yml', import.meta.url), 'utf8');
+  const qualification = workflow.split('  qualify:\n')[1].split('  publish-preview:\n')[0];
+  const install = qualification.indexOf('exec playwright install --with-deps chromium');
+  const acceptance = qualification.indexOf('bash scripts/test-generated-application.sh');
+  assert.ok(install >= 0 && acceptance > install, 'Release qualification must provision its own browser on a clean runner.');
 });

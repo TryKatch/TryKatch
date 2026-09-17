@@ -11,6 +11,8 @@ La réconciliation du 2026-09-17 porte sur Trykatch **0.1.0-preview.25** : la CI
 
 ## Critères de livraison du modèle
 
+La version coordonnée **0.1.0-preview.26** ajoute les journaux sûrs des exceptions/annulations, les contrôles SDK/actions/première restauration et la publication de paquets compilés une seule fois puis vérifiés par empreinte. La [qualification de la PR #109](https://github.com/TryKatch/TryKatch/actions/runs/35234520274) a réussi les 18 jobs, 282 tests unitaires du code source et 247 tests d’intégration PostgreSQL, sans test ignoré, ainsi que le transfert réel des paquets candidats. Sa propre qualification main/tag et sa publication doivent également réussir avant installation. Les critères complets d’une version stable restent ouverts.
+
 - compilations propres et suites de tests sans avertissement du compilateur ;
 - tests d’intégration de la RLS inter-organisation et de l’authentification ;
 - contrôles de dérive entre l’OpenAPI généré et le client TypeScript ;
