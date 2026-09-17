@@ -107,7 +107,7 @@ describe('DocumentsPage', () => {
     const file = new File(['invoice bytes'], 'invoice.pdf', { type: 'application/pdf' })
     fireEvent.change(within(dialog).getByLabelText('File'), { target: { files: [file] } })
     expect(within(dialog).getByText('invoice.pdf')).toBeInTheDocument()
-    expect(within(dialog).getByLabelText('Document title')).toHaveValue('invoice')
+    expect(within(dialog).getByRole('textbox', { name: 'Document title' })).toHaveValue('invoice')
     fireEvent.change(within(dialog).getByRole('combobox', { name: 'Document type' }), { target: { value: 'invoice' } })
     fireEvent.submit(dialog.querySelector('form')!)
     await screen.findByRole('status')
@@ -145,6 +145,24 @@ describe('DocumentsPage', () => {
     fireEvent.change(within(dialog).getByLabelText('File'), { target: { files: [new File(['ok'], 'ok.pdf')] } })
     expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Upload document' })).toBeEnabled()
+  })
+
+  it('shows an accessible metadata error without uploading and preserves the selected file', async () => {
+    mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
+      ? { permissions: ['documents.read', 'documents.manage'] } as never : [] as never)
+    renderDocuments()
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Upload document' }))[0])
+    const dialog = within(screen.getByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText('File'), { target: { files: [new File(['invoice'], 'invoice.pdf', { type: 'application/pdf' })] } })
+    const title = dialog.getByRole('textbox', { name: 'Document title' })
+    fireEvent.change(title, { target: { value: '   ' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Upload document' }))
+    expect(dialog.getByRole('alert')).toHaveTextContent('Title is required and cannot exceed 200 characters.')
+    expect(title).toHaveAttribute('aria-invalid', 'true')
+    expect(dialog.getByText('invoice.pdf')).toBeInTheDocument()
+    expect(mockedFetch.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false)
+    fireEvent.change(title, { target: { value: 'Delivery invoice' } })
+    expect(dialog.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('shows the saved business type and updates it without uploading another file', async () => {

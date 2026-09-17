@@ -1,0 +1,53 @@
+.floating-field { min-width: 0; display: grid; gap: 6px; padding-top: 8px; }
+.floating-control { position: relative; min-width: 0; }
+.floating-field .floating-control > .floating-control-input {
+  display: block; width: 100%; min-height: var(--floating-control-height, 38px); height: var(--floating-control-height, 38px);
+  padding: 0 10px; color: var(--text); background: var(--panel-raised);
+  border: 1px solid transparent; border-radius: var(--radius);
+  font: inherit; line-height: 1.5; transition: border-color 140ms, box-shadow 140ms;
+}
+.floating-field .floating-control > textarea.floating-control-input { min-height: 36px; height: auto; padding: var(--floating-textarea-padding, 8px 10px); resize: vertical; }
+.floating-field .floating-control:has(> input[type="search"]) { --floating-label-rest: 17px; }
+.floating-field .floating-control > input[type="search"].floating-control-input { min-height: 34px; height: 34px; padding-block: 6px; line-height: 20px; }
+.floating-field .password-input > .floating-control-input { padding-right: 44px; }
+.floating-field .password-input > label { max-width: calc(100% - 57px); }
+.floating-field .floating-control > label {
+  position: absolute; top: var(--floating-label-rest, 19px); left: 13px; display: block; width: max-content; max-width: calc(100% - 26px); margin: 0;
+  padding-inline: 4px; margin-left: -4px; transform: translateY(-50%);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--muted); background: transparent; font-size: 13px; font-weight: 500; line-height: 1.4;
+  cursor: text; transition: top 140ms, font-size 140ms, color 140ms;
+}
+.floating-field .floating-control:has(> .floating-control-input:focus) > label,
+.floating-field .floating-control:has(.floating-control-input:not(:placeholder-shown)) > label,
+.floating-field .floating-control-always > label { top: 0; font-size: 11px; font-weight: 650; }
+.floating-field .floating-control:has(.floating-control-input:autofill) > label { top: 0; font-size: 11px; font-weight: 650; }
+.floating-field .floating-control > .floating-outline {
+  position: absolute; inset: -6px 0 0; min-width: 0; margin: 0; padding: 0 8px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius); pointer-events: none;
+  transition: border-color 140ms;
+}
+.floating-field .floating-outline > legend {
+  display: block; width: auto; max-width: 0; height: 12px; padding: 0;
+  overflow: hidden; white-space: nowrap; font-size: 11px; font-weight: 650; line-height: 12px;
+}
+.floating-field .floating-outline > legend > span { padding-inline: 4px; visibility: hidden; }
+.floating-field .floating-control:has(> .floating-control-input:focus) > .floating-outline > legend,
+.floating-field .floating-control:has(> .floating-control-input:not(:placeholder-shown)) > .floating-outline > legend,
+.floating-field .floating-control:has(> .floating-control-input:autofill) > .floating-outline > legend,
+.floating-field .floating-control-always > .floating-outline > legend { max-width: 100%; }
+.floating-field .floating-control:has(> .floating-control-input:focus) > .floating-outline { border-color: var(--accent); }
+.floating-field .floating-control-with-icon > .floating-outline { padding-left: 35px; }
+.floating-field .floating-control-with-icon > .floating-control-input { padding-left: 40px; }
+.floating-field .floating-control-with-icon > label { left: 40px; max-width: calc(100% - 53px); }
+.floating-field-icon { position: absolute; left: 13px; top: var(--floating-label-rest, 19px); transform: translateY(-50%); display: grid; place-items: center; color: var(--muted); pointer-events: none; }
+.floating-field .floating-control:has(> .floating-control-input:focus) > label { color: var(--accent-ink); }
+.floating-field .floating-control-input:focus-visible { outline: none; }
+.floating-field .floating-control:has(> .floating-control-input[aria-invalid="true"]) > .floating-outline { border-color: var(--danger); }
+.floating-field .floating-control:has([aria-invalid="true"]) > label { color: var(--danger); }
+.floating-field .floating-control-input:disabled { cursor: not-allowed; opacity: .65; }
+.floating-field .floating-control:has(> .floating-control-input:disabled) > .floating-outline { opacity: .65; }
+.floating-field .floating-control:has(:disabled) > label { cursor: not-allowed; }
+.floating-field-help { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.floating-field-error { margin: 0; color: var(--danger); font-size: 12px; line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { .floating-field .floating-control-input, .floating-field .floating-control > label { transition: none; } }

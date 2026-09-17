@@ -53,7 +53,7 @@ export default defineConfig({
         {
           label: 'Reference',
           translations: { fr: 'Référence' },
-          items: ['reference/template-options', 'reference/release-readiness'],
+          items: ['reference/template-options', 'reference/release-readiness', 'reference/storybook'],
         },
       ],
     }),

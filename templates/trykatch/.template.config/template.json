@@ -137,6 +137,7 @@
         "**/obj/**",
         "**/node_modules/**",
         "**/dist/**",
+        "**/storybook-static/**",
         "**/.env",
         "**/.env.*",
         "**/secrets/**",

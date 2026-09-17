@@ -19,6 +19,8 @@ The [CLI reference](../../../tools/Trykatch.ModuleTool/README.md) owns syntax an
 
 Add `--with-web` only when the user needs a UI and the application includes the web workspace; read the [frontend guide](../../../docs/development/frontend.md). On backend-only output, explain that adding a frontend would expand the application before attempting it.
 
+When building frontend behavior, first consult [Storybook](../../../docs/storybook.md) and relevant existing stories. Reuse actual components and brand tokens, and maintain colocated stories for generated/customized UI and its supported validation, loading, empty, error, permission and conflict states. Verify interactions and accessibility in Storybook; fixtures never prove backend authorization or data isolation.
+
 Let creation finish its built-in verification. If it fails, inspect the retained diagnostics and confirm rollback before retrying; do not bypass failed validation. After generation, implement the remaining business rules in domain/application code, add forward-only migrations as needed, and add tests for the requested behavior. A generated CRUD slice is not completion of a richer workflow.
 
 Use the [security guide](../../../docs/development/security.md) for permissions and persistence. Regenerate owned artifacts after custom changes, then follow [trykatch-verify](../trykatch-verify/SKILL.md). Credit checks already run successfully by the CLI rather than repeating them without a new change.

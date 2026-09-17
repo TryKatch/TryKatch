@@ -2,8 +2,8 @@ import { applicationName } from '../branding'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { customFetch, type AuditDto, type AuditPageDto, type PermissionModuleDto, type RoleDto } from '@trykatch/api-client'
-import { Badge, Button, DataTable, DeleteConfirmationDialog, Dialog, EmptyState, FilterBar, PageHeader, PasswordField, RowActions, Skeleton, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
-import { Activity, ArrowUpRight, Building2, CheckCircle2, Clock3, Copy, FolderKanban, KeyRound, Mail, Plus, ShieldCheck, UserPlus, Users } from 'lucide-react'
+import { Badge, Button, DataTable, DeleteConfirmationDialog, Dialog, EmptyState, FilterBar, FloatingInput, PageHeader, PasswordField, RowActions, Skeleton, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
+import { Activity, ArrowUpRight, Building2, CheckCircle2, Clock3, Copy, FolderKanban, KeyRound, Mail, Plus, Search, ShieldCheck, UserPlus, Users } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { RoleEditorDialog } from '../components/RoleEditorDialog'
 import { OrganizationRolePicker } from '../components/OrganizationRolePicker'
@@ -335,7 +335,7 @@ export function AuditPage() {
   const totalCount = Number(audit.data?.totalCount ?? 0)
   const lastPage = Math.max(1, Math.ceil(totalCount / 50))
   const tableFilters = <>
-    <input className="audit-search" type="search" aria-label={t('Search audit activity')} placeholder={t('Search events or resources…')} value={filters.search} onChange={(event) => changeFilter('search', event.target.value)} />
+    <div className="audit-search"><FloatingInput type="search" label={t('Search audit activity')} leadingIcon={<Search size={16} />} value={filters.search} onChange={(event) => changeFilter('search', event.target.value)} /></div>
     <select aria-label={t('Filter by action')} value={filters.action} onChange={(event) => changeFilter('action', event.target.value)}><option value="">{t('All actions')}</option>{filterOptions?.actions.map((action) => <option key={action.value} value={action.value}>{action.label}</option>)}</select>
     <select aria-label={t('Filter by resource')} value={filters.subjectType} onChange={(event) => changeFilter('subjectType', event.target.value)}><option value="">{t('All resources')}</option>{filterOptions?.subjectTypes.map((type) => <option key={type} value={type}>{t(type)}</option>)}</select>
     <select aria-label={t('Filter by actor')} value={filters.actorId} onChange={(event) => changeFilter('actorId', event.target.value)}><option value="">{t('All actors')}</option>{filterOptions?.actors.map((actor) => <option key={actor.value} value={actor.value}>{actor.label}</option>)}</select>

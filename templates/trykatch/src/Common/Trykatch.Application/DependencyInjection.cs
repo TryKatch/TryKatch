@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddSingleton<IPermissionCatalog, PermissionCatalog>();
         services.AddSingleton<IValidator<CreateOrganizationCommand>, CreateOrganizationValidator>();
         services.AddSingleton<IValidator<UpdateOrganizationCommand>, UpdateOrganizationValidator>();
+        services.AddSingleton<IValidator<SaveRoleCommand>, SaveRoleValidator>();
         return services;
     }
 }

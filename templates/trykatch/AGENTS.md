@@ -25,6 +25,7 @@ Read only the guides needed for the change. A small fix does not need a new spec
 - `Organization` is the customer-facing term. Tenant is only the technical isolation mechanism.
 - Organization-scoped requests cross authentication, workspace resolution, permission authorization, and a transaction that sets PostgreSQL `app.organization_id` and `app.actor_id` before data access.
 - Browser code uses same-origin HttpOnly cookies and antiforgery. Never place access or refresh tokens in React storage.
+- Every frontend task must consult [Storybook](docs/storybook.md) and relevant colocated stories first, reuse actual components and branding, and maintain coverage of changed visual behavior, including applicable validation and failure states. Verify interactions/accessibility and browser layout; mocks are not backend security evidence. Skip Storybook in backend-only applications.
 - Platform authorization and organization authorization are separate permission catalogs.
 - Business writes belong in focused application use cases, not controllers or React components.
 - Generated OpenAPI clients and `docs/generated/assistant-contract.json` are machine-owned.

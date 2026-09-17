@@ -7,6 +7,7 @@ using Trykatch.Application.Authorization;
 using Trykatch.Application.Common;
 using Trykatch.Application.Identity;
 using Trykatch.Domain.Organizations;
+using FluentValidation;
 using Trykatch.Domain.Common;
 
 namespace Trykatch.Application.Organizations;
@@ -90,7 +91,8 @@ public sealed class OrganizationAdministration(
     IPermissionAuthorizer authorizer,
     OrganizationManagementAuthorization managementAuthorization,
     IPermissionCatalog permissionCatalog,
-    IAuditIntentWriter auditWriter)
+    IAuditIntentWriter auditWriter,
+    IValidator<SaveRoleCommand> roleValidator)
 {
     public async Task<Result<IReadOnlyList<RoleDto>>> ListRolesAsync(RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
     {
@@ -134,13 +136,10 @@ public sealed class OrganizationAdministration(
         Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.RolesManage, cancellationToken);
         if (!authorization.IsSuccess) return Result.Failure<RoleDto>(authorization.ErrorCode!, authorization.ErrorMessage!);
         OrganizationManagementAuthority authority = authorization.Value!;
-        if (string.IsNullOrWhiteSpace(command.Name) || command.Name.Trim().Length > 80)
-            return Result.Failure<RoleDto>("validation", "Role names must contain 1-80 characters.");
-        if ((command.Description ?? string.Empty).Trim().Length > 240)
-            return Result.Failure<RoleDto>("validation", "Role descriptions cannot exceed 240 characters.");
+        var validation = await roleValidator.ValidateAsync(command, cancellationToken);
+        if (!validation.IsValid)
+            return Result.Failure<RoleDto>("validation", validation.Errors[0].ErrorMessage);
         IReadOnlyList<string> requestedPermissions = command.Permissions ?? [];
-        if (requestedPermissions.Count != requestedPermissions.Distinct(StringComparer.Ordinal).Count())
-            return Result.Failure<RoleDto>("validation", "Permission grants must be unique.");
         if (requestedPermissions.Any(permission => !permissionCatalog.Contains(permission)))
             return Result.Failure<RoleDto>("validation", "The role contains an unknown permission.");
         if (requestedPermissions.Any(permission => !authority.Permissions.Contains(permission)))

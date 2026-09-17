@@ -30,7 +30,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.28
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.29
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -67,7 +67,7 @@ Creation shows a live spinner, numbered step and elapsed time during option vali
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.28
+dotnet new install Trykatch.Templates@0.1.0-preview.29
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -84,7 +84,7 @@ Names containing dots and hyphens are normalized for C# namespaces, directories,
 Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.28
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.29
 trykatch update
 ```
 
@@ -100,7 +100,7 @@ When NuGet reports an unexpected EOF or an empty transport stream, Trykatch cond
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.28
+trykatch update --version 0.1.0-preview.29
 ```
 
 The .NET template engine can remove the previous template before a forced update finishes. Retrying the Trykatch command restores the template; applications you already generated are not affected.
