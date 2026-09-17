@@ -25,6 +25,7 @@ public enum __ENTITY__QueryScope { Active, Recoverable }
 
 public interface I__ENTITY__Store
 {
+    Task<__ENTITY__Page<__ENTITY__Record>> PageAsync(__ENTITY__PageQuery query, CancellationToken cancellationToken);
     Task<IReadOnlyList<__ENTITY__Record>> ListAsync(__ENTITY__QueryScope scope, CancellationToken cancellationToken);
     Task<__ENTITY__Record?> FindAsync(Guid id, bool includeRecoverable, CancellationToken cancellationToken);
     void Add(__ENTITY__Record record);

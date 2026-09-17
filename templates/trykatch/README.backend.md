@@ -6,6 +6,10 @@ Trykatch is a clean-room backend foundation for .NET 10, PostgreSQL, Aspire, and
 
 ## Start locally
 
+For a hands-on journey with checkpoints, follow [first run to first feature](docs/first-feature.md) ([Français](docs/first-feature.fr.md)). Follow the backend-only path and omit `--with-web`.
+
+New to this application? Start with [developer onboarding](docs/developer-onboarding.md) ([Français](docs/developer-onboarding.fr.md)): architecture, backend module creation, integrations, verification and copy-paste questions for your existing coding assistant. Skip its frontend steps in this backend-only application; no separate onboarding AI key is needed.
+
 For deployment, first read [production identity](docs/production-identity.md): three certificate/password pairs are required, and an existing plaintext key ring needs an explicit privileged dry-run/apply before the API can start.
 
 Prerequisites: .NET SDK 10.0.301+ and Docker.
@@ -24,9 +28,15 @@ trykatch start
 
 If the Trykatch CLI is not installed, run `dotnet run --launch-profile https --project src/API/Trykatch.AppHost/Trykatch.AppHost.csproj`.
 
+Development AppHost seeds `tenant@trykatch.net` with password `Admin@123` as Owner of Demo Workspace. These credentials are local-only; never enable demo seeding in production. Backend-only output has no generated API client: follow the [cookie/antiforgery HTTP walkthrough](docs/backend-only-http.md) ([Français](docs/backend-only-http.fr.md)) to log in, discover your membership, select the workspace and test the generated Equipment module.
+
 Before the first API run, apply the migrations with the migrator role as described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 
 For Compose, copy `.env.example`, set the required immutable `TRYKATCH_RELEASE_VERSION`, and replace every secret placeholder. Protect the directly published API and deny public `/health/*` routes. The base OTLP path is private single-host plaintext; use `compose.observability-tls.yml` for authenticated TLS ingestion. See [operations](docs/operations.md) for sampling, privacy, queues, retention, alerts, validation, and staging drills.
+
+## Build with a coding agent
+
+This application includes five project-local skills for specification, module creation, extension, review, and verification. Start with [AGENTS.md](AGENTS.md) or ask your agent to read `.agents/skills/trykatch-build-module/SKILL.md` and implement a backend feature brief. The skills detect that this application has no web workspace and skip frontend commands. See [AI-assisted development](docs/ai-assisted-development.md).
 
 ## Architecture
 

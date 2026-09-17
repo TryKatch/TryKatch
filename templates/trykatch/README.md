@@ -6,6 +6,10 @@ Trykatch is a clean-room enterprise application foundation for .NET 10, PostgreS
 
 ## Start locally
 
+For a hands-on journey with checkpoints, follow [first run to first feature](docs/first-feature.md) ([Français](docs/first-feature.fr.md)): get running, generate Equipment, understand its files and verify it.
+
+New to this application? Start with [developer onboarding](docs/developer-onboarding.md) ([Français](docs/developer-onboarding.fr.md)): architecture, module creation, backend/frontend wiring, integrations, verification and copy-paste questions for your existing coding assistant. No separate onboarding AI key is needed.
+
 For deployment, first read [production identity](docs/production-identity.md): three certificate/password pairs are required, and an existing plaintext key ring needs an explicit privileged dry-run/apply before the API can start.
 
 Prerequisites: .NET SDK 10.0.301+, Docker, Node.js 24+, and Corepack. The generated root `package.json` pins pnpm 10.17.1, so the same package-manager version is selected on every machine.
@@ -70,6 +74,10 @@ The customer-facing workspace word is **organization**. Platform administrators 
 - Browser authentication uses secure HttpOnly cookies and antiforgery. Browser code never receives access or refresh tokens.
 - Password recovery returns an account-neutral response, rate-limits requests, invalidates existing sessions, and uses `TRYKATCH_PUBLIC_URL` as the trusted origin for production email links.
 - External clients use OpenIddict authorization code + PKCE or client credentials. Implicit and password grants are not enabled.
+
+## Build with a coding agent
+
+This application includes five project-local skills for specification, module creation, extension, review, and verification. Start with [AGENTS.md](AGENTS.md) or ask your agent to read `.agents/skills/trykatch-build-module/SKILL.md` and implement a feature brief. Agents without automatic skill discovery can read these files directly. See [AI-assisted development](docs/ai-assisted-development.md) for examples and the scope of each skill.
 
 ## Validate changes
 

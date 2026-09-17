@@ -4,6 +4,8 @@ namespace Trykatch.ModuleTool;
 
 internal static partial class BlueprintRenderer
 {
+    private static readonly string[] CrudWebTestOperations = ["List", "Create", "Archive", "Restore", "RequestDeletion"];
+
     private static Dictionary<string, string> WebTokens(ModuleBlueprint blueprint)
     {
         string moduleCamel = char.ToLowerInvariant(blueprint.Module[0]) + blueprint.Module[1..];
@@ -21,6 +23,11 @@ internal static partial class BlueprintRenderer
         }).ToArray();
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["__WEB_TEST_WORKFLOW_FIELDS__"] = $"workflowState: {Quote(blueprint.Workflow.InitialState)}, decisionReason: null, canEdit: true, availableActions: [],",
+            ["__WEB_TEST_API_MOCKS__"] = $"{moduleCamel}Update: (id: string, body: unknown) => transport('/api/v1/{blueprint.Resource}/' + id, {{ method: 'PUT', body: JSON.stringify(body) }}), " +
+                string.Join(", ", CrudWebTestOperations
+                    .Concat(blueprint.Workflow.Actions.Select(action => action.Name))
+                    .Select(operation => moduleCamel + operation + ": vi.fn()")),
             ["__LABEL_PLURAL_EN__"] = Quote(blueprint.Labels.Plural.En),
             ["__LABEL_SINGULAR_EN__"] = Quote(blueprint.Labels.Singular.En),
             ["__LABEL_PLURAL__"] = JsonSerializer.Serialize(blueprint.Labels.Plural, ModuleBlueprint.JsonOptions),

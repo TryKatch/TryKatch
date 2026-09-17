@@ -51,6 +51,11 @@ if LC_ALL=C grep -q $'\r' "$blueprint_test_root/create-progress.txt"; then
   printf 'Redirected creation progress must not contain terminal carriage returns.\n' >&2
   exit 1
 fi
+if [[ $mode == web ]]; then
+  "$blueprint_test_root/tools/trykatch" module create Invoicing --entity Invoice --resource invoices --ownership organization --with-web
+else
+  "$blueprint_test_root/tools/trykatch" module create Invoicing --entity Invoice --resource invoices --ownership organization
+fi
 cp blueprints/tests/ShipmentBlueprintAcceptanceTests.cs.fixture tests/BlueprintAcceptance.IntegrationTests/ShipmentBlueprintAcceptanceTests.cs
 dotnet test tests/BlueprintAcceptance.IntegrationTests --filter 'FullyQualifiedName~ShipmentBlueprintAcceptanceTests|FullyQualifiedName~EveryDeclaredOrganizationRelationIsDefaultDenyUnderTheRealRuntimeRole'
 "$blueprint_test_root/tools/trykatch" module doctor

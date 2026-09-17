@@ -3,7 +3,8 @@
   "schemaVersion": 1,
   "hostVersion": "0.1.0",
   "hostCapabilities": [
-    "business-blueprints-v1"
+    "business-blueprints-v1",
+    "typed-tables-v1"
   ],
   "lockFile": "trykatch.modules.lock.json",
   "trustedPublishers": [

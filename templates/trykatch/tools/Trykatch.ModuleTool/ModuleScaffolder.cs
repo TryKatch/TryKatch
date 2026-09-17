@@ -297,6 +297,8 @@ public sealed partial class ModuleScaffolder
         string npmScope = ResolveNpmScope(catalog.Outputs.WebModuleSdkSpecifier);
         if (request.IncludeWeb && (!_workspace.HasWebSurface() || string.IsNullOrWhiteSpace(npmScope)))
             throw new InvalidOperationException("--with-web requires a generated React workspace and a scoped module SDK package.");
+        if (request.IncludeWeb && catalog.HostCapabilities?.Contains("typed-tables-v1", StringComparer.Ordinal) != true)
+            throw new InvalidOperationException("Generated web modules require typed-tables-v1 and version-aware archive support. Updating the CLI does not upgrade an existing application's React SDK. Upgrade the host and SDK together before generating; no files were changed.");
 
         string description = string.IsNullOrWhiteSpace(request.Description)
             ? $"Organization-owned {module} records."
@@ -313,6 +315,8 @@ public sealed partial class ModuleScaffolder
         if (blueprint is not null && request.FieldSpecification is not null)
             throw new ArgumentException("--fields cannot be combined with --blueprint.");
         IReadOnlyList<ModuleFieldDefinition> fields = blueprint?.Definitions ?? ModuleFieldContract.Parse(request.FieldSpecification);
+        if (request.IncludeWeb && fields.Any(field => string.Equals(field.Name, ToCamelCase(module) + "Table", StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException("A field cannot shadow the generated module's exported table point.");
         return new(rootNamespace, npmScope, publisher, module, moduleId, entity, resource, description,
             $"@{npmScope}-modules/{moduleId}", request.IncludeWeb, fields, blueprint);
     }
@@ -328,10 +332,12 @@ public sealed partial class ModuleScaffolder
         WriteTemplate("Module.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Infrastructure"), $"{names.Module}Module.cs"), names);
         WriteTemplate("ModelContributor.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Infrastructure"), $"{names.Module}ModelContributor.cs"), names);
         WriteTemplate("Store.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Infrastructure"), $"{names.Entity}Store.cs"), names);
+        WriteTemplate("PageContracts.cs", Path.Combine(moduleRoot, ProjectDirectory(names, "Application"), $"{names.Entity}Page.cs"), names);
         WriteProjectFiles(moduleRoot, names);
         WriteManifest(moduleRoot, names, includeWeb);
         WriteReadme(moduleRoot, names, includeWeb);
         WriteTestProjects(testRoot, names);
+        WriteTemplate("PageTests.cs", Path.Combine(testRoot, $"{names.RootNamespace}.Modules.{names.Module}.UnitTests", names.Entity + "PageTests.cs"), names);
         if (includeWeb) WriteWebFiles(moduleRoot, names);
         if (names.Blueprint is not null)
         {
@@ -359,6 +365,7 @@ public sealed partial class ModuleScaffolder
     private static IReadOnlyList<string> GeneratedEndpoints(string resource) =>
     [
         $"GET /api/v1/{resource}",
+        $"GET /api/v1/{resource}/page",
         $"GET /api/v1/{resource}/{{id}}",
         $"POST /api/v1/{resource}",
         $"PUT /api/v1/{resource}/{{id}}",
@@ -403,7 +410,7 @@ public sealed partial class ModuleScaffolder
                 <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression><IsPackable>true</IsPackable>
                 <IsCompositeModulePackage>true</IsCompositeModulePackage>
               </PropertyGroup>
-              <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><PackageReference Include="Microsoft.EntityFrameworkCore.Relational" /></ItemGroup>
+              <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><PackageReference Include="Microsoft.EntityFrameworkCore.Relational" /><PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" /></ItemGroup>
               <ItemGroup>
                 <ProjectReference Include="../../../Common/{{names.RootNamespace}}.Modules.Abstractions/{{names.RootNamespace}}.Modules.Abstractions.csproj" PrivateAssets="all" />
                 <ProjectReference Include="../../../Common/{{names.RootNamespace}}.Modules.AspNetCore/{{names.RootNamespace}}.Modules.AspNetCore.csproj" PrivateAssets="all" />
@@ -466,7 +473,7 @@ public sealed partial class ModuleScaffolder
                     .Concat(names.Blueprint?.Workflow.Actions.Select(a => names.ModuleId + "." + a.Permission).Distinct() ?? [])
                     .Select(value => JsonValue.Create(value)).ToArray()),
                 ["routes"] = routes,
-                ["extensionPoints"] = new JsonArray(),
+                ["extensionPoints"] = includeWeb ? new JsonArray(new JsonObject { ["id"] = names.ModuleId + ".list.table" }) : new JsonArray(),
                 ["extensions"] = new JsonArray(),
                 ["assistantTools"] = new JsonArray()
             }
@@ -493,6 +500,7 @@ public sealed partial class ModuleScaffolder
             <Project Sdk="Microsoft.NET.Sdk"><ItemGroup>
               <PackageReference Include="MSTest" /><PackageReference Include="Shouldly" />
               <ProjectReference Include="../../../../src/Modules/{{names.Module}}/{{prefix}}.Domain/{{prefix}}.Domain.csproj" />
+              <ProjectReference Include="../../../../src/Modules/{{names.Module}}/{{prefix}}.Application/{{prefix}}.Application.csproj" />
               <ProjectReference Include="../../../../src/Modules/{{names.Module}}/{{prefix}}.Infrastructure/{{prefix}}.Infrastructure.csproj" />
               <Compile Include="../../../ArchitectureTestSettings.cs" Link="MSTestSettings.cs" />
             </ItemGroup></Project>
@@ -607,6 +615,9 @@ public sealed partial class ModuleScaffolder
             },
             ["devDependencies"] = new JsonObject
             {
+                ["@testing-library/react"] = "16.3.3",
+                ["@testing-library/jest-dom"] = "7.0.1",
+                ["jsdom"] = "27.0.0",
                 ["@types/react"] = "19.2.14",
                 ["@types/react-dom"] = "19.2.3",
                 ["react-dom"] = "19.2.8",
@@ -828,6 +839,11 @@ public sealed partial class ModuleScaffolder
         {
             foreach ((string token, string value) in BlueprintRenderer.Render(names.Blueprint, names.RootNamespace, names.ModuleId))
                 contents = contents.Replace(token, value, StringComparison.Ordinal);
+        }
+        else
+        {
+            contents = contents.Replace("__WEB_TEST_WORKFLOW_FIELDS__", string.Empty, StringComparison.Ordinal)
+                .Replace("__WEB_TEST_API_MOCKS__", string.Empty, StringComparison.Ordinal);
         }
         WriteUtf8(outputPath, contents);
     }

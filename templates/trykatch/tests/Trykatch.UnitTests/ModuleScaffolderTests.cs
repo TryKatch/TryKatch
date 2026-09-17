@@ -91,6 +91,7 @@ public sealed partial class ModuleScaffolderTests
 
         result.Endpoints.ShouldBe([
             "GET /api/v1/invoices",
+            "GET /api/v1/invoices/page",
             "GET /api/v1/invoices/{id}",
             "POST /api/v1/invoices",
             "PUT /api/v1/invoices/{id}",
@@ -122,6 +123,33 @@ public sealed partial class ModuleScaffolderTests
                  })
             endpoints.ShouldContain($".WithName(\"{operationId}\")");
         endpoints.ShouldContain("Task<Results<Ok<InvoiceDto[]>, ForbidHttpResult, ValidationProblem>>");
+        endpoints.ShouldContain("Invoicing_Page");
+        endpoints.ShouldContain("request.ExpectedVersion");
+        endpoints.ShouldContain("[\"code\"] = \"stale_version\"");
+        string store = File.ReadAllText(Path.Combine(moduleRoot, "Kametal.Modules.Invoicing.Infrastructure/InvoiceStore.cs"));
+        store.ShouldContain(".Skip((request.Page - 1) * request.PageSize).Take(request.PageSize + 1)");
+        store.ShouldContain(".ThenByDescending(record => record.Id)");
+        store.ShouldContain("IgnoreQueryFilters([\"LifecycleVisibility\"])");
+        store.ShouldNotContain("IgnoreQueryFilters()");
+        store.ShouldContain("catch (DbUpdateConcurrencyException)");
+        File.ReadAllText(Path.Combine(moduleRoot, "Kametal.Modules.Invoicing.Infrastructure/InvoicingModelContributor.cs"))
+            .ShouldContain("record.Version).IsConcurrencyToken()");
+    }
+
+    [TestMethod]
+    public void WebGenerationRejectsAnOlderSdkBeforeWritingTheModule()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        string catalogPath = Path.Combine(workspace.Root, "trykatch.modules.json");
+        JsonObject catalog = JsonNode.Parse(File.ReadAllText(catalogPath))!.AsObject();
+        catalog["hostCapabilities"] = new JsonArray("business-blueprints-v1");
+        File.WriteAllText(catalogPath, catalog.ToJsonString());
+        byte[] before = File.ReadAllBytes(catalogPath);
+        Should.Throw<InvalidOperationException>(() => new ModuleScaffolder(workspace.Root, new SuccessfulRunner())
+            .Create(new("Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: true)))
+            .Message.ShouldContain("typed-tables-v1");
+        File.ReadAllBytes(catalogPath).ShouldBe(before);
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
     }
 
     [TestMethod]
@@ -143,6 +171,58 @@ public sealed partial class ModuleScaffolderTests
         File.ReadAllText(Path.Combine(
             workspace.Root, "src/Modules/Invoicing/Kametal.Modules.Invoicing.Infrastructure/InvoicingModule.cs"))
             .ShouldContain("ModuleCapabilities.Api | ModuleCapabilities.Data | ModuleCapabilities.Web");
+        string web = File.ReadAllText(Path.Combine(workspace.Root, "src/Modules/Invoicing/Web/src/index.tsx"));
+        web.ShouldContain("defineTableExtensionPoint<InvoiceDto>");
+        web.ShouldContain("useTableContributions(invoicingTable");
+        web.ShouldContain("extensionPoints: [invoicingTable]");
+        string webTests = File.ReadAllText(Path.Combine(workspace.Root, "src/Modules/Invoicing/Web/src/index.test.tsx"));
+        webTests.ShouldContain("name: 'A'");
+        webTests.ShouldContain("version: '0199ca9e-3870-7000-8000-000000000003'");
+        webTests.ShouldContain("preserves entered values and retries only after an explicit version refresh");
+        webTests.ShouldContain("does not reopen a cancelled editor");
+        webTests.ShouldNotContain("__WEB_TEST_");
+        File.ReadAllText(packagePath).ShouldContain("\"jsdom\": \"27.0.0\"");
+    }
+
+    [TestMethod]
+    [DataRow("count:int:required", "count: 1,")]
+    [DataRow("total:decimal:optional", "total: '1',")]
+    [DataRow("sequence:long:required", "sequence: '1',")]
+    [DataRow("enabled:bool:required", "enabled: false,")]
+    [DataRow("enabled:bool:optional", "enabled: false,")]
+    [DataRow("dueDate:date:required", "dueDate: '2026-09-16',")]
+    [DataRow("issuedAt:datetime:optional", "issuedAt: '2026-09-16T12:00:00Z',")]
+    [DataRow("reference:guid:required", "reference: '0199ca9e-3870-7000-8000-000000000002',")]
+    [DataRow("stage:enum(Draft,Sent):required", "stage: 'Draft',")]
+    [DataRow("label:string:required:max(1)", "label: 'A',")]
+    public void WebConflictFixturesRespectTheDeclaredFieldTypes(string fields, string expected)
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        new ModuleScaffolder(workspace.Root, new SuccessfulRunner()).Create(new(
+            "Metrics", "Metric", "metrics", "organization", null, IncludeWeb: true, FieldSpecification: fields));
+        string tests = File.ReadAllText(Path.Combine(workspace.Root, "src/Modules/Metrics/Web/src/index.test.tsx"));
+        tests.ShouldContain(expected);
+        tests.ShouldNotContain("__WEB_TEST_");
+    }
+
+    [TestMethod]
+    [DataRow("version:guid:required")]
+    [DataRow("expectedVersion:guid:required")]
+    [DataRow("search:string")]
+    [DataRow("page:int")]
+    [DataRow("refresh:bool")]
+    [DataRow("table:string")]
+    public void PaginationConcurrencyAndExtensionNamesAreReserved(string fields) =>
+        Should.Throw<ArgumentException>(() => ModuleFieldContract.Parse(fields));
+
+    [TestMethod]
+    public void WebFieldsCannotShadowTheirModulesTypedTablePoint()
+    {
+        using ScaffolderWorkspace workspace = ScaffolderWorkspace.Create(includeWeb: true);
+        Should.Throw<ArgumentException>(() => new ModuleScaffolder(workspace.Root, new SuccessfulRunner())
+            .Create(new("Invoicing", "Invoice", "invoices", "organization", null, IncludeWeb: true, FieldSpecification: "invoicingTable:string")))
+            .Message.ShouldContain("shadow");
+        Directory.Exists(Path.Combine(workspace.Root, "src/Modules/Invoicing")).ShouldBeFalse();
     }
 
     [TestMethod]
@@ -781,7 +861,7 @@ public sealed partial class ModuleScaffolderTests
             File.WriteAllText(Path.Combine(root, "trykatch.modules.json"), """
                 {
                   "schemaVersion": 1, "hostVersion": "0.1.0", "lockFile": "trykatch.modules.lock.json",
-                  "hostCapabilities": ["business-blueprints-v1"],
+                  "hostCapabilities": ["business-blueprints-v1", "typed-tables-v1"],
                   "trustedPublishers": ["kametal"],
                   "outputs": {
                     "backend": "src/API/Kametal.Api/Modules/EnabledModules.cs", "backendNamespace": "Kametal.Api.Modules",

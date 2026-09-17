@@ -20,6 +20,20 @@ assert_scope() {
 
 assert_scope 'docs-site/src/content/docs/en/index.mdx' docs true
 assert_scope 'docs-site/src/content/docs/en/index.mdx' template false
+assert_scope 'templates/trykatch/.agents/skills/trykatch-build-module/SKILL.md' packaging true
+assert_scope 'templates/trykatch/.agents/skills/trykatch-build-module/SKILL.md' docs true
+assert_scope 'templates/trykatch/docs/development/backend.md' packaging true
+assert_scope 'templates/trykatch/docs/ai-assisted-development.md' packaging true
+assert_scope 'templates/trykatch/docs/developer-onboarding.md' packaging true
+assert_scope 'templates/trykatch/docs/developer-onboarding.fr.md' docs true
+assert_scope 'templates/trykatch/docs/first-feature.md' packaging true
+assert_scope 'templates/trykatch/docs/first-feature.fr.md' docs true
+assert_scope 'templates/trykatch/docs/backend-only-http.md' packaging true
+assert_scope 'templates/trykatch/docs/backend-only-http.fr.md' docs true
+assert_scope 'scripts/test-first-feature.sh' qualification true
+assert_scope 'templates/trykatch/AGENTS.md' packaging true
+assert_scope 'scripts/test-development-skills.mjs' packaging true
+assert_scope 'scripts/test-development-skills.sh' packaging true
 assert_scope 'templates/trykatch/src/API/Trykatch.Api/Program.cs' backend true
 assert_scope 'templates/trykatch/src/API/Trykatch.Api/Program.cs' web false
 assert_scope 'templates/trykatch/.editorconfig' backend true
