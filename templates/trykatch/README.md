@@ -12,7 +12,7 @@ New to this application? Start with [developer onboarding](docs/developer-onboar
 
 For deployment, first read [production identity](docs/production-identity.md): three certificate/password pairs are required, and an existing plaintext key ring needs an explicit privileged dry-run/apply before the API can start.
 
-Prerequisites: .NET SDK 10.0.301+, Docker, Node.js 24+, and Corepack. The generated root `package.json` pins pnpm 10.17.1, so the same package-manager version is selected on every machine.
+Prerequisites: .NET SDK 10.0.301 or a later patch in the 10.0.3xx feature band, Docker, Node.js 24+, and Corepack. The generated `global.json` allows patch roll-forward, not another SDK feature band. The generated root `package.json` pins pnpm 10.17.1, so the same package-manager version is selected on every machine. See [dependency reproducibility](docs/dependency-reproducibility.md) ([Français](docs/dependency-reproducibility.fr.md)) for first-restore and upgrade boundaries.
 
 Open a terminal in the generated application's root directory—the folder that contains `Trykatch.slnx`, `src/`, `tests/`, and `web/`. For example:
 
