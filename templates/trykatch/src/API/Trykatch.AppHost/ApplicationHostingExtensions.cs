@@ -166,7 +166,6 @@ internal static class ApplicationHostingExtensions
             api.WithEnvironment("Email__Host", mailpit.GetEndpoint("smtp").Property(EndpointProperty.Host))
                 .WithEnvironment("Email__Port", mailpit.GetEndpoint("smtp").Property(EndpointProperty.Port))
                 .WithEnvironment("Email__Security", "None")
-                .WithEnvironment("Email__From", "Trykatch <noreply@localhost>")
                 .WaitFor(mailpit);
         }
 #endif

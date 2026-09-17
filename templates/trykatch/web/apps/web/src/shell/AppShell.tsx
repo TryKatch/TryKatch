@@ -1,3 +1,4 @@
+import { applicationName } from '../branding'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { customFetch } from '@trykatch/api-client'
@@ -156,7 +157,7 @@ export function AppShell() {
   return <AssistantChatProvider panelOpen={helpOpen}><div className={`app-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
     <aside className="sidebar" id="organization-navigation">
       <div className="mobile-sidebar-heading">
-        <Link className="brand" to="/overview" aria-label={`Trykatch ${t('Overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><ProductLogo size={17} /></span><span className="sidebar-label">Trykatch</span></Link>
+        <Link className="brand" to="/overview" aria-label={`${applicationName} ${t('Overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><ProductLogo size={17} /></span><span className="sidebar-label">{applicationName}</span></Link>
         <button className="mobile-nav-close" type="button" aria-label={t('Close navigation')} onClick={() => setMobileNavOpen(false)}><X size={19} /></button>
       </div>
       <nav aria-label={t('Organization navigation')}>
@@ -199,7 +200,7 @@ export function AppShell() {
       <div className="secondary-nav"><strong>{t(area)}</strong></div>
       <section className="page">
         {session.isPending ? <div className="shell-loading" aria-label={t('Loading account')}><Skeleton /><Skeleton /><Skeleton /></div>
-          : session.isError ? <div className="shell-state" role="alert"><span><WifiOff size={21} /></span><h1>{t('Connection interrupted')}</h1><p>{t('The application API is temporarily unavailable. Trykatch will keep trying to reconnect.')}</p><Button variant="secondary" onClick={() => session.refetch()} disabled={session.isFetching}>{t(session.isFetching ? 'Reconnecting…' : 'Try again')}</Button></div>
+          : session.isError ? <div className="shell-state" role="alert"><span><WifiOff size={21} /></span><h1>{t('Connection interrupted')}</h1><p>{t('The application API is temporarily unavailable. We will keep trying to reconnect.')}</p><Button variant="secondary" onClick={() => session.refetch()} disabled={session.isFetching}>{t(session.isFetching ? 'Reconnecting…' : 'Try again')}</Button></div>
             : <Outlet />}
       </section>
     </main>

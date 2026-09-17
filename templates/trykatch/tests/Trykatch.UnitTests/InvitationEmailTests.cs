@@ -30,6 +30,35 @@ public sealed class InvitationEmailTests
     }
 
     [TestMethod]
+    public void DevelopmentSenderUsesDisplayBrandInsteadOfTechnicalProjectName()
+    {
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Email:Branding:ApplicationName"] = "Kamenta & partners"
+        }).Build();
+        ServiceCollection services = new();
+        services.AddEmailModule(configuration, isDevelopment: true);
+        using ServiceProvider provider = services.BuildServiceProvider();
+        MimeKit.MailboxAddress sender = MimeKit.MailboxAddress.Parse(provider.GetRequiredService<IOptions<SmtpOptions>>().Value.From);
+        sender.Name.ShouldBe("Kamenta & partners");
+        sender.Address.ShouldBe("noreply@localhost");
+    }
+
+    [TestMethod]
+    public void ExplicitSenderTakesPrecedenceOverDisplayBrand()
+    {
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Email:Branding:ApplicationName"] = "Kamenta",
+            ["Email:From"] = "Notifications <verified@example.test>"
+        }).Build();
+        ServiceCollection services = new();
+        services.AddEmailModule(configuration, isDevelopment: true);
+        using ServiceProvider provider = services.BuildServiceProvider();
+        provider.GetRequiredService<IOptions<SmtpOptions>>().Value.From.ShouldBe("Notifications <verified@example.test>");
+    }
+
+    [TestMethod]
     public async Task InvitationAndRecoveryShareConfiguredApplicationBranding()
     {
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

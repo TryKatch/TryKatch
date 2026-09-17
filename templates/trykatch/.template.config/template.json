@@ -14,6 +14,18 @@
     "type": "solution"
   },
   "symbols": {
+    "display-name": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "Trykatch",
+      "description": "Customer-facing product name, independent of the technical project name."
+    },
+    "displayNameLiteral": {
+      "type": "derived",
+      "valueSource": "display-name",
+      "valueTransform": "displayNameJson",
+      "replaces": "\"Trykatch Product\""
+    },
     "legacyApplicationRoot": {
       "type": "derived",
       "valueSource": "name",
@@ -96,6 +108,9 @@
     }
   },
   "forms": {
+    "displayNameJson": {
+      "identifier": "jsonEncode"
+    },
     "namespaceName": {
       "identifier": "replace",
       "pattern": "[-\\s]+",

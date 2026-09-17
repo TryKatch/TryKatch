@@ -8,7 +8,7 @@ namespace Trykatch.Infrastructure.Modules.Email;
 public sealed class EmailBrandingOptions
 {
     private static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789abcdefABCDEF");
-    public string ApplicationName { get; set; } = "Trykatch";
+    public string ApplicationName { get; set; } = "Trykatch Product";
     public string AccentColor { get; set; } = "#315fba";
     public string? LogoUrl { get; set; }
 
