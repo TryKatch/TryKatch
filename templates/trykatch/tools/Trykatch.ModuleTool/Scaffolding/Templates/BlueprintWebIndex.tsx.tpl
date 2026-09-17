@@ -3,7 +3,7 @@ import { customFetch, __MODULE_CAMEL__List, __MODULE_CAMEL__Create, __MODULE_CAM
 import { defineWebModule, defineTableExtensionPoint, useTableContributions, type TableAction, type ArchiveLifecycle } from '@__NPM_SCOPE__/module-sdk'
 import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Surface, type DataTableColumn } from '@__NPM_SCOPE__/ui'
 import { Boxes, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { workflowActions, runWorkflowAction, workflowText, workflowError, isStaleConflict } from './workflow'
 import { use__MODULE__Messages } from './messages'
 __WEB_DATETIME_IMPORT__
@@ -21,6 +21,7 @@ async function loadResult<T>(load: () => Promise<T>): Promise<LoadResult<T>> {
 export function __MODULE__Page() {
   const { t, tableLabels, locale } = use__MODULE__Messages()
   const queryClient = useQueryClient()
+  const refreshScope = useRef(0)
   const [actionRecord, setActionRecord] = useState<__ENTITY__Dto>()
   const [selectedAction, setSelectedAction] = useState<string>()
   const [actionValues, setActionValues] = useState<Record<string, string>>({})
@@ -40,7 +41,7 @@ export function __MODULE__Page() {
     queryFn: () => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET' }),
   })
   const canManage = (access.data?.permissions ?? []).includes('__MODULE_ID__.manage')
-  const closeEditor = () => { setEditing(undefined); __WEB_FIELD_RESET__ }
+  const closeEditor = () => { refreshScope.current++; refresh.reset(); setEditing(undefined); __WEB_FIELD_RESET__ }
   const save = useMutation({
     mutationFn: () => editing
       ? __MODULE_CAMEL__Update(editing.id, { __WEB_REQUEST_BODY__, expectedVersion: editing.version })
@@ -72,13 +73,18 @@ export function __MODULE__Page() {
       await queryClient.invalidateQueries({ queryKey: ['__MODULE_ID__s'] })
     },
   })
-  const closeAction = () => { setSelectedAction(undefined); setActionRecord(undefined); setActionValues({}); transition.reset() }
-  const openAction = (record: __ENTITY__Dto, id: string) => { transition.reset(); setActionRecord(record); setSelectedAction(id); setActionValues({}) }
-  const openCreate = () => { save.reset(); setEditing(null); __WEB_FIELD_RESET__ }
-  const openEdit = (record: __ENTITY__Dto) => { save.reset(); setEditing(record); __WEB_FIELD_EDIT__ }
+  const closeAction = () => { refreshScope.current++; refresh.reset(); setSelectedAction(undefined); setActionRecord(undefined); setActionValues({}); transition.reset() }
+  const openAction = (record: __ENTITY__Dto, id: string) => { refreshScope.current++; transition.reset(); refresh.reset(); setActionRecord(record); setSelectedAction(id); setActionValues({}) }
+  const openCreate = () => { refreshScope.current++; save.reset(); refresh.reset(); setEditing(null); __WEB_FIELD_RESET__ }
+  const openEdit = (record: __ENTITY__Dto) => { refreshScope.current++; save.reset(); refresh.reset(); setEditing(record); __WEB_FIELD_EDIT__ }
   const refresh = useMutation({
-    mutationFn: (id: string) => customFetch<__ENTITY__Dto>(`/api/v1/__RESOURCE__/${encodeURIComponent(id)}`, { method: 'GET' }),
-    onSuccess: latest => {
+    mutationFn: async (id: string) => {
+      const scope = refreshScope.current
+      const latest = await customFetch<__ENTITY__Dto>(`/api/v1/__RESOURCE__/${encodeURIComponent(id)}`, { method: 'GET' })
+      return { latest, scope }
+    },
+    onSuccess: ({ latest, scope }) => {
+      if (scope !== refreshScope.current) return
       if (editing?.id === latest.id) { setEditing(latest); save.reset() }
       if (actionRecord?.id === latest.id) { setActionRecord(latest); transition.reset() }
     },
