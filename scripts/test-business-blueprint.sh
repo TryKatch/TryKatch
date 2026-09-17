@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CI=true
 
 repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 blueprint_test_root=$(mktemp -d "${TMPDIR:-/tmp}/trykatch-blueprint.XXXXXX")
@@ -19,11 +20,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-dotnet pack "$repository_root/Trykatch.Templates.csproj" -c Release -o "$blueprint_test_root/packages"
-dotnet new install "$blueprint_test_root"/packages/Trykatch.Templates.*.nupkg --debug:custom-hive "$blueprint_test_root/hive"
+source "$repository_root/scripts/lib/qualification-packages.sh"
+prepare_qualification_packages "$blueprint_test_root/packages" "$cli_version"
+dotnet new install "$qualification_template_package" --debug:custom-hive "$blueprint_test_root/hive"
 dotnet new trykatch -n BlueprintAcceptance -o "$blueprint_test_root/app" --allow-scripts yes --debug:custom-hive "$blueprint_test_root/hive"
-dotnet pack "$repository_root/templates/trykatch/tools/Trykatch.ModuleTool" -c Release -o "$blueprint_test_root/packages" -p:PackageVersion="$cli_version"
-dotnet tool install Trykatch.Cli --version "$cli_version" --tool-path "$blueprint_test_root/tools" --add-source "$blueprint_test_root/packages"
+install_qualification_cli "$blueprint_test_root"
 cd "$blueprint_test_root/app"
 "$blueprint_test_root/tools/trykatch" module create --help > "$blueprint_test_root/create-help.txt"
 grep -q -- '--blueprint' "$blueprint_test_root/create-help.txt"

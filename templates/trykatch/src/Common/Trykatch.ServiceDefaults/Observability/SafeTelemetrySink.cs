@@ -14,11 +14,11 @@ internal sealed class SafeTelemetrySink : ILogEventSink, IDisposable
     private static readonly HashSet<string> AllowedProperties = new(StringComparer.Ordinal)
     {
         "EventId", "EventName", "SourceContext", "RequestMethod", "RouteTemplate", "StatusCode",
-        "ElapsedMilliseconds", "MessageId", "MessageType", "DeliveryAttempt", "ExceptionType", "Outcome"
+        "ElapsedMilliseconds", "MessageId", "MessageType", "DeliveryAttempt", "ExceptionType", "Outcome", "ResponseStarted"
     };
     private static readonly HashSet<string> ApprovedTemplates = new(StringComparer.Ordinal)
     {
-        "HTTP request {RequestMethod} {RouteTemplate} responded {StatusCode} in {ElapsedMilliseconds:0.0000} ms",
+        "HTTP request {RequestMethod} {RouteTemplate} completed with {Outcome}, diagnostic status {StatusCode}, response started {ResponseStarted}, in {ElapsedMilliseconds:0.0000} ms",
         "Outbox message {MessageId} ({MessageType}) published on attempt {DeliveryAttempt}",
         "Outbox message {MessageId} failed on attempt {DeliveryAttempt} with {ExceptionType}",
         "Outbox transport completed late with {ExceptionType}",
@@ -45,7 +45,9 @@ internal sealed class SafeTelemetrySink : ILogEventSink, IDisposable
         sink = configuration.CreateLogger();
     }
 
-    public void Emit(LogEvent logEvent)
+    public void Emit(LogEvent logEvent) => sink.Write(Sanitize(logEvent));
+
+    internal static LogEvent Sanitize(LogEvent logEvent)
     {
         List<LogEventProperty> properties = [];
         foreach ((string name, LogEventPropertyValue value) in logEvent.Properties)
@@ -59,7 +61,7 @@ internal sealed class SafeTelemetrySink : ILogEventSink, IDisposable
         LogEvent sanitized = logEvent.TraceId is { } traceId && logEvent.SpanId is { } spanId
             ? new LogEvent(logEvent.Timestamp, logEvent.Level, null, template, properties, traceId, spanId)
             : new LogEvent(logEvent.Timestamp, logEvent.Level, null, template, properties);
-        sink.Write(sanitized);
+        return sanitized;
     }
 
     public void Dispose() => sink.Dispose();

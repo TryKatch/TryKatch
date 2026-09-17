@@ -165,10 +165,16 @@ mkdir -p "$artifact_parent" "$test_root/package"
 artifact_root=$(mktemp -d "$artifact_parent/run.XXXXXX")
 printf 'project=%s\nbase_url=%s\n' "$generated_name" "$web_url" >"$artifact_root/run.txt"
 
-dotnet pack "$repository_root/Trykatch.Templates.csproj" \
-  --configuration Release \
-  --output "$test_root/package"
-package_path=$(find "$test_root/package" -name 'Trykatch.Templates.*.nupkg' -print -quit)
+if [[ -n ${TRYKATCH_QUALIFICATION_PACKAGES:-} ]]; then
+  source "$repository_root/scripts/lib/qualification-packages.sh"
+  prepare_qualification_packages "$test_root/package"
+  package_path=$qualification_template_package
+else
+  dotnet pack "$repository_root/Trykatch.Templates.csproj" \
+    --configuration Release \
+    --output "$test_root/package"
+  package_path=$(find "$test_root/package" -name 'Trykatch.Templates.*.nupkg' -print -quit)
+fi
 if [[ -z $package_path ]]; then
   printf 'The Trykatch template package was not produced.\n' >&2
   exit 1

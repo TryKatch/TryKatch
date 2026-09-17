@@ -27,7 +27,7 @@ classify_path() {
       docs=true
       packaging=true
       ;;
-    .github/workflows/ci.yml|scripts/ci/*|global.json)
+    .github/workflows/ci.yml|.github/workflows/release.yml|scripts/ci/*|scripts/lib/qualification*|scripts/release-artifacts.mjs|global.json)
       mark_all
       ;;
     docs-site/*|docs/*|README.md|CONTRIBUTING.md|SECURITY.md|templates/trykatch/docs/*|templates/trykatch/README*.md|templates/trykatch/AGENTS.md|templates/trykatch/CONTEXT.md)
@@ -130,6 +130,12 @@ fi
 
 if [[ $backend == true || $web == true || $deployment == true || $packaging == true ]]; then
   qualification=true
+fi
+
+# Backend changes can alter OpenAPI even when no frontend file was edited.
+# verify-web builds that API and regenerates clients in its own checkout.
+if [[ $backend == true ]]; then
+  web=true
 fi
 
 printf 'docs=%s\n' "$docs"
