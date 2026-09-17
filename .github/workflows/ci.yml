@@ -38,6 +38,7 @@ jobs:
         run: |
           bash scripts/ci/test-detect-changes.sh
           node scripts/ci/test-first-feature-assertions.mjs
+          node scripts/ci/test-template-payload-assertion.mjs
           bash scripts/ci/check-docs-required.sh "$BASE_SHA" "$HEAD_SHA"
           bash scripts/ci/detect-changes.sh "$BASE_SHA" "$HEAD_SHA" | tee -a "$GITHUB_OUTPUT"
 

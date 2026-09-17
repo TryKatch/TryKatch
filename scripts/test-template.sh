@@ -252,7 +252,7 @@ test -f "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
   fail 'full-stack module generation did not create its React entrypoint'
 grep -Fq 'fr:' "$test_root/Horizon/src/Modules/Inventory/Web/src/messages.ts" ||
   fail 'full-stack module generation omitted French messages'
-grep -Fq "body: JSON.stringify({ sku, price, discount: discount || null, sequence, available, availableAt: availableAt === '' ? null : toUtcDateTime(availableAt, editing?.availableAt), category, notes: notes || null })" \
+grep -Fq "body: JSON.stringify({ sku, price, discount: discount || null, sequence, available, availableAt: availableAt === '' ? null : toUtcDateTime(availableAt, editing?.availableAt), category, notes: notes || null, ...(editing ? { expectedVersion: editing.version } : {}) })" \
   "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
   fail 'full-stack module generation did not apply its field contract to React'
 inventory_web_package=$(jq -r '.entrypoints.web.specifier' \
