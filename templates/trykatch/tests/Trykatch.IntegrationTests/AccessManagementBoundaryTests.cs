@@ -32,6 +32,72 @@ public sealed class AccessManagementBoundaryTests
     private static readonly string[] OrdinaryOrganizationPermissions = ["projects.read"];
     private static readonly string[] LimitedOrganizationManagementPermissions = ["members.manage", "members.read", "roles.read", "roles.manage"];
     private static readonly string[] ElevatedOrganizationPermissions = ["organizations.manage"];
+    private static readonly string[] MemberManagementPermissions = ["members.manage"];
+    [TestMethod]
+    [DataRow("Viewer")]
+    [DataRow("Admin")]
+    public async Task SelectedInvitationRoleIsAssignedOnAcceptance(string roleName)
+    {
+        await using AccessHost host = await AccessHost.StartAsync();
+        using HttpClient administrator = await host.SignInAsync(AccessHost.AdministratorEmail);
+        using HttpClient owner = await host.CreateOrganizationOwnerAsync(administrator);
+        JsonElement role = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/roles")).EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == roleName);
+        Guid roleId = role.GetProperty("id").GetGuid();
+        using HttpClient invitee = await host.InviteAndActivateAsync(owner, "selected-role@trykatch.test", roleId);
+        JsonElement member = await AccessHost.OrganizationMemberAsync(owner, "selected-role@trykatch.test");
+        member.GetProperty("roles").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()).ShouldBe([roleId]);
+        JsonElement access = await invitee.GetFromJsonAsync<JsonElement>("/api/v1/access");
+        access.GetProperty("permissions").EnumerateArray().Select(item => item.GetString()).ShouldBe(
+            role.GetProperty("permissions").EnumerateArray().Select(item => item.GetString()), ignoreOrder: true);
+    }
+
+    [TestMethod]
+    public async Task OrdinaryMemberCannotInviteEditMembersOrManageRoles()
+    {
+        await using AccessHost host = await AccessHost.StartAsync();
+        using HttpClient administrator = await host.SignInAsync(AccessHost.AdministratorEmail);
+        using HttpClient owner = await host.CreateOrganizationOwnerAsync(administrator);
+        using HttpClient member = await host.InviteAndActivateAsync(owner, "ordinary-member@trykatch.test");
+        Guid ownerId = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/access")).GetProperty("membershipId").GetGuid();
+        using HttpResponseMessage inviteDenied = await AccessHost.SendAsync(member, HttpMethod.Post, "/api/v1/invitations", new { email = "denied@trykatch.test" });
+        using HttpResponseMessage editDenied = await AccessHost.SendAsync(member, HttpMethod.Put, $"/api/v1/members/{ownerId}", new { membershipId = ownerId, roleIds = Array.Empty<Guid>(), isActive = false });
+        using HttpResponseMessage roleDenied = await AccessHost.SendAsync(member, HttpMethod.Post, "/api/v1/roles", new { name = "Escalation", description = "Denied", permissions = MemberManagementPermissions });
+        inviteDenied.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        editDenied.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        roleDenied.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await owner.GetFromJsonAsync<JsonElement>("/api/v1/invitations")).EnumerateArray()
+            .ShouldNotContain(item => item.GetProperty("email").GetString() == "denied@trykatch.test");
+    }
+
+    [TestMethod]
+    public async Task InvitationRejectsUnknownRoleAndOwnershipDelegationOutsideAuthority()
+    {
+        await using AccessHost host = await AccessHost.StartAsync();
+        using HttpClient administrator = await host.SignInAsync(AccessHost.AdministratorEmail);
+        using HttpClient owner = await host.CreateOrganizationOwnerAsync(administrator);
+        using HttpClient manager = await host.DelegateOrganizationManagementAsync(owner);
+        JsonElement ownerRole = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/roles")).EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == "Owner");
+        using HttpResponseMessage unknown = await AccessHost.SendAsync(owner, HttpMethod.Post, "/api/v1/invitations", new { email = "unknown@trykatch.test", roleId = Guid.NewGuid() });
+        Guid foreignRole = await host.SeedForeignRoleAsync();
+        using HttpResponseMessage foreign = await AccessHost.SendAsync(owner, HttpMethod.Post, "/api/v1/invitations", new { email = "foreign-role@trykatch.test", roleId = foreignRole });
+        JsonElement archivedRole = await AccessHost.SuccessAsync(owner, HttpMethod.Post, "/api/v1/roles", new { id = (Guid?)null, name = "Archived access", description = "Inactive role", permissions = OrdinaryOrganizationPermissions });
+        Guid archivedRoleId = archivedRole.GetProperty("id").GetGuid();
+        await AccessHost.SuccessAsync(owner, HttpMethod.Post, $"/api/v1/roles/{archivedRoleId}/archive", new { });
+        using HttpResponseMessage archived = await AccessHost.SendAsync(owner, HttpMethod.Post, "/api/v1/invitations", new { email = "archived-role@trykatch.test", roleId = archivedRoleId });
+        using HttpResponseMessage forbidden = await AccessHost.SendAsync(manager, HttpMethod.Post, "/api/v1/invitations", new { email = "owner-escalation@trykatch.test", roleId = ownerRole.GetProperty("id").GetGuid() });
+        unknown.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        foreign.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        archived.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await manager.GetFromJsonAsync<JsonElement>("/api/v1/roles")).EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == "Owner").GetProperty("canAssign").GetBoolean().ShouldBeFalse();
+        (await owner.GetFromJsonAsync<JsonElement>("/api/v1/invitations")).EnumerateArray().ShouldNotContain(item =>
+            item.GetProperty("email").GetString() == "unknown@trykatch.test" || item.GetProperty("email").GetString() == "owner-escalation@trykatch.test"
+            || item.GetProperty("email").GetString() == "foreign-role@trykatch.test" || item.GetProperty("email").GetString() == "archived-role@trykatch.test");
+    }
+
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
@@ -795,9 +861,10 @@ public sealed class AccessManagementBoundaryTests
             return await ActivateOrganizationInvitationAsync(created.GetProperty("invitationToken").GetString()!);
         }
 
-        public async Task<HttpClient> InviteAndActivateAsync(HttpClient inviter, string email)
+        public async Task<HttpClient> InviteAndActivateAsync(HttpClient inviter, string email, Guid? roleId = null)
         {
-            JsonElement created = await SuccessAsync(inviter, HttpMethod.Post, "/api/v1/invitations", new { email, expiresInDays = 7 });
+            JsonElement created = await SuccessAsync(inviter, HttpMethod.Post, "/api/v1/invitations", new { email, roleId, expiresInDays = 7 });
+            if (roleId is not null) created.GetProperty("invitation").GetProperty("roleId").GetGuid().ShouldBe(roleId.Value);
             string token = new Uri(created.GetProperty("invitationUrl").GetString()!).Segments.Last();
             return await ActivateOrganizationInvitationAsync(token);
         }
@@ -818,8 +885,8 @@ public sealed class AccessManagementBoundaryTests
 
         public async Task<Guid> SeedOwnerInvitationAsync(Guid organizationId, Guid roleId)
         {
-            // Generic invitations intentionally grant Member. Seed the protected invitation
-            // state using the same aggregate as organization provisioning, without a new API.
+            // Seed an Owner invitation independently of the HTTP creation path so these
+            // management-boundary tests do not depend on invitation form behavior.
             string token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
             Invitation invitation = Invitation.Create(organizationId, roleId, "pending-owner@trykatch.test",
                 Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token))), DateTimeOffset.UtcNow.AddDays(7));
@@ -827,6 +894,17 @@ public sealed class AccessManagementBoundaryTests
             database.Invitations.Add(invitation);
             await database.SaveChangesAsync();
             return invitation.Id;
+        }
+
+        public async Task<Guid> SeedForeignRoleAsync()
+        {
+            Organization organization = Organization.Create("Foreign workspace", "foreign-workspace");
+            Role role = Role.Create(organization.Id, "Foreign Viewer");
+            await using PlatformDbContext database = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(ownerConnection).Options);
+            database.Organizations.Add(organization);
+            database.Roles.Add(role);
+            await database.SaveChangesAsync();
+            return role.Id;
         }
 
         private async Task<HttpClient> ActivateOrganizationInvitationAsync(string token)

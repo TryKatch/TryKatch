@@ -18,7 +18,7 @@ public sealed class AssistantKnowledge
     public const int MaxContextBytes = 16 * 1024;
     private static readonly (string Id, string Title, string? Module, string Keywords)[] Approved =
     [
-        ("architecture", "Architecture overview", null, "architecture structure layers monolith frontend backend couches"),
+        ("architecture", "Architecture overview", null, "architecture structure layers monolith frontend backend couches application system navigation onboarding getting started permissions roles invitation invite people members users logiciel fonctionnement commencer demarrer utilisateur droits inviter membres acces"),
         ("projects", "Projects module", "projects", "project projects projet projets archive restore"),
         ("documents", "Documents module", "documents", "document documents file files upload fichier fichiers televerser"),
         ("isolation", "Organization isolation and PostgreSQL RLS", null, "rls postgres postgresql concurrency tenant tenancy isolation organisation organization security securite concurrence"),

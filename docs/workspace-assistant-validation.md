@@ -1,8 +1,14 @@
 # Workspace assistant v1 — local verification
 
+## Current preview.27 release-candidate checkpoint
+
+See the [current AI delivery audit](plans/ai-delivery-audit.md) for the evidence boundary. Three of four newly approved automated DeepSeek prompts returned HTTP 200, including a real French follow-up with server-issued continuation. One remains reserved for the final public-package installation; there are no automatic retries. These live observations precede the approved sequential-batch update. Current deterministic checks pass 419 host unit tests (113 runtime/provider cases), 69 host React tests and five focused production HTTP/PostgreSQL cases without skips. Final-state packed variants pass nine checks each; browser invitation and friendly role disclosures pass width/theme checks. The full suite passed 251 cases and found a missing required field in a new test fixture; that case passes after correction and the complete 252-case suite is being rerun. Final release qualification/publication is pending. Older checkpoints and exhausted allowances below are retained as historical evidence.
+
+## Historical checkpoint
+
 Latest checkpoint: see [AI delivery audit](plans/ai-delivery-audit.md) and [grounded AI Help verification](../templates/trykatch/docs/specs/assistant-guidance.md). The 2026-09-17 implementation includes shared help chat, encrypted bounded follow-ups, six approved architecture/module guides and per-instance assistant concurrency protection. Three authorized read-only DeepSeek UAT prompts were attempted: architecture and workspace reads succeeded; the token-bearing follow-up failed with HTTP 502 `invalid_model_response`. The original provider finish reason was not captured. Offline cutoff diagnostics and concise/plain-text instructions were subsequently improved: 401 host unit tests (122 assistant cases), 59 host React tests, the real-PostgreSQL assistant HTTP scenario, solution build, typecheck/build and generated-contract checks pass. The prior full integration run passed 237 tests without skips before this change. Live re-verification needs renewed operator approval; the original three-prompt allowance is exhausted. Figures below are historical milestones, not the latest total.
 
-## Authorized live UAT — 2026-09-17
+## Historical authorized live UAT — 2026-09-17
 
 | Prompt | Observed result |
 | --- | --- |
@@ -14,7 +20,7 @@ The configured server-side key was used, never copied into browser code or print
 
 Date: 2026-09-16. Branch: `feat/workspace-assistant`. Local, uncommitted work; nothing pushed, merged or deployed. Durable jobs have not been started.
 
-## Delivered
+## Historical delivered scope
 
 Provider-neutral `Microsoft.Extensions.AI.IChatClient` runtime with server-side OpenAI Responses and native Ollama adapters, authenticated organization-scoped status/ask endpoints, module-owned bounded project reads and document metadata reads, deny-by-default tool execution, antiforgery and per-actor request limits. The assistant is disabled until an operator explicitly selects provider/model and configures the chosen endpoint's settings. Local Ollama requires no OpenAI key; OpenAI requires a server-side key. No browser key, uploaded file contents, stored chat history or model-directed writes. This is not Microsoft Agent Framework.
 
@@ -22,7 +28,7 @@ The developer `module facts [module-id]` command emits validated installed-manif
 
 The UI follow-up fixes the unpadded initial panel and stretched badge: responsive composer, permission-aware starter prompts, character counter, loading/cancel states, separate plain-text answer card, tool provenance, provider disclosure and privacy guidance. New copy is translated into French and uses the existing design/theme tokens.
 
-## Checks
+## Historical checks
 
 - Locked .NET restore and solution build: pass, zero warnings/errors.
 - Host unit suite: 344 passed; 63 are assistant runtime/provider cases. Both real adapters execute the same authorized read contract through fake HTTP, and reject forbidden tools, extra/duplicate arguments, malformed/oversized responses and oversized provider-private continuation state. Standard structured function calls also work without native adapter metadata. Unsafe/unknown configuration never silently selects OpenAI.
@@ -34,7 +40,7 @@ The UI follow-up fixes the unpadded initial panel and stretched badge: responsiv
 - Packed template: React and backend-only generation/skill-link checks passed. Renamed backend-only API builds without warnings/errors; final renamed React application's 63 runtime/provider tests passed. This is not a full generated application's integration/release certification.
 - Chromium: authorized starter populates the question without submitting; explicit submit renders an answer and provenance. No horizontal overflow at 320 and 768 pixels; desktop layout visually checked at 1,440 pixels. Screenshots are under `templates/trykatch/output/playwright/`. Browser HTTP responses are mocked; backend/database correctness is covered separately by the integration scenario.
 
-## Remaining boundary
+## Historical remaining boundary
 
 No live provider call or model-quality evaluation was made. Operator provider/model setup and an authorized live smoke test remain before claiming end-to-end readiness (a paid key/call is needed only for the chosen hosted provider). `store:false` is OpenAI-specific and not a zero-retention guarantee. Provider independence does not claim ready-made Anthropic, Gemini, Azure or arbitrary vendor adapters. Writes, approval execution, autonomous agents, file ingestion, MCP hosting, persistent conversation memory and cross-replica quota storage are excluded from this read-only v1.
 

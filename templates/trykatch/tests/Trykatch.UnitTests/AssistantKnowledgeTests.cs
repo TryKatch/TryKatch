@@ -32,6 +32,8 @@ public sealed class AssistantKnowledgeTests
 
     [TestMethod]
     [DataRow("Explain architecture and layers", "architecture")]
+    [DataRow("What can I do in this application and where do I start?", "architecture")]
+    [DataRow("Comment commencer et inviter des utilisateurs dans cette application ?", "architecture")]
     [DataRow("What is PostgreSQL RLS and concurrency?", "isolation")]
     [DataRow("How do I use Projects?", "projects")]
     [DataRow("How do I upload files in Documents?", "documents")]
@@ -85,6 +87,17 @@ public sealed class AssistantKnowledgeTests
     [TestMethod]
     public void ChangedEnabledCompositionChangesContinuationKnowledgeRevision()
         => new AssistantKnowledge(Catalog("projects")).Revision.ShouldNotBe(new AssistantKnowledge(Catalog("projects", "documents")).Revision);
+
+    [TestMethod]
+    public void ProductOnboardingSuppliesDocumentedTasksAndPermissionBoundaries()
+    {
+        AssistantHelpContext context = new AssistantKnowledge(Catalog("projects", "documents"))
+            .Retrieve("How do I start using this application and invite people?", []);
+        context.ReferenceData.ShouldContain("Getting started with the application");
+        context.ReferenceData.ShouldContain("select the workspace role");
+        context.ReferenceData.ShouldContain("cannot invite people or change roles");
+        context.ReferenceData.ShouldContain("instead of inventing business behavior");
+    }
 
     private sealed class HelpModule(string id) : IModule
     {

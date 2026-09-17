@@ -22,6 +22,10 @@ The runtime database role cannot own tables or bypass RLS. A separate migrator c
 
 Modules that persist data must also satisfy Trykatch's executable [module data-isolation contract](/architecture/module-data-isolation/). The contract validates EF Core models, PostgreSQL policies, runtime roles, and cross-organization behavior before release.
 
+## Organization roles and invitations
+
+Organization invitations can select an active role before sending; acceptance assigns that recorded role. Only managers with sufficient current authority can create invitations or change people/roles, and only an actual Owner may delegate protected Owner access. Ordinary Member and Viewer defaults do not grant management. Workspace menus and the command palette adapt to effective permissions, not role names. Direct URLs and hidden menus never bypass server authorization. Role screens use friendly catalog labels instead of technical permission keys.
+
 ## Platform access is separate
 
 Platform administrators and support operators use platform roles and permissions. Organization roles never grant platform authority, and platform permission names are validated against their own code-defined catalog.

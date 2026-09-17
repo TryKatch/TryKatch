@@ -31,6 +31,7 @@ describe('RoleEditorDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select module' }))
     expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(2)
     expect(screen.getByText('1 sensitive permission selected')).toBeInTheDocument()
+    expect(screen.queryByText('projects.manage')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Role name' }), { target: { value: 'Project operator' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Purpose' }), { target: { value: 'Operates project records.' } })

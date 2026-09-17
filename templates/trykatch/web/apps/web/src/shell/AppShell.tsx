@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { customFetch } from '@trykatch/api-client'
-import type { NavigationContribution } from '@trykatch/module-sdk'
 import { Button, Dialog, Skeleton } from '@trykatch/ui'
 import {
   Activity,
@@ -31,13 +30,14 @@ import { useI18n } from '../i18n/I18nProvider'
 import { workspaceModules } from '../modules'
 import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 import { navigationLabel } from './navigationLabel'
+import { permittedWorkspaceNavigation, type WorkspaceNavigation } from './workspaceNavigation'
 import { AssistantChat, AssistantChatProvider } from '../features/assistant/AssistantChat'
 
-const coreNavigation: readonly NavigationContribution[] = [
+const coreNavigation: readonly WorkspaceNavigation[] = [
   { id: 'core.overview', section: 'Workspace', order: 10, to: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
-  { id: 'core.user-management', section: 'Administration', order: 10, to: '/user-management', label: 'User Management', icon: Users },
-  { id: 'core.audit', section: 'Administration', order: 20, to: '/audit', label: 'Audit', icon: Activity },
-  { id: 'core.archive', section: 'Recovery', order: 10, to: '/archive', label: 'Archive', icon: ArchiveRestore },
+  { id: 'core.user-management', section: 'Administration', order: 10, to: '/user-management', label: 'User Management', icon: Users, anyPermissions: ['members.manage', 'roles.manage'] },
+  { id: 'core.audit', section: 'Administration', order: 20, to: '/audit', label: 'Audit', icon: Activity, requiredPermission: 'audit.read' },
+  { id: 'core.archive', section: 'Recovery', order: 10, to: '/archive', label: 'Archive', icon: ArchiveRestore, anyPermissions: ['members.manage', 'roles.manage', ...workspaceModules.archiveResources.map((resource) => resource.managePermission)] },
 ]
 const allNavigation = [...coreNavigation, ...workspaceModules.navigationFor('workspace')]
   .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
@@ -149,8 +149,7 @@ export function AppShell() {
   const identity = session.data?.displayName || session.data?.email || t('Account')
   const initials = getInitials(identity)
   const area = pathname.endsWith('/assistant') ? 'AI Help' : pathname.endsWith('/archive') ? 'Recovery' : pathname.includes('/user-management') || pathname.endsWith('/audit') ? 'Administration' : 'Workspace'
-  const permittedNavigation = allNavigation
-    .filter((item) => !item.requiredPermission || access.data?.permissions.includes(item.requiredPermission))
+  const permittedNavigation = permittedWorkspaceNavigation(allNavigation, access.data?.permissions)
     .map((item) => ({ ...item, displayLabel: navigationLabel(item, locale, t) }))
   const navSections = sectionOrder.map((label) => ({ label, items: permittedNavigation.filter((item) => item.section === label) }))
 

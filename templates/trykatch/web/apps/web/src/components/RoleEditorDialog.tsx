@@ -112,7 +112,7 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
                 {module.permissions.map((permission) => <label className={`permission-option${selected.has(permission.key) ? ' is-selected' : ''}${!permission.canGrant ? ' is-disabled' : ''}`} key={permission.key}>
                   <input type="checkbox" checked={selected.has(permission.key)} disabled={!permission.canGrant} onChange={() => togglePermission(permission.key)} />
                   <span className="permission-check" aria-hidden="true">{selected.has(permission.key) && <Check size={13} />}</span>
-                  <span className="permission-copy"><span><strong>{permission.name}</strong>{permission.isSensitive && <Badge tone="warning"><AlertTriangle size={10} /> {t('Sensitive')}</Badge>}{!permission.canGrant && <Badge>{t('Outside grant boundary')}</Badge>}</span><small>{permission.description}</small><code>{permission.key}</code></span>
+                  <span className="permission-copy"><span><strong>{t(permission.name)}</strong>{permission.isSensitive && <Badge tone="warning"><AlertTriangle size={10} /> {t('Sensitive')}</Badge>}{!permission.canGrant && <Badge>{t('Outside grant boundary')}</Badge>}</span><small>{t(permission.description)}</small></span>
                 </label>)}
               </div>
             </section>

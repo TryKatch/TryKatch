@@ -85,6 +85,7 @@ export function AssistantChat() {
   }, [chat?.messages, chat?.pending, chat?.error])
   if (!chat) throw new Error('Assistant chat requires its provider.')
   const suggestions = [
+    { tool: 'help', label: 'Get started', question: 'How do I start using this application? Explain the main features and my next steps.', icon: BookOpen },
     { tool: 'help', label: 'Understand the architecture', question: 'Explain this application’s architecture and module layers.', icon: BookOpen },
     { tool: 'list_projects', label: 'Explore projects', question: 'Show me the projects in this workspace.', icon: FolderKanban },
     { tool: 'list_documents', label: 'Find documents', question: 'Help me find documents in this workspace.', icon: FileText },
@@ -95,7 +96,7 @@ export function AssistantChat() {
   return <div className="help-chat">
     <header className="help-chat-toolbar"><Badge>{t('Read-only')}</Badge><Button type="button" variant="ghost" onClick={() => { chat.reset(chat.error === 'conversation'); input.current?.focus() }}><RotateCcw size={14} aria-hidden="true" />{t('New conversation')}</Button></header>
     <div ref={transcript} className="help-chat-transcript" role="log" aria-label={t('Conversation')} aria-live="polite" aria-relevant="additions text">
-      {chat.messages.length === 0 && <div className="help-chat-welcome"><span className="help-chat-avatar"><Bot size={24} aria-hidden="true" /></span><h2>{t('How can I help?')}</h2><p>{t(chat.status.data?.helpAvailable ? 'Ask about your workspace, architecture, or how to use a module.' : 'Ask about projects and documents in your workspace, then ask a follow-up.')}</p>
+      {chat.messages.length === 0 && <div className="help-chat-welcome"><span className="help-chat-avatar"><Bot size={24} aria-hidden="true" /></span><h2>{t('How can I help?')}</h2><p>{t(chat.status.data?.helpAvailable ? 'Ask how this application works, how to use a feature, or what to do next.' : 'Ask about projects and documents in your workspace, then ask a follow-up.')}</p>
         {chat.available && suggestions.length > 0 && <div className="assistant-suggestions" aria-label={t('Suggested questions')}>{suggestions.map(({ label, question, icon: Icon }) => <button key={label} type="button" disabled={chat.pending} onClick={() => { chat.setMessage(t(question)); input.current?.focus() }}><Icon size={16} aria-hidden="true" /><span>{t(label)}</span></button>)}</div>}
       </div>}
       {chat.messages.map((item) => <div key={item.id} className={`help-chat-message is-${item.role}`}><small>{t(item.role === 'user' ? 'You' : 'AI Help')}</small><p>{item.text}</p>{item.role === 'assistant' && Boolean(item.tools?.length) && <details className="help-chat-sources"><summary>{t('Sources')}</summary><small>{sources(item.tools!).join(', ')}</small></details>}{item.role === 'assistant' && safeGuides(item.guides ?? []).length > 0 && <details className="help-chat-sources"><summary>{t('Guides consulted')}</summary>{safeGuides(item.guides!).map((guide) => <a key={guide.id} href={guide.href} target="_blank" rel="noopener noreferrer">{t(guide.title)}<span className="sr-only"> {t('(opens in a new tab)')}</span></a>)}</details>}</div>)}

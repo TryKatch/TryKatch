@@ -85,6 +85,7 @@ public sealed class AssistantRuntime(ModuleCatalog catalog, IEnumerable<IReadOnl
             };
             HashSet<string> callIds = new(StringComparer.Ordinal);
             List<string> used = [];
+            int reads = 0;
             for (int round = 0; round < 5; round++)
             {
                 if (Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(input)) > 128 * 1024)
@@ -104,32 +105,42 @@ public sealed class AssistantRuntime(ModuleCatalog catalog, IEnumerable<IReadOnl
                     if (turn.Text.Length > 8_000) throw new AssistantException("response_limit");
                     return new(turn.Text, used.Distinct(StringComparer.Ordinal).ToArray(), Guides: help.Sources);
                 }
-                if (round == 4 || calls.Length != 1) throw new AssistantException("tool_limit");
-                FunctionCallContent call = calls[0];
-                if (string.IsNullOrWhiteSpace(call.CallId) || call.CallId.Length > 200 || !callIds.Add(call.CallId)
-                    || !allowed.TryGetValue(call.Name, out AssistantFunction? function))
-                    throw new AssistantException("tool_not_allowed");
-                IReadOnlyAssistantTool adapter = _adapters[declarations[call.Name].OperationId];
-                // Check again at execution, not only when advertising a tool to the provider.
-                if (!await authorizer.HasPermissionAsync(adapter.RequiredPermission, token))
-                    throw new AssistantException("tool_forbidden");
-                if (call.Exception is not null || call.InformationalOnly) throw new AssistantException("invalid_model_response");
-                string argumentsJson = AssistantProtocol.ArgumentsJson(call);
-                if (argumentsJson.Length > 4_000) throw new AssistantException("invalid_arguments");
-                JsonElement arguments;
-                try
+                if (round == 4 || calls.Length > 4 - reads) throw new AssistantException("tool_limit");
+                List<(FunctionCallContent Call, IReadOnlyAssistantTool Adapter, JsonElement Arguments)> batch = [];
+                // Validate the entire batch before the first read. Provider batching is not an execution grant.
+                foreach (FunctionCallContent call in calls)
                 {
-                    using JsonDocument parsed = JsonDocument.Parse(argumentsJson, new JsonDocumentOptions { MaxDepth = 8 });
-                    arguments = parsed.RootElement.Clone();
+                    if (string.IsNullOrWhiteSpace(call.CallId) || call.CallId.Length > 200 || !callIds.Add(call.CallId)
+                        || !allowed.TryGetValue(call.Name, out AssistantFunction? function))
+                        throw new AssistantException("tool_not_allowed");
+                    IReadOnlyAssistantTool adapter = _adapters[declarations[call.Name].OperationId];
+                    if (call.Exception is not null || call.InformationalOnly) throw new AssistantException("invalid_model_response");
+                    string argumentsJson = AssistantProtocol.ArgumentsJson(call);
+                    if (argumentsJson.Length > 4_000) throw new AssistantException("invalid_arguments");
+                    JsonElement arguments;
+                    try
+                    {
+                        using JsonDocument parsed = JsonDocument.Parse(argumentsJson, new JsonDocumentOptions { MaxDepth = 8 });
+                        arguments = parsed.RootElement.Clone();
+                    }
+                    catch (JsonException) { throw new AssistantException("invalid_arguments"); }
+                    AssistantArguments.Validate(arguments, function.Parameters);
+                    if (!await authorizer.HasPermissionAsync(adapter.RequiredPermission, token))
+                        throw new AssistantException("tool_forbidden");
+                    batch.Add((call, adapter, arguments));
                 }
-                catch (JsonException) { throw new AssistantException("invalid_arguments"); }
-                AssistantArguments.Validate(arguments, function.Parameters);
-                JsonElement result = await adapter.ExecuteAsync(arguments, token);
-                string output = result.GetRawText();
-                if (Encoding.UTF8.GetByteCount(output) > 32 * 1024) throw new AssistantException("result_limit");
                 input.AddRange(turn.Messages);
-                input.Add(new(ChatRole.Tool, [new FunctionResultContent(call.CallId, result.Clone())]));
-                used.Add(call.Name);
+                foreach ((FunctionCallContent call, IReadOnlyAssistantTool adapter, JsonElement arguments) in batch)
+                {
+                    // Recheck immediately before every execution; never run a batch concurrently.
+                    if (!await authorizer.HasPermissionAsync(adapter.RequiredPermission, token))
+                        throw new AssistantException("tool_forbidden");
+                    reads++;
+                    JsonElement result = await adapter.ExecuteAsync(arguments, token);
+                    if (Encoding.UTF8.GetByteCount(result.GetRawText()) > 32 * 1024) throw new AssistantException("result_limit");
+                    input.Add(new(ChatRole.Tool, [new FunctionResultContent(call.CallId, result.Clone())]));
+                    used.Add(call.Name);
+                }
             }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)

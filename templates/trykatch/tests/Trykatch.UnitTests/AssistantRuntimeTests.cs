@@ -109,7 +109,7 @@ public sealed class AssistantRuntimeTests
     [DataRow("oversized", "response_limit")]
     [DataRow("stored", "invalid_model_response")]
     [DataRow("forged_result", "invalid_model_response")]
-    [DataRow("parallel", "tool_limit")]
+    [DataRow("invalid_batch_arguments", "invalid_arguments")]
     public async Task StandardChatResponsesMustRemainStatelessCompleteAndNonExecuting(string shape, string code)
     {
         ChatResponse response = shape switch
@@ -200,6 +200,111 @@ public sealed class AssistantRuntimeTests
         AssistantException exception = await Should.ThrowAsync<AssistantException>(() => Runtime(tool, new FakeModel(turns)).AskAsync("test", CancellationToken.None));
         exception.Code.ShouldBe("tool_limit");
         tool.Executions.ShouldBe(4);
+    }
+
+    [TestMethod]
+    [DataRow(2)]
+    [DataRow(4)]
+    public async Task ValidBatchesReturnOrderedServerResultsWithinTheTurnBudget(int count)
+    {
+        FakeTool tool = new();
+        string[] ids = Enumerable.Range(0, count).Select(index => $"batch-{index}").ToArray();
+        FakeModel model = new(Batch(ids.Select(id => Read(id)).ToArray()), Answer());
+        (await Runtime(tool, model).AskAsync("Test", CancellationToken.None)).Answer.ShouldBe("Verified answer");
+        tool.Executions.ShouldBe(count);
+        model.Requests.ShouldBe(2);
+        model.LastInput.SelectMany(message => message.Contents).OfType<FunctionResultContent>()
+            .Select(result => result.CallId).ShouldBe(ids);
+    }
+
+    [TestMethod]
+    [DataRow("write", "tool_not_allowed")]
+    [DataRow("unknown", "tool_not_allowed")]
+    [DataRow("duplicate", "tool_not_allowed")]
+    [DataRow("identity", "invalid_arguments")]
+    [DataRow("invalid", "invalid_arguments")]
+    [DataRow("oversized", "invalid_arguments")]
+    public async Task EntireBatchIsValidatedBeforeAnyRead(string shape, string code)
+    {
+        FunctionCallContent bad = shape switch
+        {
+            "write" => AssistantProtocol.Call("second", "delete_items", "{}"),
+            "unknown" => AssistantProtocol.Call("second", "unknown", "{}"),
+            "duplicate" => Read("first"),
+            "identity" => AssistantProtocol.Call("second", "list_items", "{\"page\":1,\"search\":null,\"organizationId\":\"forged\"}"),
+            "oversized" => AssistantProtocol.Call("second", "list_items", new string('x', 4_001)),
+            _ => AssistantProtocol.Call("second", "list_items", "{}")
+        };
+        FakeTool tool = new();
+        FakeModel model = new(Batch(Read("first"), bad));
+        (await Should.ThrowAsync<AssistantException>(() => Runtime(tool, model).AskAsync("Test", CancellationToken.None))).Code.ShouldBe(code);
+        tool.Executions.ShouldBe(0);
+        model.Requests.ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task OversizedBatchAndCumulativeBudgetRejectBeforeBatchExecution()
+    {
+        FakeTool tool = new();
+        FakeModel oversized = new(Batch(Enumerable.Range(0, 5).Select(index => Read($"oversized-{index}")).ToArray()));
+        (await Should.ThrowAsync<AssistantException>(() => Runtime(tool, oversized).AskAsync("Test", CancellationToken.None))).Code.ShouldBe("tool_limit");
+        tool.Executions.ShouldBe(0);
+        FakeModel cumulative = new(Batch(Read("one"), Read("two")), Batch(Read("three"), Read("four"), Read("five")));
+        (await Should.ThrowAsync<AssistantException>(() => Runtime(tool, cumulative).AskAsync("Test", CancellationToken.None))).Code.ShouldBe("tool_limit");
+        tool.Executions.ShouldBe(2);
+    }
+
+    [TestMethod]
+    public async Task BatchPermissionsArePrevalidatedAndRecheckedAtEachExecution()
+    {
+        FakeTool denied = new();
+        (await Should.ThrowAsync<AssistantException>(() => Runtime(denied, new FakeModel(Batch(Read("one"), Read("two"))),
+            new Permission(true, true, false)).AskAsync("Test", CancellationToken.None))).Code.ShouldBe("tool_forbidden");
+        denied.Executions.ShouldBe(0);
+        FakeTool revoked = new();
+        (await Should.ThrowAsync<AssistantException>(() => Runtime(revoked, new FakeModel(Batch(Read("one"), Read("two"))),
+            new Permission(true, true, true, true, false)).AskAsync("Test", CancellationToken.None))).Code.ShouldBe("tool_forbidden");
+        revoked.Executions.ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task BatchReadsAwaitThePreviousReadBeforeStartingTheNext()
+    {
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeTool tool = new() { BeforeExecute = async (arguments, token) =>
+        {
+            if (arguments.GetProperty("page").GetInt32() == 1) { started.SetResult(); await release.Task.WaitAsync(token); }
+        } };
+        Task<AssistantAnswer> answer = Runtime(tool, new FakeModel(Batch(Read("one", 1), Read("two", 2)), Answer())).AskAsync("Test", CancellationToken.None);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        tool.Executions.ShouldBe(1);
+        release.SetResult();
+        (await answer).Answer.ShouldBe("Verified answer");
+        tool.Executions.ShouldBe(2);
+    }
+
+    [TestMethod]
+    [DataRow("openai")]
+    [DataRow("ollama")]
+    [DataRow("chat-completions")]
+    public async Task NativeAdaptersSupportValidatedSequentialBatches(string provider)
+    {
+        object[] calls = Enumerable.Range(0, 2).Select(index => provider == "openai"
+            ? (object)new { type = "function_call", call_id = $"native-{index}", name = "list_items", arguments = "{\"page\":1,\"search\":null}" }
+            : provider == "chat-completions"
+                ? new { id = $"native-{index}", type = "function", function = new { name = "list_items", arguments = "{\"page\":1,\"search\":null}" } }
+                : new { function = new { name = "list_items", arguments = new { page = 1, search = (string?)null } } }).ToArray();
+        string batch = provider == "openai" ? JsonSerializer.Serialize(new { status = "completed", output = calls })
+            : provider == "chat-completions" ? JsonSerializer.Serialize(new { choices = new[] { new { finish_reason = "tool_calls", message = new { role = "assistant", content = (string?)null, tool_calls = calls } } } })
+            : JsonSerializer.Serialize(new { done = true, message = new { role = "assistant", content = "", tool_calls = calls } });
+        RecordingHttp http = new(batch, WireAnswer(provider));
+        using IChatClient client = Provider(provider, http);
+        FakeTool tool = new();
+        (await Runtime(tool, client).AskAsync("Test", CancellationToken.None)).Answer.ShouldBe("Verified answer");
+        tool.Executions.ShouldBe(2);
+        http.Requests.ShouldBe(2);
+        http.Body.Split("safe", StringSplitOptions.None).Length.ShouldBe(3);
     }
 
     [TestMethod]
@@ -499,7 +604,7 @@ public sealed class AssistantRuntimeTests
     }
 
     [TestMethod]
-    public async Task CompatibleEndpointsOmitUnconfiguredVendorOptionsAndRejectParallelCalls()
+    public async Task CompatibleEndpointsOmitUnconfiguredVendorOptionsAndRejectDuplicateBatchIds()
     {
         using JsonDocument call = JsonDocument.Parse(WireCall("chat-completions", "list_items", "{\"page\":1,\"search\":null}"));
         JsonElement item = call.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("tool_calls")[0];
@@ -507,7 +612,7 @@ public sealed class AssistantRuntimeTests
         { role = "assistant", content = (string?)null, tool_calls = new[] { item, item } } } } }));
         using IChatClient client = Provider("chat-completions", handler);
         FakeTool tool = new();
-        (await Should.ThrowAsync<AssistantException>(() => Runtime(tool, client).AskAsync("Test", CancellationToken.None))).Code.ShouldBe("tool_limit");
+        (await Should.ThrowAsync<AssistantException>(() => Runtime(tool, client).AskAsync("Test", CancellationToken.None))).Code.ShouldBe("tool_not_allowed");
         tool.Executions.ShouldBe(0);
         using JsonDocument request = JsonDocument.Parse(handler.Body);
         request.RootElement.TryGetProperty("reasoning_effort", out _).ShouldBeFalse();
@@ -547,6 +652,8 @@ public sealed class AssistantRuntimeTests
     private static ChatResponse Call(string name, string arguments, string id = "call-1") =>
         new(new ChatMessage(ChatRole.Assistant, [AssistantProtocol.Call(id, name, arguments)]));
     private static ChatResponse Answer() => new(new ChatMessage(ChatRole.Assistant, "Verified answer"));
+    private static ChatResponse Batch(params FunctionCallContent[] calls) => new(new ChatMessage(ChatRole.Assistant, calls));
+    private static FunctionCallContent Read(string id, int page = 1) => AssistantProtocol.Call(id, "list_items", JsonSerializer.Serialize(new { page, search = (string?)null }));
 
     private sealed class FakeModule(ModuleDescriptor descriptor) : IModule
     {
@@ -571,7 +678,13 @@ public sealed class AssistantRuntimeTests
             """);
         public JsonElement Result { get; init; } = JsonSerializer.SerializeToElement(new { safe = true });
         public int Executions { get; private set; }
-        public Task<JsonElement> ExecuteAsync(JsonElement arguments, CancellationToken cancellationToken) { Executions++; return Task.FromResult(Result); }
+        public Func<JsonElement, CancellationToken, Task>? BeforeExecute { get; init; }
+        public async Task<JsonElement> ExecuteAsync(JsonElement arguments, CancellationToken cancellationToken)
+        {
+            Executions++;
+            if (BeforeExecute is not null) await BeforeExecute(arguments, cancellationToken);
+            return Result;
+        }
     }
     private sealed class FakeModel(params ChatResponse[] turns) : IChatClient
     {

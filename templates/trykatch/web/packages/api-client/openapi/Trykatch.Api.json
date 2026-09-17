@@ -4992,6 +4992,13 @@
             ],
             "format": "int32",
             "default": 7
+          },
+          "roleId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -5358,7 +5365,8 @@
           "createdAt",
           "expiresAt",
           "status",
-          "lifecycle"
+          "lifecycle",
+          "roleId"
         ],
         "type": "object",
         "properties": {
@@ -5382,6 +5390,10 @@
           },
           "lifecycle": {
             "$ref": "#/components/schemas/RecordLifecycleDto"
+          },
+          "roleId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

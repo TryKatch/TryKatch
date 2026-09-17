@@ -4,6 +4,8 @@
 
 Complete the requested architecture/module-learning experience in AI Help: a member can ask how the application is structured, how Projects/Documents work, how organization isolation works, or where a developer should extend a module; then ask follow-ups and inspect the approved source guides.
 
+The in-app experience primarily guides users of the finished product. Its getting-started suggestion introduces documented enabled features and practical next steps in English or French. Answers explain feature purposes in everyday language and offer short, permission-dependent walkthroughs; they must not invent workflows for a customer product absent from the approved corpus. Developers building the template use the separate generated onboarding and their existing coding assistant.
+
 This is part of the full AI goal, not part of the earlier chat-only scope. It complements installed `module facts` and project-local coding skills. It does not copy Open Mercato's code or grant the model repository, shell, network, write, administrative, or file-content access. Persistent conversations and autonomous mutation remain separate product/security decisions.
 
 ## Evidence and decisions
@@ -27,6 +29,8 @@ Before organization transaction middleware opens database scope, assistant asks 
 Implemented: `AssistantKnowledge.cs`, explicitly embedded `docs/assistant/*.md`, immutable guide/source/section records, optional knowledge context on `AssistantRuntime`, host guide list/detail endpoints, additive `HelpAvailable` status and `Guides` answer fields, safe source links and an authenticated guide view with English/French affordances. Legacy ask/status behavior is preserved for runtime consumers without a registered guide catalog. OpenAPI/TanStack client was regenerated after building.
 
 ## Acceptance cases and gates
+
+- User guidance: English/French getting-started questions retrieve documented workspace navigation, project creation and role-selected invitations; product-specific undocumented behavior is explicitly out of scope. The starter fills the composer without a provider call or requiring record permissions.
 
 - Unit: every shipped guide is valid and bounded; matching architecture, RLS, Projects/Documents, module authoring and provider questions returns relevant excerpts; follow-ups resolve recent subject; unknown topics do not invent sources. Disabled module guides are not returned. No runtime filesystem/network read occurs.
 - Runtime/provider conformance: documentation-only requests work with no authorized record tools on all three adapters; excerpts are data; configured neutral client receives them; forged/forbidden calls remain rejected. Return only server-issued bounded guide sources, never model links or private reasoning.

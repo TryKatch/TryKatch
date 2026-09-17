@@ -157,11 +157,17 @@ public sealed class AssistantIntegrationTests
             result.RootElement.GetProperty("hasMore").GetBoolean().ShouldBeTrue();
         }
         model.Tool = "try" + "katch_list_documents";
+        model.Batch = ["try" + "katch_list_projects", model.Tool];
         using (HttpResponseMessage ask = await SendAsync(member, "/api/v1/assistant/ask", new { message = "List documents" }, token))
             ask.StatusCode.ShouldBe(HttpStatusCode.OK, await ask.Content.ReadAsStringAsync());
+        model.LastResults.Length.ShouldBe(2);
+        using (JsonDocument projects = JsonDocument.Parse(model.LastResults[0]))
+            projects.RootElement.GetProperty("items").GetArrayLength().ShouldBe(20);
+        model.LastResults[0].ShouldNotContain("Foreign secret project");
         model.LastResult.ShouldContain("Allowed metadata");
         model.LastResult.ShouldNotContain("Private content never sent");
         model.LastResult.ShouldNotContain("private-object-key-never-sent");
+        model.Batch = [];
         model.Tool = "try" + "katch_update_document";
         using (HttpResponseMessage ask = await SendAsync(member, "/api/v1/assistant/ask", new { message = "Update everything" }, token))
             ask.StatusCode.ShouldBe(HttpStatusCode.BadGateway);
@@ -306,8 +312,10 @@ public sealed class AssistantIntegrationTests
         public TaskCompletionSource<ChatResponse>? Hold { get; set; }
         public ChatFinishReason? FinishReason { get; set; }
         public string Tool { get; set; } = "";
+        public string[] Batch { get; set; } = [];
         public string Arguments { get; set; } = "{}";
         public string LastResult { get; private set; } = "";
+        public string[] LastResults { get; private set; } = [];
         public int Requests { get; private set; }
         public ChatMessage[] LastInitialInput { get; private set; } = [];
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
@@ -323,10 +331,14 @@ public sealed class AssistantIntegrationTests
             }
             if (input[^1].Contents.Single() is FunctionResultContent result)
             {
+                LastResults = input.Where(message => message.Role == ChatRole.Tool).SelectMany(message => message.Contents)
+                    .OfType<FunctionResultContent>().Select(AssistantProtocol.ResultJson).ToArray();
                 LastResult = AssistantProtocol.ResultJson(result);
                 return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "Read completed; no changes made.")));
             }
             LastInitialInput = input;
+            if (Batch.Length > 0) return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant,
+                Batch.Select((name, index) => (AIContent)AssistantProtocol.Call($"batch-{index}", name, Arguments)).ToList())));
             if (Tool.Length == 0) return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "The documented architecture uses focused module layers.")));
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, [AssistantProtocol.Call("test-call", Tool, Arguments)])));
         }

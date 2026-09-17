@@ -37,6 +37,10 @@ The application shell owns responsive navigation. Desktop and tablet layouts ret
 
 Pages must never create document-level horizontal overflow. Dense tables keep their semantic columns and scroll inside `table-wrap`; filter toolbars stack, primary page actions expand to the available width, multi-column forms become single-column, and dialogs stay inside the viewport with their long content scrolling internally. Validate shared surfaces at 320px, 768px, and 1440px before release.
 
+Shared modal overlay/content layers sit above the mobile drawer and backdrop. Verify hit testing, not just viewport width: navigation must never cover or intercept a modal's fields. Invitation role cards use fixed-size radio controls beside wrapping descriptions, with selectors scoped above the generic dialog-form label/input rules.
+
+Workspace navigation and its command palette share an effective-permission filter. User Management requires people/role management, Audit requires audit access, and Recovery uses management capabilities contributed by installed modules. Module-owned links use their declared required permission; never branch on a role's display name. The management page also checks access for direct URLs and gates data queries. UI checks are not a substitute for API/application authorization. Role displays/editors use catalog names and descriptions, retaining technical keys only in machine/developer contracts.
+
 ## Audit activity
 
 Audit event codes and their human presentation metadata are defined in the backend audit module. React consumes titles, descriptions, actors, targets, categories, and severity from the contract; it does not translate raw event codes. This keeps wording consistent for future web, CLI, notification, and export adapters.

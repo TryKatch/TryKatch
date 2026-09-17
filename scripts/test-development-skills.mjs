@@ -15,6 +15,30 @@ const firstFeaturePaths = ['docs/first-feature.md', 'docs/first-feature.fr.md']
 const backendHttpPaths = ['docs/backend-only-http.md', 'docs/backend-only-http.fr.md']
 const instructionPaths = ['AGENTS.md', 'docs/ai-assisted-development.md', ...onboardingPaths, ...firstFeaturePaths, ...backendHttpPaths, ...skillPaths, ...guidePaths]
 
+test('user help runtime and both React entry points ship alongside developer onboarding', async () => {
+  const read = relative => readFile(path.join(applicationRoot, relative), 'utf8')
+  const controller = await read(`src/API/${namespace}.Api/Controllers/AssistantController.cs`)
+  assert.ok(controller.includes('[OrganizationScoped]'), 'Help must retain organization-scoped authorization')
+  assert.ok(controller.includes('CookieAntiforgery'), 'Chat requests must retain cookie antiforgery')
+  const runtime = await read(`src/Common/${namespace}.Modules.AspNetCore/Assistant/AssistantRuntime.cs`)
+  assert.ok(runtime.includes('IChatClient'), 'Help must remain provider-neutral')
+  const project = await read(`src/Common/${namespace}.Modules.AspNetCore/${namespace}.Modules.AspNetCore.csproj`)
+  assert.ok(project.includes('EmbeddedResource'), 'Approved guides must survive deployment without the source checkout')
+  for (const guide of ['architecture', 'projects', 'documents', 'isolation', 'module-authoring', 'providers']) {
+    assert.ok(project.includes(`docs/assistant/${guide}.md`))
+    assert.ok((await read(`docs/assistant/${guide}.md`)).trim(), `Missing approved guide ${guide}`)
+  }
+  if (await stat(path.join(applicationRoot, 'web/package.json')).catch(() => null)) {
+    const shell = await read('web/apps/web/src/shell/AppShell.tsx')
+    assert.match(shell, /className="help-chat-launcher"/, 'The floating AI Help entry point must ship')
+    assert.match(shell, /className="account-menu-item"[^\n]*setHelpOpen\(true\)[^\n]*t\('AI Help'\)/,
+      'The account-menu AI Help entry point must ship')
+    assert.ok(shell.includes('AssistantChatProvider') && shell.includes('<AssistantChat />'))
+    assert.ok((await read('web/apps/web/src/features/assistant/AssistantChat.tsx')).includes('conversationToken'))
+    assert.ok((await read('web/apps/web/src/router.tsx')).includes('assistant'))
+  }
+})
+
 test('all five skills ship as discoverable folders with stable names and descriptions', async () => {
   const entries = await readdir(path.join(applicationRoot, '.agents/skills'))
   for (const name of skillNames) {

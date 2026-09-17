@@ -201,6 +201,15 @@ describe('AssistantPage', () => {
     expect(assistantAsk).toHaveBeenLastCalledWith({ message: 'Organization B question' }, expect.objectContaining({ signal: expect.any(AbortSignal) }))
   })
 
+  it('offers user getting-started guidance without requiring record permissions or sending automatically', async () => {
+    vi.mocked(assistantStatus).mockResolvedValue({ enabled: true, readOnly: true, tools: [], helpAvailable: true })
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Get started' }))
+    expect(screen.getByLabelText('Your question')).toHaveValue('How do I start using this application? Explain the main features and my next steps.')
+    expect(assistantAsk).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Explore projects' })).not.toBeInTheDocument()
+  })
+
   it('offers grounded architecture help without granting record starters', async () => {
     vi.mocked(assistantStatus).mockResolvedValue({ enabled: true, readOnly: true, tools: [], helpAvailable: true })
     vi.mocked(assistantAsk).mockResolvedValue({ answer: 'The approved guide describes Domain and Application layers.', toolsUsed: [], guides: [

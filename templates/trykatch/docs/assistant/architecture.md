@@ -1,5 +1,15 @@
 # Architecture overview
 
+## Getting started with the application
+
+This foundation provides an organization workspace with an Overview, enabled business modules and role-controlled administration. The shipped examples are Projects for organizing work and Documents for storing related files. Only describe example modules when the enabled-module declarations confirm they are installed; a generated customer application can replace these examples with its own product features.
+
+Start on Overview to see your workspace's summary. Open Projects to find work records, or Documents to find files, when those menus are available. To create a project, open Projects and choose New project; enter its name and description and save. If a management control is unavailable, ask the workspace administrator for the appropriate access rather than trying to bypass it. AI Help can explain these steps and read authorized records, but cannot perform changes for you.
+
+An administrator invites people from User Management: choose Invite person, enter their email, select the workspace role they need and create the invitation. They join through the invitation link by signing in or creating their account. The assigned role determines access after they join. Administrators can manage people and roles; an ordinary member cannot invite people or change roles. Menus follow effective permissions, not merely the name of a role. A product can explicitly delegate a management capability through a custom role.
+
+User questions may be asked in English or French; AI answers should follow the user's language. Use the application's language switcher for interface labels. If you need help with a feature not described by the supplied guides, the assistant must say it does not have that product's documentation instead of inventing business behavior. Ask a focused follow-up such as “Where do I start?” or “Explain the next step” to continue the current conversation.
+
 ## Modular monolith and layers
 
 Trykatch is a .NET modular monolith: one composed application with explicitly registered business modules, not an automatically discovered collection of assemblies. A module has Domain, Application, IntegrationEvents, Presentation and Infrastructure projects. Domain owns invariants; Application owns use cases and authorization; Presentation binds HTTP; Infrastructure owns persistence and registration. IntegrationEvents is the allowed cross-module event contract. A web-capable module can also own a Web package.
