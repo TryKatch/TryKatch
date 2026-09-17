@@ -22,6 +22,9 @@ test('user help runtime and both React entry points ship alongside developer onb
   assert.ok(controller.includes('CookieAntiforgery'), 'Chat requests must retain cookie antiforgery')
   const runtime = await read(`src/Common/${namespace}.Modules.AspNetCore/Assistant/AssistantRuntime.cs`)
   assert.ok(runtime.includes('IChatClient'), 'Help must remain provider-neutral')
+  const httpTests = await read(`tests/${namespace}.IntegrationTests/AssistantIntegrationTests.cs`)
+  assert.ok(httpTests.includes(`global::${namespace}.Api.Modules.EnabledModules.All`),
+    'Generated HTTP tests must not confuse an Email field with the Email.Sample namespace')
   const project = await read(`src/Common/${namespace}.Modules.AspNetCore/${namespace}.Modules.AspNetCore.csproj`)
   assert.ok(project.includes('EmbeddedResource'), 'Approved guides must survive deployment without the source checkout')
   for (const guide of ['architecture', 'projects', 'documents', 'isolation', 'module-authoring', 'providers']) {

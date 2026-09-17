@@ -43,7 +43,7 @@ public sealed record AuditPageDto(
     AuditFilterOptionsDto Filters);
 public sealed record CreateInvitationCommand(string Email, int ExpiresInDays = 7, Guid? RoleId = null);
 public sealed record UpdateInvitationCommand(int ExpiresInDays);
-public sealed record CreateInvitationResult(InvitationDto Invitation, string OrganizationName, string Token);
+public sealed record CreateInvitationResult(InvitationDto Invitation, string OrganizationName, string Token, string RoleName);
 public sealed record InvitationPreviewDto(string Email, string OrganizationName, DateTimeOffset ExpiresAt);
 public sealed record SaveRoleCommand(Guid? Id, string Name, string Description, IReadOnlyList<string> Permissions);
 public sealed record UpdateMembershipCommand(Guid MembershipId, IReadOnlyList<Guid> RoleIds, bool IsActive);
@@ -305,7 +305,7 @@ public sealed class OrganizationAdministration(
         await store.AddInvitationAsync(invitation, cancellationToken);
         auditWriter.Record(AuditActions.InvitationCreated, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email));
         await store.SaveChangesAsync(cancellationToken);
-        return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), organization.Name, token));
+        return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), organization.Name, token, invitedRole.Name));
     }
 
     public async Task<Result<InvitationDto>> UpdateInvitationAsync(Guid invitationId, UpdateInvitationCommand command, CancellationToken cancellationToken)

@@ -66,7 +66,7 @@ internal sealed class SmtpEmailSender(IOptions<SmtpOptions> options, ISmtpClient
     }
 }
 
-internal sealed class SmtpAccountRecoveryNotifier(IEmailSender emailSender) : IAccountRecoveryNotifier
+internal sealed class SmtpAccountRecoveryNotifier(IEmailSender emailSender, BrandedEmailTemplate template) : IAccountRecoveryNotifier
 {
     public bool IsConfigured => true;
 
@@ -77,33 +77,38 @@ internal sealed class SmtpAccountRecoveryNotifier(IEmailSender emailSender) : IA
         CancellationToken cancellationToken = default)
     {
         string safeName = System.Net.WebUtility.HtmlEncode(displayName);
-        string safeUrl = System.Net.WebUtility.HtmlEncode(resetUrl);
         return emailSender.SendAsync(new EmailMessage(
             recipient,
-            "Reset your Trykatch password",
+            $"Reset your {template.ApplicationName} password",
             $"Hello {displayName},\n\nUse this link to reset your password:\n{resetUrl}\n\nIf you did not request this, you can safely ignore this message.",
-            $"<p>Hello {safeName},</p><p>Use the link below to reset your password.</p><p><a href=\"{safeUrl}\">Reset password</a></p><p>If you did not request this, you can safely ignore this message.</p>"),
+            template.Render("Reset your password", $"Reset your {template.ApplicationName} password.",
+                $"<p>Hello {safeName},</p><p>Use the link below to reset your password.</p>", "Reset password", resetUrl,
+                "If you did not request this, you can safely ignore this message.")),
             cancellationToken);
     }
 }
 
-internal sealed class SmtpInvitationNotifier(IEmailSender emailSender) : IInvitationNotifier
+internal sealed class SmtpInvitationNotifier(IEmailSender emailSender, BrandedEmailTemplate template) : IInvitationNotifier
 {
     public bool IsConfigured => true;
 
     public Task SendOrganizationInvitationAsync(
         string recipient,
         string organizationName,
+        string roleName,
         string invitationUrl,
         CancellationToken cancellationToken = default)
     {
         string safeOrganization = System.Net.WebUtility.HtmlEncode(organizationName);
-        string safeUrl = System.Net.WebUtility.HtmlEncode(invitationUrl);
+        string safeRole = System.Net.WebUtility.HtmlEncode(roleName);
         return emailSender.SendAsync(new EmailMessage(
             recipient,
-            $"Join {organizationName} on Trykatch",
-            $"You have been invited to join {organizationName}.\n\nAccept the invitation and set up your account:\n{invitationUrl}\n\nThis invitation can be accepted once. If you were not expecting it, you can safely ignore this message.",
-            $"<p>You have been invited to join <strong>{safeOrganization}</strong>.</p><p><a href=\"{safeUrl}\">Accept invitation</a></p><p>This invitation can be accepted once. If you were not expecting it, you can safely ignore this message.</p>"),
+            $"Join {organizationName} on {template.ApplicationName}",
+            $"You have been invited to join {organizationName}.\n\nWorkspace role: {roleName}\n\nAccept the invitation and set up your account:\n{invitationUrl}\n\nThis invitation can be accepted once. If you were not expecting it, you can safely ignore this message.",
+            template.Render("You're invited", $"Join {organizationName} as {roleName}.",
+                $"<p>You have been invited to join <strong>{safeOrganization}</strong>.</p><p style=\"padding:16px;background-color:#f8faf9;border:1px solid #dce3e1;border-radius:4px;\">Workspace role: <strong>{safeRole}</strong></p><p>Accept the invitation and set up your account to get started.</p>",
+                "Accept invitation", invitationUrl,
+                "This invitation can be accepted once. If you were not expecting it, you can safely ignore this message.")),
             cancellationToken);
     }
 }
@@ -112,6 +117,10 @@ public static class EmailModule
 {
     public static IServiceCollection AddEmailModule(this IServiceCollection services, IConfiguration configuration, bool isDevelopment = false, bool isOpenApiGeneration = false)
     {
+        services.AddOptions<EmailBrandingOptions>().Bind(configuration.GetSection("Email:Branding"))
+            .Validate(options => options.IsValid(), "Email branding is invalid. Use an application name, a six-digit hex accent color, and an optional HTTPS logo URL.")
+            .ValidateOnStart();
+        services.TryAddSingleton<BrandedEmailTemplate>();
         services.AddOptions<SmtpOptions>().Configure(options =>
         {
             SmtpOptions configured = SmtpOptions.Load(configuration, isDevelopment || isOpenApiGeneration);

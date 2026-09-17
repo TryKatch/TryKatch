@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,15 +37,19 @@ public sealed class AccessManagementBoundaryTests
     [TestMethod]
     [DataRow("Viewer")]
     [DataRow("Admin")]
+    [DataRow("Member")]
     public async Task SelectedInvitationRoleIsAssignedOnAcceptance(string roleName)
     {
-        await using AccessHost host = await AccessHost.StartAsync();
+        RecordingInvitationNotifier notifier = new();
+        await using AccessHost host = await AccessHost.StartAsync(notifier);
         using HttpClient administrator = await host.SignInAsync(AccessHost.AdministratorEmail);
         using HttpClient owner = await host.CreateOrganizationOwnerAsync(administrator);
         JsonElement role = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/roles")).EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == roleName);
         Guid roleId = role.GetProperty("id").GetGuid();
         using HttpClient invitee = await host.InviteAndActivateAsync(owner, "selected-role@trykatch.test", roleId);
+        notifier.RoleName.ShouldBe(roleName);
+        notifier.Recipient.ShouldBe("selected-role@trykatch.test");
         JsonElement member = await AccessHost.OrganizationMemberAsync(owner, "selected-role@trykatch.test");
         member.GetProperty("roles").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()).ShouldBe([roleId]);
         JsonElement access = await invitee.GetFromJsonAsync<JsonElement>("/api/v1/access");
@@ -686,13 +691,27 @@ public sealed class AccessManagementBoundaryTests
         }
     }
 
+    private sealed class RecordingInvitationNotifier : IInvitationNotifier
+    {
+        public bool IsConfigured => true;
+        public string? RoleName { get; private set; }
+        public string? Recipient { get; private set; }
+        public Task SendOrganizationInvitationAsync(string recipient, string organizationName, string roleName,
+            string invitationUrl, CancellationToken cancellationToken = default)
+        {
+            Recipient = recipient;
+            RoleName = roleName;
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class AccessHost(PostgreSqlContainer? postgres, WebApplicationFactory<Program> factory, string ownerConnection, string? maintenanceConnection, string? databaseName) : IAsyncDisposable
     {
         public const string AdministratorEmail = "authority-admin@trykatch.test";
         private const string Password = "Local-only!Authority-Password-42";
         public IServiceProvider Services => factory.Services;
 
-        public static async Task<AccessHost> StartAsync()
+        public static async Task<AccessHost> StartAsync(IInvitationNotifier? invitationNotifier = null)
         {
             string? configuredPostgres = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
             PostgreSqlContainer? postgres = string.IsNullOrWhiteSpace(configuredPostgres)
@@ -712,7 +731,7 @@ public sealed class AccessManagementBoundaryTests
             }
             try
             {
-                return new(postgres, await CreateFactoryAsync(ownerConnection), ownerConnection, configuredPostgres, databaseName);
+                return new(postgres, await CreateFactoryAsync(ownerConnection, invitationNotifier), ownerConnection, configuredPostgres, databaseName);
             }
             catch
             {
@@ -722,7 +741,7 @@ public sealed class AccessManagementBoundaryTests
             }
         }
 
-        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(string ownerConnection)
+        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(string ownerConnection, IInvitationNotifier? invitationNotifier)
         {
             var connections = await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(ownerConnection);
             await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ownerConnection).Options);
@@ -763,6 +782,8 @@ public sealed class AccessManagementBoundaryTests
                 webHost.UseEnvironment("Development");
                 foreach ((string key, string? value) in settings) webHost.UseSetting(key, value);
                 webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
+                if (invitationNotifier is not null)
+                    webHost.ConfigureTestServices(services => services.AddSingleton(invitationNotifier));
             });
             return factory;
         }

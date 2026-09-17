@@ -40,7 +40,7 @@ public sealed class AssistantIntegrationTests
         await postgres.StartAsync();
         string owner = postgres.GetConnectionString();
         (string organization, string platform, string identity, string outbox) = await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(owner);
-        IModule[] modules = Trykatch.Api.Modules.EnabledModules.All.ToArray();
+        IModule[] modules = global::Trykatch.Api.Modules.EnabledModules.All.ToArray();
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:trykatchdb"] = identity }).Build();
         await MigrateAsync(owner, configuration, modules);
         await RuntimeRoleProvisioner.ProvisionAsync(owner, new RuntimeDatabaseRoles(

@@ -26,6 +26,10 @@ The host's organization administration use case owns invitation creation. Option
 
 No schema migration is required. Invitation DTOs include the recorded role ID. React submits the selected role ID, shows its friendly name in pending invitations and confirmation, and excludes roles whose `canAssign` hint is false. That hint is not an authorization grant. Generated OpenAPI and clients must be regenerated, not hand-edited. English and French interface strings are supplied. Technical keys remain in the backend contract and developer facts, not the role disclosure.
 
+When optional SMTP is enabled, invitation emails include the selected role's friendly name in both plain text and HTML. The application use case obtains that name from the validated organization role, never from caller-supplied presentation text. Custom role names are HTML-encoded. The role name is notification information, not a new access grant; acceptance still checks the saved role ID. Custom `IInvitationNotifier` implementations must accept the `roleName` argument between organization name and invitation URL. Without SMTP, the copyable invitation link and recorded role remain available.
+
+Invitation and password-reset notifications share a branded HTML shell with an application header, blue primary action, neutral surfaces, plain-text alternatives and a fallback link. Branding belongs to operator configuration (`Email:Branding`), not untrusted request input or personal themes; colours accept only six-digit hex and external logos must use HTTPS without credentials. Test delivery locally with Mailpit, not real recipients. A production SMTP provider remains an explicit deployment choice; local rendering does not prove production inbox delivery or every email client's rendering.
+
 ## Acceptance cases
 
 1. Select Viewer or Admin, accept through production HTTP and runtime PostgreSQL roles, and receive exactly the selected role's grants.
@@ -35,6 +39,7 @@ No schema migration is required. Invitation DTOs include the recorded role ID. R
 5. The invitation form submits the selected role, excludes unassignable roles and displays the assigned friendly role name.
 6. A Member opening the management URL sees no administrative controls and triggers no administration data queries.
 7. Role details contain friendly names and descriptions, not dotted permission keys. Test changed flows at 320, 768 and 1440 pixels in light/dark themes.
+8. Selected Admin/Viewer/Member invitations pass the validated role name to notification delivery; plain-text and HTML emails contain it, and custom names cannot inject HTML. Existing SMTP transport-security checks remain enforced.
 
 ## Verification record
 
