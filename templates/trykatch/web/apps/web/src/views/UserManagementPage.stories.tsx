@@ -13,7 +13,9 @@ const meta = {
     auth: [http.get('*/api/v1/access', () => HttpResponse.json({ membershipId: 'preview', permissions: ['members.read', 'members.manage'] })), http.get('*/api/v1/auth/antiforgery', () => HttpResponse.json({ token: 'storybook-only' }))],
     api: [...readers, http.post('*/api/v1/invitations', async ({ request }) => {
       await expect(await request.json()).toEqual({ email: 'new@example.test', expiresInDays: 7 })
-      return HttpResponse.json({ invitation: { id: 'preview-invitation', email: 'new@example.test', roleId: 'default-member' }, invitationUrl: 'https://example.test/invite/preview-only', emailDelivered: false })
+      // Seeded Member grants roles.read, which this caller lacks. Production
+      // delegation checks therefore reject this request rather than invite.
+      return HttpResponse.json({ title: 'You cannot invite a member whose access exceeds your authority.' }, { status: 403 })
     })],
   } } },
 } satisfies Meta<typeof UserManagementPage>
@@ -32,17 +34,10 @@ async function submitDefaultInvitation(canvasElement: HTMLElement) {
   return dialog
 }
 
-export const WithoutRoleRead: Story = {
-  play: async ({ canvasElement }) => {
-    await submitDefaultInvitation(canvasElement)
-    await expect(await within(canvasElement.ownerDocument.body).findByRole('heading', { name: 'Invitation ready' })).toBeVisible()
-  },
-}
 export const DefaultRoleForbidden: Story = {
-  parameters: { msw: { handlers: { api: [...readers, http.post('*/api/v1/invitations', () => HttpResponse.json({ title: 'You cannot assign the default Member role.' }, { status: 403 }))] } } },
   play: async ({ canvasElement }) => {
     const dialog = await submitDefaultInvitation(canvasElement)
-    await expect(await dialog.findByRole('alert')).toHaveTextContent('You cannot assign the default Member role.')
+    await expect(await dialog.findByRole('alert')).toHaveTextContent('You cannot invite a member whose access exceeds your authority.')
     await expect(dialog.getByRole('textbox', { name: 'Email address' })).toHaveValue('new@example.test')
   },
 }
