@@ -250,7 +250,7 @@ const frenchMessages: Record<string, string> = {
   'Size': 'Taille',
   'Stored grants that are no longer present in the active catalog.': 'Autorisations enregistrées qui ne figurent plus dans le catalogue actif.',
   'Structured for change': 'Structuré pour évoluer',
-  'The application API is temporarily unavailable. Trykatch will keep trying to reconnect.': 'L’API est temporairement indisponible. Trykatch continuera de tenter la reconnexion.',
+  'The application API is temporarily unavailable. We will keep trying to reconnect.': 'L’API est temporairement indisponible. Nous continuerons de tenter la reconnexion.',
   'The problem': 'Le problème',
   'This is a recovery code': 'Ceci est un code de récupération',
   'This password reset link is incomplete. Request a new link from the sign-in page.': 'Ce lien de réinitialisation est incomplet. Demandez un nouveau lien depuis la page de connexion.',
@@ -712,7 +712,7 @@ const frenchMessages: Record<string, string> = {
   'grants': 'autorisations',
   'module': 'module',
   'No description': 'Aucune description',
-  'Managed by Trykatch': 'Géré par Trykatch',
+  'System-managed role': 'Rôle géré par le système',
   'Custom workspace access': 'Accès personnalisé à l’espace',
 }
 

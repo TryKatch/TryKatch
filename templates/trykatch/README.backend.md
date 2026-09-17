@@ -1,5 +1,7 @@
 # Trykatch
 
+Choose the customer-facing name independently of namespaces with `--display-name "Kamenta"`; see [product branding](docs/branding.md) ([Français](docs/branding.fr.md)). Skip the web configuration in this backend-only application.
+
 > Start secure. Build freely.
 
 Trykatch is a clean-room backend foundation for .NET 10, PostgreSQL, Aspire, and the open Grafana observability stack.
