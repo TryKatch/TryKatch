@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch, type DocumentDto } from '@trykatch/api-client'
 import { defineWebModule, ModuleExtensionSlot, useModuleI18n, type ArchiveLifecycle } from '@trykatch/module-sdk'
-import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
+import { Button, DataTable, Dialog, EmptyState, FloatingInput, FloatingTextarea, PageHeader, RowActions, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
 import { Download, FileText, LoaderCircle, Upload } from 'lucide-react'
 import { useId, useState } from 'react'
 import './documents.css'
+import { documentSchema } from './validation'
 
 const documentTypes = [
   { value: 'invoice', label: 'Invoice' },
@@ -53,6 +54,7 @@ export function DocumentsPage() {
   const [file, setFile] = useState<File>()
   const [documentType, setDocumentType] = useState('other')
   const [fileError, setFileError] = useState<string>()
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [fileInputKey, setFileInputKey] = useState(0)
   const formId = useId()
   const documents = useQuery({
@@ -97,6 +99,7 @@ export function DocumentsPage() {
     },
   })
   const openUpload = () => {
+    setFieldErrors({})
     save.reset()
     setEditing(null)
     setTitle('')
@@ -107,6 +110,7 @@ export function DocumentsPage() {
     setFileInputKey((key) => key + 1)
   }
   const openEdit = (document: DocumentDto) => {
+    setFieldErrors({})
     save.reset()
     setEditing(document)
     setTitle(document.title)
@@ -116,6 +120,7 @@ export function DocumentsPage() {
     setFileError(undefined)
   }
   const closeEditor = () => {
+    setFieldErrors({})
     setEditing(undefined)
     setTitle('')
     setDescription('')
@@ -150,7 +155,7 @@ export function DocumentsPage() {
     { id: 'documentType', header: t('Document type'), cell: (document) => <span className="document-type-tag">{t(documentTypeLabel(document.documentType))}</span>, sortValue: (document) => t(documentTypeLabel(document.documentType)), searchValue: (document) => t(documentTypeLabel(document.documentType)) },
     { id: 'type', header: t('File'), cell: (document) => <div><strong>{formatBytes(document.metadata.sizeBytes)}</strong><small>{document.metadata.mediaType}</small></div>, sortValue: (document) => Number(document.metadata.sizeBytes) },
     { id: 'updated', header: t('Updated'), cell: (document) => formatDate(document.metadata.updatedAt ?? document.createdAt, { dateStyle: 'medium', timeStyle: 'short' }), sortValue: (document) => new Date(document.metadata.updatedAt ?? document.createdAt) },
-    { id: 'actions', header: '', cell: (document) => <RowActions label={t('Actions for {name}', { name: document.title })} actions={actionsFor(document)} />, hideable: false, align: 'right', width: 54 },
+    { id: 'actions', header: t('Actions'), cell: (document) => <RowActions label={t('Actions for {name}', { name: document.title })} actions={actionsFor(document)} />, hideable: false, align: 'right', width: 90 },
   ]
   const loadFailure = documents.data?.failure ?? access.error?.message ?? documents.error?.message
   const documentRecords = documents.data?.value ?? []
@@ -166,7 +171,18 @@ export function DocumentsPage() {
       <ModuleExtensionSlot point="documents.list.after-table" context={{ resultCount: documentRecords.length }} permissions={permissions} />
     </Surface>
     <Dialog className="document-editor" open={editing !== undefined} onOpenChange={(open) => { if (!open && !save.isPending) closeEditor() }} title={t(editing ? 'Edit document' : 'Upload document')} description={t(editing ? 'Update the searchable document metadata.' : 'Add a file and classify it for your workspace.')}>
-      <form onSubmit={(event) => { event.preventDefault(); if (!save.isPending && !fileError && (editing || file)) save.mutate() }} className="dialog-form document-editor-form" aria-busy={save.isPending}>
+      <form noValidate onSubmit={(event) => {
+        event.preventDefault()
+        if (save.isPending || fileError) return
+        const result = documentSchema.safeParse({ title, description, documentType })
+        if (!result.success) {
+          setFieldErrors(Object.fromEntries(result.error.issues.map((issue) => [String(issue.path[0]), issue.message])))
+          return
+        }
+        setFieldErrors({})
+        if (!editing && !file) { setFileError('Choose a file to upload.'); return }
+        if (!fileError) save.mutate()
+      }} className="dialog-form document-editor-form" aria-busy={save.isPending}>
         <fieldset disabled={save.isPending} className="document-editor-fields">
           {!editing && <div className="document-file-field">
             <label className="document-file-picker">
@@ -177,10 +193,11 @@ export function DocumentsPage() {
             <small id={`${formId}-file-help`} className="document-field-help">{t('PDF, Word, Excel, PowerPoint, text, CSV, or images. Maximum 25 MB.')}</small>
             {fileError && <div id={`${formId}-file-error`} className="form-error" role="alert">{t(fileError)}</div>}
           </div>}
-          <label>{t('Document title')}<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required autoFocus placeholder={t('Give this document a clear name')} /></label>
+          <FloatingInput label={t('Document title')} value={title} onChange={(event) => { setTitle(event.target.value); setFieldErrors((current) => ({ ...current, title: '' })) }} maxLength={200} required autoFocus description={t('Give this document a clear name')} error={fieldErrors.title ? t(fieldErrors.title) : undefined} />
           <label>{t('Document type')}<select value={documentType} onChange={(event) => setDocumentType(event.target.value)} aria-describedby={`${formId}-type-help`} required>{documentTypes.map((type) => <option key={type.value} value={type.value}>{t(type.label)}</option>)}</select></label>
           <small id={`${formId}-type-help`} className="document-field-help">{t('Classify its purpose, not its file format.')}</small>
-          <label>{t('Description')}<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} rows={3} placeholder={t('Optional notes to help your team find this document')} /></label>
+          <FloatingTextarea label={t('Description')} value={description} onChange={(event) => { setDescription(event.target.value); setFieldErrors((current) => ({ ...current, description: '' })) }} maxLength={2000} rows={3} description={t('Optional notes to help your team find this document')} error={fieldErrors.description ? t(fieldErrors.description) : undefined} />
+          {fieldErrors.documentType && <p className="form-error" role="alert">{t(fieldErrors.documentType)}</p>}
         </fieldset>
         {save.error && <div className="form-error" role="alert">{save.error.message}</div>}
         {save.isPending && <p className="document-upload-status" role="status">{t(editing ? 'Saving document details. Please wait.' : 'Uploading your file. Keep this window open.')}</p>}

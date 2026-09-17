@@ -11,7 +11,9 @@ La réconciliation du 2026-09-17 porte sur Trykatch **0.1.0-preview.25** : la CI
 
 ## Critères de livraison du modèle
 
-La version coordonnée **0.1.0-preview.26** ajoute les journaux sûrs des exceptions/annulations, les contrôles SDK/actions/première restauration et la publication de paquets compilés une seule fois puis vérifiés par empreinte. La [qualification de la PR #109](https://github.com/TryKatch/TryKatch/actions/runs/35234520274) a réussi les 18 jobs, 282 tests unitaires du code source et 247 tests d’intégration PostgreSQL, sans test ignoré, ainsi que le transfert réel des paquets candidats. Sa propre qualification main/tag et sa publication doivent également réussir avant installation. Les critères complets d’une version stable restent ouverts.
+La cible coordonnée **0.1.0-preview.29** conserve l’accueil des développeurs et inclut l’aide IA pour les utilisateurs : activation explicite, fournisseur interchangeable, bouton de discussion flottant, entrée du menu du compte, guides approuvés et conversations de suivi bornées. Les deux entrées et le moteur backend sont vérifiés dans les applications générées depuis les paquets, pas seulement dans le code source. La disponibilité exige toujours la CI du commit exact sur main, la qualification du tag et une publication réussie.
+
+La version publiée **0.1.0-preview.26** ajoute les journaux sûrs des exceptions/annulations, les contrôles SDK/actions/première restauration et la publication de paquets compilés une seule fois puis vérifiés par empreinte. Sa [CI du commit livré](https://github.com/TryKatch/TryKatch/actions/runs/35246520501) a réussi les 18 jobs, 282 tests unitaires du code source et 247 tests d’intégration PostgreSQL, sans test ignoré ; [la qualification du tag et la publication](https://github.com/TryKatch/TryKatch/actions/runs/35247873752) ont également réussi. Ce socle ne contenait pas l’aide IA. Les critères complets d’une version stable restent ouverts.
 
 - compilations propres et suites de tests sans avertissement du compilateur ;
 - tests d’intégration de la RLS inter-organisation et de l’authentification ;

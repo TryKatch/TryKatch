@@ -14,4 +14,5 @@ export interface InvitationDto {
   expiresAt: string;
   status: string;
   lifecycle: RecordLifecycleDto;
+  roleId: string;
 }

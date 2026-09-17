@@ -34,6 +34,7 @@
       "trykatch.modules.aspnetcore": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "[10.9.0, )",
           "Trykatch.Modules.Abstractions": "[1.0.0, )"
         }
       },
@@ -71,6 +72,12 @@
           "Microsoft.EntityFrameworkCore.Abstractions": "10.0.11",
           "Microsoft.EntityFrameworkCore.Analyzers": "10.0.11"
         }
+      },
+      "Microsoft.Extensions.AI.Abstractions": {
+        "type": "CentralTransitive",
+        "requested": "[10.9.0, )",
+        "resolved": "10.9.0",
+        "contentHash": "//nASHMCJVxnYfE/WSzfaLOao6/q816kPpgB9rxU0gfSmAny1u3rfQT0D4xAmcIo4yQqJs7rAeBB+M/dIMdZYA=="
       }
     }
   }

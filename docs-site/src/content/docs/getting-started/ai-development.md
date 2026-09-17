@@ -51,6 +51,10 @@ These skills ship with newly generated applications from a template containing t
 
 ## Product assistants are separate
 
+AI Help is the user's guide to the finished application: explain a feature in everyday language, offer documented next steps, and continue with follow-up questions in English or French. The **Get started** suggestion introduces the workspace and its enabled features. Directions respect the user's access; the assistant does not make changes for them. For customer-specific workflows such as Kamenta's cooperatives or mining feasibility, supply reviewed product guides rather than expecting the foundation's example documentation to describe an unimplemented business process.
+
+A model response may request several reads. The runtime validates the entire batch before any read, then executes allowlisted calls sequentially with fresh permission checks. A user turn permits at most four reads in total; writes and automatic retries remain excluded.
+
 AI Help now opens as a website-style chat panel from the organization account menu or bottom-right launcher, with `/assistant` retained as a full-page entry. Enter sends; Shift+Enter inserts a newline. Follow-ups use encrypted, identity/access-bound server continuation for up to four completed exchanges and 20 minutes; transcripts remain in React memory, not persistent browser storage. New conversation, refresh/logout or workspace changes clear the chat.
 
 Six approved guides embedded with the application support architecture, Projects/Documents usage, PostgreSQL RLS isolation, module development and provider/chat questions. Bounded lexical retrieval uses enabled module declarations and filters disabled module guides. **Guides consulted** opens readable authenticated source pages. Documentation access never grants record permissions; help describes the documented design, not arbitrary custom source inspection. Guide excerpts and recent chat context go to the selected provider, alongside any authorized retrieved workspace metadata. Operator-edited help docs ship on rebuild, without a production source checkout or an embedding vendor dependency.

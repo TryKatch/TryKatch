@@ -214,6 +214,7 @@
       "trykatch.modules.documents.application": {
         "type": "Project",
         "dependencies": {
+          "FluentValidation": "[12.1.1, )",
           "Trykatch.Modules.Abstractions": "[1.0.0, )",
           "Trykatch.Modules.Documents.Domain": "[1.0.0, )",
           "Trykatch.Modules.Documents.IntegrationEvents": "[1.0.0, )"
@@ -227,6 +228,12 @@
       },
       "trykatch.modules.documents.integrationevents": {
         "type": "Project"
+      },
+      "FluentValidation": {
+        "type": "CentralTransitive",
+        "requested": "[12.1.1, )",
+        "resolved": "12.1.1",
+        "contentHash": "EPpkIe1yh1a0OXyC100oOA8WMbZvqUu5plwhvYcb7oSELfyUZzfxV48BLhvs3kKo4NwG7MGLNgy1RJiYtT8Dpw=="
       },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",

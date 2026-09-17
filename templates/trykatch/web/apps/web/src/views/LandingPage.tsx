@@ -1,5 +1,7 @@
+import { applicationName } from '../branding'
 import { ArrowRight, Boxes, Database, LockKeyhole, Waypoints } from 'lucide-react'
 import { LandingPreferencesMenu } from '../components/LandingPreferencesMenu'
+import { LaunchVideo } from '../components/LaunchVideo'
 import { ProductLogo } from '../components/ProductLogo'
 import { useI18n } from '../i18n/I18nProvider'
 
@@ -25,9 +27,9 @@ export function LandingPage() {
   const { t } = useI18n()
   return <main className="landing-page">
     <header className="landing-nav">
-      <a className="landing-brand" href="/" aria-label="Trykatch home">
+      <a className="landing-brand" href="/" aria-label={`${applicationName} home`}>
         <span className="brand-mark"><ProductLogo size={18} /></span>
-        <strong>Trykatch</strong>
+        <strong>{applicationName}</strong>
       </a>
       <nav className="landing-nav-actions" aria-label="Product links">
         <a className="landing-nav-link" href="https://docs.trykatch.net">{t('Documentation')}</a>
@@ -53,6 +55,8 @@ export function LandingPage() {
         <small>{t('One security boundary. Explicit modules. Operations designed in.')}</small>
       </aside>
     </section>
+
+    {import.meta.env.VITE_TRYKATCH_LAUNCH_VIDEO === 'true' && <LaunchVideo />}
 
     <section className="landing-problem" aria-labelledby="problem-title">
       <span className="landing-section-number">01</span>
@@ -90,7 +94,7 @@ export function LandingPage() {
         <div><h2 id="install-title">{t('Create your application')}</h2><p>{t('Install once, then generate a complete backend and React workspace with your own product name.')}</p></div>
       </div>
       <div className="landing-command" aria-label="Trykatch installation commands">
-        <code><span>$</span> dotnet new install Trykatch.Templates@0.1.0-preview.26</code>
+        <code><span>$</span> dotnet new install Trykatch.Templates@0.1.0-preview.29</code>
         <code><span>$</span> dotnet new trykatch -n Horizon</code>
       </div>
       <p className="landing-open-source">{t('Open source under Apache-2.0. Use it, extend it, and ship products on top of it.')}</p>
@@ -106,6 +110,6 @@ export function LandingPage() {
       <a href="https://docs.trykatch.net">{t('Read the documentation')} <ArrowRight size={15} /></a>
     </section>
 
-    <footer className="landing-footer"><span>Trykatch</span><small>Open source · Apache-2.0 · .NET 10 · React · PostgreSQL</small></footer>
+    <footer className="landing-footer"><span>{applicationName}</span><small>Open source · Apache-2.0 · .NET 10 · React · PostgreSQL</small></footer>
   </main>
 }

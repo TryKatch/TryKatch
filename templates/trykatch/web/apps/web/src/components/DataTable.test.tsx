@@ -35,11 +35,11 @@ describe('DataTable', () => {
   it('owns reusable filtering, sorting, density and column visibility behavior', () => {
     const { container } = render(<DataTable ariaLabel="Projects" data={data} columns={columns} getRowId={(row) => row.id} />)
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search table' }), { target: { value: 'Amina' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search…' }), { target: { value: 'Amina' } })
     expect(screen.getByText('Atlas')).toBeInTheDocument()
     expect(screen.queryByText('Zulu')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search table' }), { target: { value: '' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search…' }), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: /Name/ }))
     const bodyRows = within(screen.getByRole('table', { name: 'Projects' })).getAllByRole('row').slice(1)
     expect(within(bodyRows[0]).getByText('Atlas')).toBeInTheDocument()

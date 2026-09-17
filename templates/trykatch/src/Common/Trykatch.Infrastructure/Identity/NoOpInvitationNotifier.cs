@@ -9,6 +9,7 @@ internal sealed class NoOpInvitationNotifier : IInvitationNotifier
     public Task SendOrganizationInvitationAsync(
         string recipient,
         string organizationName,
+        string roleName,
         string invitationUrl,
         CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

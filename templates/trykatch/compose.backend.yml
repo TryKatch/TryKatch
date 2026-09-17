@@ -36,6 +36,12 @@ services:
     ports: ["8080:8080"]
     environment:
       ASPNETCORE_ENVIRONMENT: ${TRYKATCH_ENVIRONMENT:-Production}
+      Assistant__Enabled: ${Assistant__Enabled:-false}
+      Assistant__Provider: ${Assistant__Provider:-}
+      Assistant__Model: ${Assistant__Model:-}
+      Assistant__Endpoint: ${Assistant__Endpoint:-}
+      Assistant__ApiKey: ${Assistant__ApiKey:-}
+      Assistant__ReasoningEffort: ${Assistant__ReasoningEffort:-}
       ConnectionStrings__trykatch-organization: ${TRYKATCH_ORG_RUNTIME_CONNECTION}
       ConnectionStrings__trykatch-platform: ${TRYKATCH_PLATFORM_RUNTIME_CONNECTION}
       ConnectionStrings__trykatch-identity: ${TRYKATCH_IDENTITY_RUNTIME_CONNECTION}

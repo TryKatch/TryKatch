@@ -8,7 +8,7 @@
     "build": "tsc -b",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -b --pretty false",
-    "storybook": "storybook dev -p 6006 --disable-telemetry"
+    "storybook": "pnpm --dir ../.. storybook"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.15",

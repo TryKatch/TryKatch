@@ -1,5 +1,6 @@
+import { applicationName } from '../branding'
 import { customFetch, type ForgotPasswordResponse } from '@trykatch/api-client'
-import { Button } from '@trykatch/ui'
+import { Button, FloatingInput } from '@trykatch/ui'
 import { useState, type FormEvent } from 'react'
 import { ProductLogo } from '../components/ProductLogo'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
@@ -31,7 +32,7 @@ export function ForgotPasswordPage() {
 
   return <main className="auth-page">
     <div className="auth-language"><LanguageSwitcher compact /></div>
-    <a className="auth-brand" href="/login" aria-label={`Trykatch · ${t('Sign in')}`}><span className="brand-mark"><ProductLogo size={17} /></span><strong>Trykatch</strong></a>
+    <a className="auth-brand" href="/login" aria-label={`${applicationName} · ${t('Sign in')}`}><span className="brand-mark"><ProductLogo size={17} /></span><strong>{applicationName}</strong></a>
     <section className="auth-card" aria-labelledby="forgot-password-title">
       {result ? <div className="recovery-result" role="status">
         <h1 id="forgot-password-title">{t('Check your email')}</h1>
@@ -43,7 +44,7 @@ export function ForgotPasswordPage() {
         <h1 id="forgot-password-title">{t('Forgot your password?')}</h1>
         <p>{t('Enter your email address and we’ll send you a secure reset link.')}</p>
         <form onSubmit={submit}>
-          <label>{t('Email address')}<input name="email" type="email" autoComplete="email" required autoFocus /></label>
+          <FloatingInput label={t('Email address')} name="email" type="email" autoComplete="email" required autoFocus disabled={busy} />
           {error && <div className="form-error" role="alert">{error}</div>}
           <Button type="submit" variant="primary" disabled={busy}>{t(busy ? 'Sending…' : 'Send reset link')}</Button>
         </form>

@@ -21,12 +21,14 @@
       "trykatch.modules.aspnetcore": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "[10.9.0, )",
           "Trykatch.Modules.Abstractions": "[1.0.0, )"
         }
       },
       "trykatch.modules.documents.application": {
         "type": "Project",
         "dependencies": {
+          "FluentValidation": "[12.1.1, )",
           "Trykatch.Modules.Abstractions": "[1.0.0, )",
           "Trykatch.Modules.Documents.Domain": "[1.0.0, )",
           "Trykatch.Modules.Documents.IntegrationEvents": "[1.0.0, )"
@@ -41,6 +43,12 @@
       "trykatch.modules.documents.integrationevents": {
         "type": "Project"
       },
+      "FluentValidation": {
+        "type": "CentralTransitive",
+        "requested": "[12.1.1, )",
+        "resolved": "12.1.1",
+        "contentHash": "EPpkIe1yh1a0OXyC100oOA8WMbZvqUu5plwhvYcb7oSELfyUZzfxV48BLhvs3kKo4NwG7MGLNgy1RJiYtT8Dpw=="
+      },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",
         "requested": "[10.0.11, )",
@@ -50,6 +58,12 @@
           "Microsoft.EntityFrameworkCore.Abstractions": "10.0.11",
           "Microsoft.EntityFrameworkCore.Analyzers": "10.0.11"
         }
+      },
+      "Microsoft.Extensions.AI.Abstractions": {
+        "type": "CentralTransitive",
+        "requested": "[10.9.0, )",
+        "resolved": "10.9.0",
+        "contentHash": "//nASHMCJVxnYfE/WSzfaLOao6/q816kPpgB9rxU0gfSmAny1u3rfQT0D4xAmcIo4yQqJs7rAeBB+M/dIMdZYA=="
       }
     }
   }

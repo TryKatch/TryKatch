@@ -9,6 +9,8 @@ Read [AGENTS.md](../../../AGENTS.md) and the [verification matrix](../../../docs
 
 Read the originating request/specification and the actual changed call paths. Missing requirements are an uncertainty, not permission to invent intended behavior. Review two dimensions:
 
+For frontend reviews, consult [Storybook](../../../docs/storybook.md) and the changed stories. Check component reuse, branding, meaningful validation/error/recovery states, accessibility and responsive behavior. Report missing stories or unverified interactions as gaps; API fixtures do not establish backend security.
+
 - **Behavior:** acceptance criteria, rejected inputs/transitions, concurrent edits, failure recovery, and real integration into the application. Flag a generated shell presented as a completed business feature.
 - **Architecture:** public contract compatibility, module project boundaries, explicit registration, migration history, and generated artifact consistency. Use [backend](../../../docs/development/backend.md) and [frontend](../../../docs/development/frontend.md) guidance only for affected surfaces.
 

@@ -9,6 +9,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "zod": "4.5.4",
     "@trykatch/api-client": "workspace:*",
     "@trykatch/module-sdk": "workspace:*",
     "@trykatch/ui": "workspace:*",
@@ -17,6 +18,9 @@
     "react": "19.2.8"
   },
   "devDependencies": {
+    "@storybook/react-vite": "10.6.0",
+    "storybook": "10.6.0",
+    "msw": "2.15.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@testing-library/jest-dom": "7.0.1",

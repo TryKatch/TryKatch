@@ -1,3 +1,4 @@
+import { applicationName } from '../branding'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { customFetch } from '@trykatch/api-client'
@@ -78,7 +79,7 @@ export function PlatformShell() {
   return <div className={`app-shell platform-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
     <aside className="sidebar" id="platform-navigation">
       <div className="mobile-sidebar-heading">
-        <Link className="brand" to="/dashboard" aria-label={`Trykatch ${t('Platform overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><ProductLogo size={17} /></span><span className="sidebar-label">Trykatch</span></Link>
+        <Link className="brand" to="/dashboard" aria-label={`${applicationName} ${t('Platform overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><ProductLogo size={17} /></span><span className="sidebar-label">{applicationName}</span></Link>
         <button className="mobile-nav-close" type="button" aria-label={t('Close navigation')} onClick={() => setMobileNavOpen(false)}><X size={19} /></button>
       </div>
       <nav aria-label={t('Platform administration')}>
