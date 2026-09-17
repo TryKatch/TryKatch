@@ -6,7 +6,7 @@ Move Trykatch from a production-oriented pre-release template to a stable templa
 
 ## Current baseline
 
-The coordinated release target is **Trykatch 0.1.0-preview.28**, retaining developer onboarding and including the opt-in, provider-neutral user-facing AI Help runtime and both React chat entry points. Publication requires successful exact-commit main CI and tag qualification; target metadata is not proof of publication. See the [release notes](releases/0.1.0-preview.28.md).
+The coordinated release target is **Trykatch 0.1.0-preview.29**, retaining developer onboarding and including the opt-in, provider-neutral user-facing AI Help runtime and both React chat entry points. Publication requires successful exact-commit main CI and tag qualification; target metadata is not proof of publication. See the [release notes](releases/0.1.0-preview.29.md).
 
 The published **0.1.0-preview.26** baseline added request-logging, SDK/workflow and package-delivery controls. Its [exact release-commit CI](https://github.com/TryKatch/TryKatch/actions/runs/35246520501) passed 18 jobs, 282 source unit tests and 247 PostgreSQL integration tests with zero failures/skips; [tag qualification and publication](https://github.com/TryKatch/TryKatch/actions/runs/35247873752) also passed. Its historical [release notes](releases/0.1.0-preview.26.md) accurately record that AI Help was not included.
 
@@ -137,7 +137,7 @@ Exit criteria: CI is green, final UAT is approved, installation succeeds on all 
 
 ## Version policy
 
-- Coordinated preview target: `0.1.0-preview.28`; the preceding published package is `0.1.0-preview.26` until successful publication.
+- Coordinated preview target: `0.1.0-preview.29`; the preceding published package is `0.1.0-preview.26` until successful publication.
 - Release metadata is prepared before tagging; this version becomes available only after the release workflow publishes successfully. Consult the GitHub release and NuGet feed, not an untagged branch, for availability.
 - Preview versions may be shared for evaluation but are not represented as production-ready.
 - Release-candidate versions begin only after phases 1–7 pass.
