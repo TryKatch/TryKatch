@@ -211,6 +211,7 @@ public sealed partial class ModuleScaffolderTests
     [DataRow("search:string")]
     [DataRow("page:int")]
     [DataRow("refresh:bool")]
+    [DataRow("refreshScope:int")]
     [DataRow("table:string")]
     public void PaginationConcurrencyAndExtensionNamesAreReserved(string fields) =>
         Should.Throw<ArgumentException>(() => ModuleFieldContract.Parse(fields));

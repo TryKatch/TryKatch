@@ -135,6 +135,26 @@ describe('__MODULE__Page conflicts', () => {
     expect(writes).toHaveLength(1)
   })
 
+  it('does not carry a failed refresh into another editor', async () => {
+    const defaults = transport.getMockImplementation()!
+    transport.mockImplementation(async (url, options) => {
+      if (options?.method === 'PUT') throw Object.assign(new Error('Stale version'), { status: 409, problem: { code: 'stale_version' } })
+      if (url === `/api/v1/__RESOURCE__/${record.id}`) throw new Error('Refresh unavailable')
+      return defaults(url, options)
+    })
+    renderPage()
+    const dialog = await openEditor()
+    submit(dialog)
+    await within(dialog).findByRole('alert')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Load latest version' }))
+    await within(dialog).findByText('Refresh unavailable')
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Cancel$/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const next = await openEditor()
+    expect(within(next).queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(next).getByRole('button', { name: /^Save$/ })).toBeEnabled()
+  })
+
   it('does not reopen a cancelled editor when its pending refresh finishes', async () => {
     let finishRefresh: ((value: __ENTITY__Dto) => void) | undefined
     const pendingRefresh = new Promise<__ENTITY__Dto>(resolve => { finishRefresh = resolve })
