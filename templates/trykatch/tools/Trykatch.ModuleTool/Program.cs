@@ -227,6 +227,11 @@ static Task<int> RunAsync(string[] arguments, CancellationToken cancellationToke
         }
 
         ModuleWorkspace workspace = new(root);
+        if (positional[0] == "facts" && positional.Count is 1 or 2)
+        {
+            Console.WriteLine(workspace.Facts(positional.Count == 2 ? positional[1] : null).GetRawText());
+            return Task.FromResult(0);
+        }
         using CliOperationProgress? workspaceProgress = positional[0] is "generate" or "register" or "install" or "upgrade" or "eject"
             ? new(Console.Out, IsInteractiveProgress(), "Module workspace operation")
             : null;
@@ -517,6 +522,7 @@ static int ShowHelp()
     Console.WriteLine("  trykatch module help     Show every module command and option.");
     Console.WriteLine("  trykatch module list     List installed modules and their state.");
     Console.WriteLine("  trykatch module doctor   Validate the full-stack module graph.");
+    Console.WriteLine("  trykatch module facts    Print validated installed module facts as JSON.");
     Console.WriteLine();
     Console.WriteLine("Run 'trykatch new --help' for application-generation options.");
     return 0;
@@ -584,6 +590,7 @@ static int ShowModuleHelp(int exitCode = 0)
     Console.WriteLine("Usage:");
     Console.WriteLine("  trykatch module list [--root <path>]");
     Console.WriteLine("  trykatch module doctor [--root <path>]");
+    Console.WriteLine("  trykatch module facts [module-id] [--root <path>]");
     Console.WriteLine("  trykatch module validate --blueprint <file> [--root <path>] [--with-web]");
     Console.WriteLine("  trykatch module create <name> --blueprint <file> [--with-web] [--root <path>]");
     Console.WriteLine("  trykatch module generate [--root <path>]");

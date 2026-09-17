@@ -23,7 +23,13 @@ classify_path() {
   local path=$1
 
   case "$path" in
-    templates/trykatch/.agents/*|templates/trykatch/docs/development/*|templates/trykatch/docs/ai-assisted-development.md|templates/trykatch/AGENTS.md|scripts/test-development-skills.*)
+    templates/trykatch/docs/assistant/*)
+      # These approved guides are compiled resources used by the assistant runtime.
+      docs=true
+      backend=true
+      packaging=true
+      ;;
+    templates/trykatch/.agents/*|templates/trykatch/docs/development/*|templates/trykatch/docs/developer-onboarding*.md|templates/trykatch/docs/first-feature*.md|templates/trykatch/docs/backend-only-http*.md|templates/trykatch/docs/ai-assisted-development.md|templates/trykatch/AGENTS.md|scripts/test-development-skills.*)
       docs=true
       packaging=true
       ;;
@@ -43,7 +49,7 @@ classify_path() {
     scripts/test-vercel-deployment.sh)
       web=true
       ;;
-    scripts/test-generated-application.sh|scripts/test-business-blueprint.sh)
+    scripts/test-generated-application.sh|scripts/test-business-blueprint.sh|scripts/test-first-feature.sh)
       backend=true
       web=true
       deployment=true

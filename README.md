@@ -105,6 +105,8 @@ Generated applications include an architectural task router and five project-loc
 
 Ask your coding agent to read `.agents/skills/trykatch-build-module/SKILL.md` in the generated application and implement your feature. Automatic discovery depends on the agent; direct file invocation works without installing global skills. See the [bundled workflow guide](templates/trykatch/docs/ai-assisted-development.md). The skills support development; an in-app model runtime and approval UI remain separate work.
 
+New applications also receive [developer onboarding](templates/trykatch/docs/developer-onboarding.md) ([Français](templates/trykatch/docs/developer-onboarding.fr.md)) and a generation-time **Start here** message. Use the read-only orientation prompt and question list in your existing coding assistant to learn module creation, backend/frontend wiring, integration contracts and verification, without another onboarding AI key. Backend-only output skips frontend steps. In-app AI Help is unchanged.
+
 Template maintainers can run `bash scripts/test-development-skills.sh` to verify the packed bundle in renamed React and backend-only applications. The [validation guide](docs/development-skills-validation.md) also describes independent behavioral trials.
 
 ## Develop the template

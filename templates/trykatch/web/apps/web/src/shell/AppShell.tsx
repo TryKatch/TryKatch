@@ -5,6 +5,7 @@ import type { NavigationContribution } from '@trykatch/module-sdk'
 import { Button, Dialog, Skeleton } from '@trykatch/ui'
 import {
   Activity,
+  Bot,
   ArchiveRestore,
   ChevronDown,
   LayoutDashboard,
@@ -30,6 +31,7 @@ import { useI18n } from '../i18n/I18nProvider'
 import { workspaceModules } from '../modules'
 import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 import { navigationLabel } from './navigationLabel'
+import { AssistantChat, AssistantChatProvider } from '../features/assistant/AssistantChat'
 
 const coreNavigation: readonly NavigationContribution[] = [
   { id: 'core.overview', section: 'Workspace', order: 10, to: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -58,6 +60,9 @@ export function AppShell() {
   const [accountOpen, setAccountOpen] = useState(false)
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [appearanceOpen, setAppearanceOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const helpLauncher = useRef<HTMLButtonElement>(null)
+  const wasHelpOpen = useRef(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
     const stored = localStorage.getItem('trykatch-sidebar')
@@ -115,6 +120,11 @@ export function AppShell() {
   }, [session.error])
 
   useEffect(() => {
+    if (wasHelpOpen.current && !helpOpen) helpLauncher.current?.focus()
+    wasHelpOpen.current = helpOpen
+  }, [helpOpen])
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
@@ -138,13 +148,13 @@ export function AppShell() {
 
   const identity = session.data?.displayName || session.data?.email || t('Account')
   const initials = getInitials(identity)
-  const area = pathname.endsWith('/archive') ? 'Recovery' : pathname.includes('/user-management') || pathname.endsWith('/audit') ? 'Administration' : 'Workspace'
+  const area = pathname.endsWith('/assistant') ? 'AI Help' : pathname.endsWith('/archive') ? 'Recovery' : pathname.includes('/user-management') || pathname.endsWith('/audit') ? 'Administration' : 'Workspace'
   const permittedNavigation = allNavigation
     .filter((item) => !item.requiredPermission || access.data?.permissions.includes(item.requiredPermission))
     .map((item) => ({ ...item, displayLabel: navigationLabel(item, locale, t) }))
   const navSections = sectionOrder.map((label) => ({ label, items: permittedNavigation.filter((item) => item.section === label) }))
 
-  return <div className={`app-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
+  return <AssistantChatProvider panelOpen={helpOpen}><div className={`app-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
     <aside className="sidebar" id="organization-navigation">
       <div className="mobile-sidebar-heading">
         <Link className="brand" to="/overview" aria-label={`Trykatch ${t('Overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><ProductLogo size={17} /></span><span className="sidebar-label">Trykatch</span></Link>
@@ -174,6 +184,7 @@ export function AppShell() {
               <LanguageSwitcher />
             </div>
           </div></div>
+          <button type="button" className="account-menu-item" onClick={() => { setAccountOpen(false); setMobileNavOpen(false); setHelpOpen(true) }}><Bot size={17} /> {t('AI Help')}</button>
           <div className="account-menu-separator" />
           <button className="account-menu-item danger-text" type="button" onClick={() => { setAccountOpen(false); setSignOutOpen(true) }}><LogOut size={17} /> {t('Log out')}</button>
         </div>
@@ -196,8 +207,11 @@ export function AppShell() {
     <Dialog open={commandOpen} onOpenChange={setCommandOpen} title={t('Jump to')} description={t('Navigate this organization without leaving the keyboard.')}>
       <nav className="command-list" aria-label={t('Jump to')}>
         {permittedNavigation.map(({ id, to, displayLabel, icon: Icon }) => <Link key={id} to={to} onClick={() => setCommandOpen(false)}><Icon size={15} /><span>{displayLabel}</span></Link>)}
+        <button type="button" onClick={() => { setCommandOpen(false); setMobileNavOpen(false); setHelpOpen(true) }}><Bot size={15} /><span>{t('AI Help')}</span></button>
       </nav>
     </Dialog>
     <SignOutDialog open={signOutOpen} identity={identity} isPending={logout.isPending} error={logout.error?.message} onOpenChange={setSignOutOpen} onConfirm={() => logout.mutate()} />
-  </div>
+    <button ref={helpLauncher} className="help-chat-launcher" type="button" aria-label={t('Open AI Help')} title={t('AI Help')} aria-haspopup="dialog" aria-expanded={helpOpen} disabled={!session.data} onClick={() => setHelpOpen(true)}><Bot size={23} aria-hidden="true" /></button>
+    <Dialog open={helpOpen} onOpenChange={setHelpOpen} title={t('AI Help')} description={t('A conversation about your workspace.')} className="help-chat-dialog"><AssistantChat /></Dialog>
+  </div></AssistantChatProvider>
 }

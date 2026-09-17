@@ -734,3 +734,103 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 360px) {
   .landing-preference-panel { top: 90px; }
 }
+/* The assistant owns bounded, plain-text single-turn rendering; no model HTML or links. */
+.assistant-layout { max-width: 1180px; display: grid; grid-template-columns: minmax(0, 1fr) 250px; align-items: start; gap: 28px; }
+.assistant-main { min-width: 0; display: grid; gap: 18px; }
+.assistant-panel { display: grid; gap: 24px; padding: 24px; }
+.assistant-intro { display: flex; align-items: center; gap: 12px; }
+.assistant-mark { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; color: var(--accent-ink); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line)); border-radius: var(--radius); }
+.assistant-intro > div { min-width: 0; flex: 1; }
+.assistant-intro h2, .assistant-response-heading h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.015em; }
+.assistant-intro p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.assistant-intro .badge { flex-shrink: 0; }
+.assistant-suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
+.assistant-suggestions button { min-height: 40px; display: flex; align-items: center; gap: 9px; padding: 9px 12px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line); border-radius: var(--radius); font: inherit; font-size: 12px; cursor: pointer; }
+.assistant-suggestions button > svg { color: var(--muted); }
+.assistant-suggestions button:hover:not(:disabled) { border-color: var(--line-strong); background: var(--accent-soft); }
+.assistant-suggestions button:disabled { opacity: .55; cursor: not-allowed; }
+.assistant-form { display: grid; gap: 10px; }
+.assistant-form label { font-size: 12px; font-weight: 650; }
+.assistant-form textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 140px; padding: 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--panel); color: var(--text); font: inherit; line-height: 1.7; }
+.assistant-form textarea::placeholder { color: var(--muted); }
+.assistant-form textarea:focus-visible { border-color: var(--accent); outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+.assistant-form textarea:disabled { background: var(--panel-raised); cursor: not-allowed; }
+.assistant-composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.assistant-composer-footer > small { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.assistant-controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.assistant-disclosure { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.assistant-notice { margin: 0; padding: 12px 14px; color: var(--muted); background: var(--panel-raised); border: 1px solid var(--line); border-radius: var(--radius); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.assistant-notice[role="alert"] { border-left: 3px solid var(--accent); color: var(--text); }
+.assistant-response { overflow: hidden; }
+.assistant-response-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
+.assistant-response-heading h2 { display: flex; align-items: center; gap: 8px; }
+.assistant-response-heading h2 svg { color: var(--accent-ink); }
+.assistant-answer { margin: 0; padding: 24px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }
+.assistant-provenance { padding: 12px 24px; color: var(--muted); background: var(--panel-raised); border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.assistant-provenance small { font-size: 11px; }
+.assistant-guidance { padding-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.assistant-guidance-heading { display: flex; align-items: flex-start; gap: 8px; color: var(--text); }
+.assistant-guidance-heading svg { margin-top: 2px; color: var(--accent-ink); flex-shrink: 0; }
+.assistant-guidance h2 { margin: 0; font-size: 12px; font-weight: 650; }
+.assistant-guidance p { margin: 10px 0 0; }
+.assistant-guidance-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.assistant-guidance h3 { margin: 0; color: var(--text); font-size: 11px; font-weight: 650; }
+.assistant-spinner { animation: assistant-spin 1s linear infinite; }
+/* Shared support chat: a docked help panel and an optional full-page entry. */
+.help-chat-launcher { position: fixed; right: 24px; bottom: 24px; z-index: 35; width: 52px; height: 52px; display: grid; place-items: center; border: 1px solid var(--accent); border-radius: 50%; background: var(--accent); color: white; box-shadow: 0 8px 28px #0003; cursor: pointer; }
+.help-chat-launcher:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 4px; }
+.help-chat-dialog.dialog-content { top: auto; left: auto; right: 20px; bottom: 20px; transform: none; width: min(440px, calc(100vw - 40px)); max-width: none; max-height: calc(100dvh - 40px); padding: 20px; overflow: auto; }
+.help-chat-dialog > h2 { margin: 0; padding-right: 28px; }
+.help-chat-dialog > p { margin: 6px 0 12px; }
+.help-chat { min-width: 0; display: flex; flex-direction: column; }
+.help-chat-page { max-width: 850px; padding: 22px; }
+.help-chat-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.help-chat-toolbar .button { font-size: 11px; padding: 6px 8px; }
+.help-chat-transcript { height: min(390px, 46dvh); min-height: 170px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; padding: 20px 2px; }
+.help-chat-page .help-chat-transcript { height: min(510px, 55dvh); }
+.help-chat-welcome { margin: auto; max-width: 420px; text-align: center; padding: 12px; }
+.help-chat-avatar { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 15px; background: var(--accent-soft); color: var(--accent); }
+.help-chat-welcome h2 { margin: 14px 0 8px; font-size: 20px; }
+.help-chat-welcome p { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.help-chat-welcome .assistant-suggestions { justify-content: center; margin-top: 18px; }
+.help-chat-welcome .assistant-suggestions button { padding: 9px 11px; font-size: 11px; }
+.help-chat-message { max-width: 90%; width: fit-content; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px 14px 14px 4px; background: var(--panel-raised); }
+.help-chat-message.is-user { align-self: flex-end; border-radius: 14px 14px 4px 14px; background: var(--accent-soft); }
+.help-chat-message > small { color: var(--muted); font-size: 10px; font-weight: 650; }
+.help-chat-message p { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.8; }
+.help-chat-sources { margin-top: 8px; color: var(--muted); font-size: 10px; }
+.help-chat-sources summary, .help-chat-privacy summary { cursor: pointer; }
+.help-chat-sources a { display: block; margin-top: 6px; color: var(--accent-ink); overflow-wrap: anywhere; }
+.help-guide { max-width: 850px; margin-top: 20px; padding: 24px; overflow-wrap: anywhere; }
+.help-guide > small { color: var(--muted); }
+.help-guide h2 { margin: 24px 0 10px; font-size: 18px; }
+.help-guide p { color: var(--muted); white-space: pre-wrap; line-height: 1.8; }
+.help-chat-thinking { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.help-chat-composer { border-top: 1px solid var(--line); padding-top: 12px; }
+.help-chat-input { display: flex; align-items: flex-end; gap: 8px; border: 1px solid var(--line-strong); border-radius: 12px; padding: 8px; background: var(--panel); }
+.help-chat-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.help-chat-input textarea { flex: 1; min-width: 0; min-height: 42px; max-height: 140px; padding: 5px; border: 0; outline: 0; resize: vertical; background: transparent; color: var(--text); font: inherit; font-size: 12px; line-height: 1.6; }
+.help-chat-input textarea::placeholder { color: var(--muted); }
+.help-chat-input > .button { flex-shrink: 0; width: 34px; height: 34px; padding: 0; border-radius: 9px; }
+.help-chat-input-hint { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; padding: 8px 2px; color: var(--muted); font-size: 10px; }
+.help-chat-input-hint .button { padding: 3px 7px; font-size: 11px; }
+.help-chat-privacy { padding-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.7; }
+.help-chat-privacy p { margin: 8px 0; }
+@media (max-width: 759px) { .help-chat-launcher { right: 16px; bottom: 16px; } .help-chat-dialog.dialog-content { right: 8px; bottom: 8px; width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 16px; } .help-chat-page { padding: 14px; } }
+@keyframes assistant-spin { to { transform: rotate(360deg); } }
+@media (max-width: 1100px) {
+  .assistant-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .assistant-guidance { max-width: 700px; }
+}
+@media (max-width: 620px) {
+  .assistant-panel { padding: 18px; gap: 20px; }
+  .assistant-intro { flex-wrap: wrap; align-items: flex-start; }
+  .assistant-intro > div { flex-basis: calc(100% - 56px); }
+  .assistant-intro .badge { margin-left: 56px; }
+  .assistant-composer-footer { align-items: flex-start; flex-direction: column; }
+  .assistant-controls { width: 100%; }
+  .assistant-controls .button { flex: 1; }
+  .assistant-response-heading { padding: 16px; flex-wrap: wrap; }
+  .assistant-answer { padding: 18px; }
+  .assistant-provenance { padding: 12px 18px; }
+}

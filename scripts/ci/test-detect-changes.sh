@@ -24,6 +24,17 @@ assert_scope 'templates/trykatch/.agents/skills/trykatch-build-module/SKILL.md' 
 assert_scope 'templates/trykatch/.agents/skills/trykatch-build-module/SKILL.md' docs true
 assert_scope 'templates/trykatch/docs/development/backend.md' packaging true
 assert_scope 'templates/trykatch/docs/ai-assisted-development.md' packaging true
+assert_scope 'templates/trykatch/docs/developer-onboarding.md' packaging true
+assert_scope 'templates/trykatch/docs/developer-onboarding.fr.md' docs true
+assert_scope 'templates/trykatch/docs/first-feature.md' packaging true
+assert_scope 'templates/trykatch/docs/first-feature.fr.md' docs true
+assert_scope 'templates/trykatch/docs/backend-only-http.md' packaging true
+assert_scope 'templates/trykatch/docs/backend-only-http.fr.md' docs true
+assert_scope 'scripts/test-first-feature.sh' qualification true
+assert_scope 'templates/trykatch/docs/assistant/architecture.md' docs true
+assert_scope 'templates/trykatch/docs/assistant/architecture.md' backend true
+assert_scope 'templates/trykatch/docs/assistant/architecture.md' packaging true
+assert_scope 'templates/trykatch/docs/assistant/architecture.md' qualification true
 assert_scope 'templates/trykatch/AGENTS.md' packaging true
 assert_scope 'scripts/test-development-skills.mjs' packaging true
 assert_scope 'scripts/test-development-skills.sh' packaging true

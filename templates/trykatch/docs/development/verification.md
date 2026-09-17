@@ -66,4 +66,6 @@ Use the app's existing browser tests or available browser tooling for the change
 
 ## Report
 
+For product-assistant changes, run `dotnet test tests/Trykatch.UnitTests --filter FullyQualifiedName~AssistantRuntimeTests` and `dotnet test tests/Trykatch.IntegrationTests --filter FullyQualifiedName~AssistantIntegrationTests`. The latter starts isolated PostgreSQL and exercises production HTTP authentication, workspace resolution, antiforgery, scoped read adapters and rate limits. Both use deterministic fake providers: they prove orchestration/security behavior, not live model quality. Run the assistant page tests and browser acceptance under `web/apps/web/e2e` for UI changes. A paid provider smoke test requires operator credentials/consent and must be reported separately.
+
 Record passed, failed, and not-run checks with the relevant reason. Tie acceptance claims to the test layer that actually established them. Inspect the diff for unintended generated drift and temporary artifacts. When a check fails, fix within the authorized task and rerun the affected checks; do not suppress the failure or silently reduce the requirement.

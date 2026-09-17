@@ -4,6 +4,8 @@ This file is the compact repository map for coding agents. The architectural dec
 
 ## Route the task
 
+For first-time orientation, read [developer onboarding](docs/developer-onboarding.md) ([Français](docs/developer-onboarding.fr.md)). Inspect the actual checkout and installed module facts, distinguish existing behavior from examples, and begin read-only unless implementation is requested. Onboarding uses the developer's existing coding tool; it does not activate in-app AI Help.
+
 Work from this application's root (the directory containing `Trykatch.slnx` and `trykatch.modules.json`). In the template repository, that root is `templates/trykatch/`. Paths in this guide are relative to that root; Markdown links in skills are relative to the skill file.
 
 The application ships five skills in `.agents/skills/`. Use the matching skill when your agent supports discovery; otherwise open its `SKILL.md` directly and follow it. No global skill installation is required.
@@ -52,7 +54,9 @@ Each business module has Domain, Application, IntegrationEvents, Presentation, a
 2. Build the solution to regenerate OpenAPI 3.1.
 3. If `web/package.json` exists, run `corepack pnpm --dir web generate` to regenerate the TanStack client and assistant contract. Backend-only applications build OpenAPI into the API project's `obj/openapi`; skip frontend commands.
 4. Opt an operation into AI tooling only through `AssistantToolDescriptor` on its owning module.
-5. Keep the assistant catalog deny-by-default. Its confirmation flag is metadata for a future adapter, not a running approval system. Product assistants require a separate adapter and runtime confirmation flow; see [AI-assisted development](docs/ai-assisted-development.md).
+5. Keep the assistant catalog deny-by-default. Optional runtime execution requires an explicitly registered `IReadOnlyAssistantTool` adapter and caller permission. Its confirmation flag is metadata, not a running approval system; all writes are disabled in v1. See [AI-assisted development](docs/ai-assisted-development.md).
+6. Use `module facts [module-id]` for validated installed ownership, permission, route, extension and assistant declarations plus source entrypoints. Treat declarations as metadata, not permission grants or proof an adapter exists.
+7. Keep inference behind `Microsoft.Extensions.AI.IChatClient`. Provider wire formats belong in adapters, not module tools or the runtime. Provider/model selection is explicit; never add fallback, automatic tool invocation or endpoint selection from user input. See [ADR 0013](docs/adr/0013-provider-neutral-assistant.md).
 
 ## Verification
 

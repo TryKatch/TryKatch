@@ -199,6 +199,24 @@
   ],
   "postActions": [
     {
+      "condition": "(ui == \"react\")",
+      "description": "Start here: developer onboarding (backend and React).",
+      "actionId": "AC1156F7-BB77-4DB8-B28F-24EEBCCA1E5C",
+      "continueOnError": true,
+      "manualInstructions": [
+        { "text": "Open docs/developer-onboarding.md (French: docs/developer-onboarding.fr.md).\nFor a concrete startup-to-Equipment walkthrough: docs/first-feature.md (French: docs/first-feature.fr.md).\nUsing your existing coding assistant? Ask: Read AGENTS.md and docs/developer-onboarding.md, inspect this checkout, and explain architecture, module creation, backend/frontend wiring, integrations and verification. Start read-only.\nNo additional AI provider key is required for onboarding. Follow README.md to start the application; this message does not run setup or an AI tool." }
+      ]
+    },
+    {
+      "condition": "(ui == \"none\")",
+      "description": "Start here: developer onboarding (backend-only).",
+      "actionId": "AC1156F7-BB77-4DB8-B28F-24EEBCCA1E5C",
+      "continueOnError": true,
+      "manualInstructions": [
+        { "text": "Open docs/developer-onboarding.md (French: docs/developer-onboarding.fr.md).\nFor a concrete startup-to-Equipment walkthrough: docs/first-feature.md (French: docs/first-feature.fr.md); skip frontend steps.\nUsing your existing coding assistant? Ask: Read AGENTS.md and docs/developer-onboarding.md, inspect this checkout, and explain architecture, module creation, integrations and verification. Start read-only; skip frontend steps in this backend-only application.\nNo additional AI provider key is required for onboarding. Follow README.md to start the application; this message does not run setup or an AI tool." }
+      ]
+    },
+    {
       "condition": "(OS != \"Windows_NT\")",
       "description": "Initialize Git source control for the generated application.",
       "manualInstructions": [

@@ -88,6 +88,7 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
 
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddScoped<IReadOnlyAssistantTool, ListDocumentsAssistantTool>();
         services.AddSingleton<IApplicationModelContributor, DocumentsModelContributor>();
         services.AddSingleton<IOrganizationEndpointContributor, DocumentsEndpoints>();
         services.AddScoped<IDocumentStore, DocumentStore>();
