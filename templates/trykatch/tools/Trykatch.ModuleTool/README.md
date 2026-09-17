@@ -151,3 +151,7 @@ trykatch module doctor
 ```
 
 Replace `Horizon` with your application's namespace. Generated tests cover the workflow's lifecycle and version invariants; write additional tests for your own domain rules. The Trykatch repository also runs an independent shipment HTTP acceptance test and real PostgreSQL cross-organization tests against newly generated applications in CI.
+
+### Installed module facts
+
+`module facts [module-id] [--root <path>]` prints JSON from the validated installed catalog. It includes enablement/version, module ownership, permission and extension declarations, assistant metadata, and source/artifact entrypoints. It is read-only, works without a frontend, and fails on an unhealthy workspace or unknown module. Coding agents should use these installed facts instead of assuming seams from another version. Assistant declarations are metadata, not proof that a runtime executor is installed.

@@ -1,5 +1,7 @@
 # AI-assisted development
 
+Start with [developer onboarding](developer-onboarding.md) ([Français](developer-onboarding.fr.md)) for a read-only orientation prompt, architecture/module/backend/frontend/integration checklist and suggested questions for your existing coding assistant. This repository-based kit requires no separate AI provider key and leaves in-app AI Help unchanged.
+
 Trykatch supports AI without putting a model inside the security kernel. There are two separate use cases.
 
 ## Faster module development
