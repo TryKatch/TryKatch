@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createManifest, qualificationGates, sealManifest, verifyManifest } from '../release-artifacts.mjs';
 
-const version = '0.1.0-preview.25';
+const version = '0.1.0-preview.26';
 const commit = 'a'.repeat(40);
 const runId = '456';
 

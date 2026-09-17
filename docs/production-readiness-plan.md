@@ -6,7 +6,9 @@ Move Trykatch from a production-oriented pre-release template to a stable templa
 
 ## Current baseline
 
-The published baseline is **Trykatch 0.1.0-preview.25**. The [2026-09-17 evidence reconciliation](enterprise-foundation-evidence.md) links the release commit, CI runs, shipped security fixes and remaining acceptance criteria. Eight foundation fixes are released; the complete production-readiness gates are not yet closed. Latest release-commit CI passed 282 source unit tests and 236 PostgreSQL integration tests with zero skips. Historical records below remain dated evidence, not today's test counts or a claim of stable readiness.
+The coordinated release target is **Trykatch 0.1.0-preview.26**; publication requires successful exact-commit main CI and tag qualification. Its request-logging, SDK/workflow and package-delivery changes passed [PR #109 CI](https://github.com/TryKatch/TryKatch/actions/runs/35234520274): 18 jobs, 282 source unit tests and 247 PostgreSQL integration tests, zero failures/skips. See the [release notes](releases/0.1.0-preview.26.md).
+
+The preceding published baseline is **Trykatch 0.1.0-preview.25**. The [2026-09-17 evidence reconciliation](enterprise-foundation-evidence.md) preserves its release commit, CI runs, shipped security fixes and remaining acceptance criteria. Eight foundation fixes were released in that baseline; the complete production-readiness gates remain open. Its release-commit CI passed 282 source unit tests and 236 PostgreSQL integration tests with zero skips. Historical records below remain dated evidence, not today's test counts or a claim of stable readiness.
 
 - The canonical .NET solution builds with zero warnings and errors.
 - Unit, PostgreSQL/Testcontainers integration, web, and generated-client tests pass locally.
@@ -133,7 +135,8 @@ Exit criteria: CI is green, final UAT is approved, installation succeeds on all 
 
 ## Version policy
 
-- Current published preview package: `0.1.0-preview.25`.
+- Current published preview package: `0.1.0-preview.26`.
+- Release metadata is prepared before tagging; this version becomes available only after the release workflow publishes successfully. Consult the GitHub release and NuGet feed, not an untagged branch, for availability.
 - Preview versions may be shared for evaluation but are not represented as production-ready.
 - Release-candidate versions begin only after phases 1–7 pass.
 - The first stable version is published only after phase 8 sign-off.

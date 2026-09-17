@@ -11,6 +11,8 @@ The 2026-09-17 reconciliation covers Trykatch **0.1.0-preview.25**: release-comm
 
 ## Template release gates
 
+The coordinated **0.1.0-preview.26** release adds safe exception/abort completion logging, generated SDK/action/first-restore controls and pack-once, digest-bound publication. [PR #109 qualification](https://github.com/TryKatch/TryKatch/actions/runs/35234520274) passed all 18 jobs, 282 source unit and 247 PostgreSQL integration tests with zero skips, including actual candidate transfer. Its own main/tag qualification and publication must also succeed before installation. None of this closes all stable-readiness criteria.
+
 - clean builds and test suites with zero compiler warnings;
 - cross-organization RLS and authentication integration tests;
 - generated OpenAPI and TypeScript client drift checks;
