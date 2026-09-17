@@ -33,7 +33,7 @@ export default defineConfig({
         {
           label: 'Start here',
           translations: { fr: 'Bien démarrer' },
-          items: ['index', 'getting-started/install'],
+          items: ['index', 'getting-started/install', 'getting-started/ai-development'],
         },
         {
           label: 'Architecture',

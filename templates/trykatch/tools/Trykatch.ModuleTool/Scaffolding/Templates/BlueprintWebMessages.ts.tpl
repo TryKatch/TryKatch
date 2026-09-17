@@ -3,6 +3,7 @@ import type { DataTableLabels } from '@__NPM_SCOPE__/ui'
 
 const defaults = {
   en: {
+    sortRecords: 'Order records', newest: 'Newest first', oldest: 'Oldest first', applyFilters: 'Apply filters', pageNavigation: 'Record pages', currentPage: 'Page {page}',
     actionDescription: 'Review this decision before confirming. The current state and your permissions will be checked again.',
 
     actionsFor: 'Actions for {name}', application: 'Application', archive: 'Archive', cancel: 'Cancel', columns: 'Columns', comfortable: 'Comfortable', compact: 'Compact',
@@ -15,6 +16,7 @@ const defaults = {
     status: 'Status', tableSettings: 'Table settings', closeTableSettings: 'Close table settings', tryAgain: 'Try again', view: 'View', notSet: 'Not set', yes: 'Yes', no: 'No',
   },
   fr: {
+    sortRecords: 'Ordre des enregistrements', newest: 'Plus récents', oldest: 'Plus anciens', applyFilters: 'Appliquer les filtres', pageNavigation: 'Pages des enregistrements', currentPage: 'Page {page}',
     actionDescription: 'Vérifiez cette décision avant de confirmer. L’état actuel et vos permissions seront de nouveau contrôlés.',
 
     actionsFor: 'Actions pour {name}', application: 'Application', archive: 'Archiver', cancel: 'Annuler', columns: 'Colonnes', comfortable: 'Confortable', compact: 'Compacte',

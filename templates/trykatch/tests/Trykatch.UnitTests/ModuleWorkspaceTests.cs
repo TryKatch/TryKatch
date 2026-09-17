@@ -12,6 +12,27 @@ namespace Trykatch.UnitTests;
 public sealed class ModuleWorkspaceTests
 {
     [TestMethod]
+    public void ModuleFactsReflectInstalledCatalogWithoutChangingFiles()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        ModuleWorkspace workspace = new(temporary.Root, new RecordingCommandRunner());
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string catalog = File.ReadAllText(Path.Combine(temporary.Root, "try" + "katch.modules.json"));
+        JsonElement facts = workspace.Facts();
+        facts.GetProperty("schemaVersion").GetInt32().ShouldBe(1);
+        facts.GetProperty("modules").GetArrayLength().ShouldBe(workspace.Inspect().Modules.Count);
+        foreach (ModuleStatus installed in workspace.Inspect().Modules)
+        {
+            JsonElement fact = workspace.Facts(installed.Id).GetProperty("modules")[0];
+            fact.GetProperty("id").GetString().ShouldBe(installed.Id);
+            fact.GetProperty("version").GetString().ShouldBe(installed.Version);
+            fact.GetProperty("enabled").GetBoolean().ShouldBe(installed.Enabled);
+            fact.GetProperty("source").GetProperty("manifest").GetString().ShouldBe(installed.ManifestPath);
+        }
+        Should.Throw<ArgumentException>(() => workspace.Facts("not-installed"));
+        File.ReadAllText(Path.Combine(temporary.Root, "try" + "katch.modules.json")).ShouldBe(catalog);
+    }
+    [TestMethod]
     [DataRow("subject")]
     [DataRow("builder")]
     [DataRow("stale")]

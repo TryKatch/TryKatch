@@ -37,6 +37,9 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           bash scripts/ci/test-detect-changes.sh
+          node scripts/ci/test-first-feature-assertions.mjs
+          node scripts/ci/test-template-payload-assertion.mjs
+          node scripts/ci/test-blueprint-dialog-refresh.mjs
           bash scripts/ci/check-docs-required.sh "$BASE_SHA" "$HEAD_SHA"
           bash scripts/ci/detect-changes.sh "$BASE_SHA" "$HEAD_SHA" | tee -a "$GITHUB_OUTPUT"
 
@@ -224,6 +227,31 @@ jobs:
       - name: Verify packed blueprint generation and PostgreSQL isolation
         run: bash scripts/test-business-blueprint.sh "${{ matrix.mode }}"
 
+  verify-first-feature:
+    needs: changes
+    if: needs.changes.outputs.qualification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [backend, web]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Prepare isolated runner prerequisites
+        run: |
+          npm install --prefix "$RUNNER_TEMP/trykatch-corepack" --ignore-scripts corepack@0.34.0
+          echo "$RUNNER_TEMP/trykatch-corepack/node_modules/.bin" >> "$GITHUB_PATH"
+          dotnet dev-certs https
+      - name: Verify first-feature generation and real PostgreSQL isolation
+        run: bash scripts/test-first-feature.sh "${{ matrix.mode }}"
+
   verify-generated-application:
     needs: changes
     if: needs.changes.outputs.qualification == 'true'
@@ -300,6 +328,7 @@ jobs:
       - verify-package
       - verify-generated-application
       - verify-business-blueprint
+      - verify-first-feature
       - verify-supply-chain
     runs-on: ubuntu-latest
     steps:

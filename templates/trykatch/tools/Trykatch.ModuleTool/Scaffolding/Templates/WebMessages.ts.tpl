@@ -3,6 +3,8 @@ import type { DataTableLabels } from '@__NPM_SCOPE__/ui'
 
 const messages = {
   en: {
+    refreshRecord: 'Load latest version', recordChanged: 'This record changed. Load the latest version; your entered values are preserved.',
+    sortRecords: 'Order records', newest: 'Newest first', oldest: 'Oldest first', applyFilters: 'Apply filters', pageNavigation: 'Record pages', currentPage: 'Page {page}',
     __FIELD_MESSAGES_EN__
     actionsFor: 'Actions for {name}', application: 'Application', archive: 'Archive', cancel: 'Cancel', columns: 'Columns', comfortable: 'Comfortable', compact: 'Compact',
     createRecord: 'Create __ENTITY_LOWER__', description: 'Description', details: 'Details', edit: 'Edit', editRecord: 'Edit __ENTITY_LOWER__', editorDescription: 'Enter the record details.',
@@ -14,6 +16,8 @@ const messages = {
     status: 'Status', tableSettings: 'Table settings', closeTableSettings: 'Close table settings', tryAgain: 'Try again', view: 'View', notSet: 'Not set', yes: 'Yes', no: 'No',
   },
   fr: {
+    refreshRecord: 'Charger la version récente', recordChanged: 'Cet enregistrement a changé. Chargez la version récente ; vos saisies sont conservées.',
+    sortRecords: 'Ordre des enregistrements', newest: 'Plus récents', oldest: 'Plus anciens', applyFilters: 'Appliquer les filtres', pageNavigation: 'Pages des enregistrements', currentPage: 'Page {page}',
     __FIELD_MESSAGES_FR__
     actionsFor: 'Actions pour {name}', application: 'Application', archive: 'Archiver', cancel: 'Annuler', columns: 'Colonnes', comfortable: 'Confortable', compact: 'Compacte',
     createRecord: 'Créer __ENTITY_LOWER__', description: 'Description', details: 'Détails', edit: 'Modifier', editRecord: 'Modifier __ENTITY_LOWER__', editorDescription: 'Saisissez les détails de l’enregistrement.',

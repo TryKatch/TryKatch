@@ -112,6 +112,7 @@ L’entité générée implémente `IOrganizationOwned`. L’hôte applique le f
 
 ```text
 GET    /api/v1/invoices/
+GET    /api/v1/invoices/page
 GET    /api/v1/invoices/{id}
 POST   /api/v1/invoices/
 PUT    /api/v1/invoices/{id}
@@ -123,6 +124,22 @@ DELETE /api/v1/invoices/{id}
 Les lectures exigent `invoicing.read` et les mutations `invoicing.manage`. Les cas d’utilisation répètent l’autorisation, les mutations exigent la protection antiforgery et les écritures créent les preuves d’audit et d’outbox dans la transaction de l’hôte. Les handlers Minimal API utilisent des unions de résultats typés et des noms d’opération OpenAPI stables (`Invoicing_List` à `Invoicing_RequestDeletion`). L’outbox publie cinq contrats immuables distincts — `InvoiceCreated`, `InvoiceUpdated`, `InvoiceArchived`, `InvoiceRestored` et `InvoiceDeletionRequested` — au lieu d’une chaîne d’opération libre.
 
 ## Démarrer et vérifier le résultat
+
+Les listes générées utilisent `/page?lifecycle=active&page=1&pageSize=25&search=invoice&sort=newest`. La réponse contient `items`, `page`, `pageSize` et `hasMore`. La taille est limitée à 1–100, la recherche à 200 caractères et le tri à `newest` ou `oldest` (date de création puis ID). La recherche des champs texte s’effectue en SQL avant la pagination, sans désactiver l’isolation organisationnelle. L’ancien endpoint tableau reste disponible pour les consommateurs existants et les archives, pas pour les grandes listes.
+
+Les modifications, archivages, restaurations et demandes de suppression exigent maintenant `expectedVersion`. Un jeton absent échoue à la désérialisation (400) ; un jeton périmé retourne 409 avec `code: stale_version`. EF rejette aussi les écritures concurrentes. Le formulaire conserve les saisies et propose un chargement explicite de la version récente. Ces contrats concernent les nouveaux modules ; une mise à jour du CLI ne modifie pas les modules ni les migrations existants.
+
+### Contributions de tableau typées
+
+Les modules web générés exportent un point typé, par exemple `invoicingTable`, et composent leurs contributions avec `useTableContributions`. Un module dépendant peut utiliser `defineTableContribution(invoicingTable, { id, order, requiredPermission, columns, actions })` puis déclarer `requires: ['invoicing']` et `tableContributions: [contribution]`. Les callbacks reçoivent le DTO du module propriétaire sans cast.
+
+Importez le point réellement exporté : recréer son ID texte est refusé. L’ordre est déterministe (ordre numérique puis ID stable). Les collisions d’IDs de contributions, colonnes ou actions, y compris avec le tableau propriétaire, provoquent une erreur. Le générateur déclare le point dans `contributions.extensionPoints` du manifeste propriétaire.
+
+`workspaceOverrides.tableContributions` permet de désactiver une contribution avec `null` ou de la remplacer en conservant son ID. Le filtrage des permissions reste une personnalisation de présentation ; toute donnée ou mutation exige une autorisation serveur et l’isolation organisationnelle. Cette première interface typée couvre les colonnes et actions de ligne ; les filtres et formulaires typés ne sont pas encore fournis. Les UI slots existants restent compatibles.
+
+La génération web exige `typed-tables-v1` dans le catalogue hôte. N’ajoutez pas ce marqueur seul : il faut le SDK tableau correspondant, son provider et l’intégration des archives avec gestion des versions. Générez une nouvelle application depuis le modèle coordonné ou migrez et testez ces éléments ensemble.
+
+### Démarrer l’application
 
 Depuis la racine de l’application :
 

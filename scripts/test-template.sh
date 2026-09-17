@@ -99,6 +99,7 @@ generate_and_build() {
   local namespace_name=${name//-/.}
   local output="$test_root/$namespace_name"
   "$test_root/tools/trykatch" new "$name" --output "$output" "$@" --debug:custom-hive "$template_hive" | tee "$test_root/$namespace_name.creation.log"
+  node "$repository_root/scripts/test-development-skills.mjs" "$output" "$namespace_name"
   grep -Fq 'Running application template and packaged Git setup' "$test_root/$namespace_name.creation.log" ||
     fail 'application creation does not report its active phase'
   grep -Fq 'Application generation completed in ' "$test_root/$namespace_name.creation.log" ||
@@ -251,7 +252,7 @@ test -f "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
   fail 'full-stack module generation did not create its React entrypoint'
 grep -Fq 'fr:' "$test_root/Horizon/src/Modules/Inventory/Web/src/messages.ts" ||
   fail 'full-stack module generation omitted French messages'
-grep -Fq "body: JSON.stringify({ sku, price, discount: discount || null, sequence, available, availableAt: availableAt === '' ? null : toUtcDateTime(availableAt, editing?.availableAt), category, notes: notes || null })" \
+grep -Fq "body: JSON.stringify({ sku, price, discount: discount || null, sequence, available, availableAt: availableAt === '' ? null : toUtcDateTime(availableAt, editing?.availableAt), category, notes: notes || null, ...(editing ? { expectedVersion: editing.version } : {}) })" \
   "$test_root/Horizon/src/Modules/Inventory/Web/src/index.tsx" ||
   fail 'full-stack module generation did not apply its field contract to React'
 inventory_web_package=$(jq -r '.entrypoints.web.specifier' \

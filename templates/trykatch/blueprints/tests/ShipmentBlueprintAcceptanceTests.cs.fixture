@@ -122,6 +122,50 @@ public sealed class ShipmentBlueprintAcceptanceTests
         }
 
         JsonElement draft = await CreateShipmentAsync(false);
+        // Plain CRUD must enforce the same version contract as workflow blueprints.
+        using (HttpResponseMessage createdInvoice = await SendAsync(tenant, HttpMethod.Post, "/api/v1/invoices",
+                   new { name = "INV_%_001", description = "Acceptance record" }, tenantToken))
+        {
+            createdInvoice.StatusCode.ShouldBe(HttpStatusCode.Created, await createdInvoice.Content.ReadAsStringAsync());
+            using JsonDocument invoice = JsonDocument.Parse(await createdInvoice.Content.ReadAsStringAsync());
+            Guid invoiceId = invoice.RootElement.GetProperty("id").GetGuid();
+            Guid invoiceVersion = invoice.RootElement.GetProperty("version").GetGuid();
+            string invoiceUrl = $"/api/v1/invoices/{invoiceId}";
+            using HttpResponseMessage missingVersion = await SendAsync(tenant, HttpMethod.Put, invoiceUrl,
+                new { name = "Updated", description = "" }, tenantToken);
+            missingVersion.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+            using HttpResponseMessage otherInvoice = await SendAsync(tenant, HttpMethod.Post, "/api/v1/invoices",
+                new { name = "INV-X-002", description = "" }, tenantToken);
+            otherInvoice.StatusCode.ShouldBe(HttpStatusCode.Created);
+            using JsonDocument literalSearch = JsonDocument.Parse(await tenant.GetStringAsync("/api/v1/invoices/page?search=%25"));
+            literalSearch.RootElement.GetProperty("items").GetArrayLength().ShouldBe(1);
+            literalSearch.RootElement.GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(invoiceId);
+            HttpResponseMessage[] writes = await Task.WhenAll(
+                SendAsync(tenant, HttpMethod.Put, invoiceUrl, new { name = "Updated", description = "", expectedVersion = invoiceVersion }, tenantToken),
+                SendAsync(tenant, HttpMethod.Put, invoiceUrl, new { name = "Updated", description = "", expectedVersion = invoiceVersion }, tenantToken));
+            try
+            {
+                writes.Count(response => response.StatusCode == HttpStatusCode.OK).ShouldBe(1);
+                writes.Count(response => response.StatusCode == HttpStatusCode.Conflict).ShouldBe(1);
+                using JsonDocument updated = JsonDocument.Parse(await writes.Single(response => response.StatusCode == HttpStatusCode.OK).Content.ReadAsStringAsync());
+                Guid updatedVersion = updated.RootElement.GetProperty("version").GetGuid();
+                updatedVersion.ShouldNotBe(invoiceVersion);
+                using HttpResponseMessage staleArchive = await SendAsync(tenant, HttpMethod.Post, invoiceUrl + "/archive",
+                    new { expectedVersion = invoiceVersion }, tenantToken);
+                staleArchive.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+                using HttpResponseMessage archive = await SendAsync(tenant, HttpMethod.Post, invoiceUrl + "/archive",
+                    new { expectedVersion = updatedVersion }, tenantToken);
+                archive.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+                using JsonDocument recoverable = JsonDocument.Parse(await tenant.GetStringAsync("/api/v1/invoices/page?lifecycle=recoverable"));
+                JsonElement archivedInvoice = recoverable.RootElement.GetProperty("items").EnumerateArray().Single();
+                Guid archiveVersion = archivedInvoice.GetProperty("version").GetGuid();
+                archiveVersion.ShouldNotBe(updatedVersion);
+                using HttpResponseMessage restore = await SendAsync(tenant, HttpMethod.Post, invoiceUrl + "/restore",
+                    new { expectedVersion = archiveVersion }, tenantToken);
+                restore.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            }
+            finally { foreach (HttpResponseMessage write in writes) write.Dispose(); }
+        }
         draft.GetProperty("workflowState").GetString().ShouldBe("Draft");
         draft.GetProperty("canEdit").GetBoolean().ShouldBeTrue();
         Guid draftVersion = draft.GetProperty("version").GetGuid();
@@ -153,6 +197,22 @@ public sealed class ShipmentBlueprintAcceptanceTests
         accepted.GetProperty("availableActions").GetArrayLength().ShouldBe(0);
 
         Guid acceptedId = accepted.GetProperty("id").GetGuid();
+        using (JsonDocument firstPage = JsonDocument.Parse(await tenant.GetStringAsync("/api/v1/shipment_receptions/page?pageSize=1&sort=oldest&search=ship-2026")))
+        using (JsonDocument secondPage = JsonDocument.Parse(await tenant.GetStringAsync("/api/v1/shipment_receptions/page?page=2&pageSize=1&sort=oldest&search=SHIP-2026")))
+        {
+            firstPage.RootElement.GetProperty("items").GetArrayLength().ShouldBe(1);
+            firstPage.RootElement.GetProperty("hasMore").GetBoolean().ShouldBeTrue();
+            firstPage.RootElement.GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(draft.GetProperty("id").GetGuid());
+            secondPage.RootElement.GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(acceptedId);
+            secondPage.RootElement.GetProperty("hasMore").GetBoolean().ShouldBeFalse();
+        }
+        using (JsonDocument emptyPage = JsonDocument.Parse(await tenant.GetStringAsync("/api/v1/shipment_receptions/page?search=no-such-reference")))
+            emptyPage.RootElement.GetProperty("items").GetArrayLength().ShouldBe(0);
+        foreach (string invalidQuery in new[] { "page=0", "pageSize=101", "sort=unknown", "lifecycle=all" })
+        {
+            using HttpResponseMessage invalidPage = await tenant.GetAsync("/api/v1/shipment_receptions/page?" + invalidQuery);
+            invalidPage.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        }
         using (HttpResponseMessage archived = await SendAsync(tenant, HttpMethod.Post, $"/api/v1/shipment_receptions/{acceptedId}/archive",
                    new { expectedVersion = accepted.GetProperty("version").GetGuid() }, tenantToken))
             archived.StatusCode.ShouldBe(HttpStatusCode.NoContent, await archived.Content.ReadAsStringAsync());

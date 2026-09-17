@@ -30,7 +30,7 @@ Follow these steps in order.
 Run this once on your computer:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.24
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.25
 ```
 
 This installs the `trykatch` command. It does not install the project template yet.
@@ -67,7 +67,7 @@ Creation shows a live spinner, numbered step and elapsed time during option vali
 If you do not want the progress-aware Trykatch CLI, use the following command **instead of Steps 1 and 2**:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.24
+dotnet new install Trykatch.Templates@0.1.0-preview.25
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -84,7 +84,7 @@ Names containing dots and hyphens are normalized for C# namespaces, directories,
 Update the CLI first, then use the dedicated Trykatch update command. This keeps the CLI and template on the same release:
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.24
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.25
 trykatch update
 ```
 
@@ -100,7 +100,7 @@ When NuGet reports an unexpected EOF or an empty transport stream, Trykatch cond
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.24
+trykatch update --version 0.1.0-preview.25
 ```
 
 The .NET template engine can remove the previous template before a forced update finishes. Retrying the Trykatch command restores the template; applications you already generated are not affected.
@@ -167,6 +167,18 @@ trykatch module help
 `trykatch help` lists application-generation choices. `trykatch start --help` documents application startup. `trykatch template help` documents template installation, updates, and removal. `trykatch module help` lists every supported module lifecycle command.
 
 ## Run the backend and frontend
+
+Before the first run, use the local onboarding commands from the application root:
+
+```bash
+trykatch setup
+trykatch doctor
+trykatch start
+```
+
+`setup` restores locked .NET and pinned frontend dependencies without changing secrets, certificates or databases. Backend-only applications skip Node and pnpm. `doctor` checks the toolchain, both Corepack and PATH pnpm versions, certificate presence, Docker daemon, and module graph; it reports fixes but does not apply them. Corepack may download its pinned tool into its cache. Trust the development certificate manually as described above.
+
+Once running, use `trykatch status --api-url <API origin from Aspire>` to check live and ready health. The URL must be a loopback HTTP(S) origin, and certificate verification remains enabled. Without `--api-url`, status shows configuration and marks runtime health unknown. Each command accepts `--root`; failed checks return exit code 2.
 
 Keep Docker running. From the generated application's root directory, this one command starts **both the ASP.NET Core backend and the React frontend**, together with PostgreSQL, migrations, OpenTelemetry, and the local observability services:
 

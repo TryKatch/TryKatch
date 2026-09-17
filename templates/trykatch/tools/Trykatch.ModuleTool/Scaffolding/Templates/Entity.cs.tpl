@@ -4,6 +4,8 @@ namespace __ROOT_NAMESPACE__.Modules.__MODULE__.Domain;
 
 public enum __ENTITY__LifecycleState { Active = 1, Archived = 2, Deleted = 3 }
 
+public sealed class __ENTITY__ConflictException() : Exception("This record changed. Refresh it before trying again.");
+
 __FIELD_ENUMS__
 
 public sealed class __ENTITY__Record : IOrganizationOwned
@@ -23,6 +25,11 @@ public sealed class __ENTITY__Record : IOrganizationOwned
 
     public Guid Id { get; private init; }
     public Guid OrganizationId { get; private init; }
+    public Guid Version { get; private set; } = Guid.NewGuid();
+    public void EnsureVersion(Guid expectedVersion)
+    {
+        if (expectedVersion == Guid.Empty || expectedVersion != Version) throw new __ENTITY__ConflictException();
+    }
     __DOMAIN_FIELD_PROPERTIES__
     public Guid CreatedBy { get; private init; }
     public DateTimeOffset CreatedAt { get; private init; }
@@ -50,6 +57,7 @@ public sealed class __ENTITY__Record : IOrganizationOwned
             throw new InvalidOperationException("Restore the record before editing it.");
         __DOMAIN_FIELD_ASSIGNMENTS__
         UpdatedAt = now;
+        Version = Guid.NewGuid();
     }
 
     public bool Archive(Guid actorId, DateTimeOffset now)
@@ -57,6 +65,7 @@ public sealed class __ENTITY__Record : IOrganizationOwned
         if (DeletedAt is not null) throw new InvalidOperationException("A deleted record cannot be archived.");
         if (ArchivedAt is not null) return false;
         ArchivedAt = now;
+        Version = Guid.NewGuid();
         ArchivedBy = actorId;
         return true;
     }
@@ -65,6 +74,7 @@ public sealed class __ENTITY__Record : IOrganizationOwned
     {
         if (LifecycleState == __ENTITY__LifecycleState.Active) return false;
         ArchivedAt = null;
+        Version = Guid.NewGuid();
         ArchivedBy = null;
         DeletedAt = null;
         DeletedBy = null;
@@ -81,6 +91,7 @@ public sealed class __ENTITY__Record : IOrganizationOwned
             throw new ArgumentException("A deletion reason containing 10-500 characters is required.", nameof(reason));
         if (DeletedAt is not null) return false;
         DeletedAt = now;
+        Version = Guid.NewGuid();
         DeletedBy = actorId;
         DeletionReason = normalizedReason;
         return true;

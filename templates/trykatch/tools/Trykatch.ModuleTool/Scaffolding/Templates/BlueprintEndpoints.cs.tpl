@@ -32,6 +32,8 @@ public sealed partial class __MODULE__Endpoints : IOrganizationEndpointContribut
         MapActions(group);
         group.MapGet("/", ListAsync).RequireAuthorization("permission:__MODULE_ID__.read")
             .WithName("__MODULE___List").WithTags("__MODULE__").Produces<__ENTITY__Dto[]>();
+        group.MapGet("/page", PageAsync).RequireAuthorization("permission:__MODULE_ID__.read")
+            .WithName("__MODULE___Page").WithTags("__MODULE__").Produces<__ENTITY__Page<__ENTITY__Dto>>().ProducesValidationProblem();
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization("permission:__MODULE_ID__.read")
             .WithName("__MODULE___Get").WithTags("__MODULE__").Produces<__ENTITY__Dto>().Produces(StatusCodes.Status404NotFound);
         group.MapPost("/", CreateAsync).RequireAuthorization("permission:__MODULE_ID__.manage")
@@ -49,6 +51,21 @@ public sealed partial class __MODULE__Endpoints : IOrganizationEndpointContribut
         group.MapDelete("/{id:guid}", RequestDeletionAsync).RequireAuthorization("permission:__MODULE_ID__.manage")
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true)).WithName("__MODULE___RequestDeletion").WithTags("__MODULE__")
             .Produces(StatusCodes.Status204NoContent).ProducesValidationProblem().ProducesProblem(StatusCodes.Status409Conflict);
+    }
+
+    private static async Task<Results<Ok<__ENTITY__Page<__ENTITY__Dto>>, ForbidHttpResult, ValidationProblem>> PageAsync(
+        List__ENTITY__QueryHandler handler, CancellationToken cancellationToken, string lifecycle = "active", int page = 1,
+        int pageSize = 25, string? search = null, string sort = "newest")
+    {
+        try
+        {
+            __ENTITY__OperationResult<__ENTITY__Page<__ENTITY__Dto>> result = await handler.PageAsync(new(lifecycle, page, pageSize, search, sort), cancellationToken);
+            return result.IsSuccess ? TypedResults.Ok(result.Value!) : TypedResults.Forbid();
+        }
+        catch (ArgumentException exception)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { [exception.ParamName ?? "query"] = [exception.Message] });
+        }
     }
 
     private static async Task<Results<Ok<__ENTITY__Dto[]>, ForbidHttpResult, ValidationProblem>> ListAsync(

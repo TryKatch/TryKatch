@@ -9,7 +9,7 @@ Trykatch is an Apache-2.0 enterprise application template for .NET 10, PostgreSQ
 `Trykatch.Templates` is the full-stack project generator. The recommended installer uses the official .NET template engine underneath while adding clear progress and completion states. Every default generation includes the .NET solution and the complete React/TanStack frontend workspace:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.24
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.25
 trykatch template install
 trykatch new Horizon
 trykatch new Acme.Operations
@@ -25,7 +25,7 @@ instead of creating a nested one.
 For automation or IDE-managed environments, the direct Microsoft CLI command remains supported:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.24
+dotnet new install Trykatch.Templates@0.1.0-preview.25
 ```
 
 The default output includes `web/apps/web`, the reusable `web/packages/ui` component system, the generated TanStack Query API client, frontend tests, and the production web container. Create a backend-only solution only when it is explicitly requested with:
@@ -39,7 +39,7 @@ Optional modules are enabled with `--email`, `--storage`, `--documents`, and `--
 `Trykatch.Cli` installs, updates, or removes the project template, starts generated applications through their Aspire AppHost, and manages the module lifecycle. Every generated application also contains its source under `tools/<ApplicationName>.ModuleTool`, so developers can run module commands without a global installation:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.24
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.25
 trykatch update
 trykatch help
 trykatch template help
@@ -90,14 +90,24 @@ dotnet tool uninstall --global Trykatch.Cli
 ```bash
 dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages
 dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release -o artifacts/packages
-dotnet new install artifacts/packages/Trykatch.Templates.0.1.0-preview.24.nupkg --force
+dotnet new install artifacts/packages/Trykatch.Templates.0.1.0-preview.25.nupkg --force
 dotnet new trykatch -n Horizon --allow-scripts yes
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.24 --add-source artifacts/packages
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.25 --add-source artifacts/packages
 ```
 
 The installed template uses the standard .NET template engine. Rider can install the `.nupkg` from **New Solution → More Templates → Install Template**, or discover it after `dotnet new install`. Visual Studio discovers installed SDK templates in the **Create a new project** dialog; search for **Trykatch** after installing the package and restarting the dialog or IDE.
 
 The generated solution includes organization RBAC, PostgreSQL RLS, a platform-only Tenant Management console with first-owner invitations, customizable platform roles backed by a published permission catalog, a transactional outbox, ASP.NET Core Identity and OpenIddict, cookie/BFF authentication, build-time OpenAPI, development-only Scalar API documentation, a generated TanStack Query client, a deny-by-default assistant tool contract, a reusable React component package, Aspire orchestration, and a provisioned Grafana/Loki/Tempo/Prometheus stack.
+
+## AI-assisted development
+
+Generated applications include an architectural task router and five project-local skills: `trykatch-spec`, `trykatch-build-module`, `trykatch-extend-module`, `trykatch-review`, and `trykatch-verify`. They use the application's module generator, business blueprints, reference code, and verification commands to take a feature brief through implementation and review. They also work with backend-only output and preserve application namespace replacement.
+
+Ask your coding agent to read `.agents/skills/trykatch-build-module/SKILL.md` in the generated application and implement your feature. Automatic discovery depends on the agent; direct file invocation works without installing global skills. See the [bundled workflow guide](templates/trykatch/docs/ai-assisted-development.md). The skills support development; an in-app model runtime and approval UI remain separate work.
+
+New applications also receive [developer onboarding](templates/trykatch/docs/developer-onboarding.md) ([Français](templates/trykatch/docs/developer-onboarding.fr.md)) and a generation-time **Start here** message. Use the read-only orientation prompt and question list in your existing coding assistant to learn module creation, backend/frontend wiring, integration contracts and verification, without another onboarding AI key. Backend-only output skips frontend steps. In-app AI Help is unchanged.
+
+Template maintainers can run `bash scripts/test-development-skills.sh` to verify the packed bundle in renamed React and backend-only applications. The [validation guide](docs/development-skills-validation.md) also describes independent behavioral trials.
 
 ## Develop the template
 

@@ -10,7 +10,7 @@ Trykatch modules need one API contract that serves human documentation, generate
 
 ASP.NET Core generates OpenAPI 3.1 at build time. Stable operation IDs are mandatory. Scalar renders the development-only interactive reference at `/docs`; production does not expose documentation unless an operator deliberately adds an authenticated deployment policy.
 
-Module-owned operations receive `x-trykatch-module` metadata. A module may expose an operation to assistants only by declaring a `TrykatchAssistantToolDescriptor`. The OpenAPI transformer emits that declaration as `x-trykatch-assistant-tool`, and the deterministic generator produces `docs/generated/assistant-contract.json`.
+Module-owned operations receive `x-trykatch-module` metadata. A module may expose an operation to assistants only by declaring an `AssistantToolDescriptor`. The OpenAPI transformer emits that declaration as `x-trykatch-assistant-tool`, and the deterministic generator produces `docs/generated/assistant-contract.json`.
 
 The assistant contract is provider-neutral and deny-by-default. The API remains the authority for identity, organization context, RLS, and permissions on every invocation. Read-only tools may run directly. Mutating and destructive tools must be explicitly declared and require human confirmation. Model providers are adapters outside the security kernel.
 

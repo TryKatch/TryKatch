@@ -9,6 +9,9 @@ trykatch template install
 trykatch new Horizon
 trykatch template help
 trykatch start
+trykatch setup
+trykatch doctor
+trykatch status --api-url https://localhost:7268
 trykatch module help
 trykatch module create Invoicing --entity Invoice --resource invoices --ownership organization --fields "number:string:required:max(40),total:decimal:required,status:enum(Draft,Paid)" --with-web
 trykatch module doctor --root /path/to/application
@@ -37,6 +40,12 @@ workspace rollback guarantee. `module generate`, `register`, `install`, `upgrade
 and `eject` also show loading feedback while their workspace operation runs.
 
 `start` discovers the generated Aspire AppHost from the current directory or `--root`, then runs its HTTPS launch profile with inherited terminal output. `template uninstall` removes `Trykatch.Templates` through the official .NET template engine; remove the global CLI separately with `dotnet tool uninstall --global Trykatch.Cli`.
+
+`setup` discovers the same application and restores .NET dependencies with `--locked-mode`, then installs React dependencies through Corepack with `--frozen-lockfile`. It validates the SDK, Node and both pnpm executables first. Backend-only applications skip frontend checks entirely. It never creates secrets, trusts certificates, starts Aspire or runs migrations. A canceled install can leave partial dependencies; rerun it to finish.
+
+`doctor` checks the selected .NET SDK, Node 24+, workspace-pinned pnpm through Corepack and PATH, development certificate presence, Docker readiness and module graph. It reports all checks and concrete remediation without repairing the workspace (Corepack may populate its tool cache). Certificate trust is a separate manual step. `module doctor` remains the focused module validator.
+
+`status` without an API URL reports workspace configuration and explicitly marks runtime health unknown. With `--api-url`, it checks `/health/live` and `/health/ready` at a loopback HTTP(S) origin. Redirects are not followed and HTTPS certificate verification stays enabled. Get the current API URL from Aspire, not a guessed development port. Checks return 0 when successful and 2 for missing prerequisites/unhealthy endpoints. All three commands accept `--root`.
 
 `module create` scaffolds an organization-owned CRUD module inside an existing
 Trykatch application. Use `--fields` to define the business contract once across
@@ -142,3 +151,7 @@ trykatch module doctor
 ```
 
 Replace `Horizon` with your application's namespace. Generated tests cover the workflow's lifecycle and version invariants; write additional tests for your own domain rules. The Trykatch repository also runs an independent shipment HTTP acceptance test and real PostgreSQL cross-organization tests against newly generated applications in CI.
+
+### Installed module facts
+
+`module facts [module-id] [--root <path>]` prints JSON from the validated installed catalog. It includes enablement/version, module ownership, permission and extension declarations, assistant metadata, and source/artifact entrypoints. It is read-only, works without a frontend, and fails on an unhealthy workspace or unknown module. Coding agents should use these installed facts instead of assuming seams from another version. Assistant declarations are metadata, not proof that a runtime executor is installed.

@@ -1,7 +1,14 @@
 import { createContext, Suspense, useContext, type ReactNode } from 'react'
 import type { WebModuleCatalog } from './index'
+import type { TableExtensionPoint, TableParts } from './tables'
 
 const ModuleCatalogContext = createContext<WebModuleCatalog | null>(null)
+
+export function useTableContributions<Row>(point: TableExtensionPoint<Row>, permissions: readonly string[], base: TableParts<Row> = {}) {
+  const catalog = useContext(ModuleCatalogContext)
+  if (!catalog) throw new Error('useTableContributions must be used inside ModuleProvider.')
+  return catalog.tableFor(point, permissions, base)
+}
 
 export function ModuleProvider({ catalog, children }: { catalog: WebModuleCatalog; children: ReactNode }) {
   return <ModuleCatalogContext.Provider value={catalog}>{children}</ModuleCatalogContext.Provider>
