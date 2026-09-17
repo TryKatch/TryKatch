@@ -13,7 +13,7 @@
   --panel-raised: color-mix(in srgb, var(--accent) 3%, var(--base-panel-raised));
   --line: #dce3e1;
   --line-strong: #c8d2cf;
-  --muted: #626f6c;
+  --muted: #56635f;
   --text: #18201f;
   --accent: #315fba;
   --accent-hover: #2850a0;
@@ -23,7 +23,10 @@
   --focus: var(--accent-ink);
   --theme-base-color: #315fba;
   --theme-accent-foreground: #ffffff;
-  --danger: #c63f4d;
+  --danger: #b53040;
+  --danger-fill: #b53040;
+  --success: #176a43;
+  --warning: #80510d;
   --radius: 4px;
 }
 :root[data-theme="dark"] {
@@ -43,6 +46,9 @@
   --accent-hover: #4c7bd2;
   --accent-soft: rgb(63 111 202 / 14%);
   --accent-ink: #9bb8ed;
+  --danger: #f08a95;
+  --success: #67c798;
+  --warning: #e3b56a;
 }
 
 :root[data-theme="custom"] {
@@ -66,6 +72,9 @@
   --accent-ink: var(--theme-bright-color);
   --accent-contrast: var(--theme-accent-foreground);
   --focus: var(--theme-bright-color);
+  --danger: #f08a95;
+  --success: #67c798;
+  --warning: #e3b56a;
 }
 
 * { box-sizing: border-box; }
@@ -171,7 +180,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .button-secondary { color: var(--text); background: var(--panel); border-color: var(--line-strong); }
 .button-secondary:hover:not(:disabled), .button-ghost:hover:not(:disabled) { background: var(--panel-raised); }
 .button-ghost { color: var(--muted); background: transparent; }
-.button-danger { color: #fff; background: var(--danger); }
+.button-danger { color: #fff; background: var(--danger-fill); }
 .surface { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
 
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
@@ -191,8 +200,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .activity-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
 .health-list > div { justify-content: space-between; }
 .badge { height: 21px; display: inline-flex; align-items: center; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; font-size: 10px; font-weight: 650; }
-.badge-success { color: #25895b; background: rgb(46 160 100 / 10%); border-color: rgb(46 160 100 / 25%); }
-.badge-warning { color: #a16b14; background: rgb(161 107 20 / 8%); }
+.badge-success { color: var(--success); background: rgb(46 160 100 / 10%); border-color: rgb(46 160 100 / 25%); }
+.badge-warning { color: var(--warning); background: rgb(161 107 20 / 8%); }
 .badge-danger { color: var(--danger); }.badge-info { color: var(--accent-ink); background: var(--accent-soft); }
 
 .collection { overflow: hidden; }

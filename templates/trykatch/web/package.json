@@ -3,12 +3,14 @@
   "private": true,
   "packageManager": "pnpm@10.17.1",
   "scripts": {
-    "build": "pnpm --recursive build",
+    "build": "pnpm --recursive build && node ../tools/check-storybook-production.mjs",
     "dev": "pnpm --filter @trykatch/web dev",
     "generate": "pnpm --filter @trykatch/api-client generate && node ../tools/generate-assistant-contract.mjs",
     "generate:check": "node ../tools/generate-assistant-contract.mjs --check",
     "test": "node --test ../tools/*.test.mjs && pnpm --recursive test",
     "typecheck": "pnpm --recursive typecheck",
-    "storybook": "pnpm --filter @trykatch/ui storybook"
+    "storybook": "pnpm --filter @trykatch/storybook storybook",
+    "storybook:build": "pnpm --filter @trykatch/storybook storybook:build",
+    "storybook:test": "pnpm --filter @trykatch/storybook storybook:test"
   }
 }

@@ -136,6 +136,10 @@ jobs:
             fi
           done
       - run: pnpm --dir templates/trykatch/web --filter @trykatch/web exec playwright install --with-deps chromium
+      - name: Build isolated UI catalogue and run interactions and accessibility
+        run: |
+          pnpm --dir templates/trykatch/web storybook:build
+          pnpm --dir templates/trykatch/web storybook:test
       - run: pnpm --dir templates/trykatch/web --filter @trykatch/web test:e2e
       - run: pnpm --dir templates/trykatch/web audit --audit-level high
 

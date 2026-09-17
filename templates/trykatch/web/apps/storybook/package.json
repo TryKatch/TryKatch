@@ -1,0 +1,34 @@
+{
+  "name": "@trykatch/storybook",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "storybook": "storybook dev -p 6006 --disable-telemetry",
+    "storybook:build": "storybook build --disable-telemetry",
+    "storybook:test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@storybook/addon-a11y": "10.6.0",
+    "@storybook/addon-docs": "10.6.0",
+    "@storybook/addon-vitest": "10.6.0",
+    "@storybook/react-vite": "10.6.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/react-query": "5.102.8",
+    "@tanstack/react-router": "1.170.33",
+    "@trykatch/module-sdk": "workspace:*",
+    "@types/node": "26.5.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitest/browser-playwright": "4.1.0",
+    "msw": "2.15.0",
+    "msw-storybook-addon": "3.0.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "storybook": "10.6.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.2.2",
+    "vitest": "4.1.0"
+  }
+}
