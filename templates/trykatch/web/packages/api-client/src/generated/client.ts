@@ -31,6 +31,11 @@ import type {
   ActivateOrganizationInvitationRequest,
   ActivatePlatformAccessRequest,
   AntiforgeryResponse,
+  AssistantAnswer,
+  AssistantGuide,
+  AssistantGuideSource,
+  AssistantRequest,
+  AssistantStatus,
   AuditListParams,
   AuditPageDto,
   ChangeAccountPasswordRequest,
@@ -2173,6 +2178,397 @@ export const useAccountSecurityDisableMfa = <TError = unknown,
         TContext
       > => {
       return useMutation(getAccountSecurityDisableMfaMutationOptions(options), queryClient);
+    }
+
+export const getAssistantStatusUrl = () => {
+
+
+
+
+  return `/api/v1/assistant/status`
+}
+
+/**
+ * @summary Status assistant
+ */
+export const assistantStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<AssistantStatus> => {
+
+  return customFetch<AssistantStatus>(getAssistantStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAssistantStatusQueryKey = () => {
+    return [
+    `/api/v1/assistant/status`
+    ] as const;
+    }
+
+
+export const getAssistantStatusQueryOptions = <TData = Awaited<ReturnType<typeof assistantStatus>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAssistantStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof assistantStatus>>> = ({ signal }) => assistantStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof assistantStatus>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type AssistantStatusQueryResult = NonNullable<Awaited<ReturnType<typeof assistantStatus>>>
+export type AssistantStatusQueryError = unknown
+
+
+export function useAssistantStatus<TData = Awaited<ReturnType<typeof assistantStatus>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantStatus>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof assistantStatus>>,
+          TError,
+          Awaited<ReturnType<typeof assistantStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAssistantStatus<TData = Awaited<ReturnType<typeof assistantStatus>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantStatus>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof assistantStatus>>,
+          TError,
+          Awaited<ReturnType<typeof assistantStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAssistantStatus<TData = Awaited<ReturnType<typeof assistantStatus>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Status assistant
+ */
+
+export function useAssistantStatus<TData = Awaited<ReturnType<typeof assistantStatus>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getAssistantStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAssistantGuidesUrl = () => {
+
+
+
+
+  return `/api/v1/assistant/guides`
+}
+
+/**
+ * @summary Guides assistant
+ */
+export const assistantGuides = async ( options?: Parameters<typeof customFetch>[1]): Promise<AssistantGuideSource[]> => {
+
+  return customFetch<AssistantGuideSource[]>(getAssistantGuidesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAssistantGuidesQueryKey = () => {
+    return [
+    `/api/v1/assistant/guides`
+    ] as const;
+    }
+
+
+export const getAssistantGuidesQueryOptions = <TData = Awaited<ReturnType<typeof assistantGuides>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuides>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAssistantGuidesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof assistantGuides>>> = ({ signal }) => assistantGuides({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof assistantGuides>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type AssistantGuidesQueryResult = NonNullable<Awaited<ReturnType<typeof assistantGuides>>>
+export type AssistantGuidesQueryError = unknown
+
+
+export function useAssistantGuides<TData = Awaited<ReturnType<typeof assistantGuides>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuides>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof assistantGuides>>,
+          TError,
+          Awaited<ReturnType<typeof assistantGuides>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAssistantGuides<TData = Awaited<ReturnType<typeof assistantGuides>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuides>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof assistantGuides>>,
+          TError,
+          Awaited<ReturnType<typeof assistantGuides>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAssistantGuides<TData = Awaited<ReturnType<typeof assistantGuides>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuides>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Guides assistant
+ */
+
+export function useAssistantGuides<TData = Awaited<ReturnType<typeof assistantGuides>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuides>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getAssistantGuidesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAssistantGuideUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/assistant/guides/${id}`
+}
+
+/**
+ * @summary Guide assistant
+ */
+export const assistantGuide = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<AssistantGuide> => {
+
+  return customFetch<AssistantGuide>(getAssistantGuideUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAssistantGuideQueryKey = (id: string,) => {
+    return [
+    `/api/v1/assistant/guides/${id}`
+    ] as const;
+    }
+
+
+export const getAssistantGuideQueryOptions = <TData = Awaited<ReturnType<typeof assistantGuide>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuide>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAssistantGuideQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof assistantGuide>>> = ({ signal }) => assistantGuide(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof assistantGuide>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type AssistantGuideQueryResult = NonNullable<Awaited<ReturnType<typeof assistantGuide>>>
+export type AssistantGuideQueryError = unknown
+
+
+export function useAssistantGuide<TData = Awaited<ReturnType<typeof assistantGuide>>, TError = unknown>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuide>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof assistantGuide>>,
+          TError,
+          Awaited<ReturnType<typeof assistantGuide>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAssistantGuide<TData = Awaited<ReturnType<typeof assistantGuide>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuide>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof assistantGuide>>,
+          TError,
+          Awaited<ReturnType<typeof assistantGuide>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAssistantGuide<TData = Awaited<ReturnType<typeof assistantGuide>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuide>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Guide assistant
+ */
+
+export function useAssistantGuide<TData = Awaited<ReturnType<typeof assistantGuide>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof assistantGuide>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getAssistantGuideQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAssistantAskUrl = () => {
+
+
+
+
+  return `/api/v1/assistant/ask`
+}
+
+/**
+ * @summary Ask assistant
+ */
+export const assistantAsk = async (assistantRequest: AssistantRequest, options?: Parameters<typeof customFetch>[1]): Promise<AssistantAnswer> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AssistantAnswer>(getAssistantAskUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(assistantRequest)
+  }
+);}
+
+
+
+
+
+export const getAssistantAskMutationKey = () => ['assistantAsk'] as const;
+
+export const getAssistantAskMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assistantAsk>>, TError,AssistantAskMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assistantAsk>>, TError,AssistantAskMutationVariables, TContext> => {
+
+const mutationKey = getAssistantAskMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assistantAsk>>, AssistantAskMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  assistantAsk(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssistantAskMutationResult = NonNullable<Awaited<ReturnType<typeof assistantAsk>>>
+    export type AssistantAskMutationBody = AssistantRequest
+    export type AssistantAskMutationError = unknown
+    export type AssistantAskMutationVariables = {data: AssistantRequest}
+
+    /**
+ * @summary Ask assistant
+ */
+export const useAssistantAsk = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assistantAsk>>, TError,AssistantAskMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof assistantAsk>>,
+        TError,
+        AssistantAskMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAssistantAskMutationOptions(options), queryClient);
     }
 
 export const getAuthenticationAntiforgeryUrl = () => {

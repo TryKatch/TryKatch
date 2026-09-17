@@ -22,6 +22,8 @@ const PlatformAuthenticationPage = lazy(() => pages().then((module) => ({ defaul
 const AcceptInvitationPage = lazy(() => pages().then((module) => ({ default: module.AcceptInvitationPage })))
 const PlatformAccessActivationPage = lazy(() => pages().then((module) => ({ default: module.PlatformAccessActivationPage })))
 const ArchivePage = lazy(() => import('./features/archive/ArchivePage').then((module) => ({ default: module.ArchivePage })))
+const AssistantPage = lazy(() => import('./features/assistant/AssistantPage').then((module) => ({ default: module.AssistantPage })))
+const AssistantGuidePage = lazy(() => import('./features/assistant/AssistantGuidePage').then((module) => ({ default: module.AssistantGuidePage })))
 
 function withSuspense(Page: ElementType) {
   return function LazyRoutePage() {
@@ -51,6 +53,8 @@ const userManagementRoute = createRoute({ getParentRoute: () => workspaceRoute, 
 const legacyTeamRoute = createRoute({ getParentRoute: () => rootRoute, path: '/team', beforeLoad: () => { throw redirect({ to: '/user-management', replace: true }) } })
 const auditRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/audit', component: withSuspense(AuditPage) })
 const archiveRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/archive', component: withSuspense(ArchivePage) })
+const assistantRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/assistant', component: withSuspense(AssistantPage) })
+const assistantGuideRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/assistant/guides/$guideId', component: withSuspense(AssistantGuidePage) })
 const profileRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/profile', component: withSuspense(ProfilePage) })
 const legacySettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', beforeLoad: () => { throw redirect({ to: '/profile', replace: true }) } })
 const platformOverviewRoute = createRoute({ getParentRoute: () => platformRoute, path: '/', component: withSuspense(PlatformOverviewPage) })
@@ -72,7 +76,7 @@ const routeTree = rootRoute.addChildren([
   legacySettingsRoute,
   invitationRoute,
   platformActivationRoute,
-  workspaceRoute.addChildren([overviewRoute, ...workspaceModuleRoutes, userManagementRoute, auditRoute, archiveRoute, profileRoute]),
+  workspaceRoute.addChildren([overviewRoute, ...workspaceModuleRoutes, userManagementRoute, auditRoute, archiveRoute, assistantRoute, assistantGuideRoute, profileRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' })

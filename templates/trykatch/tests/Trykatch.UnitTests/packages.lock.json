@@ -378,6 +378,7 @@
       "trykatch.modules.aspnetcore": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "[10.9.0, )",
           "Trykatch.Modules.Abstractions": "[1.0.0, )"
         }
       },
@@ -390,7 +391,6 @@
       "trykatch.modules.documents.application": {
         "type": "Project",
         "dependencies": {
-          "Microsoft.EntityFrameworkCore": "[10.0.11, )",
           "Trykatch.Modules.Abstractions": "[1.0.0, )",
           "Trykatch.Modules.Documents.Domain": "[1.0.0, )",
           "Trykatch.Modules.Documents.IntegrationEvents": "[1.0.0, )"
@@ -509,6 +509,12 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "10.0.11"
         }
+      },
+      "Microsoft.Extensions.AI.Abstractions": {
+        "type": "CentralTransitive",
+        "requested": "[10.9.0, )",
+        "resolved": "10.9.0",
+        "contentHash": "//nASHMCJVxnYfE/WSzfaLOao6/q816kPpgB9rxU0gfSmAny1u3rfQT0D4xAmcIo4yQqJs7rAeBB+M/dIMdZYA=="
       },
       "Npgsql": {
         "type": "CentralTransitive",

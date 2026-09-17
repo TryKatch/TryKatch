@@ -167,6 +167,7 @@ public sealed class OrganizationAdministrationController(
                 await invitationNotifier.SendOrganizationInvitationAsync(
                     result.Value.Invitation.Email,
                     result.Value.OrganizationName,
+                    result.Value.RoleName,
                     invitationUrl,
                     cancellationToken);
                 emailDelivered = true;

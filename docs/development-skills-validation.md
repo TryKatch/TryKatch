@@ -10,7 +10,7 @@ From the repository root:
 bash scripts/test-development-skills.sh
 ```
 
-This packs the real NuGet template into a private temporary directory, installs it into an isolated template hive, and creates both `Skill.FullStack` and `Skill.Backend-Only`. It checks all five skill names and frontmatter, router reachability, Markdown reference resolution inside the application, and namespace-replaced solution/tool/source paths. It also checks that backend-only output has no web workspace. The temporary workspace is removed on success and retained on failure; set `TRYKATCH_KEEP_SKILL_WORKSPACE=true` to retain successful output for a behavioral trial.
+This packs the real NuGet template into a private temporary directory, installs it into an isolated template hive, and creates both `Skill.FullStack` and `Skill.Backend-Only`. It checks all five skill names and frontmatter, router reachability, Markdown reference resolution inside the application, and namespace-replaced solution/tool/source paths. It also requires the user-help API/runtime and six explicit embedded guides; React output must include both the floating chat launcher and account-menu entry with continuation support. Backend-only output must retain the server runtime without a web workspace. The temporary workspace is removed on success and retained on failure; set `TRYKATCH_KEEP_SKILL_WORKSPACE=true` to retain successful output for a behavioral trial.
 
 The same checks run against every generated application in `scripts/test-template.sh`. CI classifies skill, router, guide, and validator changes as packaging changes. These checks prove distribution and reference integrity, not how well a model will follow the instructions.
 

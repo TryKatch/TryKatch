@@ -41,6 +41,7 @@ This application includes five project-local skills for specification, module cr
 ## Architecture
 
 - `Domain` contains framework-free organization, membership, role, invitation, audit, and Project models.
+- Authorized workspace managers select an active, assignable role when inviting a person; acceptance assigns the saved role. Optional SMTP emails show that role's friendly name in plain text and HTML. Without SMTP, copy the one-time invitation link from the API response.
 - `Application` contains focused use cases, validation, permissions, and outbound interfaces.
 - `Infrastructure` owns EF Core, PostgreSQL RLS, auditing, the transactional outbox, and selected adapters.
 - `Identity` owns ASP.NET Core Identity, OpenIddict, MFA primitives, session cookies, and data-protection keys.

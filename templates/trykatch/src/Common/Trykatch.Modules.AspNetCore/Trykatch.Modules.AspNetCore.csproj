@@ -1,8 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Trykatch.Modules.Abstractions/Trykatch.Modules.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Explicit approved corpus: no runtime filesystem scan or source checkout dependency. -->
+    <EmbeddedResource Include="../../../docs/assistant/architecture.md;../../../docs/assistant/projects.md;../../../docs/assistant/documents.md;../../../docs/assistant/isolation.md;../../../docs/assistant/module-authoring.md;../../../docs/assistant/providers.md"
+                      LogicalName="$(RootNamespace).Assistant.Guides.%(Filename)" />
   </ItemGroup>
 </Project>

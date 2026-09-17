@@ -21,6 +21,7 @@ internal sealed class LoopbackSmtpServer : IAsyncDisposable
     private readonly Task run;
     public int Port => ((IPEndPoint)listener.LocalEndpoint).Port;
     public bool ReceivedMessage { get; private set; }
+    public string? MessageData { get; private set; }
     public bool Authenticated { get; private set; }
     public bool UsedTls { get; private set; }
 
@@ -109,7 +110,9 @@ internal sealed class LoopbackSmtpServer : IAsyncDisposable
                     else if (command == "DATA")
                     {
                         await writer.WriteLineAsync("354 send message");
-                        while (await reader.ReadLineAsync(stop.Token) is { } line && line != ".") { }
+                        StringBuilder content = new();
+                        while (await reader.ReadLineAsync(stop.Token) is { } line && line != ".") content.AppendLine(line);
+                        MessageData = content.ToString();
                         ReceivedMessage = true;
                         await writer.WriteLineAsync("250 queued");
                     }

@@ -11,7 +11,9 @@ The 2026-09-17 reconciliation covers Trykatch **0.1.0-preview.25**: release-comm
 
 ## Template release gates
 
-The coordinated **0.1.0-preview.26** release adds safe exception/abort completion logging, generated SDK/action/first-restore controls and pack-once, digest-bound publication. [PR #109 qualification](https://github.com/TryKatch/TryKatch/actions/runs/35234520274) passed all 18 jobs, 282 source unit and 247 PostgreSQL integration tests with zero skips, including actual candidate transfer. Its own main/tag qualification and publication must also succeed before installation. None of this closes all stable-readiness criteria.
+The coordinated target **0.1.0-preview.27** retains developer onboarding and includes opt-in, provider-neutral AI Help for application users: the floating chat launcher, account-menu entry, approved help guides and bounded follow-up conversations. Both entry points and the backend runtime are checked in generated packages, not merely in the source checkout. Availability still requires successful exact-commit main CI, tag qualification and publication.
+
+Published **0.1.0-preview.26** added safe exception/abort completion logging, generated SDK/action/first-restore controls and pack-once, digest-bound publication. Its [exact release-commit CI](https://github.com/TryKatch/TryKatch/actions/runs/35246520501) passed all 18 jobs, 282 source unit and 247 PostgreSQL integration tests with zero skips; [tag qualification and publication](https://github.com/TryKatch/TryKatch/actions/runs/35247873752) also passed. That baseline did not include AI Help. Neither release closes all stable-readiness criteria.
 
 - clean builds and test suites with zero compiler warnings;
 - cross-organization RLS and authentication integration tests;
