@@ -490,7 +490,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .surface.auth-card { background: transparent; border: 0; }
 .auth-card form { display: grid; gap: 13px; margin-top: 20px; }
 .invitation-name-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.auth-card label:not(.checkbox), .dialog-form label:not(.checkbox) { display: grid; gap: 5px; font-weight: 600; }
+/* Floating controls own their label layout; keep native form rules out of that seam.
+   :where keeps existing picker/checkbox specificity unchanged. */
+.auth-card label:not(.checkbox):not(:where(.floating-control > label)), .dialog-form label:not(.checkbox):not(:where(.floating-control > label)) { display: grid; gap: 5px; font-weight: 600; }
 .auth-card .password-field, .dialog-form .password-field { display: grid; gap: 5px; }
 .auth-card .password-field > label, .dialog-form .password-field > label { display: block; }
 .auth-card input:not([type=checkbox]), .dialog-form input:not([type=checkbox]), .dialog-form textarea, .dialog-form select { width: 100%; padding: 8px 10px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line); border-radius: var(--radius); }
@@ -599,7 +601,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .role-editor-body { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .role-identity-fields { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 12px; padding: 0 24px 18px; }
 .role-identity-fields .floating-control { --floating-control-height: 38px; --floating-label-rest: 19px; --floating-textarea-padding: 9px 11px; }
-.role-identity-fields label { display: grid; gap: 6px; font-weight: 650; }
+.role-identity-fields label:not(:where(.floating-control > label)) { display: grid; gap: 6px; font-weight: 650; }
 .role-identity-fields input, .role-identity-fields textarea { width: 100%; padding: 0 11px; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line-strong); border-radius: var(--radius); }
 .role-identity-fields input { height: 38px; }
 .role-identity-fields textarea { min-height: 38px; padding-block: 9px; resize: vertical; }
