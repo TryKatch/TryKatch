@@ -11,7 +11,9 @@ The 2026-09-17 reconciliation covers Trykatch **0.1.0-preview.25**: release-comm
 
 ## Template release gates
 
-The coordinated target **0.1.0-preview.29** retains developer onboarding and includes opt-in, provider-neutral AI Help for application users: the floating chat launcher, account-menu entry, approved help guides and bounded follow-up conversations. Both entry points and the backend runtime are checked in generated packages, not merely in the source checkout. Availability still requires successful exact-commit main CI, tag qualification and publication.
+The coordinated target **0.1.0-preview.30** corrects floating-label layout inside authentication, dialog and role forms, while retaining developer onboarding, provider-neutral AI Help and Storybook. Regression checks exercise the real sign-in page and shared controls inside host containers. Availability still requires successful exact-commit main CI, sealed tag qualification and publication.
+
+[Preview.29](https://github.com/TryKatch/TryKatch/releases/tag/v0.1.0-preview.29) is published with both CLI/template NuGet packages and qualified assets. Preview.30 targets its subsequently reported host-form label regression. Neither the Storybook foundation nor this focused correction completes the full catalogue roadmap or provides enterprise certification.
 
 Published **0.1.0-preview.26** added safe exception/abort completion logging, generated SDK/action/first-restore controls and pack-once, digest-bound publication. Its [exact release-commit CI](https://github.com/TryKatch/TryKatch/actions/runs/35246520501) passed all 18 jobs, 282 source unit and 247 PostgreSQL integration tests with zero skips; [tag qualification and publication](https://github.com/TryKatch/TryKatch/actions/runs/35247873752) also passed. That baseline did not include AI Help. Neither release closes all stable-readiness criteria.
 

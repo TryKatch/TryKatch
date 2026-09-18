@@ -130,3 +130,25 @@ export const Dark: Story = { args: { defaultValue: 'alex@example.test' }, global
   await expect(label.getBoundingClientRect().bottom).toBeGreaterThan(within(canvasElement).getByRole('textbox', { name: 'Email address' }).getBoundingClientRect().top)
 } }
 export const French: Story = { args: { label: 'Adresse e-mail', defaultValue: 'alex@example.test', description: 'Adresse utilisée pour les notifications.' }, globals: { locale: 'fr' } }
+export const HostFormContexts: Story = {
+  render: () => <div style={{ display: 'grid', gap: 20 }}>
+    {['auth-card', 'dialog-form', 'profile-form', 'dialog-form role-identity-fields'].map((className) => <section key={className} className={className} style={{ width: '100%' }}>
+      <FloatingInput label="Email address" type="email" required />
+      <FloatingTextarea label="Description" required rows={2} />
+      <PasswordField label="Password" required />
+    </section>)}
+  </div>,
+  play: async ({ canvasElement }) => {
+    for (const input of Array.from(canvasElement.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('.floating-control-input'))) {
+      const label = canvasElement.querySelector<HTMLLabelElement>(`label[for="${input.id}"]`)!
+      const marker = label.querySelector('span')!
+      await expect(label.getBoundingClientRect().height).toBeLessThan(20)
+      await expect(marker.getBoundingClientRect().bottom).toBeLessThanOrEqual(label.getBoundingClientRect().bottom + 1)
+      await userEvent.click(label)
+      await expect(input).toHaveFocus()
+      await waitFor(() => expect(label.getBoundingClientRect().top).toBeLessThan(input.getBoundingClientRect().top))
+      await expect(getComputedStyle(label).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    }
+  },
+}
+export const HostFormContextsDark: Story = { ...HostFormContexts, globals: { theme: 'dark' } }
