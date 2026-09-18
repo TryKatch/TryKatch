@@ -20,7 +20,7 @@ public sealed class AssistantRuntimeTests
         ModuleCatalog catalog = new([]);
         RecordingHttp handler = new(WireAnswer(provider));
         AssistantRuntime runtime = new(catalog, [], new Permission(false), Provider(provider, handler),
-            Options.Create(new AssistantOptions { Enabled = true, Model = "operator-model" }), new AssistantKnowledge(catalog));
+            Options.Create(new AssistantOptions { Enabled = true, Model = "operator-model" }), new AssistantKnowledge(catalog), new Activation(true));
         AssistantAnswer answer = await runtime.AskAsync("Explain architecture and module layers", CancellationToken.None);
         answer.ToolsUsed.ShouldBeEmpty();
         answer.Guides!.Select(source => source.Id).ShouldContain("architecture");
@@ -42,7 +42,7 @@ public sealed class AssistantRuntimeTests
         ModuleCatalog catalog = new([]);
         FakeModel model = new(Call("list_items", "{}"));
         AssistantRuntime runtime = new(catalog, [], new Permission(false), model,
-            Options.Create(new AssistantOptions { Enabled = true, Model = "operator-model" }), new AssistantKnowledge(catalog));
+            Options.Create(new AssistantOptions { Enabled = true, Model = "operator-model" }), new AssistantKnowledge(catalog), new Activation(true));
         (await Should.ThrowAsync<AssistantException>(() => runtime.AskAsync("Explain architecture", CancellationToken.None))).Code.ShouldBe("tool_not_allowed");
         model.Advertised.ShouldBeEmpty();
     }
@@ -637,7 +637,7 @@ public sealed class AssistantRuntimeTests
             ? "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"Verified answer\"}}]}"
         : "{\"done\":true,\"message\":{\"role\":\"assistant\",\"content\":\"Verified answer\"}}";
 
-    private static AssistantRuntime Runtime(FakeTool tool, IChatClient model, Permission? permission = null, bool enabled = true, string modelId = "explicit-model")
+    private static AssistantRuntime Runtime(FakeTool tool, IChatClient model, Permission? permission = null, bool enabled = true, string modelId = "explicit-model", bool organizationEnabled = true)
     {
         ModuleDescriptor descriptor = new("example", "Example", "1.0.0", "test", [], [], ModuleCapabilities.Assistant, [])
         {
@@ -646,7 +646,89 @@ public sealed class AssistantRuntimeTests
                 new("unregistered_items", "Items_Unregistered", "Missing", AssistantToolRisk.ReadOnly, false)]
         };
         return new(new ModuleCatalog([new FakeModule(descriptor)]), [tool], permission ?? new Permission(true), model,
-            Options.Create(new AssistantOptions { Enabled = enabled, Model = modelId }));
+            Options.Create(new AssistantOptions { Enabled = enabled, Model = modelId }), activation: new Activation(organizationEnabled));
+    }
+
+    [TestMethod]
+    public async Task OrganizationOptOutNeverInvokesProviderEvenWhenServerIsEnabled()
+    {
+        FakeModel model = new(Answer());
+        (await Should.ThrowAsync<AssistantException>(() => Runtime(new(), model, organizationEnabled: false)
+            .AskAsync("test", CancellationToken.None))).Code.ShouldBe("assistant_disabled");
+        model.Requests.ShouldBe(0);
+    }
+
+    [TestMethod]
+    public async Task MissingActivationServiceFailsClosed()
+    {
+        FakeModel model = new(Answer());
+        AssistantRuntime runtime = new(new ModuleCatalog([]), [], new Permission(true), model,
+            Options.Create(new AssistantOptions { Enabled = true }));
+        (await Should.ThrowAsync<AssistantException>(() => runtime.AskAsync("test", CancellationToken.None))).Code.ShouldBe("assistant_disabled");
+        model.Requests.ShouldBe(0);
+    }
+
+    [TestMethod]
+    public async Task OrganizationProviderOverridesDisabledGlobalProviderAndOwnsItsClientLifetime()
+    {
+        FakeModel global = new(Answer());
+        FakeModel owned = new(Answer());
+        TenantProvider provider = new(true, owned);
+        AssistantRuntime runtime = new(new ModuleCatalog([]), [], new Permission(false), global,
+            Options.Create(new AssistantOptions { Enabled = false, Model = "global-model" }),
+            knowledge: new AssistantKnowledge(new ModuleCatalog([])), activation: new Activation(true), tenantProvider: provider);
+        (await runtime.AskAsync("Explain architecture", CancellationToken.None)).Answer.ShouldBe("Verified answer");
+        global.Requests.ShouldBe(0);
+        owned.Model.ShouldBe("organization-model");
+        owned.Disposed.ShouldBeTrue();
+        provider.Created.ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task InvalidOrganizationProviderNeverFallsBackToGlobalCredentials()
+    {
+        FakeModel global = new(Answer());
+        TenantProvider provider = new(false, new FakeModel(Answer()));
+        AssistantRuntime runtime = new(new ModuleCatalog([]), [], new Permission(false), global,
+            Options.Create(new AssistantOptions { Enabled = true }), activation: new Activation(true), tenantProvider: provider);
+        (await Should.ThrowAsync<AssistantException>(() => runtime.AskAsync("Explain architecture", CancellationToken.None)))
+            .Code.ShouldBe("assistant_disabled");
+        global.Requests.ShouldBe(0);
+        provider.Created.ShouldBe(0);
+    }
+
+    [TestMethod]
+    public async Task OrganizationOptOutDoesNotResolveOrCreateItsProvider()
+    {
+        TenantProvider provider = new(true, new FakeModel(Answer()));
+        AssistantRuntime runtime = new(new ModuleCatalog([]), [], new Permission(false), new FakeModel(Answer()),
+            Options.Create(new AssistantOptions { Enabled = true }), activation: new Activation(false), tenantProvider: provider);
+        await Should.ThrowAsync<AssistantException>(() => runtime.AskAsync("Explain architecture", CancellationToken.None));
+        provider.Checked.ShouldBe(0);
+        provider.Created.ShouldBe(0);
+    }
+
+    private sealed class TenantProvider(bool available, IChatClient client) : IAssistantTenantProvider
+    {
+        public int Checked { get; private set; }
+        public int Created { get; private set; }
+        public Task<bool?> IsAvailableAsync(CancellationToken cancellationToken)
+        {
+            Checked++;
+            return Task.FromResult<bool?>(available);
+        }
+        public Task<AssistantProviderSession?> CreateAsync(CancellationToken cancellationToken)
+        {
+            Created++;
+            return Task.FromResult<AssistantProviderSession?>(new(new AssistantOptions
+                { Enabled = true, Model = "organization-model", TimeoutMs = 1_000 }, client));
+        }
+    }
+
+    private sealed class Activation(bool enabled) : IOrganizationAssistantActivation
+    {
+        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) => Task.FromResult(enabled);
+        public Task<Guid> VersionAsync(CancellationToken cancellationToken) => Task.FromResult(Guid.Empty);
     }
 
     private static ChatResponse Call(string name, string arguments, string id = "call-1") =>
@@ -688,6 +770,8 @@ public sealed class AssistantRuntimeTests
     }
     private sealed class FakeModel(params ChatResponse[] turns) : IChatClient
     {
+        public bool Disposed { get; private set; }
+        public string? Model { get; private set; }
         public int Requests { get; private set; }
         public string[] Advertised { get; private set; } = [];
         public ChatMessage[] LastInput { get; private set; } = [];
@@ -701,13 +785,14 @@ public sealed class AssistantRuntimeTests
                 tool.GetType().IsAssignableTo(typeof(AIFunction)).ShouldBeFalse();
             }
             options.AllowMultipleToolCalls.ShouldBe(false);
+            Model = options.ModelId;
             Advertised = tools.Select(tool => tool.Name).ToArray();
             LastInput = input.ToArray();
             return Task.FromResult(turns[Requests++]);
         }
         public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
-        public void Dispose() { }
+        public void Dispose() => Disposed = true;
     }
     private sealed class RecordingHttp(params string[] bodies) : HttpMessageHandler
     {

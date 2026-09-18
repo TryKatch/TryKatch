@@ -45,7 +45,7 @@ describe('account security completion in authenticated shells', () => {
     fireEvent.change(panel.getByLabelText(/^Current password/, { selector: 'input' }), { target: { value: 'SECRET-PASSWORD' } })
     fireEvent.click(panel.getByRole('button', { name: 'Verify and continue' }))
     expect(await screen.findByText('SECRET-KEY')).toBeInTheDocument()
-    fireEvent.change(panel.getByLabelText('Six-digit code'), { target: { value: '123456' } })
+    fireEvent.change(panel.getByRole('textbox', { name: 'Six-digit code' }), { target: { value: '123456' } })
     fireEvent.click(panel.getByRole('button', { name: 'Confirm authenticator' }))
     expect(await screen.findByText('SECRET-RECOVERY-CODE')).toBeInTheDocument()
 

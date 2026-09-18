@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "../../../packages/ui/src/floating-field.css";
 @import "../../../packages/ui/src/search-field.css";
+@import "../../../packages/ui/src/floating-select.css";
 
 :root {
   color: #18201f;
@@ -184,6 +185,56 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .button-ghost { color: var(--muted); background: transparent; }
 .button-danger { color: #fff; background: var(--danger-fill); }
 .surface { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.organization-settings-panel { max-width: 1040px; padding: 0; overflow: hidden; }
+.organization-settings-panel > section > :not(.organization-ai-form) { margin: 24px; }
+.organization-settings-panel h2 { margin: 0 0 6px; font-size: 16px; font-weight: 650; }
+.organization-settings-panel p, .organization-settings-panel small { color: var(--muted); }
+.organization-ai-form p { margin: 0; }
+.ai-settings-heading { display: flex; align-items: center; gap: 12px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+.ai-settings-heading > div { flex: 1; min-width: 0; }
+.ai-settings-heading h2 { margin-bottom: 3px; }
+.ai-settings-heading p { font-size: 12px; }
+.ai-settings-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: none; color: var(--accent-ink); background: var(--accent-soft); border-radius: var(--radius); }
+.ai-settings-body { display: grid; grid-template-columns: minmax(0, 1fr) 280px; }
+.ai-settings-fields { min-width: 0; display: grid; align-content: start; gap: 20px; padding: 24px; }
+.ai-model-fields { min-width: 0; display: grid; align-items: start; grid-template-columns: minmax(0, 1fr) minmax(160px, .8fr); gap: 12px; }
+.ai-settings-credentials { display: grid; gap: 12px; padding-top: 20px; border-top: 1px solid var(--line); }
+.ai-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ai-section-heading .badge { flex: none; white-space: nowrap; }
+.ai-settings-body h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 12px; font-weight: 650; }
+.ai-settings-body h3 > svg { color: var(--muted); flex: none; }
+.ai-settings-credentials > small, .ai-settings-guidance p, .ai-settings-footer > small { font-size: 11px; line-height: 1.6; }
+.ai-settings-guidance { display: grid; align-content: start; gap: 24px; min-width: 0; padding: 24px 20px; background: var(--panel-raised); border-left: 1px solid var(--line); }
+.ai-settings-guidance section { display: grid; gap: 10px; }
+.ai-activation-control { align-items: flex-start; color: var(--text); font-size: 12px; }
+.ai-activation-control input, .ai-key-removal input { width: 14px; height: 14px; margin-top: 2px; flex: none; accent-color: var(--accent-ink); }
+:root[data-theme=dark] .organization-ai-form input[type=checkbox] { color-scheme: dark; }
+.ai-key-removal { align-items: flex-start; font-size: 11px; }
+.ai-settings-notice { padding: 12px; color: var(--muted); background: var(--accent-soft); border-radius: var(--radius); font-size: 12px; }
+.organization-ai-form > .ai-settings-notice { margin: 16px 24px 0; }
+.ai-platform-hint { padding-top: 16px; border-top: 1px solid var(--line); }
+.ai-settings-feedback { display: grid; gap: 6px; padding: 12px 24px; border-top: 1px solid var(--line); background: var(--panel-raised); }
+.ai-settings-feedback p[role=status] { color: var(--success); }
+.ai-settings-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 24px; border-top: 1px solid var(--line); }
+.ai-settings-footer > small { max-width: 420px; }
+.ai-settings-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex: none; }
+@media (max-width: 800px) {
+  .ai-settings-body { grid-template-columns: 1fr; }
+  .ai-settings-guidance { grid-template-columns: repeat(2, minmax(0, 1fr)); border-left: 0; border-top: 1px solid var(--line); }
+  .ai-platform-hint { grid-column: 1 / -1; }
+  .ai-settings-footer { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .ai-settings-actions { align-self: flex-end; }
+}
+@media (max-width: 480px) {
+  .ai-settings-heading, .ai-settings-fields, .ai-settings-guidance, .ai-settings-footer, .ai-settings-feedback { padding: 16px; }
+  .ai-settings-heading { display: grid; grid-template-columns: 36px minmax(0, 1fr); }
+  .ai-settings-heading > .badge { grid-column: 2; justify-self: start; }
+  .ai-settings-guidance, .ai-model-fields { grid-template-columns: 1fr; }
+  .ai-settings-actions { width: 100%; }
+  .ai-settings-actions .button { flex: 1; }
+  .user-management-tabs.organization-settings-tabs { display: flex; }
+  .user-management-tabs.organization-settings-tabs > button { padding-inline: 12px; }
+}
 
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
 .stat { padding: 13px 14px; }
@@ -857,10 +908,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .help-guide p { color: var(--muted); white-space: pre-wrap; line-height: 1.8; }
 .help-chat-thinking { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 .help-chat-composer { border-top: 1px solid var(--line); padding-top: 12px; }
-.help-chat-input { display: flex; align-items: flex-end; gap: 8px; border: 1px solid var(--line-strong); border-radius: 12px; padding: 8px; background: var(--panel); }
-.help-chat-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.help-chat-input textarea { flex: 1; min-width: 0; min-height: 42px; max-height: 140px; padding: 5px; border: 0; outline: 0; resize: vertical; background: transparent; color: var(--text); font: inherit; font-size: 12px; line-height: 1.6; }
-.help-chat-input textarea::placeholder { color: var(--muted); }
+.help-chat-input { display: flex; align-items: flex-end; gap: 8px; }
+.help-chat-input > .floating-field { flex: 1; min-width: 0; }
+.help-chat-input textarea { max-height: 140px; resize: vertical; }
 .help-chat-input > .button { flex-shrink: 0; width: 34px; height: 34px; padding: 0; border-radius: 9px; }
 .help-chat-input-hint { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; padding: 8px 2px; color: var(--muted); font-size: 10px; }
 .help-chat-input-hint .button { padding: 3px 7px; font-size: 11px; }

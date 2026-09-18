@@ -70,36 +70,6 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                     b.ToTable("audit_intents", "platform");
                 });
 
-            modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxReplayRequest", b =>
-                {
-                    b.Property<Guid>("RequestId").HasColumnType("uuid");
-                    b.Property<Guid>("ActorId").HasColumnType("uuid");
-                    b.Property<int>("ExpectedFailedGeneration").HasColumnType("integer");
-                    b.Property<Guid>("MessageId").HasColumnType("uuid");
-                    b.Property<DateTimeOffset>("RequestedAt").ValueGeneratedOnAdd().HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
-                    b.HasKey("RequestId");
-                    b.HasIndex("RequestedAt", "RequestId");
-                    b.ToTable("outbox_replay_requests", "platform", t => t.ExcludeFromMigrations());
-                });
-
-            modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxRecoveryEvent", b =>
-                {
-                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
-                    b.Property<Guid>("MessageId").HasColumnType("uuid");
-                    b.Property<int>("ReplayGeneration").HasColumnType("integer");
-                    b.Property<string>("Outcome").IsRequired().HasMaxLength(40).HasColumnType("character varying(40)");
-                    b.Property<Guid?>("ActorId").HasColumnType("uuid");
-                    b.Property<string>("FailureCode").HasMaxLength(80).HasColumnType("character varying(80)");
-                    b.Property<string>("FailureType").HasMaxLength(240).HasColumnType("character varying(240)");
-                    b.Property<DateTimeOffset>("OccurredAt").HasColumnType("timestamp with time zone");
-                    b.Property<Guid?>("RequestId").HasColumnType("uuid");
-                    b.HasKey("Id");
-                    b.HasIndex("MessageId", "ReplayGeneration", "Outcome").IsUnique().HasFilter("\"Outcome\" = 'terminal'");
-                    b.HasIndex("OccurredAt", "MessageId", "ReplayGeneration");
-                    b.HasIndex("RequestId").IsUnique().HasFilter("\"RequestId\" IS NOT NULL");
-                    b.ToTable("outbox_recovery_events", "platform", t => t.ExcludeFromMigrations());
-                });
-
             modelBuilder.Entity("Trykatch.Domain.Organizations.Invitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -243,6 +213,46 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                         .IsUnique();
 
                     b.ToTable("organizations", "platform");
+                });
+
+            modelBuilder.Entity("Trykatch.Domain.Organizations.OrganizationAssistantSetting", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ProtectedApiKey")
+                        .IsRequired()
+                        .HasMaxLength(8192)
+                        .HasColumnType("character varying(8192)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("TimeoutMs")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("OrganizationId");
+
+                    b.ToTable("organization_assistant_settings", "platform");
                 });
 
             modelBuilder.Entity("Trykatch.Domain.Organizations.OrganizationCreationIntent", b =>
@@ -416,6 +426,88 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                     b.ToTable("role_permissions", "platform");
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxRecoveryEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("FailureType")
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("ReplayGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestId")
+                        .IsUnique()
+                        .HasFilter("\"RequestId\" IS NOT NULL");
+
+                    b.HasIndex("MessageId", "ReplayGeneration", "Outcome")
+                        .IsUnique()
+                        .HasFilter("\"Outcome\" = 'terminal'");
+
+                    b.HasIndex("OccurredAt", "MessageId", "ReplayGeneration");
+
+                    b.ToTable("outbox_recovery_events", "platform", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxReplayRequest", b =>
+                {
+                    b.Property<Guid>("RequestId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ExpectedFailedGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("RequestId");
+
+                    b.HasIndex("RequestedAt", "RequestId");
+
+                    b.ToTable("outbox_replay_requests", "platform", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Domain.Organizations.Invitation", b =>
                 {
                     b.HasOne("Trykatch.Domain.Organizations.Role", null)
@@ -431,6 +523,15 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                         .WithMany("Roles")
                         .HasForeignKey("MembershipId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Trykatch.Domain.Organizations.OrganizationAssistantSetting", b =>
+                {
+                    b.HasOne("Trykatch.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

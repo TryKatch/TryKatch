@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Button, Dialog } from './primitives'
-import { FloatingInput } from './FloatingField'
+import { FloatingInput, FloatingTextarea } from './FloatingField'
 import { SearchField } from './SearchField'
 
 export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode }) {
@@ -91,7 +91,7 @@ export function DeleteConfirmationDialog({
   return <Dialog open={open} onOpenChange={onOpenChange} title={copy.title(recordType)} description={copy.description}>
     <form className="dialog-form delete-confirmation" onSubmit={submit}>
       <div className="delete-record-summary"><span>{recordType}</span><strong>{recordName}</strong></div>
-      <label>{copy.reasonLabel} <span aria-hidden="true">*</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} rows={4} required autoFocus placeholder={copy.reasonPlaceholder} /><small>{copy.characterCount(reason.trim().length)}</small></label>
+      <FloatingTextarea label={copy.reasonLabel} value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} rows={4} required autoFocus description={`${copy.reasonPlaceholder} · ${copy.characterCount(reason.trim().length)}`} />
       <p className="delete-accountability">{copy.accountability}</p>
       {error && <div className="form-error" role="alert">{error}</div>}
       <div className="dialog-actions"><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{copy.cancel}</Button><Button type="submit" variant="danger" disabled={isDeleting || reason.trim().length < 10}>{isDeleting ? copy.requesting : copy.requestDeletion}</Button></div>

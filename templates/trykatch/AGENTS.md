@@ -26,6 +26,7 @@ Read only the guides needed for the change. A small fix does not need a new spec
 - Organization-scoped requests cross authentication, workspace resolution, permission authorization, and a transaction that sets PostgreSQL `app.organization_id` and `app.actor_id` before data access.
 - Browser code uses same-origin HttpOnly cookies and antiforgery. Never place access or refresh tokens in React storage.
 - Every frontend task must consult [Storybook](docs/storybook.md) and relevant colocated stories first, reuse actual components and branding, and maintain coverage of changed visual behavior, including applicable validation and failure states. Verify interactions/accessibility and browser layout; mocks are not backend security evidence. Skip Storybook in backend-only applications.
+- New or edited text-like fields must use shared floating controls (`FloatingInput`, `FloatingTextarea`, `PasswordField`, `SearchField`); branded dropdowns use `FloatingSelect`. Preserve 38 px standard / 34 px search sizing, transparent floating labels and a single focus outline. Do not recreate these controls or override their label/focus geometry in host or generated-module CSS. Native file inputs, checkboxes, radios and existing native selects retain visible associated labels. Include host-view regression stories for changes affected by CSS cascade.
 - Platform authorization and organization authorization are separate permission catalogs.
 - Business writes belong in focused application use cases, not controllers or React components.
 - Generated OpenAPI clients and `docs/generated/assistant-contract.json` are machine-owned.
@@ -57,7 +58,7 @@ Each business module has Domain, Application, IntegrationEvents, Presentation, a
 4. Opt an operation into AI tooling only through `AssistantToolDescriptor` on its owning module.
 5. Keep the assistant catalog deny-by-default. Optional runtime execution requires an explicitly registered `IReadOnlyAssistantTool` adapter and caller permission. Its confirmation flag is metadata, not a running approval system; all writes are disabled in v1. See [AI-assisted development](docs/ai-assisted-development.md).
 6. Use `module facts [module-id]` for validated installed ownership, permission, route, extension and assistant declarations plus source entrypoints. Treat declarations as metadata, not permission grants or proof an adapter exists.
-7. Keep inference behind `Microsoft.Extensions.AI.IChatClient`. Provider wire formats belong in adapters, not module tools or the runtime. Provider/model selection is explicit; never add fallback, automatic tool invocation or endpoint selection from user input. See [ADR 0013](docs/adr/0013-provider-neutral-assistant.md).
+7. Keep inference behind `Microsoft.Extensions.AI.IChatClient`. Provider wire formats belong in adapters, not module tools or the runtime. Provider/model selection is explicit; never add fallback, automatic tool invocation or endpoint selection from prompts/tool arguments. Organization managers may configure subscriptions only through the authorized Settings surface, with operator-approved destinations and write-only protected keys. See [ADR 0013](docs/adr/0013-provider-neutral-assistant.md) and [ADR 0014](docs/adr/0014-organization-ai-provider-settings.md).
 
 ## Verification
 

@@ -96,3 +96,37 @@ it('does not silently fall back when role readers have no assignable roles', asy
   fireEvent.click(await screen.findByRole('button', { name: 'Invite person' }))
   expect(screen.getByRole('button', { name: 'Create invitation' })).toBeDisabled()
 })
+
+it('shows role loading failures with retry instead of claiming there are no assignable roles', async () => {
+  const original = vi.mocked(customFetch).getMockImplementation()!
+  vi.mocked(customFetch).mockImplementation((url, options) => url.startsWith('/api/v1/roles')
+    ? Promise.reject(new Error('Role service unavailable')) : original(url, options))
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Invite person' }))
+  expect(await screen.findByText('Roles could not be loaded.')).toBeInTheDocument()
+  expect(screen.queryByText('No roles are available to assign. Contact the workspace owner.')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Retry loading roles' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Create invitation' })).toBeDisabled()
+})
+
+it('uses the shared floating control for the invitation email', async () => {
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Invite person' }))
+  expect(screen.getByRole('textbox', { name: 'Email address' }).closest('.floating-control')).not.toBeNull()
+})
+
+it('recovers role choices after retry without losing the invitation recipient', async () => {
+  const original = vi.mocked(customFetch).getMockImplementation()!
+  let failRoles = true
+  vi.mocked(customFetch).mockImplementation((url, options) => url.startsWith('/api/v1/roles') && failRoles
+    ? Promise.reject(new Error('Role service unavailable')) : original(url, options))
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Invite person' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Email address' }), { target: { value: 'new@example.test' } })
+  const retry = await screen.findByRole('button', { name: 'Retry loading roles' })
+  failRoles = false
+  fireEvent.click(retry)
+  fireEvent.click(await screen.findByRole('radio', { name: 'Admin' }))
+  expect(screen.getByRole('textbox', { name: 'Email address' })).toHaveValue('new@example.test')
+  expect(screen.getByRole('button', { name: 'Create invitation' })).toBeEnabled()
+})

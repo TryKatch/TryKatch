@@ -23,6 +23,18 @@ public class PlatformDbContext : DbContext
     {
         modelBuilder.HasDefaultSchema("platform");
 
+        modelBuilder.Entity<OrganizationAssistantSetting>(entity =>
+        {
+            entity.ToTable("organization_assistant_settings");
+            entity.HasKey(x => x.OrganizationId);
+            entity.Property(x => x.Version).IsConcurrencyToken();
+            entity.Property(x => x.Provider).HasMaxLength(40);
+            entity.Property(x => x.Model).HasMaxLength(120);
+            entity.Property(x => x.Endpoint).HasMaxLength(500);
+            entity.Property(x => x.ProtectedApiKey).HasMaxLength(8192);
+            entity.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<Organization>(entity =>
         {
             entity.ToTable("organizations");

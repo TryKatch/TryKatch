@@ -36,6 +36,7 @@ internal static class HostPostgresPolicyContracts
 
     public static IReadOnlyDictionary<string, Policy[]> All { get; } = new Dictionary<string, Policy[]>(StringComparer.Ordinal)
     {
+        ["platform.organization_assistant_settings"] = [new("organization_assistant_settings_isolation", "*", Organization, Organization)],
         ["platform.audit_entries"] =
         [
             new("audit_organization_isolation", "*", Organization, $"({Organization} AND {Actor})"),
