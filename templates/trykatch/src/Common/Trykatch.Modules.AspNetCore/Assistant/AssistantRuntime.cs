@@ -62,6 +62,8 @@ public sealed class AssistantRuntime(ModuleCatalog catalog, IEnumerable<IReadOnl
         using AssistantProviderSession? providerSession = tenantProvider is null ? null : await tenantProvider.CreateAsync(cancellationToken);
         AssistantOptions currentOptions = providerSession?.Options ?? options.Value;
         IChatClient currentModel = providerSession?.Client ?? model;
+        if (!AssistantProviders.IsValidTimeout(currentOptions.TimeoutMs))
+            throw new AssistantException("invalid_provider_configuration");
         if (string.IsNullOrWhiteSpace(message) || message.Length > 2_000)
             throw new AssistantException("invalid_message");
         using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

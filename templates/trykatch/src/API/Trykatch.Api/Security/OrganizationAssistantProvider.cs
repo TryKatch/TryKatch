@@ -9,7 +9,7 @@ internal sealed class OrganizationAssistantProviderPolicy(IOptions<AssistantOpti
 {
     public IReadOnlyList<string> AllowedEndpoints => options.Value.AllowedTenantEndpoints.Where(IsSafeBase).Distinct(StringComparer.Ordinal).ToArray();
     public bool IsValid(string provider, string model, string endpoint, bool hasKey, int timeoutMs) =>
-        options.Value.AllowTenantConfiguration && timeoutMs is >= 1000 and <= 60_000
+        options.Value.AllowTenantConfiguration && AssistantProviders.IsValidTimeout(timeoutMs)
         && !string.IsNullOrWhiteSpace(model) && model.Length <= 120 && !model.Any(char.IsControl)
         && (provider == "openai" ? endpoint.Length == 0 && hasKey
             : provider is "deepseek" or "chat-completions" or "ollama" && IsSafeBase(endpoint)

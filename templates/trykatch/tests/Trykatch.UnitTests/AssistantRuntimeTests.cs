@@ -553,6 +553,42 @@ public sealed class AssistantRuntimeTests
     }
 
     [TestMethod]
+    [DataRow(-1, false)]
+    [DataRow(-2, false)]
+    [DataRow(0, false)]
+    [DataRow(999, false)]
+    [DataRow(1_000, true)]
+    [DataRow(45_000, true)]
+    [DataRow(60_000, true)]
+    [DataRow(60_001, false)]
+    [DataRow(int.MaxValue, false)]
+    public void PlatformProviderTimeoutMustBeBounded(int timeoutMs, bool valid)
+    {
+        AssistantProviders.IsValid(new AssistantOptions
+        { Enabled = true, Provider = "openai", Model = "operator-model", ApiKey = "test-only", TimeoutMs = timeoutMs })
+            .ShouldBe(valid);
+    }
+
+    [TestMethod]
+    [DataRow(-1)]
+    [DataRow(-2)]
+    [DataRow(0)]
+    [DataRow(999)]
+    [DataRow(60_001)]
+    [DataRow(int.MaxValue)]
+    public async Task InvalidRuntimeTimeoutIsRejectedBeforeInference(int timeoutMs)
+    {
+        ModuleCatalog catalog = new([]);
+        FakeModel model = new(Answer());
+        AssistantRuntime runtime = new(catalog, [], new Permission(false), model,
+            Options.Create(new AssistantOptions { Enabled = true, Model = "operator-model", TimeoutMs = timeoutMs }),
+            new AssistantKnowledge(catalog), new Activation(true));
+        (await Should.ThrowAsync<AssistantException>(() => runtime.AskAsync("Explain architecture", CancellationToken.None)))
+            .Code.ShouldBe("invalid_provider_configuration");
+        model.Requests.ShouldBe(0);
+    }
+
+    [TestMethod]
     public async Task DisabledProviderAndUnknownConfigurationNeverFallBackToOpenAi()
     {
         RecordingHttp handler = new(WireAnswer("openai"));

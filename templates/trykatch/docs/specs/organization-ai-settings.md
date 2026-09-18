@@ -34,6 +34,8 @@ New activation entity/store and forward platform migration with forced organizat
 
 ## Verification record
 
+PR review identified missing platform deadline validation. Fifteen new bounds/runtime regression cases reproduced twelve failures before the fix. A shared 1,000–60,000 ms predicate now protects platform startup validation, organization policy and the runtime before inference. All 133 assistant runtime cases, all 456 backend unit tests and the real PostgreSQL/production-HTTP assistant integration scenario pass without skips after this correction. The default platform deadline remains 45,000 ms; this change does not alter UI geometry or provider credentials.
+
 All 12 host architecture checks and the English/French documentation-site build pass. The template-owned specification and verification skills guided the authorization, RLS and catalogue evidence requirements.
 
 Provider configuration verification: all 441 backend unit tests and 12 architecture checks pass. The expanded real PostgreSQL/production-HTTP scenario passes without skips: organization-bound encrypted key storage, foreign-purpose decryption rejection, approved-provider inference using the tenant model/key, retained/replaced/removed keys, changed-provider replacement enforcement, invalid destinations rejected without mutation/network calls, stale versions, unauthorized tests, eight-token saved-configuration probes without business data/tools, no global credential fallback, disabled second-organization inference and suspended membership selection rejection. It uses fake provider responses and fake keys, not a paid service.

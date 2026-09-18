@@ -5,9 +5,12 @@ namespace Trykatch.Modules.AspNetCore.Assistant;
 
 public static class AssistantProviders
 {
+    public static bool IsValidTimeout(int timeoutMs) => timeoutMs is >= 1_000 and <= 60_000;
+
     public static bool IsValid(AssistantOptions options)
     {
         if (!options.Enabled) return true;
+        if (!IsValidTimeout(options.TimeoutMs)) return false;
         if (string.IsNullOrWhiteSpace(options.Model) || options.Model.Length > 120) return false;
         if (options.ReasoningEffort.Length > 0 && (options.Provider != "chat-completions"
             || options.ReasoningEffort is not ("none" or "minimal" or "low" or "medium" or "high" or "xhigh" or "max"))) return false;
