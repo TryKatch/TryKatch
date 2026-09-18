@@ -18,6 +18,25 @@ export const Loading: Story = { args: { isLoading: true } }
 export const Saving: Story = { args: { isSaving: true } }
 export const Error: Story = { args: { error: 'Your changes could not be saved. Review and try again.' } }
 export const Empty: Story = { args: { modules: [] } }
+export const ReviewSelectedGrants: Story = {
+  play: async ({ canvasElement }) => {
+    const dialog = within(within(canvasElement.ownerDocument.body).getByRole('dialog'))
+    const projects = dialog.getByRole('button', { name: 'Projects' })
+    await expect(projects).toHaveAttribute('aria-expanded', 'false')
+    projects.focus()
+    await userEvent.keyboard('{Enter}')
+    await expect(projects).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.click(dialog.getByRole('checkbox', { name: /Read projects/ }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Selected only' }))
+    await expect(dialog.getByRole('button', { name: 'Selected only' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(dialog.queryByRole('checkbox', { name: /Manage projects/ })).not.toBeInTheDocument()
+    await expect(dialog.getByRole('checkbox', { name: /Read projects/ })).toBeChecked()
+    await userEvent.click(dialog.getByRole('button', { name: 'Clear selection' }))
+    await expect(dialog.getByText('No permissions selected yet.')).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: 'Show all permissions' }))
+    await expect(dialog.getByRole('checkbox', { name: /Read projects/ })).not.toBeChecked()
+  },
+}
 export const RequiredFieldValidation: Story = {
   play: async ({ canvasElement, args }) => {
     const dialog = within(within(canvasElement.ownerDocument.body).getByRole('dialog'))
@@ -41,6 +60,7 @@ export const PermissionBoundary: Story = {
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body)
     const dialog = within(body.getByRole('dialog'))
+    await userEvent.click(dialog.getByRole('button', { name: 'Projects' }))
     await expect(dialog.getByRole('checkbox', { name: /Manage roles/ })).toBeDisabled()
     await userEvent.click(dialog.getByRole('button', { name: 'Select module' }))
     await expect(dialog.getByRole('checkbox', { name: /Read projects/ })).toBeChecked()

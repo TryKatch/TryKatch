@@ -14,6 +14,8 @@ Use the toolbar to switch between light/dark, English/French and phone/tablet/de
 
 ## Find forms and validation
 
+**Application UI → Role management → Review selected grants** exercises keyboard expansion, selected-only filtering, hidden-selection retention and empty-filter recovery. Permission groups start collapsed for new roles; groups containing existing grants open when editing. Search reveals matching groups, without discarding selections. Bulk selection applies only to visible, grantable permissions. Zod validation, compact floating fields and the scrollable dialog body with its persistent footer remain unchanged.
+
 **Application UI → Organization settings** demonstrates the tabbed Administration settings page: organization-owned provider/model/endpoint configuration, write-only key replacement and removal, connection-test success/failure, activation, read-only access and conflict reload. Subscription stories use fake keys and mocked providers; saved credentials are never exposed. They do not establish paid-provider UAT.
 
 Start with **Welcome → Catalogue guide**, then **Forms → Native controls** and **Forms → Validation**. Validation renders the real organization role editor: required-field errors, correcting input, saving, server failures with preserved input, and French/dark examples. **Module UI → Projects** includes the real create form, required-name validation and failed-save state. **Module UI → Documents** includes the upload form, file validation and uploading state.

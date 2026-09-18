@@ -355,6 +355,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .panel-heading h2 { margin: 0; font-size: 14px; }.panel-heading p { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
 .role-name-cell, .role-grant-summary { min-width: 0; display: grid !important; gap: 2px; }
 .role-name-cell small, .role-grant-summary small { color: var(--muted); font-size: 10px; }
+.role-access-boundary { display: grid; justify-items: start; gap: 5px; }
+.role-access-boundary small { color: var(--muted); font-size: 10px; }
 .role-grant-summary strong { font-size: 13px; }
 .role-permission-loading { min-height: 104px; display: grid !important; place-items: center; color: var(--muted); }
 .role-permission-disclosure { display: block !important; padding: 16px 18px 18px; }
@@ -663,20 +665,29 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .permission-editor-header p { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
 .permission-summary { min-width: 60px; display: flex; align-items: baseline; justify-content: flex-end; gap: 4px; color: var(--muted); font-size: 10px; }
 .permission-summary strong { color: var(--text); font-size: 16px; }
-.permission-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 24px; background: var(--panel-raised); border-block: 1px solid var(--line); }
+.permission-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 24px; background: var(--panel-raised); border-block: 1px solid var(--line); }
 .permission-toolbar > label { min-width: 0; height: 34px; display: flex; flex: 1; align-items: center; gap: 8px; padding: 0 10px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
 .permission-toolbar input { min-width: 0; flex: 1; color: var(--text); background: transparent; border: 0; outline: 0; }
 .permission-toolbar .button { flex: none; min-height: 34px; }
 .permission-toolbar > .floating-field { min-width: 0; flex: 1; }
-.permission-groups { min-height: 170px; }
+.permission-groups { min-height: 170px; padding: 12px 18px; }
+.permission-catalog-hint { margin: 0; padding: 10px 24px 0; color: var(--muted); font-size: 11px; }
 .permission-loading, .permission-empty { min-height: 180px; display: grid; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
-.permission-module + .permission-module { border-top: 1px solid var(--line); }
-.permission-module > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; background: color-mix(in srgb, var(--panel-raised) 68%, transparent); }
-.permission-module > header h4 { margin: 0; font-size: 13px; }
-.permission-module > header p { margin: 1px 0 0; color: var(--muted); font-size: 10px; }
+.permission-module { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); }
+.permission-module + .permission-module { margin-top: 8px; }
+.permission-module > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--panel-raised) 68%, transparent); }
+.permission-module-toggle { min-width: 0; display: flex; flex: 1; align-items: center; gap: 10px; padding: 2px; color: var(--text); background: transparent; border: 0; text-align: left; cursor: pointer; }
+.permission-module-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.permission-module-symbol { width: 32px; height: 32px; display: grid; flex: 0 0 32px; place-items: center; color: var(--accent-ink); background: var(--accent-soft); border-radius: var(--radius); }
+.permission-module-toggle > span:nth-child(2) { min-width: 0; display: grid; gap: 3px; }
+.permission-module-toggle strong { font-size: 13px; }
+.permission-module-toggle small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.permission-module-toggle > svg { flex: 0 0 auto; margin-left: auto; color: var(--muted); }
+.permission-module-toggle[aria-expanded='true'] > svg { transform: rotate(180deg); }
 .permission-module-actions { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; white-space: nowrap; }
 .permission-module-actions .button { min-height: 30px; padding-inline: 8px; font-size: 11px; }
 .permission-options { display: grid; }
+.permission-options[hidden] { display: none; }
 .permission-option { position: relative; min-height: 66px; display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 11px; padding: 9px 24px; cursor: pointer; transition: background-color 130ms ease; }
 .permission-option + .permission-option { border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
 .permission-option:hover, .permission-option.is-selected { background: var(--accent-soft); }
@@ -688,8 +699,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .permission-copy { min-width: 0; display: grid; gap: 2px; }
 .permission-copy > span { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .permission-copy strong { font-size: 12px; }
-.permission-copy small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.permission-copy code { color: var(--muted); font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 9px; }
+.permission-copy small { color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.permission-copy code { color: var(--muted); font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 9px; overflow-wrap: anywhere; }
 .permission-copy .badge { height: 18px; gap: 4px; padding-inline: 5px; font-size: 8px; }
 .permission-warning { display: flex; align-items: center; gap: 9px; margin: 12px 24px 0; padding: 9px 11px; color: #9a6716; background: rgb(161 107 20 / 8%); border: 1px solid rgb(161 107 20 / 20%); border-radius: var(--radius); }
 .permission-warning > span { display: flex; flex-direction: column; }
@@ -785,6 +796,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .data-table table { min-width: max-content; }
   .dialog-content { top: 12px; width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; transform: translateX(-50%); }
   .role-editor-dialog { height: calc(100dvh - 24px); max-height: none; overflow: hidden; }
+  .permission-module-toggle { width: 100%; }
   .standalone-page { padding: 26px 16px 64px; }
   .tenant-summary-grid { grid-template-columns: 1fr; }
   .platform-metric-grid { grid-template-columns: 1fr; }
