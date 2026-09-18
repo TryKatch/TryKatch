@@ -10,6 +10,12 @@ Trykatch keeps reusable interface behavior in the smallest package that can own 
 - `packages/ui/src/patterns.tsx` contains deeper reusable modules that combine behavior and presentation.
 - `packages/api-client/src/generated` is machine-owned. Generate it from OpenAPI with `pnpm generate`; do not edit generated files.
 
+## Organization role editor
+
+User Management keeps roles in the shared `DataTable`. System roles are read-only; roles outside the current user's grant boundary cannot be edited. `RoleEditorDialog` groups the backend permission catalog into expandable modules with selection counts, search, and a selected-only review filter. Module selection controls act on visible permissions; hidden selections are preserved. Clear selection explicitly clears all selected grants, including hidden ones. Sensitive grants remain marked and ungrantable permissions remain disabled. These UI affordances do not replace server authorization.
+
+Keep this editor's copy in the English/French message catalog and use the existing branded dialog, buttons, badges, focus states, and responsive layout.
+
 ## Data table
 
 `DataTable<T>` is the standard collection interface. A caller supplies typed rows, stable row IDs, and column definitions. The module owns:

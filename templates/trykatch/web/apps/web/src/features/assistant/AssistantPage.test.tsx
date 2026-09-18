@@ -46,6 +46,7 @@ describe('AssistantPage', () => {
     await waitFor(() => expect(screen.getByLabelText('Your question')).toBeEnabled())
     fireEvent.change(screen.getByLabelText('Your question'), { target: { value: 'Hello' } })
     expect(screen.getByLabelText('Your question')).toHaveAttribute('maxlength', '2000')
+    expect(screen.getByLabelText('Your question').closest('.floating-control')).not.toBeNull()
     expect(screen.getByText('5 / 2,000')).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: 'About this assistant' })).toHaveTextContent(/configured AI provider/)
   })

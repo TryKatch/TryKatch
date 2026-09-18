@@ -28,6 +28,14 @@ Les invitations d’organisation permettent de choisir un rôle actif avant l’
 
 Lorsque le SMTP facultatif est configuré, l’e-mail d’invitation affiche aussi le nom lisible du rôle validé dans ses versions texte et HTML. Les noms personnalisés sont encodés pour le HTML ; le contenu de l’e-mail n’accorde aucun accès indépendamment de l’invitation enregistrée et de ses contrôles d’acceptation. Sans SMTP, l’administrateur peut copier le lien d’invitation.
 
+## Vérifier les rôles de l’organisation
+
+Ouvrez **Gestion des utilisateurs → Rôles** pour consulter les rôles système ou créer un rôle personnalisé. Les rôles système sont en lecture seule ; les rôles personnalisés hors de votre périmètre d’attribution ne peuvent pas être modifiés.
+
+Dans l’éditeur, développez un module pour consulter ses permissions. La recherche ouvre les modules correspondants et **Sélection uniquement** permet de vérifier les droits avant l’enregistrement sans perdre les autres sélections. Chaque module affiche le nombre de permissions sélectionnées. Les droits sensibles restent signalés et les permissions que vous ne pouvez pas accorder sont désactivées. Les commandes de sélection par module s’appliquent aux permissions actuellement visibles. **Effacer la sélection** supprime explicitement tous les droits sélectionnés, y compris ceux masqués.
+
+Ces contrôles facilitent le choix des droits ; le serveur reste responsable de l’application des autorisations.
+
 ## L’accès plateforme est séparé
 
 Les administrateurs de plateforme et les opérateurs de support utilisent des rôles et permissions propres à la plateforme. Les rôles d’organisation n’accordent jamais de privilège plateforme, et les noms de permissions plateforme sont validés par leur propre catalogue défini dans le code.

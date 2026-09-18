@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import axe from 'axe-core'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoleEditorDialog, type PermissionModule } from './RoleEditorDialog'
 
 const modules: PermissionModule[] = [
@@ -22,6 +22,111 @@ const modules: PermissionModule[] = [
 ]
 
 describe('RoleEditorDialog', () => {
+  afterEach(cleanup)
+  it('initializes granted groups after the first catalog load without resetting drafts or later disclosures', () => {
+    const role = { name: 'Reader', description: '', permissions: ['projects.read'] }
+    const props = { open: true, role, isSaving: false, onOpenChange: vi.fn(), onSave: vi.fn() }
+    const { rerender } = render(<RoleEditorDialog {...props} modules={[]} isLoading />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Role name' }), { target: { value: 'Draft reader' } })
+    rerender(<RoleEditorDialog {...props} modules={modules} isLoading={false} />)
+    const projects = screen.getByRole('button', { name: 'Projects' })
+    expect(projects).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('textbox', { name: 'Role name' })).toHaveValue('Draft reader')
+    expect(screen.getByRole('checkbox', { name: /View projects/ })).toBeChecked()
+    fireEvent.click(projects)
+    rerender(<RoleEditorDialog {...props} modules={[...modules]} isLoading={false} />)
+    expect(projects).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('counts all catalog grants while keeping filtered bulk actions limited to visible permissions', () => {
+    render(<RoleEditorDialog open role={{ name: 'Reader', description: '', permissions: ['projects.read'] }} modules={modules} isLoading={false} isSaving={false} onOpenChange={vi.fn()} onSave={vi.fn()} />)
+    const projects = screen.getByRole('region', { name: 'Projects' })
+    fireEvent.click(screen.getByRole('button', { name: 'Selected only' }))
+    expect(within(projects).getByText('1 of 2 selected')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Selected only' }))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'projects.manage' } })
+    expect(within(projects).getByText('1 of 2 selected')).toBeVisible()
+    fireEvent.click(within(projects).getByRole('button', { name: 'Select module' }))
+    expect(within(projects).getByText('2 of 2 selected')).toBeVisible()
+    fireEvent.click(within(projects).getByRole('button', { name: 'Clear module' }))
+    expect(within(projects).getByText('1 of 2 selected')).toBeVisible()
+  })
+
+  it('collapses modules and lets people review only selected grants without losing others', () => {
+    const onSave = vi.fn()
+    render(<RoleEditorDialog open role={null} modules={modules} isLoading={false} isSaving={false} onOpenChange={vi.fn()} onSave={onSave} />)
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    const projects = screen.getByRole('button', { name: 'Projects' })
+    expect(projects).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(projects)
+    fireEvent.click(screen.getByRole('checkbox', { name: /View projects/ }))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'organization' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /View organization/ }))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Selected only' }))
+    expect(screen.getByRole('button', { name: 'Selected only' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(screen.queryByText('Manage projects')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Role name' }), { target: { value: 'Reader' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save role' }))
+    expect(onSave).toHaveBeenCalledWith({ name: 'Reader', description: '', permissions: ['organizations.read', 'projects.read'] })
+  })
+
+  it('opens matching modules but permits collapse while searching', () => {
+    render(<RoleEditorDialog open modules={modules} isLoading={false} isSaving={false} onOpenChange={vi.fn()} onSave={vi.fn()} />)
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'projects.manage' } })
+    const module = screen.getByRole('button', { name: 'Projects' })
+    expect(module).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('checkbox', { name: /Manage projects/ })).toBeVisible()
+    fireEvent.click(module)
+    expect(module).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('does not bulk-grant disabled permissions and allows recovery from an empty selection filter', () => {
+    const boundedModules = modules.map((module) => ({ ...module, permissions: module.permissions.map((permission) => ({ ...permission, canGrant: !permission.isSensitive })) }))
+    render(<RoleEditorDialog open modules={boundedModules} isLoading={false} isSaving={false} onOpenChange={vi.fn()} onSave={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Selected only' }))
+    expect(screen.getByText('No permissions selected yet.')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Show all permissions' }))
+    const projectGroup = screen.getByRole('region', { name: 'Projects' })
+    fireEvent.click(within(projectGroup).getByRole('button', { name: 'Select module' }))
+    expect(within(projectGroup).getByRole('button', { name: 'Projects' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('checkbox', { name: /Manage projects/ })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: /Manage projects/ })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /View projects/ })).toBeChecked()
+  })
+
+  it('blocks saving while the catalog is loading or a save is pending', () => {
+    const onSave = vi.fn()
+    const props = { open: true, role: { name: 'Reader', description: '', permissions: ['projects.read'] }, modules, onOpenChange: vi.fn(), onSave }
+    const { rerender } = render(<RoleEditorDialog {...props} isLoading isSaving={false} />)
+    expect(screen.getByRole('button', { name: 'Save role' })).toBeDisabled()
+    fireEvent.submit(screen.getByRole('textbox', { name: 'Role name' }).closest('form')!)
+    expect(onSave).not.toHaveBeenCalled()
+    rerender(<RoleEditorDialog {...props} isLoading={false} isSaving />)
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: /View projects/ })).toBeDisabled()
+  })
+
+  it('preserves draft edits on catalog refresh and resets them when the editor is reopened', () => {
+    const role = { name: 'Reader', description: 'Project access', permissions: ['projects.read'] }
+    const props = { open: true, role, modules, isLoading: false, isSaving: false, onOpenChange: vi.fn(), onSave: vi.fn() }
+    const { rerender } = render(<RoleEditorDialog {...props} />)
+    expect(screen.getByRole('button', { name: 'Projects' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('checkbox', { name: /View projects/ })).toBeChecked()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Role name' }), { target: { value: 'Draft reader' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Manage projects/ }))
+    rerender(<RoleEditorDialog {...props} modules={[...modules]} error="Could not save role." />)
+    expect(screen.getByRole('textbox', { name: 'Role name' })).toHaveValue('Draft reader')
+    expect(screen.getByRole('checkbox', { name: /Manage projects/ })).toBeChecked()
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not save role.')
+    rerender(<RoleEditorDialog {...props} open={false} />)
+    rerender(<RoleEditorDialog {...props} />)
+    expect(screen.getByRole('textbox', { name: 'Role name' })).toHaveValue('Reader')
+    expect(screen.getByRole('checkbox', { name: /Manage projects/ })).not.toBeChecked()
+  })
+
   it('explains invalid fields without saving and lets the user correct them', () => {
     const onSave = vi.fn()
     render(<RoleEditorDialog open modules={modules} isLoading={false} isSaving={false} onOpenChange={vi.fn()} onSave={onSave} />)

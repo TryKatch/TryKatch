@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch, type __ENTITY__Dto } from '@__NPM_SCOPE__/api-client'
 import { defineWebModule, defineTableExtensionPoint, useTableContributions, type TableAction, type ArchiveLifecycle } from '@__NPM_SCOPE__/module-sdk'
-import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Surface, type DataTableColumn } from '@__NPM_SCOPE__/ui'
+import { Button, DataTable, Dialog, EmptyState, FloatingInput, FloatingTextarea, PageHeader, RowActions, Surface, type DataTableColumn } from '@__NPM_SCOPE__/ui'
 import { Boxes, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { use__MODULE__Messages } from './messages'
@@ -98,7 +98,7 @@ export function __MODULE__Page() {
         const values = new FormData(event.currentTarget)
         setSearch(String(values.get('search') ?? '')); setSort(String(values.get('sort') ?? 'newest')); setPage(1)
       }}>
-        <label>{t('searchTable')}<input name="search" type="search" maxLength={200} placeholder={t('search')} /></label>
+        <FloatingInput label={t('searchTable')} name="search" type="search" maxLength={200} />
         <label>{t('sortRecords')}<select name="sort" defaultValue="newest">
           <option value="newest">{t('newest')}</option><option value="oldest">{t('oldest')}</option>
         </select></label>

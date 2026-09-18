@@ -104,9 +104,12 @@ internal static class ApiHostingExtensions
         builder.Services.AddScoped<IAuthorizationHandler, PlatformPermissionAuthorizationHandler>();
         builder.Services.AddOptions<AssistantOptions>().BindConfiguration("Assistant")
             .Validate(AssistantProviders.IsValid,
-                "Enabled assistant requires a supported provider, explicit model and valid provider-specific server settings.")
+                "Enabled assistant requires a supported provider, explicit model, timeout of 1000–60000 milliseconds and valid provider-specific server settings.")
             .ValidateOnStart();
         builder.Services.AddScoped<AssistantRuntime>();
+        builder.Services.AddScoped<Trykatch.Application.Organizations.IOrganizationAssistantProviderPolicy, OrganizationAssistantProviderPolicy>();
+        builder.Services.AddScoped<IAssistantTenantProvider, OrganizationAssistantProvider>();
+        builder.Services.AddScoped<Trykatch.Application.Organizations.IOrganizationAssistantConnectionProbe, OrganizationAssistantConnectionProbe>();
         builder.Services.AddSingleton<AssistantKnowledge>();
         builder.Services.AddScoped<AssistantConversationTokens>();
         builder.Services.TryAddSingleton(TimeProvider.System);

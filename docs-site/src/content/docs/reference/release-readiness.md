@@ -11,7 +11,7 @@ The 2026-09-17 reconciliation covers Trykatch **0.1.0-preview.25**: release-comm
 
 ## Template release gates
 
-The coordinated target **0.1.0-preview.30** corrects floating-label layout inside authentication, dialog and role forms, while retaining developer onboarding, provider-neutral AI Help and Storybook. Regression checks exercise the real sign-in page and shared controls inside host containers. Availability still requires successful exact-commit main CI, sealed tag qualification and publication.
+The coordinated target **0.1.0-preview.31** adds organization-owned AI subscription settings and shared floating controls across host and generated forms, while retaining developer onboarding and Storybook. Regression checks exercise permission boundaries, protected credentials and shared controls inside host containers. Availability still requires successful exact-commit main CI, sealed tag qualification and publication.
 
 [Preview.29](https://github.com/TryKatch/TryKatch/releases/tag/v0.1.0-preview.29) is published with both CLI/template NuGet packages and qualified assets. Preview.30 targets its subsequently reported host-form label regression. Neither the Storybook foundation nor this focused correction completes the full catalogue roadmap or provides enterprise certification.
 

@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, within } from 'storybook/test'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { UserManagementPage } from './Pages'
 
 const readers = [
+  http.get('*/api/v1/permissions', () => HttpResponse.json([])),
   http.get('*/api/v1/members', () => HttpResponse.json([])),
   http.get('*/api/v1/invitations', () => HttpResponse.json([])),
 ]
@@ -39,5 +40,49 @@ export const DefaultRoleForbidden: Story = {
     const dialog = await submitDefaultInvitation(canvasElement)
     await expect(await dialog.findByRole('alert')).toHaveTextContent('You cannot invite a member whose access exceeds your authority.')
     await expect(dialog.getByRole('textbox', { name: 'Email address' })).toHaveValue('new@example.test')
+  },
+}
+
+const roleReader = http.get('*/api/v1/access', () => HttpResponse.json({ membershipId: 'preview', permissions: ['members.read', 'members.manage', 'roles.read'] }))
+const assignableRoles = [{ id: 'member', name: 'Member', isSystem: true, canAssign: true, lifecycle: { status: 'Active' }, permissions: [] }, { id: 'admin', name: 'Admin', isSystem: true, canAssign: true, lifecycle: { status: 'Active' }, permissions: [] }]
+
+export const SelectWorkspaceRole: Story = {
+  parameters: { msw: { handlers: { auth: [roleReader], api: [...readers, http.get('*/api/v1/roles', () => HttpResponse.json(assignableRoles)),
+    http.post('*/api/v1/invitations', async ({ request }) => {
+      await expect(await request.json()).toEqual({ email: 'selected@example.test', roleId: 'admin', expiresInDays: 7 })
+      return HttpResponse.json({ invitation: { id: 'preview-invitation', roleId: 'admin', email: 'selected@example.test' }, emailDelivered: false, invitationUrl: 'https://example.test/accept-invitation?token=storybook-only' }, { status: 201 })
+    }),
+  ] } } },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByRole('button', { name: 'Invite person' }))
+    const dialog = within(within(canvasElement.ownerDocument.body).getByRole('dialog'))
+    await userEvent.click(await dialog.findByRole('radio', { name: /Admin/ }))
+    await expect(dialog.getByRole('radio', { name: /Admin/ })).toBeChecked()
+    await expect(dialog.getByRole('textbox', { name: 'Email address' }).closest('.floating-control')).not.toBeNull()
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Email address' }), 'selected@example.test')
+    await userEvent.click(dialog.getByRole('button', { name: 'Create invitation' }))
+    await expect(await dialog.findByText('selected@example.test')).toBeVisible()
+    await expect(dialog.getByText('Workspace role: Admin')).toBeVisible()
+  },
+}
+
+export const RolesLoading: Story = {
+  parameters: { msw: { handlers: { auth: [roleReader], api: [...readers, http.get('*/api/v1/roles', async () => { await delay('infinite'); return HttpResponse.json([]) })] } } },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByRole('button', { name: 'Invite person' }))
+    const dialog = within(within(canvasElement.ownerDocument.body).getByRole('dialog'))
+    await expect(dialog.getByText('Loading workspace roles…')).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Create invitation' })).toBeDisabled()
+  },
+}
+
+export const RolesUnavailable: Story = {
+  parameters: { msw: { handlers: { auth: [roleReader], api: [...readers, http.get('*/api/v1/roles', () => HttpResponse.json({ title: 'Unavailable' }, { status: 503 }))] } } },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByRole('button', { name: 'Invite person' }))
+    const dialog = within(within(canvasElement.ownerDocument.body).getByRole('dialog'))
+    await expect(await dialog.findByText('Roles could not be loaded.')).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Retry loading roles' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Create invitation' })).toBeDisabled()
   },
 }

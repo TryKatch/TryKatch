@@ -42,6 +42,7 @@ public static class RuntimeDatabaseAccessProfiles
     public static IReadOnlySet<string> HostOwnedRelations { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         "platform.organizations",
+        "platform.organization_assistant_settings",
         "platform.memberships",
         "platform.roles",
         "platform.membership_roles",
@@ -107,6 +108,7 @@ public static class RuntimeDatabaseAccessProfiles
         string relation, DataResourceDescriptor? resource) => relation switch
         {
             "platform.organizations" or "platform.module_data_resources" => Select,
+            "platform.organization_assistant_settings" => SelectInsertUpdate,
             "platform.memberships" or "platform.roles" or "platform.membership_roles"
                 or "platform.role_permissions" or "platform.invitations" => Crud,
             "platform.audit_intents" => Insert,
@@ -134,6 +136,7 @@ public static class RuntimeDatabaseAccessProfiles
     private static readonly IReadOnlySet<string> Insert = Set("INSERT");
     private static readonly IReadOnlySet<string> SelectInsert = Set("SELECT", "INSERT");
     private static readonly IReadOnlySet<string> SelectUpdate = Set("SELECT", "UPDATE");
+    private static readonly IReadOnlySet<string> SelectInsertUpdate = Set("SELECT", "INSERT", "UPDATE");
     private static readonly IReadOnlySet<string> Crud = Set("SELECT", "INSERT", "UPDATE", "DELETE");
     private static readonly IReadOnlySet<string> SequenceUse = Set("USAGE", "SELECT", "UPDATE");
 

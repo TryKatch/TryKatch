@@ -11,7 +11,7 @@ La réconciliation du 2026-09-17 porte sur Trykatch **0.1.0-preview.25** : la CI
 
 ## Critères de livraison du modèle
 
-La cible coordonnée **0.1.0-preview.30** corrige les libellés flottants dans les formulaires de connexion, de dialogue et de rôle, tout en conservant l’accueil des développeurs, l’aide IA et Storybook. Les tests de régression utilisent la vraie page de connexion et les contrôles partagés dans leurs conteneurs hôtes. La disponibilité exige toujours la CI du commit exact sur main, la qualification scellée du tag et une publication réussie.
+La cible coordonnée **0.1.0-preview.31** ajoute la configuration d’abonnement IA par organisation et les contrôles flottants partagés dans les formulaires hôtes et générés, tout en conservant l’accueil des développeurs et Storybook. Les tests de régression vérifient les autorisations, la protection des clés et les contrôles dans leurs conteneurs hôtes. La disponibilité exige toujours la CI du commit exact sur main, la qualification scellée du tag et une publication réussie.
 
 [Preview.29](https://github.com/TryKatch/TryKatch/releases/tag/v0.1.0-preview.29) est publiée avec les deux paquets NuGet et les artefacts qualifiés. Preview.30 vise la régression de libellé signalée ensuite. Ni la fondation Storybook ni cette correction ciblée ne terminent la couverture complète du catalogue ou ne constituent une certification entreprise.
 

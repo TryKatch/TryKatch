@@ -28,6 +28,14 @@ Organization invitations can select an active role before sending; acceptance as
 
 With optional SMTP configured, invitation emails also show the validated role's friendly name in plain text and HTML. Custom names are HTML-encoded; email text never grants access independently of the saved invitation and its acceptance checks. Without SMTP, administrators can copy the invitation link.
 
+## Review organization roles
+
+Open **User Management → Roles** to inspect built-in roles or create a custom role. Built-in roles are read-only; custom roles outside your grant boundary cannot be edited.
+
+In the role editor, expand a module to review its permissions. Search opens matching modules, and **Selected only** lets you review the grants before saving without discarding other selections. Each module shows its selection count. Sensitive grants remain clearly marked, and permissions you cannot grant are disabled. Module selection controls apply to the currently visible permissions. **Clear selection** explicitly clears all selected grants, including hidden ones.
+
+These controls help you choose access; the backend remains responsible for enforcing authorization.
+
 ## Platform access is separate
 
 Platform administrators and support operators use platform roles and permissions. Organization roles never grant platform authority, and platform permission names are validated against their own code-defined catalog.

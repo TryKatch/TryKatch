@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch, __MODULE_CAMEL__List, __MODULE_CAMEL__Create, __MODULE_CAMEL__Update, __MODULE_CAMEL__Archive, __MODULE_CAMEL__Restore, __MODULE_CAMEL__RequestDeletion, type __ENTITY__Dto } from '@__NPM_SCOPE__/api-client'
 import { defineWebModule, defineTableExtensionPoint, useTableContributions, type TableAction, type ArchiveLifecycle } from '@__NPM_SCOPE__/module-sdk'
-import { Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Surface, type DataTableColumn } from '@__NPM_SCOPE__/ui'
+import { Button, DataTable, Dialog, EmptyState, FloatingInput, FloatingTextarea, PageHeader, RowActions, Surface, type DataTableColumn } from '@__NPM_SCOPE__/ui'
 import { Boxes, Plus } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { workflowActions, runWorkflowAction, workflowText, workflowError, isStaleConflict } from './workflow'
@@ -115,7 +115,7 @@ export function __MODULE__Page() {
         const values = new FormData(event.currentTarget)
         setSearch(String(values.get('search') ?? '')); setSort(String(values.get('sort') ?? 'newest')); setPage(1)
       }}>
-        <label>{t('searchTable')}<input name="search" type="search" maxLength={200} placeholder={t('search')} /></label>
+        <FloatingInput label={t('searchTable')} name="search" type="search" maxLength={200} />
         <label>{t('sortRecords')}<select name="sort" defaultValue="newest">
           <option value="newest">{t('newest')}</option><option value="oldest">{t('oldest')}</option>
         </select></label>
@@ -164,11 +164,10 @@ export function __MODULE__Page() {
       title={actionDefinition ? workflowText(actionDefinition.label, locale) : t('actionsFor', { name: '' })}
       description={t('actionDescription')}>
       <form className="dialog-form" onSubmit={event => { event.preventDefault(); transition.mutate() }}>
-        {actionDefinition?.inputs.map(input => <label key={input.name}>
-          {workflowText(input.label, locale)}
-          <textarea name={input.name} required={input.required} minLength={input.minimumLength ?? undefined} maxLength={input.maximumLength}
+        {actionDefinition?.inputs.map(input => <FloatingTextarea key={input.name} label={workflowText(input.label, locale)}
+          name={input.name} required={input.required} minLength={input.minimumLength ?? undefined} maxLength={input.maximumLength}
             value={actionValues[input.name] ?? ''} onChange={event => setActionValues(values => ({ ...values, [input.name]: event.target.value }))} />
-        </label>)}
+        )}
         {transition.error && <div className="form-error" role="alert">{workflowError(transition.error, locale)}</div>}
         {actionRecord && <p role="status">{t('workflowState')}: {workflowText(actionRecord.workflowState, locale)}</p>}
         {refresh.error && <div className="form-error" role="alert">{workflowError(refresh.error, locale)}</div>}

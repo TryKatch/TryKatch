@@ -13,6 +13,9 @@ public sealed class AssistantOptions
     public string ApiKey { get; set; } = string.Empty;
     public string Endpoint { get; set; } = string.Empty;
     public string ReasoningEffort { get; set; } = string.Empty;
+    public int TimeoutMs { get; set; } = 45_000;
+    public bool AllowTenantConfiguration { get; set; } = true;
+    public string[] AllowedTenantEndpoints { get; set; } = ["https://api.deepseek.com", "https://api.deepseek.com/v1", "https://api.openai.com/v1"];
 }
 
 public sealed record AssistantFunction(string Name, string Description, JsonElement Parameters);
@@ -25,11 +28,17 @@ public sealed class AssistantException(string code) : Exception(code)
 
 /// <summary>A bounded read-only turn. Only server-validated completed text can supply follow-up context.</summary>
 public sealed class AssistantRuntime(ModuleCatalog catalog, IEnumerable<IReadOnlyAssistantTool> tools,
-    IModulePermissionAuthorizer authorizer, IChatClient model, IOptions<AssistantOptions> options, AssistantKnowledge? knowledge = null)
+    IModulePermissionAuthorizer authorizer, IChatClient model, IOptions<AssistantOptions> options, AssistantKnowledge? knowledge = null,
+    IOrganizationAssistantActivation? activation = null, IAssistantTenantProvider? tenantProvider = null)
 {
     private readonly Dictionary<string, IReadOnlyAssistantTool> _adapters = tools.ToDictionary(tool => tool.OperationId, StringComparer.Ordinal);
     public bool HelpAvailable => knowledge?.Available == true;
     public string? KnowledgeRevision => knowledge?.Revision;
+    public async Task<bool> IsEnabledAsync(CancellationToken cancellationToken) =>
+        activation is not null && await activation.IsEnabledAsync(cancellationToken)
+        && ((tenantProvider is null ? null : await tenantProvider.IsAvailableAsync(cancellationToken)) ?? options.Value.Enabled);
+    public Task<Guid> ActivationVersionAsync(CancellationToken cancellationToken) =>
+        activation?.VersionAsync(cancellationToken) ?? Task.FromResult(Guid.Empty);
 
     public async Task<AssistantFunction[]> AvailableToolsAsync(CancellationToken cancellationToken)
     {
@@ -49,11 +58,16 @@ public sealed class AssistantRuntime(ModuleCatalog catalog, IEnumerable<IReadOnl
 
     public async Task<AssistantAnswer> AskAsync(string message, IReadOnlyList<AssistantExchange> history, CancellationToken cancellationToken)
     {
-        if (!options.Value.Enabled) throw new AssistantException("assistant_disabled");
+        if (!await IsEnabledAsync(cancellationToken)) throw new AssistantException("assistant_disabled");
+        using AssistantProviderSession? providerSession = tenantProvider is null ? null : await tenantProvider.CreateAsync(cancellationToken);
+        AssistantOptions currentOptions = providerSession?.Options ?? options.Value;
+        IChatClient currentModel = providerSession?.Client ?? model;
+        if (!AssistantProviders.IsValidTimeout(currentOptions.TimeoutMs))
+            throw new AssistantException("invalid_provider_configuration");
         if (string.IsNullOrWhiteSpace(message) || message.Length > 2_000)
             throw new AssistantException("invalid_message");
         using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(45));
+        deadline.CancelAfter(TimeSpan.FromMilliseconds(currentOptions.TimeoutMs));
         CancellationToken token = deadline.Token;
         try
         {
@@ -78,7 +92,7 @@ public sealed class AssistantRuntime(ModuleCatalog catalog, IEnumerable<IReadOnl
             input.Add(new(ChatRole.User, message.Trim()));
             ChatOptions chatOptions = new()
             {
-                ModelId = options.Value.Model, MaxOutputTokens = 1_024, AllowMultipleToolCalls = false,
+                ModelId = currentOptions.Model, MaxOutputTokens = 1_024, AllowMultipleToolCalls = false,
                 Instructions = AssistantProtocol.Instructions,
                 // Declarations cannot invoke anything. Trykatch exclusively owns tool execution.
                 Tools = available.Select(tool => (AITool)AIFunctionFactory.CreateDeclaration(tool.Name, tool.Description, tool.Parameters)).ToList()
@@ -90,7 +104,7 @@ public sealed class AssistantRuntime(ModuleCatalog catalog, IEnumerable<IReadOnl
             {
                 if (Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(input)) > 128 * 1024)
                     throw new AssistantException("context_limit");
-                ChatResponse turn = await model.GetResponseAsync(input, chatOptions, token);
+                ChatResponse turn = await currentModel.GetResponseAsync(input, chatOptions, token);
                 if (turn.FinishReason == ChatFinishReason.Length) throw new AssistantException("response_limit");
                 if (turn.Messages.Any(message => message.Role != ChatRole.Assistant)
                     || turn.ContinuationToken is not null || turn.ConversationId is not null

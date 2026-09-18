@@ -29,6 +29,7 @@ export const ConstrainedHeight: Story = {
   decorators: [(Story) => <><style>{'.role-editor-dialog { height: 400px; max-height: 400px; }'}</style><Story /></>],
   play: async ({ canvasElement }) => {
     const dialog = within(canvasElement.ownerDocument.body).getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Projects' }))
     const header = dialog.querySelector('.permission-editor-header')!
     const toolbar = dialog.querySelector('.permission-toolbar')!
     const footer = dialog.querySelector('.role-editor-footer')!
