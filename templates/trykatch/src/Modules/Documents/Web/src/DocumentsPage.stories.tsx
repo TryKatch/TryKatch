@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { delay, http, HttpResponse } from 'msw'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import type { DocumentDto } from '@trykatch/api-client'
 import { DocumentsPage } from './index'
 
 const document: DocumentDto = { id: '00000000-0000-0000-0000-000000000020', title: 'Delivery invoice', documentType: 'invoice', description: 'Proof of delivery', fileName: 'invoice.pdf', createdAt: '2026-09-01T10:00:00Z', metadata: { mediaType: 'application/pdf', sizeBytes: '1024', sha256: 'demo-checksum', updatedAt: null }, lifecycle: { status: 'Active', archivedAt: null, archivedBy: null, deletedAt: null, deletedBy: null, deletionReason: null } }
 const list = http.get('*/api/v1/documents/', () => HttpResponse.json([document]))
+let uploadStarted = false
 const meta = { title: 'Module UI/Documents', component: DocumentsPage, parameters: { msw: { handlers: {
   auth: [http.get('*/api/v1/access', () => HttpResponse.json({ permissions: ['documents.read', 'documents.manage'] })), http.get('*/api/v1/auth/antiforgery', () => HttpResponse.json({ token: 'storybook-only' }))],
   api: [list],
@@ -38,8 +39,9 @@ export const UploadValidation: Story = {
   },
 }
 export const Uploading: Story = {
-  parameters: { msw: { handlers: { api: [list, http.post('*/api/v1/documents/', async () => { await delay('infinite'); return HttpResponse.json(document) })] } } },
-  play: async (context) => { await UploadValidation.play!(context); const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole('dialog')); await userEvent.click(dialog.getByRole('button', { name: 'Upload document' })); await expect(await dialog.findByRole('status')).toHaveTextContent('Uploading your file') },
+  beforeEach: () => { uploadStarted = false },
+  parameters: { msw: { handlers: { api: [list, http.post('*/api/v1/documents/', async () => { uploadStarted = true; await delay('infinite'); return HttpResponse.json(document) })] } } },
+  play: async (context) => { await UploadValidation.play!(context); const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole('dialog')); await userEvent.click(dialog.getByRole('button', { name: 'Upload document' })); await expect(await dialog.findByRole('status')).toHaveTextContent('Uploading your file'); await waitFor(() => expect(uploadStarted).toBe(true)) },
 }
 export const Dark: Story = { globals: { theme: 'dark' } }
 export const French: Story = { globals: { locale: 'fr' } }

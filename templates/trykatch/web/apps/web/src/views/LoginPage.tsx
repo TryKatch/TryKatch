@@ -108,7 +108,7 @@ export function LoginPage({ navigate = path => window.location.assign(path) }: L
       <h1>{t(mfaRequired ? 'Verify your identity' : 'Sign in')}</h1>
       <p>{t(mfaRequired ? 'Enter an authenticator or recovery code.' : 'Use your verified account to continue.')}</p>
       {mfaRequired ? <form onSubmit={submitMfa}>
-        <label>{t('Verification code')}<input name="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus /></label>
+        <FloatingInput label={t('Verification code')} name="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus />
         <label className="checkbox"><input name="recovery" type="checkbox" /> {t('This is a recovery code')}</label>
         <label className="checkbox"><input name="rememberClient" type="checkbox" /> {t('Remember this trusted browser')}</label>
         {error && <div className="form-error" role="alert">{error}</div>}

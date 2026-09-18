@@ -3416,6 +3416,158 @@
         ]
       }
     },
+    "/api/v1/organization-settings/ai": {
+      "get": {
+        "tags": [
+          "OrganizationSettings"
+        ],
+        "summary": "Ai get organization settings",
+        "operationId": "OrganizationSettings_AiGet",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiConfiguration"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiConfiguration"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiConfiguration"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/organization-settings/ai', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "OrganizationSettings"
+        ],
+        "summary": "Ai update organization settings",
+        "operationId": "OrganizationSettings_AiUpdate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrganizationAiConfiguration"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrganizationAiConfiguration"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrganizationAiConfiguration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiConfiguration"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiConfiguration"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiConfiguration"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/organization-settings/ai', {\n  method: 'PUT',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/organization-settings/ai/test": {
+      "post": {
+        "tags": [
+          "OrganizationSettings"
+        ],
+        "summary": "Ai test organization settings",
+        "operationId": "OrganizationSettings_AiTest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestOrganizationAiConfiguration"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestOrganizationAiConfiguration"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestOrganizationAiConfiguration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiConnectionResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiConnectionResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAiConnectionResult"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/organization-settings/ai/test', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/platform/outbox/failures": {
       "get": {
         "tags": [
@@ -5717,6 +5869,77 @@
           }
         }
       },
+      "OrganizationAiConfiguration": {
+        "required": [
+          "enabled",
+          "version",
+          "providerAvailable",
+          "provider",
+          "model",
+          "endpoint",
+          "hasApiKey",
+          "timeoutMs",
+          "usesTenantProvider",
+          "canConfigureProvider",
+          "allowedEndpoints"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerAvailable": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "hasApiKey": {
+            "type": "boolean"
+          },
+          "timeoutMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "usesTenantProvider": {
+            "type": "boolean"
+          },
+          "canConfigureProvider": {
+            "type": "boolean"
+          },
+          "allowedEndpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OrganizationAiConnectionResult": {
+        "required": [
+          "connected"
+        ],
+        "type": "object",
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          }
+        }
+      },
       "OrganizationDto": {
         "required": [
           "id",
@@ -6626,6 +6849,19 @@
           }
         }
       },
+      "TestOrganizationAiConfiguration": {
+        "required": [
+          "expectedVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateAccountProfileRequest": {
         "required": [
           "displayName"
@@ -6700,6 +6936,60 @@
             "type": "boolean"
           }
         }
+      },
+      "UpdateOrganizationAiConfiguration": {
+        "required": [
+          "enabled",
+          "expectedVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "endpoint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "apiKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "removeApiKey": {
+            "type": "boolean",
+            "default": false
+          },
+          "timeoutMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
       },
       "UpdateOrganizationRequest": {
         "required": [
@@ -6897,6 +7187,9 @@
     },
     {
       "name": "Organizations"
+    },
+    {
+      "name": "OrganizationSettings"
     },
     {
       "name": "OutboxRecovery"

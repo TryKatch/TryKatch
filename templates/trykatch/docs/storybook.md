@@ -14,6 +14,8 @@ Use the toolbar to switch between light/dark, English/French and phone/tablet/de
 
 ## Find forms and validation
 
+**Application UI → Organization settings** demonstrates the tabbed Administration settings page: organization-owned provider/model/endpoint configuration, write-only key replacement and removal, connection-test success/failure, activation, read-only access and conflict reload. Subscription stories use fake keys and mocked providers; saved credentials are never exposed. They do not establish paid-provider UAT.
+
 Start with **Welcome → Catalogue guide**, then **Forms → Native controls** and **Forms → Validation**. Validation renders the real organization role editor: required-field errors, correcting input, saving, server failures with preserved input, and French/dark examples. **Module UI → Projects** includes the real create form, required-name validation and failed-save state. **Module UI → Documents** includes the upload form, file validation and uploading state.
 
 **Forms → Floating fields** documents shared `FloatingInput` and `FloatingTextarea`: empty, filled, focus/typing, invalid, disabled, read-only, numeric/date and translated/themed states. Role, project and document metadata forms reuse these controls. Floating labels remain associated HTML labels, not placeholders; date/time labels always float. Native file pickers and selects keep visible labels. Pass translated `label`, `description` and `error` values to the shared controls. Do not manually recreate floating-label CSS in feature pages.
@@ -25,6 +27,8 @@ Shipped AI skills and `AGENTS.md` require consulting Storybook before frontend w
 Floating labels rest inside empty, unfocused fields and move onto the top border on focus. A decorative fieldset/legend opens a real notch around the label; the label stays transparent, without a painted background or a second focus ring. Filled fields keep the label in the notch after blur; clearing and leaving a field returns it inside and closes the notch. Shared table, collection, audit and permission search fields follow the same behavior, with their search icons retained. **Forms → Validation → Constrained height / Narrow saving** checks that the role editor scrolls without overlapping its persistent action footer.
 
 Floating controls retain Trykatch's compact scale: standard inputs are 38 px (a small 2 px increase over the 36 px baseline), role inputs remain 38 px and search fields remain 34 px. Textareas follow their native row count and remain resizable instead of imposing a tall minimum. Floating labels do not change button sizing.
+
+**Forms → Floating dropdown** documents `FloatingSelect`: a branded 38 px vendor dropdown with keyboard selection, Escape/focus recovery, disabled and validation states. The AI settings page uses this dropdown and shared floating inputs in a responsive provider/credentials layout with a separate activation/privacy area. **Application UI → Organization settings → Compact floating controls** protects the host's input height, transparent labels and single focus outline against cascading styles. New and edited text-like fields must reuse shared controls; do not recreate floating-label geometry in module or host CSS.
 
 Generic host form styles must exclude labels owned by `.floating-control`; they must not turn a floating label into a grid or separate its required marker onto another line. **Forms → Floating fields → Host form contexts** checks text, textarea and password controls inside authentication, dialog, profile and role containers. **Application UI → Authentication → Sign in / French sign in / Dark sign in** checks the real sign-in page through focus, typing, blur and clearing. Keep these integration checks alongside isolated field stories when changing form CSS. This styling is shipped in the project template, so newly generated React applications use the same controls and rules.
 
@@ -46,6 +50,10 @@ corepack pnpm --filter @trykatch/web exec playwright install chromium
 ```
 
 ## Add a story
+
+**Application UI → Member invitations → Select workspace role / Roles loading / Roles unavailable** demonstrates authorized role selection and distinct loading/error states. A failed role request offers Retry rather than claiming that no roles exist. The server still decides which roles the caller can assign; an empty successful catalog is not a reason to bypass delegation checks.
+
+Invitation, profile, organization, federation, MFA and assistant text fields reuse the shared floating controls. Newly generated CRUD fields, workflow inputs and module searches do too. Checkboxes, radio choices, file and color pickers, selects and hidden autocomplete fields remain native. Updating the installed template does not rewrite previously generated applications.
 
 **Application UI → Member invitations → Default role forbidden** demonstrates a manager without role-read access submitting the existing default-Member request and receiving an authority denial with the recipient preserved. The seeded Member role grants `roles.read`, so this caller cannot assign it. No restricted role catalog is fetched, and no successful invitation is implied for this permission set.
 

@@ -40,6 +40,9 @@ public sealed class InvitationActivationRlsTests
             await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(ownerConnection);
         await ApplyMigrationsAsync(ownerConnection);
         await PostgresRuntimeRoleFixture.GrantApplicationPrivilegesAsync(ownerConnection);
+        // Provisioning must accept the actual migrated schema under the least-privilege runtime role.
+        (await PostgresIsolationInspector.InspectAsync(organizationConnection, PostgresRuntimeRoleFixture.OrganizationRole,
+            new IModule[] { new ProjectsModule(), new DocumentsModule() }.Select(module => module.Descriptor))).ThrowIfInvalid();
 
         await using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(webHost =>

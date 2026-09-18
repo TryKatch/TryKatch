@@ -1,0 +1,7 @@
+.floating-field .floating-control > .floating-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; cursor: pointer; }
+.floating-select-trigger > span:first-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.floating-select-trigger > span:last-child { display: flex; flex: none; color: var(--muted); }
+.floating-select-menu { z-index: 100; width: var(--radix-select-trigger-width); max-width: calc(100vw - 32px); max-height: min(280px, var(--radix-select-content-available-height)); overflow: auto; padding: 4px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / .16); font-family: inherit; font-size: 13px; }
+.floating-select-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 6px 10px; border-radius: var(--radius); cursor: pointer; outline: none; }
+.floating-select-option[data-highlighted] { background: var(--accent-soft); color: var(--accent-ink); }
+.floating-select-option[data-state="checked"] { color: var(--accent-ink); font-weight: 650; }

@@ -57,6 +57,10 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationInvitationTokenProtector, OrganizationInvitationTokenProtector>();
         services.AddScoped<IActorOrganizationDirectory, ActorOrganizationDirectory>();
         services.AddScoped<IOrganizationAdministrationStore, OrganizationAdministrationStore>();
+        services.AddScoped<IOrganizationAssistantSettingStore, OrganizationAssistantSettingStore>();
+        services.AddScoped<IOrganizationAssistantKeyProtector, OrganizationAssistantKeyProtector>();
+        services.AddScoped<OrganizationAssistantSettings>();
+        services.AddScoped<IOrganizationAssistantActivation>(provider => provider.GetRequiredService<OrganizationAssistantSettings>());
         services.AddScoped<IOrganizationDataScopeFactory, OrganizationDataScopeFactory>();
         services.AddScoped<IOrganizationDataPlacement, OrganizationDataPlacement>();
         services.AddScoped<IOrganizationDataPlacementAdapter, SharedPostgresDataPlacement>();

@@ -23,6 +23,7 @@ const AcceptInvitationPage = lazy(() => pages().then((module) => ({ default: mod
 const PlatformAccessActivationPage = lazy(() => pages().then((module) => ({ default: module.PlatformAccessActivationPage })))
 const ArchivePage = lazy(() => import('./features/archive/ArchivePage').then((module) => ({ default: module.ArchivePage })))
 const AssistantPage = lazy(() => import('./features/assistant/AssistantPage').then((module) => ({ default: module.AssistantPage })))
+const OrganizationSettingsPage = lazy(() => import('./views/OrganizationSettingsPage').then((module) => ({ default: module.OrganizationSettingsPage })))
 const AssistantGuidePage = lazy(() => import('./features/assistant/AssistantGuidePage').then((module) => ({ default: module.AssistantGuidePage })))
 
 function withSuspense(Page: ElementType) {
@@ -56,7 +57,7 @@ const archiveRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '
 const assistantRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/assistant', component: withSuspense(AssistantPage) })
 const assistantGuideRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/assistant/guides/$guideId', component: withSuspense(AssistantGuidePage) })
 const profileRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/profile', component: withSuspense(ProfilePage) })
-const legacySettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', beforeLoad: () => { throw redirect({ to: '/profile', replace: true }) } })
+const settingsRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/settings', component: withSuspense(OrganizationSettingsPage) })
 const platformOverviewRoute = createRoute({ getParentRoute: () => platformRoute, path: '/', component: withSuspense(PlatformOverviewPage) })
 const tenantDirectoryRoute = createRoute({ getParentRoute: () => platformRoute, path: 'tenants', component: withSuspense(PlatformOrganizationsPage) })
 const platformUsersRoute = createRoute({ getParentRoute: () => platformRoute, path: 'users', component: withSuspense(PlatformUsersPage) })
@@ -73,10 +74,9 @@ const routeTree = rootRoute.addChildren([
   resetPasswordRoute,
   platformRoute.addChildren([platformOverviewRoute, tenantDirectoryRoute, platformUsersRoute, platformInvitationsRoute, platformAuthenticationRoute, platformProfileRoute, ...platformModuleRoutes]),
   legacyTeamRoute,
-  legacySettingsRoute,
   invitationRoute,
   platformActivationRoute,
-  workspaceRoute.addChildren([overviewRoute, ...workspaceModuleRoutes, userManagementRoute, auditRoute, archiveRoute, assistantRoute, assistantGuideRoute, profileRoute]),
+  workspaceRoute.addChildren([overviewRoute, ...workspaceModuleRoutes, userManagementRoute, settingsRoute, auditRoute, archiveRoute, assistantRoute, assistantGuideRoute, profileRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' })

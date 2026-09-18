@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { assistantAsk, assistantStatus, workspaceCurrent, type AssistantGuideSource } from '@trykatch/api-client'
-import { Badge, Button } from '@trykatch/ui'
+import { Badge, Button, FloatingTextarea } from '@trykatch/ui'
 import { ArrowUp, BookOpen, Bot, FileText, FolderKanban, LoaderCircle, RotateCcw } from 'lucide-react'
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '../../i18n/I18nProvider'
@@ -108,8 +108,7 @@ export function AssistantChat() {
     {chat.status.data?.enabled && chat.status.data.tools.length === 0 && !chat.status.data.helpAvailable && <p className="assistant-notice" role="status">{t('No assistant tools are available for your permissions.')}</p>}
     {chat.error && <p className="assistant-notice" role="alert">{t(chat.error === 'conversation' ? 'This conversation expired or your access changed. Start a new conversation. Your question is preserved.' : chat.error === 'limit' ? 'The answer exceeded the response limit. Ask a more focused question. Your question is preserved; no changes were made.' : 'The assistant could not answer. Your question is preserved; try again. No changes were made.')}</p>}
     <form className="help-chat-composer" onSubmit={(event) => { event.preventDefault(); void chat.send() }}>
-      <label className="sr-only" htmlFor={`${id}-question`}>{t('Your question')}</label>
-      <div className="help-chat-input"><textarea ref={input} id={`${id}-question`} placeholder={t('Type a message…')} aria-describedby={`${id}-hint`} maxLength={2000} rows={2} value={chat.message} disabled={chat.pending || !chat.available} onChange={(event) => chat.setMessage(event.target.value)} onKeyDown={(event) => {
+      <div className="help-chat-input"><FloatingTextarea label={t('Your question')} ref={input} id={`${id}-question`} aria-describedby={`${id}-hint`} maxLength={2000} rows={2} value={chat.message} disabled={chat.pending || !chat.available} onChange={(event) => chat.setMessage(event.target.value)} onKeyDown={(event) => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); if (!event.repeat) event.currentTarget.form?.requestSubmit() }
       }} /><Button type="submit" variant="primary" aria-label={t('Ask assistant')} title={t('Ask assistant')} disabled={!chat.available || chat.pending || !chat.message.trim() || chat.error === 'conversation'}><ArrowUp size={18} aria-hidden="true" /></Button></div>
       <div className="help-chat-input-hint"><small id={`${id}-hint`}>{t('Enter to send · Shift+Enter for a new line')}</small><small>{chat.message.length.toLocaleString()} / 2,000</small>{chat.pending && <Button type="button" variant="ghost" onClick={chat.cancel}>{t('Cancel')}</Button>}</div>

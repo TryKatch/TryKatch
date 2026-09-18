@@ -288,21 +288,21 @@ internal static partial class ModuleFieldRenderer
         string control = field.Kind switch
         {
             ModuleFieldKind.String when field.MaximumLength > 500 =>
-                $"<textarea{common} maxLength={{{field.MaximumLength}}} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+                $"<FloatingTextarea label={{{label}}}{common} maxLength={{{field.MaximumLength}}} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.String =>
-                $"<input{common} maxLength={{{field.MaximumLength}}} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+                $"<FloatingInput label={{{label}}}{common} maxLength={{{field.MaximumLength}}} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Decimal =>
-                $"<input inputMode=\"decimal\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+                $"<FloatingInput label={{{label}}} inputMode=\"decimal\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Integer =>
-                $"<input type=\"number\" step=\"1\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+                $"<FloatingInput label={{{label}}} type=\"number\" step=\"1\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Long =>
-                $"<input inputMode=\"numeric\" pattern=\"-?[0-9]+\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+                $"<FloatingInput label={{{label}}} inputMode=\"numeric\" pattern=\"-?[0-9]+\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Date =>
-                $"<input type=\"date\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+                $"<FloatingInput label={{{label}}} type=\"date\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.DateTime =>
-                $"<input type=\"datetime-local\" step=\"0.001\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+                $"<FloatingInput label={{{label}}} type=\"datetime-local\" step=\"0.001\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Guid =>
-                $"<input inputMode=\"text\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
+                $"<FloatingInput label={{{label}}} inputMode=\"text\"{common} value={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.value)}} />",
             ModuleFieldKind.Boolean when field.Required =>
                 $"<input type=\"checkbox\" checked={{{field.Name}}} onChange={{(event) => set{field.PropertyName}(event.target.checked)}} />",
             ModuleFieldKind.Boolean =>
@@ -314,7 +314,9 @@ internal static partial class ModuleFieldRenderer
                 "</select>",
             _ => throw new InvalidOperationException($"Unsupported field kind '{field.Kind}'.")
         };
-        return $"<label>{{{label}}}{control}</label>";
+        return field.Kind is ModuleFieldKind.Boolean or ModuleFieldKind.Enum
+            ? $"<label>{{{label}}}{control}</label>"
+            : control;
     }
 
     private static string RenderWebDetail(ModuleFieldDefinition field)

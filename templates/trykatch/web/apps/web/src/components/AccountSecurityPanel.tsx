@@ -1,5 +1,5 @@
 import { customFetch, type MfaRecoveryCodes, type PendingMfaSetup, type RecentAssuranceGrant, type ReauthenticationRequest } from '@trykatch/api-client'
-import { Badge, Button, PasswordField, Surface } from '@trykatch/ui'
+import { Badge, Button, FloatingInput, PasswordField, Surface } from '@trykatch/ui'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useI18n } from '../i18n/I18nProvider'
 import { useAccountSecurityCompletion } from './AccountSecurityCompletion'
@@ -119,14 +119,14 @@ export function AccountSecurityPanel({ twoFactorEnabled, disabled = false }: { t
         <PasswordField label={t('Current password')} name="password" autoComplete="current-password" maxLength={1024} visibilityLabel={t('Current password').toLowerCase()} showLabel={t('Show')} hideLabel={t('Hide')} required autoFocus disabled={busy} />
         {twoFactorEnabled && <>
           <label><input type="checkbox" checked={recoveryFactor} disabled={busy} onChange={(event) => setRecoveryFactor(event.target.checked)} /> {t('Use a recovery code')}</label>
-          <label>{t(recoveryFactor ? 'Recovery code' : 'Authenticator code')}<input key={String(recoveryFactor)} name="factor" autoComplete="one-time-code" inputMode={recoveryFactor ? 'text' : 'numeric'} maxLength={128} required disabled={busy} /></label>
+          <FloatingInput label={t(recoveryFactor ? 'Recovery code' : 'Authenticator code')} key={String(recoveryFactor)} name="factor" autoComplete="one-time-code" inputMode={recoveryFactor ? 'text' : 'numeric'} maxLength={128} required disabled={busy} />
         </>}
         <div className="form-actions"><Button variant="ghost" type="button" disabled={busy} onClick={cancel}>{t('Cancel')}</Button><Button variant="primary" type="submit" disabled={busy}>{t(busy ? 'Verifying…' : 'Verify and continue')}</Button></div>
       </form>}
       {step.kind === 'enrollment' && <form className="dialog-form" onSubmit={confirm} aria-label={t('Confirm authenticator')}>
         <p>{t('Enter this new key in your authenticator. It is shown only now and expires in ten minutes.')}</p><code>{step.setup.sharedKey}</code>
         {twoFactorEnabled && <p>{t('Your existing authenticator remains active until you confirm the new one.')}</p>}
-        <label>{t('Six-digit code')}<input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" maxLength={8} required autoFocus disabled={busy} /></label>
+        <FloatingInput label={t('Six-digit code')} name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" maxLength={8} required autoFocus disabled={busy} />
         <div className="form-actions"><Button variant="ghost" type="button" disabled={busy} onClick={cancel}>{t('Cancel')}</Button><Button variant="primary" type="submit" disabled={busy}>{t(busy ? 'Verifying…' : 'Confirm authenticator')}</Button></div>
       </form>}
     </section>

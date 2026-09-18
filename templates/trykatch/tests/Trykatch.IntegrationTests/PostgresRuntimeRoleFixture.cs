@@ -85,6 +85,7 @@ internal static class PostgresRuntimeRoleFixture
 
             GRANT USAGE ON SCHEMA app, platform TO {OrganizationRole};
             GRANT SELECT ON platform.organizations, platform.module_data_resources TO {OrganizationRole};
+            GRANT SELECT, INSERT, UPDATE ON platform.organization_assistant_settings TO {OrganizationRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON platform.memberships, platform.roles,
                 platform.membership_roles, platform.role_permissions, platform.invitations TO {OrganizationRole};
             GRANT SELECT, INSERT ON platform.audit_entries TO {OrganizationRole};
