@@ -30,7 +30,7 @@ Suivez ces étapes dans l’ordre.
 Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.29
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.30
 ```
 
 Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
@@ -67,7 +67,7 @@ imbriqué.
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.29
+dotnet new install Trykatch.Templates@0.1.0-preview.30
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -83,7 +83,7 @@ Les noms contenant des points ou des tirets sont normalisés pour produire des e
 Mettez d’abord à jour la CLI, puis utilisez la commande de mise à jour dédiée de Trykatch. La CLI et le modèle restent ainsi sur la même version :
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.29
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.30
 trykatch update
 ```
 
@@ -99,7 +99,7 @@ Lorsque NuGet signale une fin de flux inattendue (EOF) ou un flux de transport v
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.29
+trykatch update --version 0.1.0-preview.30
 ```
 
 Le moteur de modèles .NET peut supprimer l’ancienne version avant la fin d’une mise à jour forcée. Relancer la commande Trykatch restaure le modèle ; les applications déjà générées ne sont pas affectées.
