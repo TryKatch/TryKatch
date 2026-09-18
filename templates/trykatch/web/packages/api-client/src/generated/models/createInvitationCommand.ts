@@ -10,4 +10,6 @@ export interface CreateInvitationCommand {
   email: string;
   /** @pattern ^-?(?:0|[1-9]\d*)$ */
   expiresInDays?: number | string;
+  /** @nullable */
+  roleId?: string | null;
 }

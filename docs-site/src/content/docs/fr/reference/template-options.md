@@ -5,6 +5,7 @@ description: Consultez l’interface générée et les adaptateurs optionnels pr
 
 | Option | Valeur par défaut | Résultat |
 | --- | --- | --- |
+| `--display-name "Kamenta"` | `Trykatch` | Définit la marque affichée dans l’interface et les e-mails, indépendamment du nom technique du projet. |
 | `--ui react` | activée | Génère l’espace de travail React, TanStack, Vite, l’interface possédée et le client API. |
 | `--ui none` | désactivée | Génère le backend sans l’espace de travail web. |
 | `--email true` | désactivée | Ajoute MailKit SMTP et une ressource de développement Mailpit. |

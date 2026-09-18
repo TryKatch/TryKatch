@@ -29,13 +29,23 @@ public sealed class CreateProjectValidator : AbstractValidator<CreateProjectComm
     }
 }
 
+public sealed class UpdateProjectValidator : AbstractValidator<UpdateProjectCommand>
+{
+    public UpdateProjectValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(120);
+        RuleFor(x => x.Description).MaximumLength(2000);
+    }
+}
+
 public sealed class ProjectUseCases(
     IProjectStore store,
     IOrganizationContext context,
     IPermissionAuthorizer authorizer,
     IAuditWriter auditWriter,
     IOutboxWriter outbox,
-    IValidator<CreateProjectCommand> createValidator)
+    IValidator<CreateProjectCommand> createValidator,
+    IValidator<UpdateProjectCommand> updateValidator)
 {
     public async Task<Result<PagedResult<ProjectDto>>> ListAsync(int page, int pageSize, string? search, RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
     {
@@ -89,6 +99,10 @@ public sealed class ProjectUseCases(
         {
             return Result.Failure<ProjectDto>("forbidden", "Projects cannot be changed by this membership.");
         }
+
+        var validation = await updateValidator.ValidateAsync(command, cancellationToken);
+        if (!validation.IsValid)
+            return Result.Failure<ProjectDto>("validation", validation.Errors[0].ErrorMessage);
 
         Project? project = await store.FindAsync(context.OrganizationId, command.Id, cancellationToken);
         if (project is null)

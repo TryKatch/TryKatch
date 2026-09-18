@@ -51,7 +51,7 @@ require_text templates/trykatch/tests/Trykatch.UnitTests/TemplatePackageInstalle
 require_text templates/trykatch/tools/Trykatch.ModuleTool/TemplatePackageInstaller.cs \
   "for example $release_version."
 require_text docs/production-readiness-plan.md \
-  "Current published preview package: \`$release_version\`."
+  "Coordinated preview target: \`$release_version\`;"
 
 current_installation_surfaces=(
   README.md

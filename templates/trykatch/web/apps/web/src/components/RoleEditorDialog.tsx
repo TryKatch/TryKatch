@@ -1,8 +1,9 @@
 import type { PermissionModuleDto } from '@trykatch/api-client'
-import { Badge, Button, Dialog } from '@trykatch/ui'
+import { Badge, Button, Dialog, FloatingInput, FloatingTextarea } from '@trykatch/ui'
 import { AlertTriangle, Check, ChevronDown, Search, ShieldCheck } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useI18n } from '../i18n/I18nProvider'
+import { roleSchema } from './roleValidation'
 
 export type PermissionModule = PermissionModuleDto
 
@@ -31,6 +32,7 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectedOnly, setSelectedOnly] = useState(false)
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!open) return
@@ -40,7 +42,8 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
     setSelected(new Set(role?.permissions ?? []))
     setSelectedOnly(false)
     setExpandedModules(new Set(modules.filter((module) => module.permissions.some((permission) => role?.permissions.includes(permission.key))).map((module) => module.key)))
-  }, [open, role]) // Catalog refreshes must not discard edits or expansion state.
+    setFieldErrors({})
+  }, [open, role])
 
   const visibleModules = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -55,6 +58,7 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
     .filter((permission) => permission.isSensitive && selected.has(permission.key)).length
 
   function togglePermission(key: string) {
+    if (isSaving) return
     setSelected((current) => {
       const next = new Set(current)
       if (next.has(key)) next.delete(key)
@@ -64,6 +68,7 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
   }
 
   function toggleModule(module: PermissionModule) {
+    if (isSaving) return
     const grantable = module.permissions.filter((permission) => permission.canGrant).map((permission) => permission.key)
     const allSelected = grantable.length > 0 && grantable.every((key) => selected.has(key))
     setSelected((current) => {
@@ -75,21 +80,28 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (isLoading || isSaving || !name.trim()) return
-    onSave({ name: name.trim(), description: description.trim(), permissions: [...selected].sort() })
+    if (isSaving || isLoading) return
+    const result = roleSchema.safeParse({ name, description, permissions: [...selected].sort() })
+    if (!result.success) {
+      setFieldErrors(Object.fromEntries(result.error.issues.map((issue) => [String(issue.path[0]), issue.message])))
+      return
+    }
+    setFieldErrors({})
+    onSave(result.data)
   }
 
   return <Dialog
     open={open}
-    onOpenChange={onOpenChange}
+    onOpenChange={(nextOpen) => { if (!isSaving) onOpenChange(nextOpen) }}
     title={t(role ? 'Edit custom role' : 'Create custom role')}
     description={t('Build a least-privilege role from the capabilities available to you.')}
     className="role-editor-dialog"
   >
-    <form className="role-editor" onSubmit={submit}>
+    <form className="role-editor" onSubmit={submit} noValidate aria-busy={isSaving}>
+      <div className="role-editor-body">
       <div className="role-identity-fields">
-        <label className="role-name-field">{t('Role name')}<input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder={t('For example, Project operator')} required autoFocus /></label>
-        <label>{t('Purpose')}<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={240} rows={2} placeholder={t('Describe when this role should be assigned.')} /></label>
+        <FloatingInput label={t('Role name')} value={name} onChange={(event) => { setName(event.target.value); setFieldErrors((current) => ({ ...current, name: '' })) }} maxLength={80} description={t('For example, Project operator')} required autoFocus disabled={isSaving} error={fieldErrors.name ? t(fieldErrors.name) : undefined} />
+        <FloatingTextarea label={t('Purpose')} value={description} onChange={(event) => { setDescription(event.target.value); setFieldErrors((current) => ({ ...current, description: '' })) }} maxLength={240} rows={2} description={t('Describe when this role should be assigned.')} disabled={isSaving} error={fieldErrors.description ? t(fieldErrors.description) : undefined} />
       </div>
 
       <section className="permission-editor" aria-labelledby="permission-editor-title">
@@ -98,7 +110,7 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
           <div className="permission-summary"><strong>{selected.size}</strong><span>{t('selected')}</span></div>
         </header>
         <div className="permission-toolbar">
-          <label><Search size={15} /><span className="sr-only">{t('Search permissions')}</span><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); if (event.target.value.trim()) setExpandedModules(new Set(modules.map((module) => module.key))) }} placeholder={t('Search permissions…')} /></label>
+          <FloatingInput label={t('Search permissions')} type="search" leadingIcon={<Search size={15} />} value={query} onChange={(event) => { setQuery(event.target.value); if (event.target.value.trim()) setExpandedModules(new Set(modules.map((module) => module.key))) }} />
           <Button type="button" variant={selectedOnly ? 'secondary' : 'ghost'} aria-label={t('Selected only')} aria-pressed={selectedOnly} onClick={() => { setSelectedOnly((value) => !value); setExpandedModules(new Set(modules.map((module) => module.key))) }}>{t('Selected only')} <Badge>{selected.size}</Badge></Button>
           {selected.size > 0 && <Button type="button" variant="ghost" disabled={isSaving} onClick={() => setSelected(new Set())}>{t('Clear selection')}</Button>}
         </div>
@@ -119,9 +131,9 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
               </header>
               <div className="permission-options" id={`permission-options-${module.key}`} hidden={!expanded}>
                 {module.permissions.map((permission) => <label className={`permission-option${selected.has(permission.key) ? ' is-selected' : ''}${!permission.canGrant ? ' is-disabled' : ''}`} key={permission.key}>
-                  <input type="checkbox" checked={selected.has(permission.key)} disabled={isSaving || !permission.canGrant} onChange={() => togglePermission(permission.key)} />
+                  <input type="checkbox" checked={selected.has(permission.key)} disabled={!permission.canGrant || isSaving} onChange={() => togglePermission(permission.key)} />
                   <span className="permission-check" aria-hidden="true">{selected.has(permission.key) && <Check size={13} />}</span>
-                  <span className="permission-copy"><span><strong>{permission.name}</strong>{permission.isSensitive && <Badge tone="warning"><AlertTriangle size={10} /> {t('Sensitive')}</Badge>}{!permission.canGrant && <Badge>{t('Outside grant boundary')}</Badge>}</span><small>{permission.description}</small><code>{permission.key}</code></span>
+                  <span className="permission-copy"><span><strong>{t(permission.name)}</strong>{permission.isSensitive && <Badge tone="warning"><AlertTriangle size={10} /> {t('Sensitive')}</Badge>}{!permission.canGrant && <Badge>{t('Outside grant boundary')}</Badge>}</span><small>{t(permission.description)}</small></span>
                 </label>)}
               </div>
             </section>
@@ -131,7 +143,8 @@ export function RoleEditorDialog({ open, role, modules, isLoading, isSaving, err
 
       {sensitiveCount > 0 && <div className="permission-warning"><AlertTriangle size={16} /><span><strong>{sensitiveCount} {t('sensitive')} {t(sensitiveCount === 1 ? 'permission' : 'permissions')} {t('selected')}</strong><small>{t('Review these grants carefully before saving.')}</small></span></div>}
       {error && <div className="form-error" role="alert">{error}</div>}
-      <footer className="role-editor-footer"><span>{selected.size === 0 ? t('This role will not grant access.') : `${selected.size} ${t(selected.size === 1 ? 'permission' : 'permissions')} ${t('will be granted.')}`}</span><div><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{t('Cancel')}</Button><Button type="submit" variant="primary" disabled={isLoading || isSaving || !name.trim()}>{t(isSaving ? 'Saving…' : 'Save role')}</Button></div></footer>
+      </div>
+      <footer className="role-editor-footer"><span>{selected.size === 0 ? t('This role will not grant access.') : `${selected.size} ${t(selected.size === 1 ? 'permission' : 'permissions')} ${t('will be granted.')}`}</span><div><Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isSaving}>{t('Cancel')}</Button><Button type="submit" variant="primary" disabled={isSaving || isLoading}>{t(isSaving ? 'Saving…' : 'Save role')}</Button></div></footer>
     </form>
   </Dialog>
 }

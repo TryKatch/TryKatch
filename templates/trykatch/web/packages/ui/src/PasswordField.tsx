@@ -1,5 +1,6 @@
 import { useId, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { cn } from './primitives'
+import { FloatingFieldOutline } from './FloatingField'
 
 export interface PasswordFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id' | 'type'> {
   inputId?: string
@@ -7,28 +8,33 @@ export interface PasswordFieldProps extends Omit<InputHTMLAttributes<HTMLInputEl
   visibilityLabel?: string
   showLabel?: string
   hideLabel?: string
+  floating?: boolean
 }
 
-export function PasswordField({ className, inputId, label, required, visibilityLabel = 'password', showLabel = 'Show', hideLabel = 'Hide', ...props }: PasswordFieldProps) {
+export function PasswordField({ className, inputId, label, required, floating = true, visibilityLabel = 'password', showLabel = 'Show', hideLabel = 'Hide', ...props }: PasswordFieldProps) {
   const generatedId = useId()
   const id = inputId ?? generatedId
   const [visible, setVisible] = useState(false)
   const action = visible ? hideLabel : showLabel
 
-  return <div className="password-field">
-    <label htmlFor={id}>{label}{required && <> <span aria-hidden="true">*</span></>}</label>
-    <span className="password-input">
-      <input {...props} id={id} className={cn('password-input-control', className)} type={visible ? 'text' : 'password'} required={required} />
+  const fieldLabel = <label htmlFor={id}>{label}{required && <> <span aria-hidden="true">*</span></>}</label>
+  return <div className={cn('password-field', floating && 'floating-field')}>
+    {!floating && fieldLabel}
+    <div className={cn('password-input', floating && 'floating-control')}>
+      <input {...props} id={id} placeholder={floating ? ' ' : props.placeholder} className={cn('password-input-control', floating && 'floating-control-input', className)} type={visible ? 'text' : 'password'} required={required} />
+      {floating && fieldLabel}
+      {floating && <FloatingFieldOutline label={label} required={required} />}
       <button
         className="password-visibility"
         type="button"
         aria-label={`${action} ${visibilityLabel}`}
         aria-pressed={visible}
+        disabled={props.disabled}
         onClick={() => setVisible((current) => !current)}
       >
         {visible ? <EyeOffIcon /> : <EyeIcon />}
       </button>
-    </span>
+    </div>
   </div>
 }
 

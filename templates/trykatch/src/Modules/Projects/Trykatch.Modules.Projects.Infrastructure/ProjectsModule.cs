@@ -128,11 +128,14 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
 
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddScoped<IReadOnlyAssistantTool, ListProjectsAssistantTool>();
+        services.AddScoped<IReadOnlyAssistantTool, GetProjectAssistantTool>();
         services.AddSingleton<IOrganizationEndpointContributor, ProjectsEndpoints>();
         services.AddScoped<ProjectUseCases>();
         services.AddScoped<IProjectStore, ProjectStore>();
         services.AddSingleton<IApplicationModelContributor, ProjectsModelContributor>();
         services.AddScoped<IWorkspaceOverviewMetricProvider, ProjectsOverviewMetricProvider>();
         services.AddSingleton<IValidator<CreateProjectCommand>, CreateProjectValidator>();
+        services.AddSingleton<IValidator<UpdateProjectCommand>, UpdateProjectValidator>();
     }
 }

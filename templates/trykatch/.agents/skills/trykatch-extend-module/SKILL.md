@@ -7,6 +7,8 @@ description: Extend or fix an existing Trykatch module while preserving applicat
 
 Read [AGENTS.md](../../../AGENTS.md), the owning module's manifest and code, and the applicable spec. Consult the [backend guide](../../../docs/development/backend.md) and, for UI changes, the [frontend guide](../../../docs/development/frontend.md).
 
+For every frontend change, consult [Storybook](../../../docs/storybook.md) and the owning components' colocated stories before implementing. Reuse actual components and brand tokens; maintain stories for changed interactions and applicable validation, loading, empty, error, permission and conflict states. Run affected Storybook interaction/accessibility checks and inspect the UI in a browser. Add missing coverage within the requested UI change; do not treat a mock as existing behavior. Backend-only work skips this workflow.
+
 Trace the behavior from the endpoint or page to its use case, domain method, persistence adapter, and tests. Establish whether the application owns the source or consumes a package. Distinguish generated registries/clients from scaffolded module source: scaffolded domain and UI files are intended for customization; registries and clients are regenerated.
 
 Select the change surface:

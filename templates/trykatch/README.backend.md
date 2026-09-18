@@ -1,5 +1,7 @@
 # Trykatch
 
+Choose the customer-facing name independently of namespaces with `--display-name "Kamenta"`; see [product branding](docs/branding.md) ([Français](docs/branding.fr.md)). Skip the web configuration in this backend-only application.
+
 > Start secure. Build freely.
 
 Trykatch is a clean-room backend foundation for .NET 10, PostgreSQL, Aspire, and the open Grafana observability stack.
@@ -12,7 +14,7 @@ New to this application? Start with [developer onboarding](docs/developer-onboar
 
 For deployment, first read [production identity](docs/production-identity.md): three certificate/password pairs are required, and an existing plaintext key ring needs an explicit privileged dry-run/apply before the API can start.
 
-Prerequisites: .NET SDK 10.0.301+ and Docker.
+Prerequisites: .NET SDK 10.0.301 or a later patch in the 10.0.3xx feature band, and Docker. The generated `global.json` permits patch roll-forward only. See [dependency reproducibility](docs/dependency-reproducibility.md) ([Français](docs/dependency-reproducibility.fr.md)) for first-restore and upgrade boundaries; omit frontend commands.
 
 Open a terminal in the generated application's root directory—the folder that contains `Trykatch.slnx`, `src/`, and `tests/`—then run the commands from there:
 
@@ -41,6 +43,7 @@ This application includes five project-local skills for specification, module cr
 ## Architecture
 
 - `Domain` contains framework-free organization, membership, role, invitation, audit, and Project models.
+- Authorized workspace managers select an active, assignable role when inviting a person; acceptance assigns the saved role. Optional SMTP emails show that role's friendly name in plain text and HTML. Without SMTP, copy the one-time invitation link from the API response.
 - `Application` contains focused use cases, validation, permissions, and outbound interfaces.
 - `Infrastructure` owns EF Core, PostgreSQL RLS, auditing, the transactional outbox, and selected adapters.
 - `Identity` owns ASP.NET Core Identity, OpenIddict, MFA primitives, session cookies, and data-protection keys.

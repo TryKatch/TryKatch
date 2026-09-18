@@ -31,6 +31,7 @@ public static class DocumentOperation
 
 public static class DocumentUploadPolicy
 {
+    private static readonly DocumentMetadataValidator MetadataValidator = new();
     public const long MaximumBytes = 25 * 1024 * 1024;
     public const long MaximumRequestBytes = MaximumBytes + (64 * 1024);
 
@@ -67,13 +68,8 @@ public static class DocumentUploadPolicy
 
     public static string? ValidateMetadata(string title, string? description, string? documentType = null)
     {
-        if (string.IsNullOrWhiteSpace(title) || title.Trim().Length > 200)
-            return "Title is required and cannot exceed 200 characters.";
-        if (description?.Trim().Length > 2_000)
-            return "Description cannot exceed 2,000 characters.";
-        if (documentType is not null && !DocumentTypes.IsValid(documentType))
-            return "Choose a supported document type.";
-        return null;
+        var validation = MetadataValidator.Validate(new UpdateDocumentCommand(title, description, documentType));
+        return validation.IsValid ? null : validation.Errors[0].ErrorMessage;
     }
 
     public static string SafeFileName(string fileName)

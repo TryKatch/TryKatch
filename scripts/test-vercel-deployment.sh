@@ -29,3 +29,11 @@ for module in Projects Documents; do
   test -f "$template_root/src/Modules/$module/Web/package.json" ||
     fail "$module web package is outside the deployment context"
 done
+
+for asset in trykatch-launch.mp4 trykatch-launch.webp; do
+  test -s "$template_root/web/apps/web/public/marketing/$asset" || fail "homepage media is missing: $asset"
+done
+grep -Fq 'templates/trykatch/web/apps/web/public/marketing/**' "$repository_root/Trykatch.Templates.csproj" ||
+  fail 'homepage promotional media must not be packed in the NuGet template'
+jq -e '.sources[0].exclude | index("web/apps/web/public/marketing/**") != null' \
+  "$template_root/.template.config/template.json" >/dev/null || fail 'generated products must exclude homepage promotional media'

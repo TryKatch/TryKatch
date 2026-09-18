@@ -6,6 +6,14 @@ Move Trykatch from a production-oriented pre-release template to a stable templa
 
 ## Current baseline
 
+The coordinated release target is **Trykatch 0.1.0-preview.30**, correcting host-form CSS that displaced shared floating labels and wrapped their required markers. It retains developer onboarding, provider-neutral AI Help and Storybook. Publication requires successful exact-commit main CI and sealed tag qualification; target metadata is not proof of publication. See the [release notes](releases/0.1.0-preview.30.md).
+
+Published **0.1.0-preview.29** introduced the branded Storybook foundation and compact floating controls. Its [qualification and publication](https://github.com/TryKatch/TryKatch/actions/runs/35318206885) succeeded and both coordinated NuGet packages became publicly available. Preview.30 addresses the subsequently reported host-form label regression; it does not close the remaining complete-catalogue or stable-readiness gates.
+
+The published **0.1.0-preview.26** baseline added request-logging, SDK/workflow and package-delivery controls. Its [exact release-commit CI](https://github.com/TryKatch/TryKatch/actions/runs/35246520501) passed 18 jobs, 282 source unit tests and 247 PostgreSQL integration tests with zero failures/skips; [tag qualification and publication](https://github.com/TryKatch/TryKatch/actions/runs/35247873752) also passed. Its historical [release notes](releases/0.1.0-preview.26.md) accurately record that AI Help was not included.
+
+The preceding published baseline is **Trykatch 0.1.0-preview.25**. The [2026-09-17 evidence reconciliation](enterprise-foundation-evidence.md) preserves its release commit, CI runs, shipped security fixes and remaining acceptance criteria. Eight foundation fixes were released in that baseline; the complete production-readiness gates remain open. Its release-commit CI passed 282 source unit tests and 236 PostgreSQL integration tests with zero skips. Historical records below remain dated evidence, not today's test counts or a claim of stable readiness.
+
 - The canonical .NET solution builds with zero warnings and errors.
 - Unit, PostgreSQL/Testcontainers integration, web, and generated-client tests pass locally.
 - PostgreSQL row-level security blocks cross-organization access for the runtime role.
@@ -34,7 +42,7 @@ The default React production path is covered by this gate. Backend-only and opti
 
 ## Delivery plan
 
-The [enterprise foundation hardening plan](plans/enterprise-foundation-hardening-plan.md) translates the 2026-09-11 audit into 16 trackable PRs with dependencies, implementation requirements, regression tests and release gates. Its open audit findings qualify earlier completion statements in this document; historical passing checks do not close newly identified defects.
+The [enterprise foundation hardening plan](plans/enterprise-foundation-hardening-plan.md) translates the 2026-09-11 audit into 16 trackable PRs with dependencies, implementation requirements, regression tests and release gates. The [finding-to-PR ledger](enterprise-foundation-evidence.md) reconciles its formerly stale checklist with what has shipped and maps evidence to every production phase. Remaining acceptance criteria qualify earlier completion statements; neither unchecked historical boxes nor generic green CI establish the current state of an individual control.
 
 The mandatory module ownership, tenant data-placement, PostgreSQL isolation, runtime-role separation, signed-module distribution, and independent reference-module work is specified in [the module and tenant data-isolation implementation plan](plans/module-data-isolation-plan.md). Its release criteria are required security gates for the phases below.
 
@@ -46,9 +54,11 @@ The mandatory module ownership, tenant data-placement, PostgreSQL isolation, run
 - Run CI for pull requests and pushes to `develop` and `main`.
 - Require reviewed promotion from `develop` to `main` before creating a version tag.
 - Permit the release workflow to publish only tags whose commit is contained in `main`.
-- Configure the NuGet API key only when the package is approved for publication.
+- Use NuGet trusted publishing to exchange the approved GitHub workflow identity for a temporary publishing credential; do not store a long-lived publishing API key.
 
 Exit criteria: branch policy is documented and enforced; CI succeeds on both long-lived branches; release tags outside `main` are rejected.
+
+2026-09-17 reconciliation: `main` is protected, but `develop` is not protected despite the hardening plan requiring both. Governance remains open until the approved protection/review policy is enforced. This documentation update does not change repository permissions.
 
 ### 1. Product-data and local-development correctness
 
@@ -129,7 +139,8 @@ Exit criteria: CI is green, final UAT is approved, installation succeeds on all 
 
 ## Version policy
 
-- Current published preview package: `0.1.0-preview.25`.
+- Coordinated preview target: `0.1.0-preview.30`; the preceding published package is `0.1.0-preview.29` until successful publication.
+- Release metadata is prepared before tagging; this version becomes available only after the release workflow publishes successfully. Consult the GitHub release and NuGet feed, not an untagged branch, for availability.
 - Preview versions may be shared for evaluation but are not represented as production-ready.
 - Release-candidate versions begin only after phases 1–7 pass.
 - The first stable version is published only after phase 8 sign-off.

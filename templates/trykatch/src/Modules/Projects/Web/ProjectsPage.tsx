@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch } from '@trykatch/api-client'
 import { ModuleExtensionSlot, useModuleI18n } from '@trykatch/module-sdk'
-import { Badge, Button, DataTable, Dialog, EmptyState, PageHeader, RowActions, Skeleton, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
+import { Badge, Button, DataTable, Dialog, EmptyState, FloatingInput, FloatingTextarea, PageHeader, RowActions, Skeleton, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
 import { Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { projectSchema } from './validation'
 
 interface RecordLifecycle { status: 'Active' | 'Archived' | 'Deleted'; archivedAt?: string | null; deletedAt?: string | null; deletionReason?: string | null }
 function LifecycleBadge({ lifecycle }: { lifecycle: RecordLifecycle }) {
@@ -31,6 +32,7 @@ export function ProjectsPage() {
   const [editing, setEditing] = useState<Project | null | undefined>(undefined)
   const [viewing, setViewing] = useState<Project>()
   const [error, setError] = useState<string>()
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const query = useQuery({ queryKey: ['projects', 'active'], queryFn: () => customFetch<ProjectPage>('/api/v1/projects?page=1&pageSize=100&lifecycle=active', { method: 'GET' }) })
   const access = useQuery({ queryKey: ['access'], queryFn: () => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET' }) })
   const save = useMutation({
@@ -48,22 +50,29 @@ export function ProjectsPage() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (save.isPending) return
     setError(undefined)
     const form = new FormData(event.currentTarget)
-    save.mutate({ id: editing?.id, name: String(form.get('name')), description: String(form.get('description') ?? '') })
+    const result = projectSchema.safeParse({ name: String(form.get('name') ?? ''), description: String(form.get('description') ?? '') })
+    if (!result.success) {
+      setFieldErrors(Object.fromEntries(result.error.issues.map((issue) => [String(issue.path[0]), issue.message])))
+      return
+    }
+    setFieldErrors({})
+    save.mutate({ id: editing?.id, ...result.data })
   }
 
-  const openCreate = () => { setError(undefined); setEditing(null) }
+  const openCreate = () => { setError(undefined); setFieldErrors({}); setEditing(null) }
   const actionsFor = (project: Project): RowAction[] => [
     { label: t('View'), icon: 'view', onSelect: () => setViewing(project) },
-    { label: t('Edit'), icon: 'edit', onSelect: () => { setError(undefined); setEditing(project) } },
+    { label: t('Edit'), icon: 'edit', onSelect: () => { setError(undefined); setFieldErrors({}); setEditing(project) } },
     { label: t('Archive'), icon: 'archive', onSelect: () => changeLifecycle.mutate({ id: project.id, action: 'archive' }) },
   ]
   const columns: DataTableColumn<Project>[] = [
     { id: 'name', header: t('Project'), cell: (project) => <div><strong>{project.name}</strong><small>{project.description}</small></div>, sortValue: (project) => project.name, searchValue: (project) => `${project.name} ${project.description}`, hideable: false },
     { id: 'status', header: t('Status'), cell: (project) => <LifecycleBadge lifecycle={project.lifecycle} />, sortValue: (project) => project.lifecycle.status },
     { id: 'created', header: t('Created'), cell: (project) => formatDate(project.createdAt), sortValue: (project) => new Date(project.createdAt) },
-    { id: 'actions', header: '', cell: (project) => <RowActions label={`${t('Actions for')} ${project.name}`} actions={actionsFor(project)} />, hideable: false, align: 'right', width: 54 },
+    { id: 'actions', header: t('Actions'), cell: (project) => <RowActions label={`${t('Actions for')} ${project.name}`} actions={actionsFor(project)} />, hideable: false, align: 'right', width: 90 },
   ]
   return <>
     <PageHeader eyebrow={t('Application')} title={t('Projects')} description={t('Create, manage, archive, and recover organization-scoped projects.')} actions={<Button variant="primary" onClick={openCreate}><Plus size={14} /> {t('New project')}</Button>} />
@@ -72,9 +81,9 @@ export function ProjectsPage() {
     </Surface>
     <ModuleExtensionSlot point="projects.list.after-table" context={{ resultCount: query.data?.items.length ?? 0 }} permissions={access.data?.permissions} />
     <Dialog open={editing !== undefined} onOpenChange={(open) => !open && setEditing(undefined)} title={t(editing ? 'Edit project' : 'Create project')} description={t('Changes are authorized in the application layer and isolated by PostgreSQL RLS.')}>
-      <form className="dialog-form" onSubmit={submit}>
-        <label>{t('Name')}<input name="name" defaultValue={editing?.name} maxLength={120} required autoFocus /></label>
-        <label>{t('Description')}<textarea name="description" defaultValue={editing?.description} maxLength={2000} rows={5} /></label>
+      <form className="dialog-form" onSubmit={submit} noValidate aria-busy={save.isPending}>
+        <FloatingInput label={t('Name')} name="name" defaultValue={editing?.name} maxLength={120} required autoFocus disabled={save.isPending} error={fieldErrors.name ? t(fieldErrors.name) : undefined} onChange={() => setFieldErrors((current) => ({ ...current, name: '' }))} />
+        <FloatingTextarea label={t('Description')} name="description" defaultValue={editing?.description} maxLength={2000} rows={5} disabled={save.isPending} error={fieldErrors.description ? t(fieldErrors.description) : undefined} onChange={() => setFieldErrors((current) => ({ ...current, description: '' }))} />
         {error && <div className="form-error" role="alert">{error}</div>}
         <div className="dialog-actions">
           <Button type="button" variant="ghost" onClick={() => setEditing(undefined)}>{t('Cancel')}</Button>

@@ -1,3 +1,5 @@
 export * from './primitives'
 export * from './patterns'
 export * from './PasswordField'
+export * from './FloatingField'
+export * from './SearchField'

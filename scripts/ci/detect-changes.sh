@@ -23,11 +23,17 @@ classify_path() {
   local path=$1
 
   case "$path" in
+    templates/trykatch/docs/assistant/*)
+      # These approved guides are compiled resources used by the assistant runtime.
+      docs=true
+      backend=true
+      packaging=true
+      ;;
     templates/trykatch/.agents/*|templates/trykatch/docs/development/*|templates/trykatch/docs/developer-onboarding*.md|templates/trykatch/docs/first-feature*.md|templates/trykatch/docs/backend-only-http*.md|templates/trykatch/docs/ai-assisted-development.md|templates/trykatch/AGENTS.md|scripts/test-development-skills.*)
       docs=true
       packaging=true
       ;;
-    .github/workflows/ci.yml|scripts/ci/*|global.json)
+    .github/workflows/ci.yml|.github/workflows/release.yml|scripts/ci/*|scripts/lib/qualification*|scripts/release-artifacts.mjs|global.json)
       mark_all
       ;;
     docs-site/*|docs/*|README.md|CONTRIBUTING.md|SECURITY.md|templates/trykatch/docs/*|templates/trykatch/README*.md|templates/trykatch/AGENTS.md|templates/trykatch/CONTEXT.md)
@@ -130,6 +136,12 @@ fi
 
 if [[ $backend == true || $web == true || $deployment == true || $packaging == true ]]; then
   qualification=true
+fi
+
+# Backend changes can alter OpenAPI even when no frontend file was edited.
+# verify-web builds that API and regenerates clients in its own checkout.
+if [[ $backend == true ]]; then
+  web=true
 fi
 
 printf 'docs=%s\n' "$docs"

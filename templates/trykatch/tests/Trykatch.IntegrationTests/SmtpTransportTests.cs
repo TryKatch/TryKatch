@@ -3,7 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using MimeKit;
 using Shouldly;
+using Trykatch.Application.Identity;
 using Trykatch.Infrastructure.Modules.Email;
 
 namespace Trykatch.IntegrationTests;
@@ -21,10 +23,15 @@ public sealed class SmtpTransportTests
         using IHost host = CreateHost(server, security, development: security == "None");
         await host.StartAsync();
         using IServiceScope scope = host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IEmailSender>().SendAsync(new("recipient@example.test", "fixture message", "fixture body"));
+        await scope.ServiceProvider.GetRequiredService<IInvitationNotifier>().SendOrganizationInvitationAsync(
+            "recipient@example.test", "Fixture workspace", "Viewer", "https://app.example.test/invite/fixture");
         server.ReceivedMessage.ShouldBeTrue();
         server.Authenticated.ShouldBeTrue();
         server.UsedTls.ShouldBe(security != "None");
+        using MemoryStream content = new(System.Text.Encoding.UTF8.GetBytes(server.MessageData.ShouldNotBeNull()));
+        using MimeMessage message = MimeMessage.Load(content);
+        message.TextBody.ShouldNotBeNull().ShouldContain("Workspace role: Viewer");
+        message.HtmlBody.ShouldNotBeNull().ShouldContain("Workspace role: <strong>Viewer</strong>");
     }
 
     [TestMethod]

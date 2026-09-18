@@ -2,7 +2,7 @@
 
 Date: 2026-09-11  
 Audit baseline: `452989412f48cd79985b5bc72dc8472a08e4518a`  
-Status: planned; implementation and release evidence are not implied by this document.
+Status: implementation in progress; reconciled against Trykatch 0.1.0-preview.25 on 2026-09-17. See the [finding-to-PR evidence ledger](../enterprise-foundation-evidence.md) for shipped controls and remaining gates.
 
 ## 1. Outcome, scope and evidence
 
@@ -47,7 +47,7 @@ Create an `Enterprise foundation hardening` tracking issue during implementation
 | 15 | `test/production-recovery-qualification` | 05–14 | Operational proof |
 | 16 | `chore/enterprise-release-candidate` | 01–15 | Publication |
 
-Every row starts Open. Work with no dependency may proceed independently. Integrate related security changes before beginning large structural refactors so review remains focused.
+Every row started Open at the audit baseline; current status is recorded in the [evidence ledger](../enterprise-foundation-evidence.md). Work with no dependency may proceed independently. Integrate related security changes before beginning large structural refactors so review remains focused.
 
 All implementation PRs target `develop`. Keep it the default branch; protect both `develop` and `main`. Delete merged short-lived branches only. Promote reviewed integration batches to `main` through PRs. No automatic stable NuGet release merely because a promotion merges.
 
@@ -249,18 +249,20 @@ Promote reviewed `develop` to protected `main`, qualify package bytes and publis
 
 ## 5. Audit closure checklist
 
-- [ ] 01: suspended platform authority revoked.
-- [ ] 02: target privilege boundaries and final administrators protected.
-- [ ] 03: MFA secrets and sensitive operations require verified assurance.
-- [ ] 04: credentials excluded from logs, persistence and artifacts.
+Reconciled on 2026-09-17 against preview.25. Checked rows denote released foundation fixes with linked regression evidence, not deployed-product certification. Unchecked rows are partial or open; they do not imply all existing implementation is defective. See the [ledger](../enterprise-foundation-evidence.md) for each row's scope, original PR/commit, tests and residual qualification. In particular, item 10's implemented core is checked in tracking issue #64, but its complete cross-platform/IDE acceptance remains open here.
+
+- [x] 01: suspended platform authority revoked.
+- [x] 02: target privilege boundaries and final administrators protected.
+- [x] 03: MFA secrets and sensitive operations require verified assurance.
+- [x] 04: credentials excluded from logs, persistence and artifacts.
 - [x] 05: production keys encrypted and mail TLS enforced.
-- [ ] 06: business state and audit intent atomic before success.
-- [ ] 07: outbox recovers safely with documented replay semantics.
+- [x] 06: business state and audit intent atomic before success.
+- [x] 07: outbox recovers safely with documented replay semantics.
 - [ ] 08: races/concurrency controlled and queries bounded.
 - [ ] 09: diagnostic routes/outcomes accurate and privacy maintained.
 - [ ] 10: clean generated project and first CI reproducible.
 - [ ] 11: API dependencies and exact release artifacts qualified.
-- [ ] 12: only operational tenancy modes offered.
+- [x] 12: only operational tenancy modes offered.
 - [ ] 13: frontend security/accessibility/i18n journeys qualified.
 - [ ] 14: feature seams and documentation reconciled.
 - [ ] 15: accepted recovery/capacity targets proven.

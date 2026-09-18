@@ -40,6 +40,8 @@ jobs:
           node scripts/ci/test-first-feature-assertions.mjs
           node scripts/ci/test-template-payload-assertion.mjs
           node scripts/ci/test-blueprint-dialog-refresh.mjs
+          node --test scripts/ci/test-release-artifacts.mjs
+          node --test scripts/ci/test-generated-reproducibility.mjs
           bash scripts/ci/check-docs-required.sh "$BASE_SHA" "$HEAD_SHA"
           bash scripts/ci/detect-changes.sh "$BASE_SHA" "$HEAD_SHA" | tee -a "$GITHUB_OUTPUT"
 
@@ -69,7 +71,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.3xx
           cache: true
           cache-dependency-path: templates/trykatch/**/packages.lock.json
       # Aspire's AppHost lock contains an SDK-runtime-specific dashboard package.
@@ -105,6 +107,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.3xx
+      - name: Build API contracts in this checkout before client generation
+        run: dotnet build templates/trykatch/src/API/Trykatch.Api/Trykatch.Api.csproj -c Release -warnaserror
       - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: 10.17.1
@@ -129,6 +136,10 @@ jobs:
             fi
           done
       - run: pnpm --dir templates/trykatch/web --filter @trykatch/web exec playwright install --with-deps chromium
+      - name: Build isolated UI catalogue and run interactions and accessibility
+        run: |
+          pnpm --dir templates/trykatch/web storybook:build
+          pnpm --dir templates/trykatch/web storybook:test
       - run: pnpm --dir templates/trykatch/web --filter @trykatch/web test:e2e
       - run: pnpm --dir templates/trykatch/web audit --audit-level high
 
@@ -178,11 +189,18 @@ jobs:
     needs: changes
     if: needs.changes.outputs.packaging == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      artifact-id: ${{ steps.candidate-upload.outputs.artifact-id }}
+      version: ${{ steps.candidate.outputs.version }}
+    env:
+      TRYKATCH_QUALIFICATION_PACKAGES: ${{ github.workspace }}/artifacts/ci-candidate/packages
+      TRYKATCH_QUALIFICATION_MANIFEST: ${{ github.workspace }}/artifacts/ci-candidate/qualification.json
+      TRYKATCH_QUALIFICATION_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.3xx
           cache: true
           cache-dependency-path: templates/trykatch/**/packages.lock.json
       - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
@@ -202,7 +220,49 @@ jobs:
         run: bash scripts/test-federation-module.sh
       - name: Verify distributable artifact boundaries
         run: bash scripts/test-artifact-boundaries.sh --runtime
+      - name: Prepare exact candidate packages for matrix and transport tests
+        id: candidate
+        run: |
+          version=$(cat RELEASE_VERSION)
+          echo "TRYKATCH_QUALIFICATION_VERSION=$version" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          dotnet pack Trykatch.Templates.csproj -c Release -o "$TRYKATCH_QUALIFICATION_PACKAGES" -p:PackageVersion="$version"
+          dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release -o "$TRYKATCH_QUALIFICATION_PACKAGES" -p:PackageVersion="$version"
+          # Source CI is still running: this stays a candidate, never a release attestation.
+          node scripts/release-artifacts.mjs create "$TRYKATCH_QUALIFICATION_PACKAGES" "$TRYKATCH_QUALIFICATION_MANIFEST" "$version" "$GITHUB_SHA" "$GITHUB_RUN_ID" 0
       - run: bash scripts/test-template.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: candidate-upload
+        with:
+          name: trykatch-ci-candidate-${{ github.run_attempt }}
+          path: artifacts/ci-candidate
+          retention-days: 1
+          if-no-files-found: error
+
+  verify-release-transfer:
+    needs: verify-package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.verify-package.outputs.artifact-id }}
+          merge-multiple: true
+          path: artifacts/downloaded-candidate
+          digest-mismatch: error
+      - name: Verify exact downloaded bytes and prove candidates cannot be published
+        env:
+          CANDIDATE_VERSION: ${{ needs.verify-package.outputs.version }}
+        run: |
+          node scripts/release-artifacts.mjs verify artifacts/downloaded-candidate/packages artifacts/downloaded-candidate/qualification.json "$CANDIDATE_VERSION" "$GITHUB_SHA" "$GITHUB_RUN_ID"
+          if denial=$(node scripts/release-artifacts.mjs verify artifacts/downloaded-candidate/packages artifacts/downloaded-candidate/qualification.json "$CANDIDATE_VERSION" "$GITHUB_SHA" "$GITHUB_RUN_ID" --require-qualified --source-ci-run-id 0 2>&1); then
+            echo 'An unqualified CI candidate was unexpectedly accepted for publication.' >&2
+            exit 1
+          fi
+          grep -Fq 'Unqualified packages cannot be published.' <<< "$denial"
 
   verify-business-blueprint:
     needs: changes
@@ -217,7 +277,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.3xx
       - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: 10.17.1
@@ -240,7 +300,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.3xx
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
@@ -261,7 +321,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.3xx
       - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: 10.17.1
@@ -326,6 +386,7 @@ jobs:
       - verify-web-image
       - verify-migrator
       - verify-package
+      - verify-release-transfer
       - verify-generated-application
       - verify-business-blueprint
       - verify-first-feature

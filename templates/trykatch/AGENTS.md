@@ -25,6 +25,7 @@ Read only the guides needed for the change. A small fix does not need a new spec
 - `Organization` is the customer-facing term. Tenant is only the technical isolation mechanism.
 - Organization-scoped requests cross authentication, workspace resolution, permission authorization, and a transaction that sets PostgreSQL `app.organization_id` and `app.actor_id` before data access.
 - Browser code uses same-origin HttpOnly cookies and antiforgery. Never place access or refresh tokens in React storage.
+- Every frontend task must consult [Storybook](docs/storybook.md) and relevant colocated stories first, reuse actual components and branding, and maintain coverage of changed visual behavior, including applicable validation and failure states. Verify interactions/accessibility and browser layout; mocks are not backend security evidence. Skip Storybook in backend-only applications.
 - Platform authorization and organization authorization are separate permission catalogs.
 - Business writes belong in focused application use cases, not controllers or React components.
 - Generated OpenAPI clients and `docs/generated/assistant-contract.json` are machine-owned.
@@ -54,8 +55,9 @@ Each business module has Domain, Application, IntegrationEvents, Presentation, a
 2. Build the solution to regenerate OpenAPI 3.1.
 3. If `web/package.json` exists, run `corepack pnpm --dir web generate` to regenerate the TanStack client and assistant contract. Backend-only applications build OpenAPI into the API project's `obj/openapi`; skip frontend commands.
 4. Opt an operation into AI tooling only through `AssistantToolDescriptor` on its owning module.
-5. Keep the assistant catalog deny-by-default. Its confirmation flag is metadata for a future adapter, not a running approval system. Product assistants require a separate adapter and runtime confirmation flow; see [AI-assisted development](docs/ai-assisted-development.md).
+5. Keep the assistant catalog deny-by-default. Optional runtime execution requires an explicitly registered `IReadOnlyAssistantTool` adapter and caller permission. Its confirmation flag is metadata, not a running approval system; all writes are disabled in v1. See [AI-assisted development](docs/ai-assisted-development.md).
 6. Use `module facts [module-id]` for validated installed ownership, permission, route, extension and assistant declarations plus source entrypoints. Treat declarations as metadata, not permission grants or proof an adapter exists.
+7. Keep inference behind `Microsoft.Extensions.AI.IChatClient`. Provider wire formats belong in adapters, not module tools or the runtime. Provider/model selection is explicit; never add fallback, automatic tool invocation or endpoint selection from user input. See [ADR 0013](docs/adr/0013-provider-neutral-assistant.md).
 
 ## Verification
 
