@@ -21,7 +21,7 @@ const meta = {
   title: 'Forms/Floating fields', component: FloatingInput,
   args: { label: 'Email address', type: 'email', autoComplete: 'email', required: true },
   decorators: [(Story) => <Surface style={{ padding: 24, maxWidth: 520 }}><Story /></Surface>],
-  parameters: { docs: { description: { component: 'Shared branded floating-label controls. Labels move on focus and remain above filled/autofilled values. Labels are real associated HTML labels—not placeholders. Provide translated label, help and error messages; errors are linked with aria-describedby and aria-invalid. Date/time labels always float. Use native selects and file pickers separately.' } } },
+  parameters: { docs: { description: { component: 'Shared branded floating-label controls. Labels move on focus and remain above filled/autofilled values. Labels are real associated HTML labels—not placeholders. Provide translated label, help and error messages; errors are linked with aria-describedby and aria-invalid. Date/time labels always float. Use FloatingSelect for branded dropdowns and native file pickers separately.' } } },
 } satisfies Meta<typeof FloatingInput>
 export default meta
 type Story = StoryObj<typeof meta>

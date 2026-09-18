@@ -8,6 +8,8 @@ The first runtime accepted OpenAI-shaped JSON messages and registered one fixed 
 
 ## Decision
 
+Organization-owned UI subscription configuration extends the original operator-only setup through [ADR 0014](0014-organization-ai-provider-settings.md). Protocol adapters and read-tool boundaries below remain unchanged; prompts never select destinations.
+
 `AssistantRuntime` consumes `Microsoft.Extensions.AI.Abstractions`' `IChatClient`, `ChatMessage`, `ChatResponse` and function content types. It advertises non-invocable `AIFunctionDeclaration` metadata, not callable `AIFunction` instances. Trykatch retains orchestration, permission rechecks, raw/schema argument validation, four-read bounds and server-produced tool results. No automatic function-invocation pipeline is installed.
 
 Three built-in adapters translate protocols: OpenAI Responses, Ollama `/api/chat`, and configurable Chat Completions. The latter supports DeepSeek UAT and other compatible endpoints without a per-vendor runtime fork. Provider-private reasoning/continuation state stays in the adapter's message `RawRepresentation`; full serialized wire requests are capped to prevent that private state bypassing context bounds. Adapters retain raw argument JSON as provider-neutral metadata before dictionary conversion, so duplicate keys cannot bypass runtime validation. Standard third-party clients may supply structured function arguments without that metadata.

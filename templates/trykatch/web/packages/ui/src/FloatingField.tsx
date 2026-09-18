@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
+import { useId, type InputHTMLAttributes, type ReactNode, type Ref, type TextareaHTMLAttributes } from 'react'
 import { cn } from './primitives'
 
 interface FieldPresentation {
@@ -35,7 +35,9 @@ export function FloatingInput({ label, error, description, leadingIcon, trailing
   </div>
 }
 
-export type FloatingTextareaProps = FieldPresentation & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'placeholder'>
+export type FloatingTextareaProps = FieldPresentation & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'placeholder'> & {
+  ref?: Ref<HTMLTextAreaElement>
+}
 
 export function FloatingTextarea({ label, error, description, id: inputId, className, required, 'aria-describedby': describedBy, ...props }: FloatingTextareaProps) {
   const generatedId = useId()

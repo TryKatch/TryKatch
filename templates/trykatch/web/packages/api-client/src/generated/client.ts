@@ -68,6 +68,8 @@ import type {
   ModuleDto,
   MyOrganizationDto,
   OrganizationAccessResponse,
+  OrganizationAiConfiguration,
+  OrganizationAiConnectionResult,
   OrganizationDto,
   OrganizationsListParams,
   OutboxListFailuresParams,
@@ -99,10 +101,12 @@ import type {
   SaveRoleCommand,
   SelectWorkspaceRequest,
   SessionResponse,
+  TestOrganizationAiConfiguration,
   UpdateAccountProfileRequest,
   UpdateDocumentRequest,
   UpdateInvitationCommand,
   UpdateMembershipCommand,
+  UpdateOrganizationAiConfiguration,
   UpdateOrganizationRequest,
   UploadDocumentForm,
   WorkspaceOverview
@@ -6301,6 +6305,283 @@ export const useOrganizationsReactivate = <TError = unknown,
         TContext
       > => {
       return useMutation(getOrganizationsReactivateMutationOptions(options), queryClient);
+    }
+
+export const getOrganizationSettingsAiGetUrl = () => {
+
+
+
+
+  return `/api/v1/organization-settings/ai`
+}
+
+/**
+ * @summary Ai get organization settings
+ */
+export const organizationSettingsAiGet = async ( options?: Parameters<typeof customFetch>[1]): Promise<OrganizationAiConfiguration> => {
+
+  return customFetch<OrganizationAiConfiguration>(getOrganizationSettingsAiGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getOrganizationSettingsAiGetQueryKey = () => {
+    return [
+    `/api/v1/organization-settings/ai`
+    ] as const;
+    }
+
+
+export const getOrganizationSettingsAiGetQueryOptions = <TData = Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getOrganizationSettingsAiGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof organizationSettingsAiGet>>> = ({ signal }) => organizationSettingsAiGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type OrganizationSettingsAiGetQueryResult = NonNullable<Awaited<ReturnType<typeof organizationSettingsAiGet>>>
+export type OrganizationSettingsAiGetQueryError = unknown
+
+
+export function useOrganizationSettingsAiGet<TData = Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof organizationSettingsAiGet>>,
+          TError,
+          Awaited<ReturnType<typeof organizationSettingsAiGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOrganizationSettingsAiGet<TData = Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof organizationSettingsAiGet>>,
+          TError,
+          Awaited<ReturnType<typeof organizationSettingsAiGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOrganizationSettingsAiGet<TData = Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Ai get organization settings
+ */
+
+export function useOrganizationSettingsAiGet<TData = Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof organizationSettingsAiGet>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getOrganizationSettingsAiGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getOrganizationSettingsAiUpdateUrl = () => {
+
+
+
+
+  return `/api/v1/organization-settings/ai`
+}
+
+/**
+ * @summary Ai update organization settings
+ */
+export const organizationSettingsAiUpdate = async (updateOrganizationAiConfiguration: UpdateOrganizationAiConfiguration, options?: Parameters<typeof customFetch>[1]): Promise<OrganizationAiConfiguration> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<OrganizationAiConfiguration>(getOrganizationSettingsAiUpdateUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateOrganizationAiConfiguration)
+  }
+);}
+
+
+
+
+
+export const getOrganizationSettingsAiUpdateMutationKey = () => ['organizationSettingsAiUpdate'] as const;
+
+export const getOrganizationSettingsAiUpdateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof organizationSettingsAiUpdate>>, TError,OrganizationSettingsAiUpdateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof organizationSettingsAiUpdate>>, TError,OrganizationSettingsAiUpdateMutationVariables, TContext> => {
+
+const mutationKey = getOrganizationSettingsAiUpdateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof organizationSettingsAiUpdate>>, OrganizationSettingsAiUpdateMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  organizationSettingsAiUpdate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OrganizationSettingsAiUpdateMutationResult = NonNullable<Awaited<ReturnType<typeof organizationSettingsAiUpdate>>>
+    export type OrganizationSettingsAiUpdateMutationBody = UpdateOrganizationAiConfiguration
+    export type OrganizationSettingsAiUpdateMutationError = unknown
+    export type OrganizationSettingsAiUpdateMutationVariables = {data: UpdateOrganizationAiConfiguration}
+
+    /**
+ * @summary Ai update organization settings
+ */
+export const useOrganizationSettingsAiUpdate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof organizationSettingsAiUpdate>>, TError,OrganizationSettingsAiUpdateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof organizationSettingsAiUpdate>>,
+        TError,
+        OrganizationSettingsAiUpdateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getOrganizationSettingsAiUpdateMutationOptions(options), queryClient);
+    }
+
+export const getOrganizationSettingsAiTestUrl = () => {
+
+
+
+
+  return `/api/v1/organization-settings/ai/test`
+}
+
+/**
+ * @summary Ai test organization settings
+ */
+export const organizationSettingsAiTest = async (testOrganizationAiConfiguration: TestOrganizationAiConfiguration, options?: Parameters<typeof customFetch>[1]): Promise<OrganizationAiConnectionResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<OrganizationAiConnectionResult>(getOrganizationSettingsAiTestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(testOrganizationAiConfiguration)
+  }
+);}
+
+
+
+
+
+export const getOrganizationSettingsAiTestMutationKey = () => ['organizationSettingsAiTest'] as const;
+
+export const getOrganizationSettingsAiTestMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof organizationSettingsAiTest>>, TError,OrganizationSettingsAiTestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof organizationSettingsAiTest>>, TError,OrganizationSettingsAiTestMutationVariables, TContext> => {
+
+const mutationKey = getOrganizationSettingsAiTestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof organizationSettingsAiTest>>, OrganizationSettingsAiTestMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  organizationSettingsAiTest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OrganizationSettingsAiTestMutationResult = NonNullable<Awaited<ReturnType<typeof organizationSettingsAiTest>>>
+    export type OrganizationSettingsAiTestMutationBody = TestOrganizationAiConfiguration
+    export type OrganizationSettingsAiTestMutationError = unknown
+    export type OrganizationSettingsAiTestMutationVariables = {data: TestOrganizationAiConfiguration}
+
+    /**
+ * @summary Ai test organization settings
+ */
+export const useOrganizationSettingsAiTest = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof organizationSettingsAiTest>>, TError,OrganizationSettingsAiTestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof organizationSettingsAiTest>>,
+        TError,
+        OrganizationSettingsAiTestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getOrganizationSettingsAiTestMutationOptions(options), queryClient);
     }
 
 export const getOutboxListFailuresUrl = (params?: OutboxListFailuresParams,) => {

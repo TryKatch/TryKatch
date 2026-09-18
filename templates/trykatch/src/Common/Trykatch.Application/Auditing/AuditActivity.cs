@@ -5,6 +5,7 @@ namespace Trykatch.Application.Auditing;
 
 public static class AuditActions
 {
+    public const string OrganizationAiUpdated = "organization.ai.updated";
     public const string ProjectCreated = "project.created";
     public const string ProjectUpdated = "project.updated";
     public const string ProjectArchived = "project.archived";
@@ -64,6 +65,7 @@ public static class AuditEventDefinitions
 {
     private static readonly Dictionary<string, AuditEventDefinition> Definitions = new(StringComparer.Ordinal)
     {
+        [AuditActions.OrganizationAiUpdated] = new(AuditActions.OrganizationAiUpdated, "AI configuration updated", "Organization", "{actor} changed AI activation for {target}.", "Warning"),
         [AuditActions.ProjectCreated] = new(AuditActions.ProjectCreated, "Project created", "Projects", "{actor} created {target}."),
         [AuditActions.ProjectUpdated] = new(AuditActions.ProjectUpdated, "Project updated", "Projects", "{actor} updated {target}."),
         [AuditActions.ProjectArchived] = new(AuditActions.ProjectArchived, "Project archived", "Projects", "{actor} archived {target}.", "Warning"),

@@ -32,7 +32,7 @@ Lorsque le SMTP facultatif est configuré, l’e-mail d’invitation affiche aus
 
 Ouvrez **Gestion des utilisateurs → Rôles** pour consulter les rôles système ou créer un rôle personnalisé. Les rôles système sont en lecture seule ; les rôles personnalisés hors de votre périmètre d’attribution ne peuvent pas être modifiés.
 
-Dans l’éditeur, développez un module pour consulter ses permissions. La recherche ouvre les modules correspondants et **Sélection uniquement** permet de vérifier les droits avant l’enregistrement sans perdre les autres sélections. Chaque module affiche le nombre de permissions sélectionnées. Les droits sensibles restent signalés et les permissions que vous ne pouvez pas accorder sont désactivées. Les commandes de sélection s’appliquent aux permissions actuellement visibles.
+Dans l’éditeur, développez un module pour consulter ses permissions. La recherche ouvre les modules correspondants et **Sélection uniquement** permet de vérifier les droits avant l’enregistrement sans perdre les autres sélections. Chaque module affiche le nombre de permissions sélectionnées. Les droits sensibles restent signalés et les permissions que vous ne pouvez pas accorder sont désactivées. Les commandes de sélection par module s’appliquent aux permissions actuellement visibles. **Effacer la sélection** supprime explicitement tous les droits sélectionnés, y compris ceux masqués.
 
 Ces contrôles facilitent le choix des droits ; le serveur reste responsable de l’application des autorisations.
 

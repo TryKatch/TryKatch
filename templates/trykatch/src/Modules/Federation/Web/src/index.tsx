@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch } from '@trykatch/api-client'
 import { defineWebModule } from '@trykatch/module-sdk'
-import { Badge, Button, Dialog, EmptyState, PageHeader, PasswordField, Skeleton, Surface } from '@trykatch/ui'
+import { Badge, Button, Dialog, EmptyState, FloatingInput, PageHeader, PasswordField, Skeleton, Surface } from '@trykatch/ui'
 import { KeyRound, Plus, ShieldCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import './styles.css'
@@ -49,9 +49,9 @@ function SingleSignOnPage() {
     </Surface>
     <Dialog open={createOpen} onOpenChange={setCreateOpen} title="Add an SSO connection" description="Secrets are encrypted and cannot be read back.">
       <form className="federation-form" onSubmit={submit}>
-        <label>Connection name<input name="name" minLength={2} maxLength={120} required autoFocus /></label>
-        <label>Issuer URL<input name="issuer" type="url" placeholder="https://identity.example.com/realms/company" required /></label>
-        <label>Client ID<input name="clientId" minLength={2} maxLength={240} autoComplete="off" required /></label>
+        <FloatingInput label="Connection name" name="name" minLength={2} maxLength={120} required autoFocus />
+        <FloatingInput label="Issuer URL" name="issuer" type="url" description="https://identity.example.com/realms/company" required />
+        <FloatingInput label="Client ID" name="clientId" minLength={2} maxLength={240} autoComplete="off" required />
         <PasswordField label="Client secret" name="clientSecret" autoComplete="new-password" visibilityLabel="client secret" required />
         {create.error && <div className="form-error" role="alert">{create.error.message}</div>}
         <div className="dialog-actions"><Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit" variant="primary" disabled={create.isPending}>{create.isPending ? 'Adding…' : 'Add connection'}</Button></div>

@@ -17,6 +17,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Settings,
   Sun,
   UserRound,
   Users,
@@ -38,6 +39,7 @@ const coreNavigation: readonly WorkspaceNavigation[] = [
   { id: 'core.overview', section: 'Workspace', order: 10, to: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
   { id: 'core.user-management', section: 'Administration', order: 10, to: '/user-management', label: 'User Management', icon: Users, anyPermissions: ['members.manage', 'roles.manage'] },
   { id: 'core.audit', section: 'Administration', order: 20, to: '/audit', label: 'Audit', icon: Activity, requiredPermission: 'audit.read' },
+  { id: 'core.settings', section: 'Administration', order: 30, to: '/settings', label: 'Settings', icon: Settings, anyPermissions: ['organizations.read', 'organizations.manage'] },
   { id: 'core.archive', section: 'Recovery', order: 10, to: '/archive', label: 'Archive', icon: ArchiveRestore, anyPermissions: ['members.manage', 'roles.manage', ...workspaceModules.archiveResources.map((resource) => resource.managePermission)] },
 ]
 const allNavigation = [...coreNavigation, ...workspaceModules.navigationFor('workspace')]

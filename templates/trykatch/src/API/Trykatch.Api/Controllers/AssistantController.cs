@@ -20,10 +20,13 @@ public sealed class AssistantController(AssistantRuntime runtime, AssistantConve
     IOptions<AssistantOptions> options, ILogger<AssistantController> logger) : ControllerBase
 {
     [HttpGet("status", Name = "Assistant_Status")]
-    public async Task<ActionResult<AssistantStatus>> Status(CancellationToken cancellationToken) =>
-        Ok(new AssistantStatus(options.Value.Enabled, true,
-            options.Value.Enabled ? (await runtime.AvailableToolsAsync(cancellationToken)).Select(tool => tool.Name).ToArray() : [],
-            options.Value.Enabled && runtime.HelpAvailable));
+    public async Task<ActionResult<AssistantStatus>> Status(CancellationToken cancellationToken)
+    {
+        bool enabled = await runtime.IsEnabledAsync(cancellationToken);
+        return Ok(new AssistantStatus(enabled, true,
+            enabled ? (await runtime.AvailableToolsAsync(cancellationToken)).Select(tool => tool.Name).ToArray() : [],
+            enabled && runtime.HelpAvailable));
+    }
 
     [HttpGet("guides", Name = "Assistant_Guides")]
     public ActionResult<AssistantGuideSource[]> Guides() => Ok(knowledge.List());
@@ -43,7 +46,8 @@ public sealed class AssistantController(AssistantRuntime runtime, AssistantConve
             {
                 permissions = organization.Permissions.Order(StringComparer.Ordinal).ToArray(),
                 tools = (await runtime.AvailableToolsAsync(cancellationToken)).OrderBy(tool => tool.Name, StringComparer.Ordinal).ToArray(),
-                options.Value.Provider, options.Value.Model, options.Value.Endpoint, options.Value.ReasoningEffort, runtime.KnowledgeRevision
+                options.Value.Provider, options.Value.Model, options.Value.Endpoint, options.Value.ReasoningEffort, runtime.KnowledgeRevision,
+                activationVersion = await runtime.ActivationVersionAsync(cancellationToken)
             })));
             AssistantConversation state = conversations.Read(request.ConversationToken,
                 new(organization.ActorId, organization.OrganizationId, organization.MembershipId, fingerprint));

@@ -5,9 +5,12 @@ namespace Trykatch.Modules.AspNetCore.Assistant;
 
 public static class AssistantProviders
 {
+    public static bool IsValidTimeout(int timeoutMs) => timeoutMs is >= 1_000 and <= 60_000;
+
     public static bool IsValid(AssistantOptions options)
     {
         if (!options.Enabled) return true;
+        if (!IsValidTimeout(options.TimeoutMs)) return false;
         if (string.IsNullOrWhiteSpace(options.Model) || options.Model.Length > 120) return false;
         if (options.ReasoningEffort.Length > 0 && (options.Provider != "chat-completions"
             || options.ReasoningEffort is not ("none" or "minimal" or "low" or "medium" or "high" or "xhigh" or "max"))) return false;
@@ -33,7 +36,8 @@ public static class AssistantProviders
         };
     }
 
-    // Only operator-owned configuration selects destinations; prompts and tool arguments never do.
+    // Operators select platform destinations or enroll tenant destinations for the authorized Settings UI.
+    // Prompts and tool arguments never select destinations; tenant policy is stricter than this adapter.
     // Root URLs, or /v1 for compatible chat endpoints. Cleartext is loopback-only.
     private static bool IsValidEndpoint(string endpoint, bool allowVersionPath = false) => Uri.TryCreate(endpoint, UriKind.Absolute, out Uri? uri)
         && !string.IsNullOrEmpty(uri.Host) && uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0

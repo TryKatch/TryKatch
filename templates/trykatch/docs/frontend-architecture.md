@@ -12,7 +12,7 @@ Trykatch keeps reusable interface behavior in the smallest package that can own 
 
 ## Organization role editor
 
-User Management keeps roles in the shared `DataTable`. System roles are read-only; roles outside the current user's grant boundary cannot be edited. `RoleEditorDialog` groups the backend permission catalog into expandable modules with selection counts, search, and a selected-only review filter. Selection controls act on visible permissions; hidden selections are preserved. Sensitive grants remain marked and ungrantable permissions remain disabled. These UI affordances do not replace server authorization.
+User Management keeps roles in the shared `DataTable`. System roles are read-only; roles outside the current user's grant boundary cannot be edited. `RoleEditorDialog` groups the backend permission catalog into expandable modules with selection counts, search, and a selected-only review filter. Module selection controls act on visible permissions; hidden selections are preserved. Clear selection explicitly clears all selected grants, including hidden ones. Sensitive grants remain marked and ungrantable permissions remain disabled. These UI affordances do not replace server authorization.
 
 Keep this editor's copy in the English/French message catalog and use the existing branded dialog, buttons, badges, focus states, and responsive layout.
 

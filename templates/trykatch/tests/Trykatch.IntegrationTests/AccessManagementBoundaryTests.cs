@@ -507,6 +507,60 @@ public sealed class AccessManagementBoundaryTests
     }
 
     [TestMethod]
+    public async Task OrganizationAiSettingsRejectPreviouslyResolvedRevokedManagementAuthority()
+    {
+        await using AccessHost host = await AccessHost.StartAsync();
+        using HttpClient administrator = await host.SignInAsync(AccessHost.AdministratorEmail);
+        using HttpClient owner = await host.CreateOrganizationOwnerAsync(administrator);
+        using HttpClient manager = await host.DelegateOrganizationManagementAsync(owner);
+        JsonElement managerRecord = await AccessHost.OrganizationMemberAsync(owner, "organization-manager@trykatch.test");
+        Guid managerId = managerRecord.GetProperty("id").GetGuid();
+        Guid actorId = managerRecord.GetProperty("userId").GetGuid();
+        Guid organizationId = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/access")).GetProperty("organizationId").GetGuid();
+        Guid memberRoleId = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/roles")).EnumerateArray()
+            .Single(role => role.GetProperty("name").GetString() == "Member").GetProperty("id").GetGuid();
+        await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
+        await using IOrganizationDataScope transaction = await scope.ServiceProvider.GetRequiredService<IOrganizationDataScopeFactory>()
+            .BeginAsync(organizationId, actorId, CancellationToken.None);
+        OrganizationAccess? access = await scope.ServiceProvider.GetRequiredService<IOrganizationAccessResolver>().ResolveAsync(actorId, organizationId);
+        access.ShouldNotBeNull();
+        access.Permissions.ShouldContain("organizations.manage");
+        scope.ServiceProvider.GetRequiredService<IOrganizationContextInitializer>().Initialize(access);
+        OrganizationAssistantSettings settings = scope.ServiceProvider.GetRequiredService<OrganizationAssistantSettings>();
+        var before = await settings.GetAsync(CancellationToken.None);
+        before.IsSuccess.ShouldBeTrue();
+        await AccessHost.SuccessAsync(owner, HttpMethod.Put, $"/api/v1/members/{managerId}",
+            new { membershipId = managerId, roleIds = new[] { memberRoleId }, isActive = true });
+
+        var result = await settings.SaveAsync(new(true, before.Value!.Version), CancellationToken.None);
+
+        result.ErrorCode.ShouldBe("forbidden");
+        JsonElement after = await owner.GetFromJsonAsync<JsonElement>("/api/v1/organization-settings/ai");
+        after.GetProperty("version").GetGuid().ShouldBe(before.Value.Version);
+        after.GetProperty("enabled").GetBoolean().ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task OrganizationAiSettingsAndAuditRollBackTogetherWhenAuditInsertFails()
+    {
+        await using AccessHost host = await AccessHost.StartAsync();
+        using HttpClient administrator = await host.SignInAsync(AccessHost.AdministratorEmail);
+        using HttpClient owner = await host.CreateOrganizationOwnerAsync(administrator);
+        JsonElement before = await AccessHost.SuccessAsync(owner, HttpMethod.Put, "/api/v1/organization-settings/ai",
+            new { enabled = false, expectedVersion = Guid.Empty });
+        await host.RejectAiAuditInsertsAsync();
+
+        using HttpResponseMessage failed = await AccessHost.SendAsync(owner, HttpMethod.Put, "/api/v1/organization-settings/ai",
+            new { enabled = true, expectedVersion = before.GetProperty("version").GetGuid() });
+
+        failed.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        JsonElement after = await owner.GetFromJsonAsync<JsonElement>("/api/v1/organization-settings/ai");
+        after.GetProperty("version").GetGuid().ShouldBe(before.GetProperty("version").GetGuid());
+        after.GetProperty("enabled").GetBoolean().ShouldBeFalse();
+        (await host.CountAiAuditIntentsAsync()).ShouldBe(1);
+    }
+
+    [TestMethod]
     public async Task DelegatedPlatformManagerCannotDowngradeMorePrivilegedCustomRole()
     {
         await using AccessHost host = await AccessHost.StartAsync();
@@ -710,6 +764,31 @@ public sealed class AccessManagementBoundaryTests
         public const string AdministratorEmail = "authority-admin@trykatch.test";
         private const string Password = "Local-only!Authority-Password-42";
         public IServiceProvider Services => factory.Services;
+
+        public async Task RejectAiAuditInsertsAsync()
+        {
+            // Inject a database failure at the real audit persistence boundary, not a fake store.
+            await using NpgsqlConnection connection = new(ownerConnection);
+            await connection.OpenAsync();
+            await using NpgsqlCommand command = new("""
+                CREATE FUNCTION platform.reject_test_ai_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                  IF NEW."Operation" = 'organization.ai.updated' THEN
+                    RAISE EXCEPTION 'Injected AI audit persistence failure';
+                  END IF;
+                  RETURN NEW;
+                END $$;
+                CREATE TRIGGER reject_test_ai_audit BEFORE INSERT ON platform.audit_intents
+                  FOR EACH ROW EXECUTE FUNCTION platform.reject_test_ai_audit();
+                """, connection);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        public async Task<int> CountAiAuditIntentsAsync()
+        {
+            await using PlatformDbContext database = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(ownerConnection).Options);
+            return await database.AuditIntents.CountAsync(intent => intent.Operation == "organization.ai.updated");
+        }
 
         public static async Task<AccessHost> StartAsync(IInvitationNotifier? invitationNotifier = null)
         {
