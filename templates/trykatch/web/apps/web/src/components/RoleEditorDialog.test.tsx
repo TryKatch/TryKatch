@@ -23,6 +23,35 @@ const modules: PermissionModule[] = [
 
 describe('RoleEditorDialog', () => {
   afterEach(cleanup)
+  it('initializes granted groups after the first catalog load without resetting drafts or later disclosures', () => {
+    const role = { name: 'Reader', description: '', permissions: ['projects.read'] }
+    const props = { open: true, role, isSaving: false, onOpenChange: vi.fn(), onSave: vi.fn() }
+    const { rerender } = render(<RoleEditorDialog {...props} modules={[]} isLoading />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Role name' }), { target: { value: 'Draft reader' } })
+    rerender(<RoleEditorDialog {...props} modules={modules} isLoading={false} />)
+    const projects = screen.getByRole('button', { name: 'Projects' })
+    expect(projects).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('textbox', { name: 'Role name' })).toHaveValue('Draft reader')
+    expect(screen.getByRole('checkbox', { name: /View projects/ })).toBeChecked()
+    fireEvent.click(projects)
+    rerender(<RoleEditorDialog {...props} modules={[...modules]} isLoading={false} />)
+    expect(projects).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('counts all catalog grants while keeping filtered bulk actions limited to visible permissions', () => {
+    render(<RoleEditorDialog open role={{ name: 'Reader', description: '', permissions: ['projects.read'] }} modules={modules} isLoading={false} isSaving={false} onOpenChange={vi.fn()} onSave={vi.fn()} />)
+    const projects = screen.getByRole('region', { name: 'Projects' })
+    fireEvent.click(screen.getByRole('button', { name: 'Selected only' }))
+    expect(within(projects).getByText('1 of 2 selected')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Selected only' }))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'projects.manage' } })
+    expect(within(projects).getByText('1 of 2 selected')).toBeVisible()
+    fireEvent.click(within(projects).getByRole('button', { name: 'Select module' }))
+    expect(within(projects).getByText('2 of 2 selected')).toBeVisible()
+    fireEvent.click(within(projects).getByRole('button', { name: 'Clear module' }))
+    expect(within(projects).getByText('1 of 2 selected')).toBeVisible()
+  })
+
   it('collapses modules and lets people review only selected grants without losing others', () => {
     const onSave = vi.fn()
     render(<RoleEditorDialog open role={null} modules={modules} isLoading={false} isSaving={false} onOpenChange={vi.fn()} onSave={onSave} />)
