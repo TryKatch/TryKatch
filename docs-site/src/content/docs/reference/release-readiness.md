@@ -11,7 +11,7 @@ The 2026-09-17 reconciliation covers Trykatch **0.1.0-preview.25**: release-comm
 
 ## Template release gates
 
-The coordinated target **0.1.0-preview.32** removes the Trykatch marketing landing page from newly generated React applications while retaining it on the Trykatch website. It retains the preview.31 organization settings, shared floating controls, developer onboarding and Storybook. Regression checks exercise the generated root route, packaging exclusions and source-site isolation. Availability still requires successful exact-commit main CI, sealed tag qualification and publication.
+The coordinated target **0.1.0-preview.33** makes the generated project name the default login, navigation and email brand while preserving an explicit `--display-name` override. It retains the preview.32 generated-application routing boundary plus organization settings, shared floating controls, developer onboarding and Storybook. Regression checks exercise packed React and backend-only templates, explicit custom brands and the authentication catalogue. Availability still requires successful exact-commit main CI, sealed tag qualification and publication.
 
 [Preview.29](https://github.com/TryKatch/TryKatch/releases/tag/v0.1.0-preview.29) is published with both CLI/template NuGet packages and qualified assets. Preview.30 targets its subsequently reported host-form label regression. Neither the Storybook foundation nor this focused correction completes the full catalogue roadmap or provides enterprise certification.
 
