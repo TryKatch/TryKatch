@@ -38,7 +38,10 @@ test('user help runtime and both React entry points ship alongside developer onb
       'The account-menu AI Help entry point must ship')
     assert.ok(shell.includes('AssistantChatProvider') && shell.includes('<AssistantChat />'))
     assert.ok((await read('web/apps/web/src/features/assistant/AssistantChat.tsx')).includes('conversationToken'))
-    assert.ok((await read('web/apps/web/src/router.tsx')).includes('assistant'))
+    const routerEntry = await read('web/apps/web/src/router.tsx')
+    const routerCore = await read('web/apps/web/src/router-core.tsx')
+    assert.ok(routerEntry.includes('createApplicationRouter'), 'The React entry point must compose the application router')
+    assert.ok(routerCore.includes('assistant'), 'The shared application router must retain the AI Help route')
   }
 })
 

@@ -150,6 +150,13 @@
         ".vscode/**",
         ".vercel/**",
         "web/apps/web/public/marketing/**",
+        "web/apps/web/src/router.tsx",
+        "web/apps/web/src/views/LandingPage.tsx",
+        "web/apps/web/src/views/LandingPage.test.tsx",
+        "web/apps/web/src/views/landing.stories.tsx",
+        "web/apps/web/src/components/LandingPreferencesMenu.tsx",
+        "web/apps/web/src/components/LaunchVideo.tsx",
+        "web/apps/web/e2e/landing.spec.ts",
         "**/.playwright-cli/**",
         "artifacts/**",
         "output/**",
@@ -203,6 +210,11 @@
           "exclude": ["src/Common/Trykatch.Infrastructure/Optional/Images/**"]
         }
       ]
+    },
+    {
+      "condition": "(ui == \"react\")",
+      "source": ".template.config/generated/",
+      "target": "./"
     },
     {
       "source": "./",

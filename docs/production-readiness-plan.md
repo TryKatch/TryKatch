@@ -6,7 +6,7 @@ Move Trykatch from a production-oriented pre-release template to a stable templa
 
 ## Current baseline
 
-The coordinated release target is **Trykatch 0.1.0-preview.31**, adding organization-owned AI subscription settings and shared floating controls across host and generated forms. It retains developer onboarding, provider-neutral AI Help and Storybook. Publication requires successful exact-commit main CI and sealed tag qualification; target metadata is not proof of publication. See the [release notes](releases/0.1.0-preview.31.md).
+The coordinated release target is **Trykatch 0.1.0-preview.32**, removing the Trykatch marketing landing page from newly generated React applications while retaining it on the Trykatch website. It also retains the preview.31 organization settings, shared floating controls, developer onboarding, provider-neutral AI Help and Storybook. Publication requires successful exact-commit main CI and sealed tag qualification; target metadata is not proof of publication. See the [release notes](releases/0.1.0-preview.32.md).
 
 Published **0.1.0-preview.29** introduced the branded Storybook foundation and compact floating controls. Its [qualification and publication](https://github.com/TryKatch/TryKatch/actions/runs/35318206885) succeeded and both coordinated NuGet packages became publicly available. Preview.30 addresses the subsequently reported host-form label regression; it does not close the remaining complete-catalogue or stable-readiness gates.
 
@@ -139,7 +139,7 @@ Exit criteria: CI is green, final UAT is approved, installation succeeds on all 
 
 ## Version policy
 
-- Coordinated preview target: `0.1.0-preview.31`; the preceding published package is `0.1.0-preview.30` until successful publication.
+- Coordinated preview target: `0.1.0-preview.32`; the preceding published package is `0.1.0-preview.31` until successful publication.
 - Release metadata is prepared before tagging; this version becomes available only after the release workflow publishes successfully. Consult the GitHub release and NuGet feed, not an untagged branch, for availability.
 - Preview versions may be shared for evaluation but are not represented as production-ready.
 - Release-candidate versions begin only after phases 1–7 pass.

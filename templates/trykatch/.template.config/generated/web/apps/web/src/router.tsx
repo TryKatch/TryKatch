@@ -1,7 +1,7 @@
 import { createApplicationRouter } from './router-core'
-import { LandingPage } from './views/LandingPage'
+import { LoginPage } from './views/LoginPage'
 
-export const router = createApplicationRouter(LandingPage)
+export const router = createApplicationRouter(LoginPage)
 
 declare module '@tanstack/react-router' {
   interface Register { router: typeof router }

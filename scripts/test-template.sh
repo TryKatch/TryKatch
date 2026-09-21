@@ -173,6 +173,22 @@ generate_and_build Horizon
 grep -Fq 'quay.io/minio/minio' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
   fail 'default storage-enabled template output omits the MinIO Aspire resource'
 test -d "$test_root/Horizon/web"
+test ! -e "$test_root/Horizon/web/apps/web/src/views/LandingPage.tsx" ||
+  fail 'generated React application includes the Trykatch marketing landing page'
+test ! -e "$test_root/Horizon/web/apps/web/src/components/LandingPreferencesMenu.tsx" ||
+  fail 'generated React application includes marketing-only landing preferences'
+test ! -e "$test_root/Horizon/web/apps/web/src/components/LaunchVideo.tsx" ||
+  fail 'generated React application includes the Trykatch launch video component'
+test ! -e "$test_root/Horizon/web/apps/web/src/views/landing.stories.tsx" ||
+  fail 'generated Storybook includes the Trykatch marketing landing page'
+test ! -e "$test_root/Horizon/web/apps/web/e2e/landing.spec.ts" ||
+  fail 'generated browser tests include the Trykatch marketing landing page'
+grep -Fq 'createApplicationRouter(LoginPage)' "$test_root/Horizon/web/apps/web/src/router.tsx" ||
+  fail 'generated React application does not use sign-in as its root page'
+if grep -RFq --include='*.ts' --include='*.tsx' 'github.com/TryKatch/TryKatch' "$test_root/Horizon/web/apps/web/src" ||
+  grep -RFq --include='*.ts' --include='*.tsx' 'docs.trykatch.net' "$test_root/Horizon/web/apps/web/src"; then
+  fail 'generated React application includes Trykatch marketing links'
+fi
 grep -Fq 'folder that contains `Horizon.slnx`, `src/`, `tests/`, and `web/`' "$test_root/Horizon/README.md" ||
   fail 'generated React README does not identify the application root'
 grep -Fq 'Use `trykatch start` when you want to run the application.' "$test_root/Horizon/README.md" ||
