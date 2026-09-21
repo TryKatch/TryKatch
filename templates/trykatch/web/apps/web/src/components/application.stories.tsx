@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
 import { ProductLogo } from './ProductLogo'
-import { LandingPreferencesMenu } from './LandingPreferencesMenu'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
 import { LifecycleBadge, LifecycleFilter, RecordDetailsDialog, type LifecycleScope } from './RecordLifecycle'
 import { SignOutDialog } from './SignOutDialog'
@@ -10,7 +9,7 @@ import { Activity, ArchiveRestore, FileText, FolderKanban, LayoutDashboard, Sear
 
 export default { title: 'Application UI/Shared surfaces' } satisfies Meta
 type Story = StoryObj
-export const BrandingAndPreferences: Story = { render: () => <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24 }}><ProductLogo /><LandingPreferencesMenu /><LanguageSwitcher /></div> }
+export const BrandingAndPreferences: Story = { render: () => <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24 }}><ProductLogo /><LanguageSwitcher /></div> }
 export const Icons: Story = { render: () => <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>{[Activity, ArchiveRestore, FileText, FolderKanban, LayoutDashboard, Search, ShieldCheck, Users].map((Icon, index) => <figure key={index}><Icon aria-hidden /><figcaption>{['Audit', 'Archive', 'Documents', 'Projects', 'Overview', 'Search', 'Security', 'Users'][index]}</figcaption></figure>)}</div> }
 function LifecycleExample() {
   const [value, setValue] = useState<LifecycleScope>('active')

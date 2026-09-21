@@ -15,7 +15,7 @@ corepack pnpm generate
 VITE_TRYKATCH_LAUNCH_VIDEO=true corepack pnpm dev
 ```
 
-Open the Vite URL at `/`. No backend is needed to view this marketing page. Vite enables the section only when the marketing MP4 exists; the unchanged Vercel build discovers the same asset. Set `VITE_TRYKATCH_LAUNCH_VIDEO=false` to hide it. The marketing assets are excluded from both NuGet packing and `dotnet new` generation, so generated applications do not display the promotional section, even if a developer sets the flag to `true` without supplying media.
+Open the Vite URL at `/`. No backend is needed to view this marketing page. Vite enables the section only when the marketing MP4 exists; the unchanged Vercel build discovers the same asset. Set `VITE_TRYKATCH_LAUNCH_VIDEO=false` to hide it. The NuGet template keeps this Trykatch marketing page and its assets outside generated products; a generated React application opens its own sign-in page at `/`.
 
 ## Delivery assets
 

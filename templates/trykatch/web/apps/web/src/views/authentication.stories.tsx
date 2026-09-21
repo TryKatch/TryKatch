@@ -4,7 +4,6 @@ import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { LoginPage } from './LoginPage'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { ResetPasswordPage } from './ResetPasswordPage'
-import { LandingPage } from './LandingPage'
 
 export default { title: 'Application UI/Authentication', parameters: { layout: 'fullscreen' } } satisfies Meta
 type Story = StoryObj
@@ -49,6 +48,5 @@ export const InvalidCredentials: Story = {
 }
 export const ForgotPassword: Story = { render: () => <ForgotPasswordPage /> }
 export const ResetPassword: Story = { render: () => <ResetPasswordPage /> }
-export const Landing: Story = { render: () => <LandingPage /> }
 export const FrenchSignIn: Story = { ...SignIn, globals: { locale: 'fr' } }
 export const DarkSignIn: Story = { ...SignIn, globals: { theme: 'dark' } }
