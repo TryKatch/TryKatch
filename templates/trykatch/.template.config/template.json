@@ -17,12 +17,20 @@
     "display-name": {
       "type": "parameter",
       "datatype": "string",
-      "defaultValue": "Trykatch",
-      "description": "Customer-facing product name, independent of the technical project name."
+      "defaultValue": "",
+      "description": "Customer-facing product name. Defaults to the project name when omitted."
+    },
+    "displayNameSource": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": {
+        "sourceVariableName": "display-name",
+        "fallbackVariableName": "name"
+      }
     },
     "displayNameLiteral": {
       "type": "derived",
-      "valueSource": "display-name",
+      "valueSource": "displayNameSource",
       "valueTransform": "displayNameJson",
       "replaces": "\"Trykatch Product\""
     },

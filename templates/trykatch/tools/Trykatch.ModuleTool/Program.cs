@@ -513,7 +513,7 @@ static int ShowHelp()
     Console.WriteLine();
     Console.WriteLine("Application options:");
     Console.WriteLine("  --ui <react|none>  Include the React frontend or generate a backend-only application.");
-    Console.WriteLine("  --display-name <name>  Customer-facing brand, independent of the project namespace.");
+    Console.WriteLine("  --display-name <name>  Customer-facing brand; defaults to the project name.");
     Console.WriteLine("  --email            Include SMTP email and local Mailpit support.");
     Console.WriteLine("  --storage          Include local and S3-compatible object storage.");
     Console.WriteLine("  --documents        Include spreadsheet and PDF exporters.");
@@ -539,7 +539,7 @@ static int ShowNewHelp(int exitCode = 0)
     Console.WriteLine("Options:");
     Console.WriteLine("  --output <path>     Write the application to a specific directory.");
     Console.WriteLine("  --ui <react|none>   Include the React frontend or generate a backend-only application.");
-    Console.WriteLine("  --display-name <name>  Customer-facing brand, independent of the project namespace.");
+    Console.WriteLine("  --display-name <name>  Customer-facing brand; defaults to the project name.");
     Console.WriteLine("  --email             Include SMTP email and local Mailpit support.");
     Console.WriteLine("  --storage           Include local and S3-compatible object storage.");
     Console.WriteLine("  --documents         Include spreadsheet and PDF exporters.");
