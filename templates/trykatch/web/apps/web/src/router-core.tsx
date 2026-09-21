@@ -1,0 +1,83 @@
+import { createRootRoute, createRoute, createRouter, Outlet, redirect, type RouteComponent } from '@tanstack/react-router'
+import { lazy, Suspense, type ComponentType } from 'react'
+import { AppShell } from './shell/AppShell'
+import { PlatformShell } from './shell/PlatformShell'
+import { LoginPage } from './views/LoginPage'
+import { ForgotPasswordPage } from './views/ForgotPasswordPage'
+import { ResetPasswordPage } from './views/ResetPasswordPage'
+import { workspaceModules } from './modules'
+import { ModuleProvider } from './module-system/ModuleExtensionSlot'
+import { AccountSecurityCompletionBoundary } from './components/AccountSecurityCompletion'
+
+const pages = () => import('./views/Pages')
+const DashboardPage = lazy(() => pages().then((module) => ({ default: module.DashboardPage })))
+const UserManagementPage = lazy(() => pages().then((module) => ({ default: module.UserManagementPage })))
+const AuditPage = lazy(() => pages().then((module) => ({ default: module.AuditPage })))
+const ProfilePage = lazy(() => pages().then((module) => ({ default: module.ProfilePage })))
+const PlatformOverviewPage = lazy(() => pages().then((module) => ({ default: module.PlatformOverviewPage })))
+const PlatformOrganizationsPage = lazy(() => pages().then((module) => ({ default: module.PlatformOrganizationsPage })))
+const PlatformUsersPage = lazy(() => pages().then((module) => ({ default: module.PlatformUsersPage })))
+const PlatformAuthenticationPage = lazy(() => pages().then((module) => ({ default: module.PlatformAuthenticationPage })))
+const AcceptInvitationPage = lazy(() => pages().then((module) => ({ default: module.AcceptInvitationPage })))
+const PlatformAccessActivationPage = lazy(() => pages().then((module) => ({ default: module.PlatformAccessActivationPage })))
+const ArchivePage = lazy(() => import('./features/archive/ArchivePage').then((module) => ({ default: module.ArchivePage })))
+const AssistantPage = lazy(() => import('./features/assistant/AssistantPage').then((module) => ({ default: module.AssistantPage })))
+const OrganizationSettingsPage = lazy(() => import('./views/OrganizationSettingsPage').then((module) => ({ default: module.OrganizationSettingsPage })))
+const AssistantGuidePage = lazy(() => import('./features/assistant/AssistantGuidePage').then((module) => ({ default: module.AssistantGuidePage })))
+
+function withSuspense(Page: ComponentType) {
+  return function LazyRoutePage() {
+    return <Suspense fallback={<div className="module-loading" role="status">Loading…</div>}><Page /></Suspense>
+  }
+}
+
+export function createApplicationRouter(IndexPage: RouteComponent) {
+  const rootRoute = createRootRoute({ component: () => <ModuleProvider catalog={workspaceModules}><AccountSecurityCompletionBoundary><Outlet /></AccountSecurityCompletionBoundary></ModuleProvider> })
+  const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: IndexPage })
+  const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login', component: LoginPage })
+  const forgotPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/forgot-password', component: ForgotPasswordPage })
+  const resetPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: '/reset-password', component: ResetPasswordPage })
+  const workspaceRoute = createRoute({ getParentRoute: () => rootRoute, id: '_workspace', component: AppShell })
+  const platformRoute = createRoute({ getParentRoute: () => rootRoute, path: '/dashboard', component: PlatformShell })
+  const overviewRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/overview', component: withSuspense(DashboardPage) })
+  const workspaceModuleRoutes = workspaceModules.routesFor('workspace').map((route) => createRoute({
+    getParentRoute: () => workspaceRoute,
+    path: route.path,
+    component: withSuspense(route.component),
+  }))
+  const platformModuleRoutes = workspaceModules.routesFor('platform').map((route) => createRoute({
+    getParentRoute: () => platformRoute,
+    path: route.path.slice(1),
+    component: withSuspense(route.component),
+  }))
+  const userManagementRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/user-management', component: withSuspense(UserManagementPage) })
+  const legacyTeamRoute = createRoute({ getParentRoute: () => rootRoute, path: '/team', beforeLoad: () => { throw redirect({ to: '/user-management', replace: true }) } })
+  const auditRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/audit', component: withSuspense(AuditPage) })
+  const archiveRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/archive', component: withSuspense(ArchivePage) })
+  const assistantRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/assistant', component: withSuspense(AssistantPage) })
+  const assistantGuideRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/assistant/guides/$guideId', component: withSuspense(AssistantGuidePage) })
+  const profileRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/profile', component: withSuspense(ProfilePage) })
+  const settingsRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/settings', component: withSuspense(OrganizationSettingsPage) })
+  const platformOverviewRoute = createRoute({ getParentRoute: () => platformRoute, path: '/', component: withSuspense(PlatformOverviewPage) })
+  const tenantDirectoryRoute = createRoute({ getParentRoute: () => platformRoute, path: 'tenants', component: withSuspense(PlatformOrganizationsPage) })
+  const platformUsersRoute = createRoute({ getParentRoute: () => platformRoute, path: 'users', component: withSuspense(PlatformUsersPage) })
+  const platformInvitationsRoute = createRoute({ getParentRoute: () => platformRoute, path: 'invitations', beforeLoad: () => { throw redirect({ to: '/dashboard/users', replace: true }) } })
+  const platformAuthenticationRoute = createRoute({ getParentRoute: () => platformRoute, path: 'authentication', component: withSuspense(PlatformAuthenticationPage) })
+  const platformProfileRoute = createRoute({ getParentRoute: () => platformRoute, path: 'profile', component: withSuspense(ProfilePage) })
+  const invitationRoute = createRoute({ getParentRoute: () => rootRoute, path: '/invite/$token', component: withSuspense(AcceptInvitationPage) })
+  const platformActivationRoute = createRoute({ getParentRoute: () => rootRoute, path: '/activate-access', component: withSuspense(PlatformAccessActivationPage) })
+
+  const routeTree = rootRoute.addChildren([
+    indexRoute,
+    loginRoute,
+    forgotPasswordRoute,
+    resetPasswordRoute,
+    platformRoute.addChildren([platformOverviewRoute, tenantDirectoryRoute, platformUsersRoute, platformInvitationsRoute, platformAuthenticationRoute, platformProfileRoute, ...platformModuleRoutes]),
+    legacyTeamRoute,
+    invitationRoute,
+    platformActivationRoute,
+    workspaceRoute.addChildren([overviewRoute, ...workspaceModuleRoutes, userManagementRoute, settingsRoute, auditRoute, archiveRoute, assistantRoute, assistantGuideRoute, profileRoute]),
+  ])
+
+  return createRouter({ routeTree, defaultPreload: 'intent' })
+}

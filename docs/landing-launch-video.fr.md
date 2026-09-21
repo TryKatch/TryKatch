@@ -15,7 +15,7 @@ corepack pnpm generate
 corepack pnpm dev
 ```
 
-Ouvrez l’URL Vite à `/` ; aucun backend n’est nécessaire pour cette page. Vite affiche la vidéo uniquement si le fichier `public/marketing/trykatch-launch.mp4` existe. `VITE_TRYKATCH_LAUNCH_VIDEO=false` masque la section. Les médias promotionnels sont exclus du paquet NuGet et de `dotnet new` : les produits générés n’héritent pas de cette vidéo.
+Ouvrez l’URL Vite à `/` ; aucun backend n’est nécessaire pour cette page. Vite affiche la vidéo uniquement si le fichier `public/marketing/trykatch-launch.mp4` existe. `VITE_TRYKATCH_LAUNCH_VIDEO=false` masque la section. Le modèle NuGet exclut des produits générés cette page marketing Trykatch et ses médias ; une application React générée ouvre sa propre page de connexion à `/`.
 
 Avant publication, vérifiez la lecture et la mise en page à 320, 768 et 1440 px. Les fichiers livrés sont un MP4 H.264/AAC 1920×1080 à 30 images/s et une affiche WebP. Consultez le [guide technique](landing-launch-video.md) pour leur emplacement exact.
 
