@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import axe from 'axe-core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { applicationName } from '../branding'
 import { LoginPage } from './LoginPage'
 
 const api = vi.hoisted(() => ({
@@ -18,6 +19,7 @@ describe('LoginPage', () => {
 
   it('has an accessible form', async () => {
     const { container } = render(<LoginPage navigate={() => undefined} />)
+    expect(screen.getByText(applicationName, { selector: 'strong' }).closest('a')).toHaveAttribute('href', '/')
     expect(screen.getByRole('heading', { name: /^sign in$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /forgot password/i })).toHaveAttribute('href', '/forgot-password')
     const password = screen.getByLabelText(/^password/i, { selector: 'input' })

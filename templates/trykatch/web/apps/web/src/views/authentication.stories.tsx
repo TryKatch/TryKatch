@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { http, HttpResponse } from 'msw'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { applicationName } from '../branding'
 import { LoginPage } from './LoginPage'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { ResetPasswordPage } from './ResetPasswordPage'
@@ -11,6 +12,7 @@ export const SignIn: Story = {
   render: () => <LoginPage navigate={() => undefined} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    await expect(canvas.getByText(applicationName, { selector: 'strong' }).closest('a')).toHaveAttribute('href', '/')
     for (const input of Array.from(canvasElement.querySelectorAll<HTMLInputElement>('.floating-control-input'))) {
       const label = canvasElement.querySelector<HTMLLabelElement>(`label[for="${input.id}"]`)!
       const marker = label.querySelector('span')!
