@@ -5,7 +5,7 @@ description: Reference the generated UI and optional adapters available from dot
 
 | Option | Default | Result |
 | --- | --- | --- |
-| `--display-name "Kamenta"` | `Trykatch` | Sets customer-facing UI and email branding independently of the technical project name. |
+| `--display-name "Kamenta"` | project name (`-n`) | Overrides the customer-facing UI and email brand independently of the technical project name. |
 | `--ui react` | enabled | Generates the React, TanStack, Vite, owned UI, and API-client workspace. |
 | `--ui none` | disabled | Generates the backend without the web workspace. |
 | `--email true` | disabled | Adds MailKit SMTP and a Mailpit development resource. |

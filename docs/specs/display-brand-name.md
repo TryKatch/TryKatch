@@ -7,7 +7,7 @@ During Mailpit UAT the user saw the technical name `Email.ReleaseProof` in the e
 ## Acceptance criteria
 
 1. A technical project name such as `Kamenta.App` can display `Kamenta` without changing its namespaces or project paths.
-2. Template generation exposes a separate display-name option with a default independent of the technical name.
+2. Template generation exposes a separate display-name option. When omitted, the project name is the initial display brand; when supplied, the display brand remains independent of technical namespaces and paths.
 3. Product brand marks, accessible brand labels, authentication/invitation/activation pages, navigation and the browser title use the configured display brand.
 4. Invitation and reset email subjects and HTML use the display brand. Local Mailpit's default sender display name follows that brand, while an explicit sender remains operator-owned and takes precedence.
 5. Names containing quotes or other punctuation are safely represented, not inserted as executable source.
