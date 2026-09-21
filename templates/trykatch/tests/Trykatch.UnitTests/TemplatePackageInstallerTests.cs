@@ -9,7 +9,7 @@ public sealed class TemplatePackageInstallerTests
     [TestMethod]
     public void CurrentVersionMatchesTheCliPackageVersion()
     {
-        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.31");
+        TemplatePackageInstaller.CurrentVersion.ShouldBe("0.1.0-preview.32");
     }
 
     [TestMethod]

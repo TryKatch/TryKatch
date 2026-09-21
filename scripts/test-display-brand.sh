@@ -21,12 +21,13 @@ const literal = JSON.stringify(name);
 assert(read('custom/src/Common/Custom.Technical.Infrastructure/Optional/Email/EmailBranding.cs').includes(`= ${literal};`));
 assert(read('custom/web/apps/web/src/branding.ts').includes(`|| ${literal}`));
 assert.match(read('custom/src/API/Custom.Technical.Api/Program.cs'), /using Custom.Technical.Api;/);
-for (const path of ['views/LoginPage.tsx', 'views/ForgotPasswordPage.tsx', 'views/ResetPasswordPage.tsx', 'views/Pages.tsx', 'views/LandingPage.tsx', 'shell/AppShell.tsx', 'shell/PlatformShell.tsx']) {
+for (const path of ['views/LoginPage.tsx', 'views/ForgotPasswordPage.tsx', 'views/ResetPasswordPage.tsx', 'views/Pages.tsx', 'shell/AppShell.tsx', 'shell/PlatformShell.tsx']) {
   const source = read(`custom/web/apps/web/src/${path}`);
   assert(source.includes('import { applicationName }'));
   assert(!source.includes('<strong>Custom.Technical</strong>'));
   assert(!source.includes('sidebar-label">Custom.Technical<'));
 }
+assert(!fs.existsSync(`${root}/custom/web/apps/web/src/views/LandingPage.tsx`));
 assert(!read('custom/src/API/Custom.Technical.AppHost/ApplicationHostingExtensions.cs').includes('Email__From'));
 assert(!read('custom/src/API/Custom.Technical.Api/appsettings.Development.json').includes('"From"'));
 console.log('Display-brand package contract: PASS (default, custom, quoted name, namespaces, UI and sender wiring).');
