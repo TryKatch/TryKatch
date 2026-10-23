@@ -112,9 +112,13 @@ internal sealed class OutboxBatchProcessor(
             else
             {
                 failed++;
-                if (message.Attempts >= value.MaximumAttempts)
+                if (message.ExhaustedAt is null && message.Attempts >= value.MaximumAttempts)
                 {
                     message.ExhaustedAt = timeProvider.GetUtcNow();
+                }
+
+                if (message.ExhaustedAt is { } exhaustedAt)
+                {
                     dbContext.RecoveryEvents.Add(new OutboxRecoveryEvent
                     {
                         MessageId = message.Id,
@@ -122,7 +126,7 @@ internal sealed class OutboxBatchProcessor(
                         Outcome = "terminal",
                         FailureCode = message.LastErrorCode ?? "attempts_exhausted",
                         FailureType = message.LastErrorType ?? "transport_failure",
-                        OccurredAt = message.ExhaustedAt.Value
+                        OccurredAt = exhaustedAt
                     });
                     terminalized++;
                     RecoveryCounter.Add(1, new KeyValuePair<string, object?>("outcome", "terminal"));

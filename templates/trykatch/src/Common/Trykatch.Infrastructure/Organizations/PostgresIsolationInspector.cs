@@ -52,6 +52,7 @@ public static class PostgresIsolationInspector
         DataResourceDescriptor[] resources = modules.SelectMany(module => module.DataResources)
             .Append(audit)
             .Append(outbox)
+            .Concat(OperationalDataResources.All)
             .ToArray();
         List<string> errors = [];
 
@@ -63,7 +64,7 @@ public static class PostgresIsolationInspector
         foreach (DataResourceDescriptor resource in retained.Concat(resources))
         {
             string key = $"{resource.Schema}.{resource.Table}";
-            ModuleDataResourceRules.Validate(resource, hostOwned: resource == audit || resource == outbox);
+            ModuleDataResourceRules.Validate(resource, hostOwned: resource == audit || resource == outbox || OperationalDataResources.All.Contains(resource));
             if (declarations.TryGetValue(key, out DataResourceDescriptor? existing) && existing != resource)
                 errors.Add($"Enabled and installed schema declarations disagree for '{key}'.");
             declarations[key] = resource;

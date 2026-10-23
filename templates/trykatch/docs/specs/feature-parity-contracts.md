@@ -1,8 +1,8 @@
 # Feature parity contract ledger
 
-Status: Phase 0 technical baseline, frozen v1 for implementation. These are documented contracts, not compiled APIs or deployed privileges.
+Status: Phase 0 semantic baseline, with E1 contracts and operational foundations now implemented. See [E1 evidence](evidence/parity-execution-e1.md) for exact implemented scope and validation limits; E2–E5 behavior remains planned.
 
-Baseline: `origin/develop` at `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, reconciled on 2026-10-23. The repository was fetched again before Phase 0; no upstream source changes were present. The user authorized beginning with Phase 0; later implementation phases remain unstarted.
+Baseline: `origin/develop` at `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, reconciled on 2026-10-23. The repository was fetched again before Phase 0; no upstream source changes were present. The user subsequently authorized Phase 1 beginning with E1. The source baseline above is retained for traceability.
 
 ## 1. Outcome and authority
 
@@ -199,3 +199,7 @@ Freeze the ABI only for a contract whose first caller is being implemented; this
 Verified by source/document inspection: unchanged upstream baseline, current transaction/grant/permission seams, demo-only permission repair, supported module/template options and direct-package license/framework metadata. Documentation reference/consistency checks and the single independent review are recorded in [Phase 0 evidence](evidence/feature-parity-phase-zero.md).
 
 Not established in Phase 0: executable contracts, new runtime grants/migrations, package resolution/vulnerability audit, scheduler/backplane/cache behavior, runtime isolation of new code, performance or full feature parity. Those remain acceptance rows with planned/qualification status rather than implemented/verified.
+
+## 13. E1 implementation mapping
+
+E1 compiles neutral registration/event/job shapes and host-only execution request/outcome interfaces. It adds a compatible host-only UserCommand enqueue overload and nullable v1 outbox context, not an executor or fan-out adapter. The legacy enqueue path remains explicitly logging-only. Context-version/hash rejection is implemented; active-catalog compatibility before business effects remains E2/E3. See [E1 evidence](evidence/parity-execution-e1.md) for schema/role allocations, manifest tokens, observed checks and the pre-existing dependency-audit blocker.

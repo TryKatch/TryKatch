@@ -7,14 +7,16 @@ public enum RuntimeDatabaseRoleKind
     Organization,
     Platform,
     Identity,
-    Outbox
+    Outbox,
+    WorkCoordinator
 }
 
 public sealed record RuntimeDatabaseRoles(
     string Organization,
     string Platform,
     string Identity,
-    string Outbox)
+    string Outbox,
+    string WorkCoordinator = "trykatch_work_coordinator")
 {
     public IEnumerable<(RuntimeDatabaseRoleKind Kind, string Name)> All
     {
@@ -24,6 +26,7 @@ public sealed record RuntimeDatabaseRoles(
             yield return (RuntimeDatabaseRoleKind.Platform, Platform);
             yield return (RuntimeDatabaseRoleKind.Identity, Identity);
             yield return (RuntimeDatabaseRoleKind.Outbox, Outbox);
+            yield return (RuntimeDatabaseRoleKind.WorkCoordinator, WorkCoordinator);
         }
     }
 }
@@ -41,6 +44,9 @@ public static class RuntimeDatabaseAccessProfiles
 
     public static IReadOnlySet<string> HostOwnedRelations { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
+        "app.module_event_inbox",
+        "infrastructure.module_work_items",
+        "infrastructure.module_event_deliveries",
         "platform.organizations",
         "platform.organization_assistant_settings",
         "platform.memberships",
@@ -81,6 +87,23 @@ public static class RuntimeDatabaseAccessProfiles
         IReadOnlyDictionary<string, DataResourceDescriptor> resources)
     {
         DataResourceDescriptor? resource = resources.GetValueOrDefault(relation);
+        if (OperationalDataResources.IsReserved(relation))
+        {
+            if (resource is null || !OperationalDataResources.All.Any(expected =>
+                    expected.Schema == resource.Schema && expected.Table == resource.Table
+                    && expected.Ownership == resource.Ownership && expected.AccessRule == resource.AccessRule
+                    && expected.IsolationPolicy == resource.IsolationPolicy))
+                return None;
+            return (kind, relation) switch
+            {
+                (RuntimeDatabaseRoleKind.Organization, "infrastructure.module_work_items") => Insert,
+                (RuntimeDatabaseRoleKind.Organization, "app.module_event_inbox") => SelectInsert,
+                (RuntimeDatabaseRoleKind.Outbox, "infrastructure.module_event_deliveries") => SelectInsert,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_work_items") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_event_deliveries") => SelectUpdate,
+                _ => None
+            };
+        }
         return kind switch
         {
             RuntimeDatabaseRoleKind.Organization => OrganizationPermissions(relation, resource),

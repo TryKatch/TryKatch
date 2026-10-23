@@ -193,6 +193,21 @@ public sealed class OutboxRecoveryIntegrationTests
     }
 
     [TestMethod]
+    public async Task UnsupportedContextIsTerminalizedOnceWithoutInvokingTransport()
+    {
+        await using RecoveryHost host = await RecoveryHost.StartAsync(transportFailures: 0);
+        Guid messageId = Guid.NewGuid();
+        await host.InsertAsync(messageId, "{}", contextVersion: 999);
+        await host.WaitForAsync(messageId, exhausted: true);
+        (await host.ReadFailureCodeAsync(messageId)).ShouldBe("outbox_context_invalid");
+        host.Transport.MessageIds.ShouldBeEmpty();
+        (await host.CountTerminalEventsAsync(messageId)).ShouldBe(1L);
+        await host.RestartAsync();
+        (await host.CountTerminalEventsAsync(messageId)).ShouldBe(1L);
+        host.Transport.MessageIds.ShouldBeEmpty();
+    }
+
+    [TestMethod]
     [DataRow("save")]
     [DataRow("commit")]
     public async Task PublishSuccessThenTransientRollbackRedeliversSameIdAndConsumerDeduplicates(string seam)
@@ -558,17 +573,27 @@ public sealed class OutboxRecoveryIntegrationTests
         public static async Task<string> GetAntiforgeryAsync(HttpClient client) =>
             (await client.GetFromJsonAsync<JsonElement>("/api/v1/auth/antiforgery")).GetProperty("token").GetString()!;
 
-        public async Task InsertAsync(Guid id, string payload)
+        public async Task InsertAsync(Guid id, string payload, int? contextVersion = null)
         {
             await using NpgsqlConnection connection = new(ownerConnection);
             await connection.OpenAsync();
             await using NpgsqlCommand command = new("""
-                INSERT INTO platform.outbox_messages ("Id", "Type", "Payload", "OccurredAt", "Attempts", "ReplayGeneration")
-                VALUES (@id, 'recovery.test', @payload::jsonb, CURRENT_TIMESTAMP, 0, 0)
+                INSERT INTO platform.outbox_messages ("Id", "Type", "Payload", "OccurredAt", "Attempts", "ReplayGeneration", "ContextVersion")
+                VALUES (@id, 'recovery.test', @payload::jsonb, CURRENT_TIMESTAMP, 0, 0, @contextVersion)
                 """, connection);
             command.Parameters.AddWithValue("id", id);
             command.Parameters.AddWithValue("payload", payload);
+            command.Parameters.Add("contextVersion", NpgsqlTypes.NpgsqlDbType.Integer).Value = (object?)contextVersion ?? DBNull.Value;
             await command.ExecuteNonQueryAsync();
+        }
+
+        public async Task<long> CountTerminalEventsAsync(Guid messageId)
+        {
+            await using NpgsqlConnection connection = new(ownerConnection);
+            await connection.OpenAsync();
+            await using NpgsqlCommand command = new("SELECT count(*) FROM platform.outbox_recovery_events WHERE \"MessageId\" = @id AND \"Outcome\" = 'terminal'", connection);
+            command.Parameters.AddWithValue("id", messageId);
+            return (long)(await command.ExecuteScalarAsync())!;
         }
 
         public async Task InsertManyAsync(int count)

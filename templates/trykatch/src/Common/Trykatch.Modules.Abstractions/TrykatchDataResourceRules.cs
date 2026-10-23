@@ -8,9 +8,10 @@ public static class ModuleDataResourceRules
         ArgumentNullException.ThrowIfNull(resource);
         bool valid = resource.Ownership switch
         {
-            ModuleDataOwnership.Organization => resource.AccessRule is null
-                && (resource.Schema == "app" || hostOwned && resource.Schema == "platform")
-                && !string.IsNullOrWhiteSpace(resource.IsolationPolicy),
+            ModuleDataOwnership.Organization => !string.IsNullOrWhiteSpace(resource.IsolationPolicy)
+                && (resource.AccessRule is null && (resource.Schema == "app" || hostOwned && resource.Schema == "platform")
+                    || hostOwned && resource.Schema == "app" && resource.Table == "module_event_inbox"
+                        && resource.AccessRule == ModuleDataAccessRule.HostOnly),
             ModuleDataOwnership.Platform => resource.Schema == "platform"
                 && resource.AccessRule == ModuleDataAccessRule.PlatformOnly
                 || resource.Schema == "identity" && resource.AccessRule == ModuleDataAccessRule.IdentityOnly,

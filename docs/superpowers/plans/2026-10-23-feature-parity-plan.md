@@ -10,7 +10,7 @@
 
 **Spec:** [Functional parity design](../specs/2026-10-23-feature-parity-design.md).
 
-**Status:** Phase 0 complete; Phase 1+ runtime implementation remains planned and unchecked. See the [frozen contract ledger](../../../templates/trykatch/docs/specs/feature-parity-contracts.md) and [Phase 0 evidence](../../../templates/trykatch/docs/specs/evidence/feature-parity-phase-zero.md). Baseline: `origin/develop`, `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, inspected 2026-10-23. Source inspection establishes planned change points, not runtime readiness.
+**Status:** Phase 0 and Phase 1 E1 complete; E2–E5 and later phases remain planned and unchecked. [E1 implementation evidence](../../../templates/trykatch/docs/specs/evidence/parity-execution-e1.md) records validation and the pre-existing dependency-audit blocker. See the [frozen contract ledger](../../../templates/trykatch/docs/specs/feature-parity-contracts.md) and [Phase 0 evidence](../../../templates/trykatch/docs/specs/evidence/feature-parity-phase-zero.md). Baseline: `origin/develop`, `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, inspected 2026-10-23. Source inspection establishes planned change points, not runtime readiness.
 
 ## Global Constraints
 

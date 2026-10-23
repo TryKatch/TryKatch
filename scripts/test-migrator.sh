@@ -14,11 +14,13 @@ export TRYKATCH_ORG_RUNTIME_PASSWORD=org-runtime-test-password-with-24-character
 export TRYKATCH_PLATFORM_RUNTIME_PASSWORD=platform-runtime-test-password-with-24-characters
 export TRYKATCH_IDENTITY_RUNTIME_PASSWORD=identity-runtime-test-password-with-24-characters
 export TRYKATCH_OUTBOX_WORKER_PASSWORD=outbox-runtime-test-password-with-24-characters
+export TRYKATCH_WORK_COORDINATOR_PASSWORD=work-coordinator-runtime-test-password-with-24-characters
 export TRYKATCH_MIGRATOR_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_migrator;Password=$TRYKATCH_MIGRATOR_PASSWORD"
 export TRYKATCH_ORG_RUNTIME_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_org_runtime;Password=$TRYKATCH_ORG_RUNTIME_PASSWORD"
 export TRYKATCH_PLATFORM_RUNTIME_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_platform_runtime;Password=$TRYKATCH_PLATFORM_RUNTIME_PASSWORD"
 export TRYKATCH_IDENTITY_RUNTIME_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_identity_runtime;Password=$TRYKATCH_IDENTITY_RUNTIME_PASSWORD"
 export TRYKATCH_OUTBOX_WORKER_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_outbox_worker;Password=$TRYKATCH_OUTBOX_WORKER_PASSWORD"
+export TRYKATCH_WORK_COORDINATOR_CONNECTION="Host=postgres;Port=5432;Database=trykatch;Username=trykatch_work_coordinator;Password=$TRYKATCH_WORK_COORDINATOR_PASSWORD"
 export GRAFANA_ADMIN_PASSWORD=grafana-admin-test-password
 
 cleanup() {
@@ -41,9 +43,9 @@ docker compose -f "$compose_file" run --rm --build migrator
 
 role_state=$(docker compose -f "$compose_file" exec -T postgres \
   psql --tuples-only --no-align --username postgres --dbname trykatch \
-  --command="SELECT string_agg(r.rolname || ':' || r.rolsuper || ':' || r.rolbypassrls || ':' || owned.relations, ',' ORDER BY r.rolname) FROM pg_roles r CROSS JOIN LATERAL (SELECT count(*) AS relations FROM pg_class c WHERE c.relowner = r.oid) owned WHERE r.rolname IN ('trykatch_org_runtime', 'trykatch_platform_runtime', 'trykatch_identity_runtime', 'trykatch_outbox_worker');")
+  --command="SELECT string_agg(r.rolname || ':' || r.rolsuper || ':' || r.rolbypassrls || ':' || owned.relations, ',' ORDER BY r.rolname) FROM pg_roles r CROSS JOIN LATERAL (SELECT count(*) AS relations FROM pg_class c WHERE c.relowner = r.oid) owned WHERE r.rolname IN ('trykatch_org_runtime', 'trykatch_platform_runtime', 'trykatch_identity_runtime', 'trykatch_outbox_worker', 'trykatch_work_coordinator');")
 assert_equal "runtime role state" \
-  "trykatch_identity_runtime:false:false:0,trykatch_org_runtime:false:false:0,trykatch_outbox_worker:false:false:0,trykatch_platform_runtime:false:false:0" \
+  "trykatch_identity_runtime:false:false:0,trykatch_org_runtime:false:false:0,trykatch_outbox_worker:false:false:0,trykatch_platform_runtime:false:false:0,trykatch_work_coordinator:false:false:0" \
   "$role_state"
 
 schema_count=$(docker compose -f "$compose_file" exec -T postgres \

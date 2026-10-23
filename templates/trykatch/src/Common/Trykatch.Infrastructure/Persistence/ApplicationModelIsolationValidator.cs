@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Trykatch.Modules;
+using Trykatch.Infrastructure.Organizations;
 
 namespace Trykatch.Infrastructure.Persistence;
 
@@ -52,10 +53,10 @@ public static class ApplicationModelIsolationValidator
 
         foreach (DataResourceDescriptor resource in modules.SelectMany(module => module.DataResources))
             ModuleDataResourceRules.Validate(resource);
-        foreach (DataResourceDescriptor resource in HostResources)
+        foreach (DataResourceDescriptor resource in HostResources.Concat(OperationalDataResources.All))
             ModuleDataResourceRules.Validate(resource, hostOwned: true);
 
-        DataResourceDescriptor[] declared = HostResources
+        DataResourceDescriptor[] declared = HostResources.Concat(OperationalDataResources.All)
             .Concat(modules.SelectMany(module => module.DataResources))
             .ToArray();
         string? duplicateRelation = declared

@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +15,7 @@ using Trykatch.Infrastructure.Modules;
 using Trykatch.Infrastructure.Organizations;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Infrastructure.Persistence.Migrations.Platform;
+using Trykatch.Infrastructure.Persistence.Migrations.Application;
 using Trykatch.Modules;
 using Trykatch.Modules.Documents.Infrastructure;
 
@@ -178,6 +181,8 @@ public sealed class PostgresIsolationInspectionTests
             CREATE ROLE {platform} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             CREATE ROLE {identity} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             CREATE ROLE {outbox} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            GRANT USAGE ON SCHEMA infrastructure TO {outbox};
+            GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO {outbox};
             GRANT USAGE ON SCHEMA platform TO {outbox};
             GRANT SELECT, UPDATE ON platform.outbox_messages TO {outbox};
             GRANT SELECT ON platform.audit_intents TO {outbox};
@@ -497,6 +502,125 @@ public sealed class PostgresIsolationInspectionTests
         inspection.Errors.ShouldContain(error => error.Contains("schema/database CREATE", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public async Task OperationalOwnershipHasNoImplicitGrants()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await using NpgsqlConnection owner = new(database.ConnectionString);
+        await owner.OpenAsync();
+        await using (NpgsqlCommand exists = new("SELECT to_regclass('infrastructure.module_work_items')::text", owner))
+            (await exists.ExecuteScalarAsync()).ShouldBe("infrastructure.module_work_items");
+        await using (NpgsqlCommand before = new("SELECT has_table_privilege('trykatch_outbox_worker', 'infrastructure.module_work_items', 'SELECT')", owner))
+            (await before.ExecuteScalarAsync()).ShouldBe(false);
+
+        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
+            new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
+        RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
+        await RuntimeRoleProvisioner.ProvisionAsync(database.ConnectionString, roles);
+        (await PostgresIsolationInspector.InspectAsync(database.ConnectionString, roles,
+            [new ProjectsModule().Descriptor])).Errors.ShouldBeEmpty();
+        await using NpgsqlCommand privileges = new("""
+            SELECT has_table_privilege('trykatch_work_coordinator', 'app.projects', 'SELECT'),
+                   has_table_privilege('trykatch_org_runtime', 'infrastructure.module_work_items', 'SELECT'),
+                   has_table_privilege('trykatch_org_runtime', 'infrastructure.module_work_items', 'INSERT'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_event_inbox', 'DELETE'),
+                   has_table_privilege('trykatch_outbox_worker', 'infrastructure.module_event_deliveries', 'INSERT')
+            """, owner);
+        await using NpgsqlDataReader reader = await privileges.ExecuteReaderAsync();
+        (await reader.ReadAsync()).ShouldBeTrue();
+        reader.GetBoolean(0).ShouldBeFalse();
+        reader.GetBoolean(1).ShouldBeFalse();
+        reader.GetBoolean(2).ShouldBeTrue();
+        reader.GetBoolean(3).ShouldBeFalse();
+        reader.GetBoolean(4).ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task OperationalInspectorRejectsMissingPolicyAndOverbroadGrant()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
+            new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
+        RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
+        await RuntimeRoleProvisioner.ProvisionAsync(database.ConnectionString, roles);
+        (await PostgresIsolationInspector.InspectAsync(database.ConnectionString, roles,
+            [new ProjectsModule().Descriptor])).IsValid.ShouldBeTrue();
+        await database.ExecuteAsync("GRANT DELETE ON app.module_event_inbox TO trykatch_org_runtime");
+        PostgresIsolationInspection broad = await PostgresIsolationInspector.InspectAsync(database.ConnectionString, roles,
+            [new ProjectsModule().Descriptor]);
+        broad.Errors.ShouldContain(error => error.Contains("forbidden DELETE", StringComparison.Ordinal));
+        await database.ExecuteAsync("REVOKE DELETE ON app.module_event_inbox FROM trykatch_org_runtime; DROP POLICY module_event_inbox_insert ON app.module_event_inbox");
+        PostgresIsolationInspection missing = await PostgresIsolationInspector.InspectAsync(database.ConnectionString, roles,
+            [new ProjectsModule().Descriptor]);
+        missing.Errors.ShouldContain(error => error.Contains("module_event_inbox_insert", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task OperationalInboxEnforcesCurrentScopeActorAndConsumerDeduplication()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
+            new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
+        RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
+        await RuntimeRoleProvisioner.ProvisionAsync(database.ConnectionString, roles);
+        Guid organizationA = Guid.NewGuid();
+        Guid actorA = Guid.NewGuid();
+        Guid message = Guid.NewGuid();
+        await database.ExecuteAsync($"""
+            INSERT INTO app.module_event_inbox ("OrganizationId", "MessageId", "ConsumerKey", "SchemaVersion", "ActorId", "ProcessedAtUtc")
+            VALUES ('{organizationA}', '{message}', 'kernel.probe', 1, '{actorA}', CURRENT_TIMESTAMP)
+            """);
+        string organizationConnection = (await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(database.ConnectionString)).Organization;
+        await using NpgsqlConnection connection = new(organizationConnection);
+        await connection.OpenAsync();
+        await using (NpgsqlCommand missing = new("SELECT count(*) FROM app.module_event_inbox", connection))
+            (await missing.ExecuteScalarAsync()).ShouldBe(0L);
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await using NpgsqlCommand context = new("SELECT set_config('app.organization_id', @organization, true), set_config('app.actor_id', @actor, true)", connection, transaction);
+            context.Parameters.AddWithValue("organization", Guid.NewGuid().ToString());
+            context.Parameters.AddWithValue("actor", actorA.ToString());
+            await context.ExecuteNonQueryAsync();
+            await using NpgsqlCommand hidden = new("SELECT count(*) FROM app.module_event_inbox", connection, transaction);
+            (await hidden.ExecuteScalarAsync()).ShouldBe(0L);
+            await using NpgsqlCommand wrongScope = new($"""
+                INSERT INTO app.module_event_inbox ("OrganizationId", "MessageId", "ConsumerKey", "SchemaVersion", "ActorId", "ProcessedAtUtc")
+                VALUES ('{organizationA}', '{Guid.NewGuid()}', 'kernel.probe', 1, '{actorA}', CURRENT_TIMESTAMP)
+                """, connection, transaction);
+            (await Should.ThrowAsync<PostgresException>(() => wrongScope.ExecuteNonQueryAsync())).SqlState.ShouldBe("42501");
+            await transaction.RollbackAsync();
+        }
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await using NpgsqlCommand context = new("SELECT set_config('app.organization_id', @organization, true), set_config('app.actor_id', @actor, true)", connection, transaction);
+            context.Parameters.AddWithValue("organization", organizationA.ToString());
+            context.Parameters.AddWithValue("actor", actorA.ToString());
+            await context.ExecuteNonQueryAsync();
+            await using NpgsqlCommand duplicate = new($"""
+                INSERT INTO app.module_event_inbox ("OrganizationId", "MessageId", "ConsumerKey", "SchemaVersion", "ActorId", "ProcessedAtUtc")
+                VALUES ('{organizationA}', '{message}', 'kernel.probe', 2, '{actorA}', CURRENT_TIMESTAMP)
+                """, connection, transaction);
+            (await Should.ThrowAsync<PostgresException>(() => duplicate.ExecuteNonQueryAsync())).SqlState.ShouldBe("23505");
+            await transaction.RollbackAsync();
+        }
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await using NpgsqlCommand context = new("SELECT set_config('app.organization_id', @organization, true), set_config('app.actor_id', @actor, true)", connection, transaction);
+            context.Parameters.AddWithValue("organization", organizationA.ToString());
+            context.Parameters.AddWithValue("actor", actorA.ToString());
+            await context.ExecuteNonQueryAsync();
+            await using NpgsqlCommand wrongActor = new($"""
+                INSERT INTO app.module_event_inbox ("OrganizationId", "MessageId", "ConsumerKey", "SchemaVersion", "ActorId", "ProcessedAtUtc")
+                VALUES ('{organizationA}', '{Guid.NewGuid()}', 'kernel.probe', 1, '{Guid.NewGuid()}', CURRENT_TIMESTAMP)
+                """, connection, transaction);
+            (await Should.ThrowAsync<PostgresException>(() => wrongActor.ExecuteNonQueryAsync())).SqlState.ShouldBe("42501");
+            await transaction.RollbackAsync();
+        }
+    }
+
     private sealed class InspectionDatabase : IAsyncDisposable
     {
         private readonly PostgreSqlContainer? container;
@@ -608,6 +732,20 @@ public sealed class PostgresIsolationInspectionTests
                 GRANT SELECT ON platform.outbox_recovery_events TO trykatch_platform_runtime;
                 GRANT SELECT ON platform.outbox_replay_requests TO trykatch_outbox_worker;
                 GRANT SELECT, INSERT ON platform.outbox_recovery_events TO trykatch_outbox_worker;
+                """);
+            await using ApplicationDbContext operational = new(new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(result.connectionString).Options);
+            MigrationOperation[] operations = new AddModuleExecutionContracts().UpOperations
+                .Where(operation => operation is not AddColumnOperation).ToArray();
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(operations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            await result.ExecuteAsync($"""
+                GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
+                GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
+                GRANT SELECT, INSERT ON app.module_event_inbox TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON infrastructure.module_work_items TO trykatch_work_coordinator;
+                GRANT SELECT, UPDATE ON infrastructure.module_event_deliveries TO trykatch_work_coordinator;
+                GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO trykatch_outbox_worker;
                 """);
             return result;
         }

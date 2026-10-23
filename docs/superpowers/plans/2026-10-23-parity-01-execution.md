@@ -9,7 +9,7 @@
 
 ## Global Constraints
 
-Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`; new names are proposed. Phase 0 resolves D1 through ADR 0015 and the frozen ledger; ADR 0018 selects Quartz.NET/PostgreSQL for D5. Runtime grants/contracts still require E1/E2, and package-graph audit/pinning/qualification still gate E4 adapter installation. No product code exists for these proposed contracts yet. Read `templates/trykatch/docs/specs/feature-parity-contracts.md` with this plan before implementation.
+Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`; new names are proposed. Phase 0 resolves D1 through ADR 0015 and the frozen ledger; ADR 0018 selects Quartz.NET/PostgreSQL for D5. Runtime grants/contracts still require E1/E2, and package-graph audit/pinning/qualification still gate E4 adapter installation. E1 now provides compiled contracts, compatible outbox metadata and operational schema/access foundations; see `templates/trykatch/docs/specs/evidence/parity-execution-e1.md`. E2–E5 behavior remains planned. Read `templates/trykatch/docs/specs/feature-parity-contracts.md` with this plan before implementation.
 
 ## Review Focus
 
@@ -25,11 +25,11 @@ Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`
 
 **Interfaces:** Produce the spec's execution request, event descriptor/consumer and scheduler records. Persist context version, organization, origin actor, operation identity, execution kind and correlation independently from arbitrary event payload. Retain compatibility with existing `OutboxEnvelope` callers through a versioned adapter/overload.
 
-- [ ] Add `RegistryRejectsDuplicateConsumerKeysAndUnknownWorkKinds`: duplicate keys/undeclared execution policy are rejected before activation. Add `LegacyProjectAndDocumentEventNamesRemainStable`: existing serialized names are unchanged after namespace generation.
-- [ ] Define exact record fields/result types in the contract ledger; add explicit host-derived scope capture at enqueue and compatible readers for old rows. Reject unknown new versions; route supported legacy rows through their explicit safe behavior.
-- [ ] Declare infrastructure coordinator relations and organization-owned inbox relations, their migration/grant/policy rules and lease/dedup indexes. Extend provisioning and inspection from the same profile definitions; add no blanket schema grants.
-- [ ] Test `OperationalOwnershipHasNoImplicitGrants`: the prior outbox/runtime role cannot access new relations until the explicit profile is applied; missing policies and overbroad grants fail inspection.
-- [ ] Verify: `dotnet test tests/Trykatch.UnitTests --filter FullyQualifiedName~ModuleExecutionContractTests`; integration filter `FullyQualifiedName~PostgresIsolationInspectionTests`, plus existing `OutboxMigrationTests` if the envelope table changes. Complete the common task exit and commit the compatible contract/schema slice.
+- [x] Add `RegistryRejectsDuplicateConsumerKeysAndUnknownWorkKinds`: duplicate keys/undeclared execution policy are rejected before activation. Add `LegacyProjectAndDocumentEventNamesRemainStable`: existing serialized names are unchanged after namespace generation.
+- [x] Define exact record fields/result types in the contract ledger; add explicit host-derived scope capture at enqueue and compatible readers for old rows. Reject unknown new versions; route supported legacy rows through their explicit safe behavior.
+- [x] Declare infrastructure coordinator relations and organization-owned inbox relations, their migration/grant/policy rules and lease/dedup indexes. Extend provisioning and inspection from the same profile definitions; add no blanket schema grants.
+- [x] Test `OperationalOwnershipHasNoImplicitGrants`: the prior outbox/runtime role cannot access new relations until the explicit profile is applied; missing policies and overbroad grants fail inspection.
+- [x] Verify: `dotnet test tests/Trykatch.UnitTests --filter FullyQualifiedName~ModuleExecutionContractTests`; integration filter `FullyQualifiedName~PostgresIsolationInspectionTests`, plus existing `OutboxMigrationTests` if the envelope table changes. Complete the common task exit and commit the compatible contract/schema slice. E1 evidence records passing behavioral checks and the pre-existing dependency-audit gate failure separately; no clean standard restore/release gate is claimed.
 
 ## E2: Implement validated background organization execution
 

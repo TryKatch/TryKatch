@@ -16,6 +16,8 @@ internal sealed class OutboxDbContext(DbContextOptions<OutboxDbContext> options)
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Type).HasMaxLength(500);
             entity.Property(x => x.Payload).HasColumnType("jsonb");
+            entity.Property(x => x.ContextJson).HasColumnType("jsonb");
+            entity.Property(x => x.PayloadHash).HasMaxLength(64);
             entity.Property(x => x.LastErrorCode).HasMaxLength(80);
             entity.Property(x => x.LastErrorType).HasMaxLength(500);
             entity.HasIndex(x => new { x.ProcessedAt, x.ExhaustedAt, x.OccurredAt, x.Id });

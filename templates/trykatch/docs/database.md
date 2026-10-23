@@ -2,7 +2,7 @@
 
 Data Protection key records require explicit owner-only encryption maintenance when upgrading a plaintext ring; this is not an automatic EF migration. See [production identity](production-identity.md) for the transactional dry-run/apply and backup/rotation contract.
 
-Trykatch uses three core PostgreSQL schemas and five operational roles. Modules may additionally declare reference or infrastructure resources under explicit access profiles. The migration role owns schema objects. Four mutually distinct runtime roles isolate organization, platform, identity, and outbox capabilities; none may receive role memberships, `BYPASSRLS`, or object ownership. See [Module data isolation](module-data-isolation.md) for the executable ownership and inspection contract.
+Trykatch separates app, platform and identity data and uses infrastructure for host operational records. Modules may additionally declare reference or infrastructure resources under explicit access profiles. The migration role owns schema objects. Five mutually distinct runtime roles isolate organization, platform, identity, outbox, and work-coordination capabilities; none may receive role memberships, `BYPASSRLS`, or object ownership. The coordinator has no business-data grants and receives access only to exact operational relations when those contracts are introduced. See [Module data isolation](module-data-isolation.md) for the executable ownership and inspection contract.
 
 Create the migration owner outside application startup, with its password supplied by your secret manager:
 
@@ -12,10 +12,11 @@ CREATE ROLE trykatch_org_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATE
 CREATE ROLE trykatch_platform_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '<platform-secret>';
 CREATE ROLE trykatch_identity_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '<identity-secret>';
 CREATE ROLE trykatch_outbox_worker LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '<outbox-secret>';
+CREATE ROLE trykatch_work_coordinator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '<work-coordinator-secret>';
 CREATE DATABASE trykatch OWNER trykatch_migrator;
 ```
 
-The bundled Compose stack uses the official PostgreSQL bootstrap administrator only on first initialization. Its init script creates the migration owner and four runtime roles as non-superusers, transfers database ownership to `trykatch_migrator`, and then leaves password rotation to the platform's secret-management workflow. Keep every password and connection in `.env.example` distinct. Managed production databases should provision the same roles through their normal infrastructure workflow instead.
+The bundled Compose stack uses the official PostgreSQL bootstrap administrator only on first initialization. Its init script creates the migration owner and five runtime roles as non-superusers, transfers database ownership to `trykatch_migrator`, and then leaves password rotation to the platform's secret-management workflow. Keep every password and connection in `.env.example` distinct. Managed production databases should provision the same roles through their normal infrastructure workflow instead.
 
 PostgreSQL 18 stores data under a major-version-specific `PGDATA` directory and the official image exposes `/var/lib/postgresql` as its persistent volume root. Trykatch mounts the named volume at that root; do not change it back to the pre-18 `/var/lib/postgresql/data` target. Treat major-version upgrades as planned database migrations using `pg_upgrade` or a managed-provider upgrade workflow, never as an image-tag edit.
 
@@ -27,16 +28,17 @@ Database__OrganizationRuntimeRole='trykatch_org_runtime' \
 Database__PlatformRuntimeRole='trykatch_platform_runtime' \
 Database__IdentityRuntimeRole='trykatch_identity_runtime' \
 Database__OutboxWorkerRole='trykatch_outbox_worker' \
+Database__WorkCoordinatorRole='trykatch_work_coordinator' \
 dotnet run --project src/API/Trykatch.Migrator
 ```
 
-Production Compose runs this migrator to completion before starting the API. The API receives only the four scoped runtime connections; never expose `TRYKATCH_MIGRATOR_CONNECTION` to the API service. Applying migrations during an API replica's startup is deliberately unsupported because concurrent replicas make ownership and rollout ordering ambiguous.
+Production Compose runs this migrator to completion before starting the API. The API receives only the five scoped runtime connections; never expose `TRYKATCH_MIGRATOR_CONNECTION` to the API service. Applying migrations during an API replica's startup is deliberately unsupported because concurrent replicas make ownership and rollout ordering ambiguous.
 
 Migration sets run in dependency order: `identity`, then `platform`, then `app`. Use expand-and-contract changes across releases: add compatible schema first, deploy code that can read both shapes, backfill under explicit monitoring, and remove obsolete schema only in a later release. Do not automatically roll back a partially applied production migration; stop the rollout, preserve evidence, and apply a reviewed forward repair unless the migration's documented rollback is proven safe.
 
 Compose volumes are a local deployment convenience, not a backup system. Production owners must enable encrypted backups and point-in-time recovery in the database platform, monitor backup freshness, and perform restores into an isolated environment on a schedule. Record the achieved recovery point and recovery time before declaring the deployment production-ready.
 
-For break-glass manual recovery, reproduce the scoped grants emitted by the current migrator; do not grant a runtime role across all schemas. Organization receives declared module-table CRUD, tenant/actor-scoped organization RBAC and directory access, direct audit/outbox append capabilities, and insert-only immutable audit-intent access. Platform receives organization/placement control-plane CRUD, organization-scoped role/invitation provisioning, replay-request SELECT/INSERT, and recovery-event SELECT; it has no outbox-message access. Identity receives identity CRUD. The outbox worker receives outbox SELECT/UPDATE, replay-request SELECT, recovery-event SELECT/INSERT, audit-intent SELECT, and audit-entry SELECT/INSERT. Organization and identity receive no replay/recovery access. FORCE RLS binds a platform request actor to transaction-local `app.actor_id`; request and recovery rows have no UPDATE/DELETE policy. The migrator enumerates every non-system schema and removes runtime and `PUBLIC` privileges before rebuilding these exact profiles.
+For break-glass manual recovery, reproduce the scoped grants emitted by the current migrator; do not grant a runtime role across all schemas. Organization receives declared module-table CRUD, tenant/actor-scoped organization RBAC and directory access, direct audit/outbox append capabilities, and insert-only immutable audit-intent access. Platform receives organization/placement control-plane CRUD, organization-scoped role/invitation provisioning, replay-request SELECT/INSERT, and recovery-event SELECT; it has no outbox-message access. Identity receives identity CRUD. The outbox worker receives outbox SELECT/UPDATE, replay-request SELECT, recovery-event SELECT/INSERT, audit-intent SELECT, and audit-entry SELECT/INSERT. The work coordinator has no business-data access and receives only exact operational grants approved by its profile. Organization and identity receive no replay/recovery access. FORCE RLS binds a platform request actor to transaction-local `app.actor_id`; request and recovery rows have no UPDATE/DELETE policy. The migrator enumerates every non-system schema and removes runtime and `PUBLIC` privileges before rebuilding these exact profiles.
 
 The API starts a transaction for every organization-scoped request and sets `app.organization_id` and `app.actor_id` with transaction-local `set_config`. The application and organization-control contexts enlist on the same organization-role connection and transaction; scoped unsafe responses are bounded and withheld until commit. Tenant authorization and administration use the organization credential, never the platform credential. Tenant-owned rows fail closed when organization context is absent; narrowly scoped actor-directory and invitation-token read policies support workspace selection and invitation activation. Platform access is tied to the fixed platform role rather than a session bypass variable and does not bypass tenant RBAC policies. Never use the migrator connection from the running API. See [mutation and audit atomicity](audit-atomicity.md) for audit-intent projection, backlog alerts, configuration, and upgrade order.
 
@@ -53,3 +55,7 @@ OpenIddict__Clients__0__ClientSecret=<secret>
 ```
 
 For a public PKCE client, use `authorization_code`, omit the secret, and add `OpenIddict__Clients__0__RedirectUris__0`.
+
+### Upgrading an existing database for module work
+
+Existing PostgreSQL volumes do not rerun init scripts. Before applying the E1 migration, provision the restricted `trykatch_work_coordinator` login with a separate secret using the deployment's administrator/bootstrap process, supply `ConnectionStrings:trykatch-work` to the API and `Database:WorkCoordinatorRole` to the migrator, then run the one-shot migrator to rebuild exact grants. The updated bootstrap allocation is in `deploy/postgres/init/10-create-migrator.sql`; preserve the other configured secrets when using that script. Never place the privileged migrator connection in the API. See [E1 evidence](specs/evidence/parity-execution-e1.md) for access profiles and validation limits.

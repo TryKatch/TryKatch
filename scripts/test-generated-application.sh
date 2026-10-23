@@ -256,11 +256,13 @@ TRYKATCH_ORG_RUNTIME_PASSWORD=$runtime_password-org
 TRYKATCH_PLATFORM_RUNTIME_PASSWORD=$runtime_password-platform
 TRYKATCH_IDENTITY_RUNTIME_PASSWORD=$runtime_password-identity
 TRYKATCH_OUTBOX_WORKER_PASSWORD=$runtime_password-outbox
+TRYKATCH_WORK_COORDINATOR_PASSWORD=$runtime_password-work-coordinator
 TRYKATCH_MIGRATOR_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_migrator;Password=$migrator_password
 TRYKATCH_ORG_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_org_runtime;Password=$runtime_password-org
 TRYKATCH_PLATFORM_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_platform_runtime;Password=$runtime_password-platform
 TRYKATCH_IDENTITY_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_identity_runtime;Password=$runtime_password-identity
 TRYKATCH_OUTBOX_WORKER_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_outbox_worker;Password=$runtime_password-outbox
+TRYKATCH_WORK_COORDINATOR_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_work_coordinator;Password=$runtime_password-work-coordinator
 TRYKATCH_STORAGE_SERVICE_URL=http://minio:9000
 TRYKATCH_STORAGE_ACCESS_KEY=$storage_access_key
 TRYKATCH_STORAGE_SECRET_KEY=$storage_secret_key
