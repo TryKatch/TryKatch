@@ -1888,6 +1888,286 @@
         ]
       }
     },
+    "/api/v1/platform/module-work": {
+      "get": {
+        "tags": [
+          "ModuleWork"
+        ],
+        "summary": "List module work",
+        "operationId": "ModuleWork_List",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 25
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfModuleWorkView"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfModuleWorkView"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfModuleWorkView"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/module-work', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/module-work/{workId}/pause": {
+      "post": {
+        "tags": [
+          "ModuleWork"
+        ],
+        "summary": "Pause module work",
+        "operationId": "ModuleWork_Pause",
+        "parameters": [
+          {
+            "name": "workId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/module-work/{workId}/pause', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/module-work/{workId}/resume": {
+      "post": {
+        "tags": [
+          "ModuleWork"
+        ],
+        "summary": "Resume module work",
+        "operationId": "ModuleWork_Resume",
+        "parameters": [
+          {
+            "name": "workId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/module-work/{workId}/resume', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/module-work/{workId}/retry": {
+      "post": {
+        "tags": [
+          "ModuleWork"
+        ],
+        "summary": "Retry module work",
+        "operationId": "ModuleWork_Retry",
+        "parameters": [
+          {
+            "name": "workId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/module-work/{workId}/retry', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/access": {
       "get": {
         "tags": [
@@ -5963,6 +6243,140 @@
           }
         }
       },
+      "ModuleWorkActionReceipt": {
+        "required": [
+          "workId",
+          "action",
+          "recoveryGeneration",
+          "operatorPaused"
+        ],
+        "type": "object",
+        "properties": {
+          "workId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "recoveryGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "operatorPaused": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ModuleWorkActionRequest": {
+        "required": [
+          "requestId",
+          "expectedGeneration"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ModuleWorkView": {
+        "required": [
+          "workId",
+          "organizationId",
+          "jobKey",
+          "jobVersion",
+          "state",
+          "attempts",
+          "operatorPaused",
+          "recoveryGeneration",
+          "createdAtUtc",
+          "dueAtUtc",
+          "nextAttemptAtUtc",
+          "failureCode"
+        ],
+        "type": "object",
+        "properties": {
+          "workId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "jobKey": {
+            "type": "string"
+          },
+          "jobVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "state": {
+            "type": "string"
+          },
+          "attempts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "operatorPaused": {
+            "type": "boolean"
+          },
+          "recoveryGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "nextAttemptAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "failureCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "MyOrganizationDto": {
         "required": [
           "id",
@@ -6257,6 +6671,47 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ModuleEventDeliveryView"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "PagedResultOfModuleWorkView": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleWorkView"
             }
           },
           "page": {
@@ -7360,6 +7815,9 @@
     },
     {
       "name": "Modules"
+    },
+    {
+      "name": "ModuleWork"
     },
     {
       "name": "OrganizationAdministration"

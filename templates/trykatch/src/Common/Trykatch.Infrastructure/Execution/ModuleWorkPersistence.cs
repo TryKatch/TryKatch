@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Trykatch.Modules;
+using Trykatch.Infrastructure.Jobs;
 
 namespace Trykatch.Infrastructure.Execution;
 
@@ -22,6 +23,11 @@ internal sealed class ModuleWorkItem
     public string SubmissionMode { get; init; } = string.Empty;
     public DateTimeOffset? DueAtUtc { get; init; }
     public DateTimeOffset? NextAttemptAtUtc { get; set; }
+    public bool OperatorPaused { get; set; }
+    public int RecoveryGeneration { get; set; }
+    public string? ScheduleKey { get; init; }
+    public string? ScheduleTargetKey { get; init; }
+    public DateTimeOffset? OccurrenceAtUtc { get; init; }
     public string State { get; set; } = "queued";
     public int Attempts { get; set; }
     public Guid? LeaseId { get; set; }
@@ -73,6 +79,7 @@ internal static class ModuleWorkPersistence
 {
     public static void Configure(ModelBuilder modelBuilder)
     {
+        ModuleJobPersistence.Configure(modelBuilder);
         modelBuilder.Entity<ModuleWorkItem>(entity =>
         {
             entity.ToTable("module_work_items", "infrastructure", table =>
@@ -84,6 +91,10 @@ internal static class ModuleWorkPersistence
             });
             entity.HasKey(x => x.Id);
             entity.Property(x => x.ExecutionIdentityKey).HasMaxLength(120);
+            entity.Property(x => x.ScheduleKey).HasMaxLength(120);
+            entity.Property(x => x.ScheduleTargetKey).HasMaxLength(120);
+            entity.HasIndex(x => new { x.OrganizationId, x.ScheduleKey, x.ScheduleTargetKey, x.OccurrenceAtUtc })
+                .IsUnique().HasFilter("\"ScheduleKey\" IS NOT NULL");
             entity.Property(x => x.JobKey).HasMaxLength(120);
             entity.Property(x => x.OperationKey).HasMaxLength(120);
             entity.Property(x => x.ExecutionContextJson).HasColumnType("jsonb");

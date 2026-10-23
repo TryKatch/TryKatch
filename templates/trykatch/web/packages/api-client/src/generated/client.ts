@@ -66,6 +66,9 @@ import type {
   MfaLoginRequest,
   MfaRecoveryCodes,
   ModuleDto,
+  ModuleWorkActionReceipt,
+  ModuleWorkActionRequest,
+  ModuleWorkListParams,
   MyOrganizationDto,
   OrganizationAccessResponse,
   OrganizationAiConfiguration,
@@ -79,6 +82,7 @@ import type {
   OutboxReplayPending,
   OutboxReplayRequestBody,
   PagedResultOfModuleEventDeliveryView,
+  PagedResultOfModuleWorkView,
   PagedResultOfOrganizationDto,
   PagedResultOfOutboxFailure,
   PagedResultOfPlatformAccessUser,
@@ -3683,6 +3687,381 @@ export function useModulesList<TData = Awaited<ReturnType<typeof modulesList>>, 
 
 
 
+
+export const getModuleWorkListUrl = (params?: ModuleWorkListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/platform/module-work?${stringifiedParams}` : `/api/v1/platform/module-work`
+}
+
+/**
+ * @summary List module work
+ */
+export const moduleWorkList = async (params?: ModuleWorkListParams, options?: Parameters<typeof customFetch>[1]): Promise<PagedResultOfModuleWorkView> => {
+
+  return customFetch<PagedResultOfModuleWorkView>(getModuleWorkListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getModuleWorkListQueryKey = (params?: ModuleWorkListParams,) => {
+    return [
+    `/api/v1/platform/module-work`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getModuleWorkListQueryOptions = <TData = Awaited<ReturnType<typeof moduleWorkList>>, TError = unknown>(params?: ModuleWorkListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof moduleWorkList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getModuleWorkListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof moduleWorkList>>> = ({ signal }) => moduleWorkList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof moduleWorkList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ModuleWorkListQueryResult = NonNullable<Awaited<ReturnType<typeof moduleWorkList>>>
+export type ModuleWorkListQueryError = unknown
+
+
+export function useModuleWorkList<TData = Awaited<ReturnType<typeof moduleWorkList>>, TError = unknown>(
+ params: undefined |  ModuleWorkListParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof moduleWorkList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof moduleWorkList>>,
+          TError,
+          Awaited<ReturnType<typeof moduleWorkList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useModuleWorkList<TData = Awaited<ReturnType<typeof moduleWorkList>>, TError = unknown>(
+ params?: ModuleWorkListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof moduleWorkList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof moduleWorkList>>,
+          TError,
+          Awaited<ReturnType<typeof moduleWorkList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useModuleWorkList<TData = Awaited<ReturnType<typeof moduleWorkList>>, TError = unknown>(
+ params?: ModuleWorkListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof moduleWorkList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List module work
+ */
+
+export function useModuleWorkList<TData = Awaited<ReturnType<typeof moduleWorkList>>, TError = unknown>(
+ params?: ModuleWorkListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof moduleWorkList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getModuleWorkListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getModuleWorkPauseUrl = (workId: string,) => {
+
+
+
+
+  return `/api/v1/platform/module-work/${workId}/pause`
+}
+
+/**
+ * @summary Pause module work
+ */
+export const moduleWorkPause = async (workId: string,
+    moduleWorkActionRequest: ModuleWorkActionRequest, options?: Parameters<typeof customFetch>[1]): Promise<ModuleWorkActionReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ModuleWorkActionReceipt>(getModuleWorkPauseUrl(workId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(moduleWorkActionRequest)
+  }
+);}
+
+
+
+
+
+export const getModuleWorkPauseMutationKey = () => ['moduleWorkPause'] as const;
+
+export const getModuleWorkPauseMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moduleWorkPause>>, TError,ModuleWorkPauseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof moduleWorkPause>>, TError,ModuleWorkPauseMutationVariables, TContext> => {
+
+const mutationKey = getModuleWorkPauseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof moduleWorkPause>>, ModuleWorkPauseMutationVariables> = (props) => {
+          const {workId,data} = props ?? {};
+
+          return  moduleWorkPause(workId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ModuleWorkPauseMutationResult = NonNullable<Awaited<ReturnType<typeof moduleWorkPause>>>
+    export type ModuleWorkPauseMutationBody = ModuleWorkActionRequest
+    export type ModuleWorkPauseMutationError = unknown
+    export type ModuleWorkPauseMutationVariables = {workId: string;data: ModuleWorkActionRequest}
+
+    /**
+ * @summary Pause module work
+ */
+export const useModuleWorkPause = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moduleWorkPause>>, TError,ModuleWorkPauseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof moduleWorkPause>>,
+        TError,
+        ModuleWorkPauseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getModuleWorkPauseMutationOptions(options), queryClient);
+    }
+
+export const getModuleWorkResumeUrl = (workId: string,) => {
+
+
+
+
+  return `/api/v1/platform/module-work/${workId}/resume`
+}
+
+/**
+ * @summary Resume module work
+ */
+export const moduleWorkResume = async (workId: string,
+    moduleWorkActionRequest: ModuleWorkActionRequest, options?: Parameters<typeof customFetch>[1]): Promise<ModuleWorkActionReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ModuleWorkActionReceipt>(getModuleWorkResumeUrl(workId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(moduleWorkActionRequest)
+  }
+);}
+
+
+
+
+
+export const getModuleWorkResumeMutationKey = () => ['moduleWorkResume'] as const;
+
+export const getModuleWorkResumeMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moduleWorkResume>>, TError,ModuleWorkResumeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof moduleWorkResume>>, TError,ModuleWorkResumeMutationVariables, TContext> => {
+
+const mutationKey = getModuleWorkResumeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof moduleWorkResume>>, ModuleWorkResumeMutationVariables> = (props) => {
+          const {workId,data} = props ?? {};
+
+          return  moduleWorkResume(workId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ModuleWorkResumeMutationResult = NonNullable<Awaited<ReturnType<typeof moduleWorkResume>>>
+    export type ModuleWorkResumeMutationBody = ModuleWorkActionRequest
+    export type ModuleWorkResumeMutationError = unknown
+    export type ModuleWorkResumeMutationVariables = {workId: string;data: ModuleWorkActionRequest}
+
+    /**
+ * @summary Resume module work
+ */
+export const useModuleWorkResume = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moduleWorkResume>>, TError,ModuleWorkResumeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof moduleWorkResume>>,
+        TError,
+        ModuleWorkResumeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getModuleWorkResumeMutationOptions(options), queryClient);
+    }
+
+export const getModuleWorkRetryUrl = (workId: string,) => {
+
+
+
+
+  return `/api/v1/platform/module-work/${workId}/retry`
+}
+
+/**
+ * @summary Retry module work
+ */
+export const moduleWorkRetry = async (workId: string,
+    moduleWorkActionRequest: ModuleWorkActionRequest, options?: Parameters<typeof customFetch>[1]): Promise<ModuleWorkActionReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ModuleWorkActionReceipt>(getModuleWorkRetryUrl(workId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(moduleWorkActionRequest)
+  }
+);}
+
+
+
+
+
+export const getModuleWorkRetryMutationKey = () => ['moduleWorkRetry'] as const;
+
+export const getModuleWorkRetryMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moduleWorkRetry>>, TError,ModuleWorkRetryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof moduleWorkRetry>>, TError,ModuleWorkRetryMutationVariables, TContext> => {
+
+const mutationKey = getModuleWorkRetryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof moduleWorkRetry>>, ModuleWorkRetryMutationVariables> = (props) => {
+          const {workId,data} = props ?? {};
+
+          return  moduleWorkRetry(workId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ModuleWorkRetryMutationResult = NonNullable<Awaited<ReturnType<typeof moduleWorkRetry>>>
+    export type ModuleWorkRetryMutationBody = ModuleWorkActionRequest
+    export type ModuleWorkRetryMutationError = unknown
+    export type ModuleWorkRetryMutationVariables = {workId: string;data: ModuleWorkActionRequest}
+
+    /**
+ * @summary Retry module work
+ */
+export const useModuleWorkRetry = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moduleWorkRetry>>, TError,ModuleWorkRetryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof moduleWorkRetry>>,
+        TError,
+        ModuleWorkRetryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getModuleWorkRetryMutationOptions(options), queryClient);
+    }
 
 export const getOrganizationAccessGetUrl = () => {
 

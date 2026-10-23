@@ -170,8 +170,27 @@ generate_and_build() {
 }
 
 generate_and_build Horizon
-grep -Fq 'quay.io/minio/minio' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
-  fail 'default storage-enabled template output omits the MinIO Aspire resource'
+grep -Fq 'rustfs/rustfs' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output omits the RustFS Aspire resource'
+grep -Fq '1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output does not pin the reviewed RustFS image'
+grep -Fq '.WithEnvironment("RUSTFS_ACCESS_KEY", accessKey)' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output does not pass the local access key to RustFS'
+grep -Fq '.WithEnvironment("RUSTFS_SECRET_KEY", secretKey)' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output does not pass the local secret key to RustFS'
+grep -Fq '.WithVolume("horizon-object-storage-data", "/data")' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output omits its dedicated object-storage volume'
+grep -Fq 'if (!builder.ExecutionContext.IsRunMode)' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'storage-enabled template output does not separate AppHost run mode from publish mode'
+for parameter in storage-service-url storage-access-key storage-secret-key storage-bucket storage-region; do
+  grep -Fq "builder.AddParameter(\"$parameter\"" "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+    fail "storage-enabled template output omits the publish-mode '$parameter' parameter"
+done
+grep -Fq '.WithEnvironment("Storage__CreateBucket", "false")' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'storage-enabled template output does not disable automatic bucket creation in publish mode'
+if grep -Fq 'quay.io/minio/minio' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs"; then
+  fail 'default storage-enabled template output still registers the retired MinIO image'
+fi
 test -d "$test_root/Horizon/web"
 test ! -e "$test_root/Horizon/web/apps/web/src/views/LandingPage.tsx" ||
   fail 'generated React application includes the Trykatch marketing landing page'
@@ -303,14 +322,21 @@ test -f "$test_root/Acme.Tools.Portal/README.md"
 if grep -RFq --include='*.cs' 'AddViteApp(' "$test_root/Acme.Tools.Portal/src/API/Acme.Tools.Portal.AppHost"; then
   fail 'Backend-only template output registers a Vite application'
 fi
+grep -RFq --include='*.cs' 'rustfs/rustfs' "$test_root/Acme.Tools.Portal/src/API/Acme.Tools.Portal.AppHost" ||
+  fail 'Backend-only storage-enabled template output omits the RustFS development container'
 grep -Fq 'ports: ["8080:8080"]' "$test_root/Acme.Tools.Portal/compose.yml"
 generate_and_build Email.Sample --ui none --email
 generate_and_build Storage.Sample --ui none --storage
-grep -Fq 'quay.io/minio/minio' "$test_root/Storage.Sample/src/API/Storage.Sample.AppHost/ApplicationHostingExtensions.cs" ||
-  fail 'explicit storage-enabled template output omits the MinIO Aspire resource'
+grep -Fq 'rustfs/rustfs' "$test_root/Storage.Sample/src/API/Storage.Sample.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'explicit storage-enabled template output omits the RustFS Aspire resource'
+grep -Fq 'Storage__ServiceUrl' "$test_root/Storage.Sample/src/API/Storage.Sample.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'explicit storage-enabled template output omits the S3 service URL configuration'
 dotnet new trykatch -n NoStorage -o "$test_root/NoStorage" --storage false --allow-scripts yes --debug:custom-hive "$template_hive"
-if grep -Fq 'quay.io/minio/minio' "$test_root/NoStorage/src/API/NoStorage.AppHost/ApplicationHostingExtensions.cs"; then
-  fail 'storage-disabled template output unexpectedly registers MinIO'
+if grep -Fq 'rustfs/rustfs' "$test_root/NoStorage/src/API/NoStorage.AppHost/ApplicationHostingExtensions.cs"; then
+  fail 'storage-disabled template output unexpectedly registers RustFS'
+fi
+if grep -Fq 'storage-service-url' "$test_root/NoStorage/src/API/NoStorage.AppHost/ApplicationHostingExtensions.cs"; then
+  fail 'storage-disabled template output unexpectedly declares S3 publish parameters'
 fi
 generate_and_build Documents.Sample --ui none --documents
 generate_and_build Images.Sample --ui none --images

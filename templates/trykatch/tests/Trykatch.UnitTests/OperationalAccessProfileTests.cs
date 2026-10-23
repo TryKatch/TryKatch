@@ -25,6 +25,28 @@ public sealed class OperationalAccessProfileTests
     }
 
     [TestMethod]
+    public void SchedulerStateHasOnlyExactCoordinatorGrants()
+    {
+        Dictionary<string, DataResourceDescriptor> resources = OperationalDataResources.All
+            .ToDictionary(resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
+        foreach (string table in new[] { "module_schedule_cursors", "module_work_controls", "qrtz_job_details", "qrtz_triggers", "qrtz_locks" })
+        {
+            string relation = "infrastructure." + table;
+            RuntimeDatabaseAccessProfiles.HostOwnedRelations.ShouldContain(relation);
+            RuntimeDatabaseAccessProfiles.PermissionsFor(RuntimeDatabaseRoleKind.WorkCoordinator, relation, resources)
+                .ShouldContain("INSERT");
+            foreach (RuntimeDatabaseRoleKind kind in Enum.GetValues<RuntimeDatabaseRoleKind>().Where(kind => kind != RuntimeDatabaseRoleKind.WorkCoordinator))
+                RuntimeDatabaseAccessProfiles.PermissionsFor(kind, relation, resources).ShouldBeEmpty();
+        }
+        RuntimeDatabaseAccessProfiles.PermissionsFor(RuntimeDatabaseRoleKind.WorkCoordinator,
+            "infrastructure.module_work_controls", resources).Order().ShouldBe(["INSERT", "SELECT"]);
+        RuntimeDatabaseAccessProfiles.PermissionsFor(RuntimeDatabaseRoleKind.WorkCoordinator,
+            "infrastructure.qrtz_execution_history", resources).ShouldBeEmpty();
+        RuntimeDatabaseAccessProfiles.PermissionsFor(RuntimeDatabaseRoleKind.Organization,
+            "infrastructure.module_work_items", resources).ShouldBe(["INSERT"]);
+    }
+
+    [TestMethod]
     public void HostInboxIsAnExplicitAppendOnlyOrganizationException()
     {
         DataResourceDescriptor inbox = new("module-event-inbox", "app", "module_event_inbox",

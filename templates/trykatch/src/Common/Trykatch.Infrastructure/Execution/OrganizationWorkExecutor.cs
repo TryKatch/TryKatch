@@ -13,6 +13,7 @@ using Trykatch.Application.Outbox;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure.Organizations;
 using Trykatch.Infrastructure.Eventing;
+using Trykatch.Infrastructure.Jobs;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 
@@ -101,7 +102,8 @@ internal sealed partial class OrganizationWorkExecutor(
             return Terminal("work_context_invalid");
 
         return await ExecuteWithDenialAuditAsync(new OrganizationOperationInvocation(work.Id, work.OrganizationId, work.ActorId,
-            work.OperationKey, work.OperationVersion, work.Payload, work.PayloadHash, envelope.ModuleId, identity), recoveryOnly, ct);
+            work.OperationKey, work.OperationVersion, work.Payload, work.PayloadHash, envelope.ModuleId, identity,
+            ScheduleKey: work.ScheduleKey, TargetKey: work.ScheduleTargetKey, OccurrenceAtUtc: work.OccurrenceAtUtc), recoveryOnly, ct);
     }
 
     internal async Task<ModuleExecutionOutcome> ExecuteEventAsync(ModuleEventDelivery delivery, bool recoveryOnly, CancellationToken ct)
@@ -193,6 +195,24 @@ internal sealed partial class OrganizationWorkExecutor(
             ModuleOperationRegistry registry = services.GetRequiredService<ModuleOperationRegistry>();
             if (!registry.ContainsModule(work.ModuleId))
                 return new(ModuleExecutionState.Paused, "module_unavailable");
+            if (work.ScheduleKey is not null || work.TargetKey is not null || work.OccurrenceAtUtc is not null)
+            {
+                if (identity.ExecutionKind != ModuleExecutionKind.ScheduledSystem
+                    || work.ScheduleKey is null || work.TargetKey is null || work.OccurrenceAtUtc is null)
+                    return Terminal("work_context_invalid");
+                ModuleRecurringScheduleRegistration? recurring = services.GetRequiredService<ModuleScheduleRegistry>()
+                    .ResolveRegistrations().SingleOrDefault(item => item.Schedule.ScheduleKey == work.ScheduleKey
+                        && item.Target.TargetKey == work.TargetKey && item.Target.OrganizationId == work.OrganizationId);
+                if (recurring is null)
+                    return new(ModuleExecutionState.Paused, ModuleScheduleRegistry.MissingRegistrationFailureCode);
+                if (recurring.Job.Operation.Descriptor.OperationKey != work.OperationKey
+                    || recurring.Job.Operation.Descriptor.OperationVersion != work.OperationVersion
+                    || recurring.Schedule.SystemGrantKey != identity.GrantKey
+                    || recurring.Job.Operation.SystemGrant?.GrantVersion != identity.GrantVersion
+                    || OutboxPayloadHash.Compute(recurring.Target.Payload.GetRawText()) != work.PayloadHash
+                    || work.OccurrenceAtUtc < recurring.Target.StartAtUtc)
+                    return Terminal("schedule_registration_invalid");
+            }
             ModuleEventConsumerRegistration? consumer = null;
             if (work.Delivery is { } eventSnapshot)
             {
@@ -354,7 +374,8 @@ internal sealed partial class OrganizationWorkExecutor(
         && identity.SourceMessageId is null;
     private sealed record OrganizationOperationInvocation(Guid Id, Guid OrganizationId, Guid ActorId, string OperationKey,
         int OperationVersion, string Payload, string PayloadHash, string ModuleId, ModuleExecutionIdentity Identity,
-        ModuleEventDelivery? Delivery = null, OutboxMessage? Source = null);
+        ModuleEventDelivery? Delivery = null, OutboxMessage? Source = null,
+        string? ScheduleKey = null, string? TargetKey = null, DateTimeOffset? OccurrenceAtUtc = null);
 
     private sealed class ExecutionDeniedException(string code) : Exception { public string Code { get; } = code; }
 }

@@ -166,8 +166,8 @@ export function DocumentsPage() {
       {access.isLoading || documents.isLoading
         ? <p role="status">{t('Loading documents…')}</p>
         : loadFailure
-          ? <EmptyState title={t('Documents could not be loaded')} description={loadFailure} action={<Button onClick={() => { access.refetch(); documents.refetch() }}>{t('Try again')}</Button>} />
-          : <DataTable labels={dataTableLabels} ariaLabel={t('Documents')} data={documentRecords} columns={columns} getRowId={(document) => document.id} searchPlaceholder={t('Search documents…')} initialSort={{ id: 'updated', direction: 'desc' }} empty={<EmptyState title={t('No documents')} description={t(canManage ? 'Upload the first document for this workspace.' : 'No documents are available in this workspace.')} action={canManage ? <Button variant="primary" onClick={openUpload}>{t('Upload document')}</Button> : undefined} />} />}
+          ? <EmptyState headingLevel={2} title={t('Documents could not be loaded')} description={loadFailure} action={<Button onClick={() => { access.refetch(); documents.refetch() }}>{t('Try again')}</Button>} />
+          : <DataTable labels={dataTableLabels} ariaLabel={t('Documents')} data={documentRecords} columns={columns} getRowId={(document) => document.id} searchPlaceholder={t('Search documents…')} initialSort={{ id: 'updated', direction: 'desc' }} empty={<EmptyState headingLevel={2} title={t('No documents')} description={t(canManage ? 'Upload the first document for this workspace.' : 'No documents are available in this workspace.')} action={canManage ? <Button variant="primary" onClick={openUpload}>{t('Upload document')}</Button> : undefined} />} />}
       <ModuleExtensionSlot point="documents.list.after-table" context={{ resultCount: documentRecords.length }} permissions={permissions} />
     </Surface>
     <Dialog className="document-editor" open={editing !== undefined} onOpenChange={(open) => { if (!open && !save.isPending) closeEditor() }} title={t(editing ? 'Edit document' : 'Upload document')} description={t(editing ? 'Update the searchable document metadata.' : 'Add a file and classify it for your workspace.')}>

@@ -40,6 +40,11 @@ public sealed class ModuleAntiforgeryTests
         string connectionString = postgres.GetConnectionString();
         (string organizationConnection, string platformConnection, string identityConnection, string outboxConnection) =
             await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(connectionString);
+        string workCoordinatorConnection = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+            Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+        }.ConnectionString;
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:trykatchdb"] = identityConnection,
@@ -48,7 +53,10 @@ public sealed class ModuleAntiforgeryTests
         }).Build();
         IModule[] modules = [new ProjectsModule(), new DocumentsModule(), new FederationModule()];
         await MigrateAsync(connectionString, configuration, modules);
-        await PostgresRuntimeRoleFixture.GrantApplicationPrivilegesAsync(connectionString);
+        await RuntimeRoleProvisioner.ProvisionAsync(connectionString, new RuntimeDatabaseRoles(
+            PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.PlatformRole,
+            PostgresRuntimeRoleFixture.IdentityRole, PostgresRuntimeRoleFixture.OutboxRole,
+            PostgresRuntimeRoleFixture.WorkCoordinatorRole));
 
         await using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(webHost =>
@@ -59,6 +67,7 @@ public sealed class ModuleAntiforgeryTests
                 webHost.UseSetting("ConnectionStrings:trykatch-platform", platformConnection);
                 webHost.UseSetting("ConnectionStrings:trykatch-identity", identityConnection);
                 webHost.UseSetting("ConnectionStrings:trykatch-outbox", outboxConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-work", workCoordinatorConnection);
                 webHost.ConfigureAppConfiguration((_, settings) => settings.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:trykatchdb"] = organizationConnection,
@@ -66,6 +75,7 @@ public sealed class ModuleAntiforgeryTests
                     ["ConnectionStrings:trykatch-platform"] = platformConnection,
                     ["ConnectionStrings:trykatch-identity"] = identityConnection,
                     ["ConnectionStrings:trykatch-outbox"] = outboxConnection,
+                    ["ConnectionStrings:trykatch-work"] = workCoordinatorConnection,
                     ["Bootstrap:PlatformAdminEmail"] = PlatformEmail,
                     ["Bootstrap:PlatformAdminPassword"] = Password,
                     ["DevelopmentDemo:Enabled"] = "true",

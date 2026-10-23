@@ -35,7 +35,11 @@ internal static class HostPostgresPolicyContracts
         AND (r."OrganizationId" = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid))))
         """;
 
-    public static IReadOnlyDictionary<string, Policy[]> All { get; } = new Dictionary<string, Policy[]>(StringComparer.Ordinal)
+    public static IReadOnlyDictionary<string, Policy[]> All { get; } = Create();
+
+    private static Dictionary<string, Policy[]> Create()
+    {
+        Dictionary<string, Policy[]> policies = new(StringComparer.Ordinal)
     {
         ["infrastructure.module_work_items"] =
         [
@@ -108,5 +112,9 @@ internal static class HostPostgresPolicyContracts
                 AND (m."UserId" = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))))
                 """, Roles: ["trykatch_org_runtime"])
         ]
-    };
+        };
+        foreach (string table in Jobs.QuartzSchemaContract.Tables.Concat(["module_schedule_cursors", "module_work_controls"]))
+            policies.Add("infrastructure." + table, [new(table + "_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])]);
+        return policies;
+    }
 }

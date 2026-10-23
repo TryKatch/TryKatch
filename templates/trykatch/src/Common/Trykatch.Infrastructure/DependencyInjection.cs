@@ -1,6 +1,8 @@
 using Trykatch.Application.Execution;
 using Trykatch.Application.Eventing;
 using Trykatch.Infrastructure.Execution;
+using Trykatch.Infrastructure.Jobs;
+using Trykatch.Application.Jobs;
 using Trykatch.Infrastructure.Eventing;
 using Trykatch.Application.Authorization;
 using Trykatch.Application.Auditing;
@@ -79,6 +81,8 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationModuleData, OrganizationModuleData>();
         services.TryAddSingleton<IOutboxTransport, LoggingOutboxTransport>();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IModuleWorkAdministration, ModuleWorkAdministration>();
+        services.AddModuleJobs(configuration, isOpenApiGeneration);
         services.AddScoped<ModuleOperationRegistry>();
         services.AddScoped<ModuleEventRegistry>();
         services.AddScoped<IModuleEventDeliveryDirectory, ModuleEventDeliveryDirectory>();

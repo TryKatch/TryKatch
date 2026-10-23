@@ -45,3 +45,5 @@ export const Uploading: Story = {
 }
 export const Dark: Story = { globals: { theme: 'dark' } }
 export const French: Story = { globals: { locale: 'fr' } }
+export const EmptyDark: Story = { ...Empty, globals: { theme: 'dark' } }
+export const EmptyFrench: Story = { ...Empty, globals: { locale: 'fr' } }

@@ -24,7 +24,7 @@ namespace Trykatch.IntegrationTests;
 [TestClass]
 [TestCategory("Integration")]
 [DoNotParallelize]
-public sealed class ModuleWorkExecutionIntegrationTests
+public sealed partial class ModuleWorkExecutionIntegrationTests
 {
     private static ExecutionFixture fixture = null!;
 
@@ -39,6 +39,27 @@ public sealed class ModuleWorkExecutionIntegrationTests
     {
         if (fixture is not null)
             await fixture.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task OperatorPausePreventsClaimWithoutConsumingAttemptBudget()
+    {
+        SeededWork work = await fixture.SeedUserWorkAsync("probe.command");
+        await fixture.SetOperatorPausedAsync(work, true);
+        (await fixture.ExecuteAsync(work)).State.ShouldBe(ModuleExecutionState.Paused);
+        (await fixture.CountEffectsAsync(work.OrganizationId)).ShouldBe(0);
+        await fixture.SetOperatorPausedAsync(work, false);
+        (await fixture.ExecuteAsync(work)).State.ShouldBe(ModuleExecutionState.Completed);
+        (await fixture.CountEffectsAsync(work.OrganizationId)).ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task AutomaticPausePersistsBackoffBeforeAnotherAttempt()
+    {
+        SeededWork work = await fixture.SeedUserWorkAsync("probe.command");
+        await fixture.SetOrganizationActiveAsync(work, false);
+        (await fixture.ExecuteAsync(work)).State.ShouldBe(ModuleExecutionState.Paused);
+        (await fixture.HasFutureAttemptAsync(work)).ShouldBe(1);
     }
 
     [TestMethod]
@@ -255,7 +276,10 @@ public sealed class ModuleWorkExecutionIntegrationTests
         SeededWork work = await fixture.SeedUserWorkAsync("probe.command");
         await fixture.SetOrganizationActiveAsync(work, false);
         for (int attempt = 0; attempt < ModuleWorkStore.MaximumAttempts + 1; attempt++)
+        {
             (await fixture.ExecuteAsync(work)).State.ShouldBe(ModuleExecutionState.Paused);
+            await fixture.MakeDueAsync(work);
+        }
         await fixture.SetOrganizationActiveAsync(work, true);
         (await fixture.ExecuteAsync(work)).State.ShouldBe(ModuleExecutionState.Completed);
         (await fixture.CountEffectsAsync(work.OrganizationId)).ShouldBe(1);
@@ -279,7 +303,7 @@ public sealed class ModuleWorkExecutionIntegrationTests
         await fixture.AssertBaselineModelStableAsync();
     }
 
-    private sealed class ExecutionFixture(PostgreSqlContainer postgres, string owner, ServiceProvider services) : IAsyncDisposable
+    private sealed partial class ExecutionFixture(PostgreSqlContainer postgres, string owner, ServiceProvider services) : IAsyncDisposable
     {
         private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
         private readonly string organizationConnection = RoleConnection(owner, PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.OrganizationPassword);
@@ -337,6 +361,7 @@ public sealed class ModuleWorkExecutionIntegrationTests
                 [$"ConnectionStrings:{RuntimeDatabaseConnectionContract.Identity}"] = identityRuntime,
                 [$"ConnectionStrings:{RuntimeDatabaseConnectionContract.Outbox}"] = outbox,
                 [$"ConnectionStrings:{RuntimeDatabaseConnectionContract.WorkCoordinator}"] = coordinator,
+                ["Jobs:Enabled"] = "true",
                 ["Email:Host"] = "127.0.0.1",
                 ["Email:Port"] = "1",
                 ["Email:From"] = "work-test@example.test",
@@ -429,6 +454,14 @@ public sealed class ModuleWorkExecutionIntegrationTests
         public IModuleWorkStore Store => services.GetRequiredService<IModuleWorkStore>();
         public Task<ModuleWorkClaim> ClaimAsync(SeededWork work) => Store.ClaimAsync(
             new(work.WorkId, work.OperationKey, 1), CancellationToken.None);
+        public Task SetOperatorPausedAsync(SeededWork work, bool paused) => ExecuteOwnerAsync(
+            "UPDATE infrastructure.module_work_items SET \"OperatorPaused\"=@paused WHERE \"Id\"=@work",
+            ("paused", paused), ("work", work.WorkId));
+        public Task<long> HasFutureAttemptAsync(SeededWork work) => CountOwnerAsync(
+            "SELECT count(*) FROM infrastructure.module_work_items WHERE \"Id\"=@work AND \"NextAttemptAtUtc\">CURRENT_TIMESTAMP", ("work", work.WorkId));
+        public Task MakeDueAsync(SeededWork work) => ExecuteOwnerAsync(
+            "UPDATE infrastructure.module_work_items SET \"NextAttemptAtUtc\"=NULL WHERE \"Id\"=@work", ("work", work.WorkId));
+
         public Task ExpireLeaseAsync(SeededWork work) => ExecuteOwnerAsync(
             "UPDATE infrastructure.module_work_items SET \"LeaseUntilUtc\"=CURRENT_TIMESTAMP - interval '1 second' WHERE \"Id\"=@work",
             ("work", work.WorkId));
@@ -861,7 +894,7 @@ public sealed class ModuleWorkExecutionIntegrationTests
         {
             ProbePayload data = payload.Deserialize<ProbePayload>(PayloadJson)!;
             if (data.HoldHandler)
-                await behavior.ReachAsync();
+                await behavior.ReachAsync().WaitAsync(cancellationToken);
             Guid targetRecordId = data.TargetRecordId ?? data.RecordId;
             await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE app.probe_records SET \"EffectCount\"=\"EffectCount\"+1, \"Marker\"={context.OperationKey} WHERE \"Id\"={targetRecordId}", cancellationToken);
             outbox.Enqueue(new ProbeFollowup(data.RecordId, context.OperationKey), context.OperationKey, context.OperationVersion);

@@ -158,11 +158,6 @@
         "resolved": "10.0.2",
         "contentHash": "JTpM4z0wpoIHHDvlCU27HsXo+zVnpWib94HXQpzzr+jc/P9NYf4w353AK4MXyGq/grm1mbLi7eXsOsDU8sGmNg=="
       },
-      "System.Security.Cryptography.Pkcs": {
-        "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "UPWqLSygJlFerRi9XNIuM0a1VC8gHUIufyP24xQ0sc+XimqUAEcjpOz9DhKpyDjH+5B/wO3RpC0KpkEeDj/ddg=="
-      },
       "trykatch.application": {
         "type": "Project",
         "dependencies": {
@@ -186,6 +181,7 @@
           "Microsoft.EntityFrameworkCore": "[10.0.11, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "PDFsharp-MigraDoc": "[6.2.4, )",
+          "Quartz": "[4.6.0, )",
           "Serilog.AspNetCore": "[10.0.0, )",
           "Serilog.Formatting.Compact": "[3.0.0, )",
           "Serilog.Sinks.OpenTelemetry": "[4.2.0, )",
@@ -318,6 +314,12 @@
           "System.Security.Cryptography.Pkcs": "8.0.1"
         }
       },
+      "Quartz": {
+        "type": "CentralTransitive",
+        "requested": "[4.6.0, )",
+        "resolved": "4.6.0",
+        "contentHash": "RjSwvjQS7Gavb+e0V8tvVVHiPNi/dtIDMNHBi3dzXgPsCQ80VIvss+igvmjFlEvARqfKdZRE4yziIOtkYFt09g=="
+      },
       "Serilog.AspNetCore": {
         "type": "CentralTransitive",
         "requested": "[10.0.0, )",
@@ -362,6 +364,12 @@
           "SkiaSharp.NativeAssets.Win32": "4.151.2",
           "SkiaSharp.NativeAssets.macOS": "4.151.2"
         }
+      },
+      "System.Security.Cryptography.Pkcs": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "a+EovgC1fBnwdlQ6cn3j4JFBfKqiFaFvoAhjisOoSvazLAcIznaBzPQP0oYnvccmeXfqUH1KebVZOxSeH6rMaw=="
       }
     }
   }

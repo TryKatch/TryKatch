@@ -11,6 +11,7 @@ using Trykatch.Application;
 using Trykatch.Application.Organizations;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure;
+using Trykatch.Infrastructure.Jobs;
 using Trykatch.Infrastructure.Modules;
 using Trykatch.Infrastructure.Organizations;
 using Trykatch.Infrastructure.Persistence;
@@ -33,6 +34,30 @@ public sealed class PostgresIsolationInspectionTests
         PostgresIsolationInspection inspection = await database.InspectAsync();
 
         inspection.IsValid.ShouldBeTrue(string.Join(Environment.NewLine, inspection.Errors));
+    }
+
+    [TestMethod]
+    public async Task QuartzTablesAreForcedAndDeniedToOrganizationRuntimeRole()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await using NpgsqlConnection connection = new(database.RuntimeConnection);
+        await connection.OpenAsync();
+
+        await using NpgsqlCommand readQuartz = new("SELECT 1 FROM infrastructure.qrtz_job_details LIMIT 1", connection);
+        PostgresException denied = await Should.ThrowAsync<PostgresException>(() => readQuartz.ExecuteScalarAsync());
+        denied.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
+
+        await using NpgsqlConnection administrator = new(database.ConnectionString);
+        await administrator.OpenAsync();
+        await using NpgsqlCommand forcedRls = new($"""
+            SELECT count(*) FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'infrastructure'
+              AND c.relname = ANY(ARRAY[{string.Join(",", QuartzSchemaContract.Tables.Select(table => $"'{table}'"))}])
+              AND c.relrowsecurity AND c.relforcerowsecurity
+            """, administrator);
+        Convert.ToInt32(await forcedRls.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture)
+            .ShouldBe(QuartzSchemaContract.Tables.Length);
     }
 
     [TestMethod]
@@ -862,6 +887,9 @@ public sealed class PostgresIsolationInspectionTests
                 .ToArray();
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(workExecutionOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            MigrationOperation[] durableJobOperations = new AddDurableModuleJobs().UpOperations.ToArray();
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(durableJobOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             await result.ExecuteAsync($"""
                 GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
                 GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
@@ -871,7 +899,32 @@ public sealed class PostgresIsolationInspectionTests
                 GRANT SELECT, UPDATE ON infrastructure.module_event_deliveries TO trykatch_work_coordinator;
                 GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO trykatch_outbox_worker;
                 """);
+            await GrantDurableJobAccessAsync(result);
             return result;
+        }
+
+        private static async Task GrantDurableJobAccessAsync(InspectionDatabase database)
+        {
+            RuntimeDatabaseRoles roles = new(
+                "trykatch_org_runtime",
+                "trykatch_platform_runtime",
+                "trykatch_identity_runtime",
+                "trykatch_outbox_worker");
+            Dictionary<string, DataResourceDescriptor> resources = OperationalDataResources.All
+                .ToDictionary(resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
+            string[] relations = [
+                "infrastructure.module_schedule_cursors",
+                "infrastructure.module_work_controls",
+                .. QuartzSchemaContract.Tables.Select(table => "infrastructure." + table)
+            ];
+
+            foreach ((RuntimeDatabaseRoleKind kind, string role) in roles.All)
+            foreach (string relation in relations)
+            {
+                IReadOnlySet<string> permissions = RuntimeDatabaseAccessProfiles.PermissionsFor(kind, relation, resources);
+                if (permissions.Count == 0) continue;
+                await database.ExecuteAsync($"GRANT {string.Join(", ", permissions)} ON {relation} TO {role}");
+            }
         }
 
         public Task<PostgresIsolationInspection> InspectAsync() =>

@@ -1,13 +1,13 @@
 ---
 title: Document uploads
-description: Understand the reference Documents module, local MinIO resource, and production storage boundary.
+description: Understand the reference Documents module, local RustFS resource, and production storage boundary.
 ---
 
 Projects and Documents are both enabled in the starter, but they demonstrate different module shapes. Projects is ordinary organization-owned CRUD. Documents is a full-stack file workflow: the browser uploads a file to the authorized API, PostgreSQL stores searchable metadata, and private object storage holds the bytes.
 
 ## Local development
 
-`trykatch start` starts MinIO with Aspire when the application was generated with the default `--storage true` option. Aspire binds MinIO's dynamic development ports to loopback and does not advertise them as external endpoints; the browser never receives its credentials.
+`trykatch start` starts a local RustFS 1.0.3 S3-compatible container with Aspire when the application was generated with the default `--storage true` option. The Apache-2.0 image is pinned to `rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b`. Aspire binds its dynamic development ports to loopback and does not advertise them as external endpoints; the browser never receives storage credentials.
 
 1. Start Docker Desktop or another Aspire-supported container runtime.
 2. Run `trykatch start` from the generated application root.
@@ -34,8 +34,10 @@ Archive and deletion-request operations retain file bytes because the central re
 
 ## Production
 
-Documents depends on the provider-neutral `IObjectStorage` contract. MinIO is only the Aspire development adapter; the module's domain and application layers do not reference MinIO or an S3 SDK. The included infrastructure adapter works with S3-compatible endpoints, and another provider can replace it by implementing the same contract without changing the Documents module.
+Documents depends on the provider-neutral `IObjectStorage` contract. RustFS is only the local AppHost development service; the module's domain and application layers do not reference RustFS or an S3 SDK. The included infrastructure adapter works with S3-compatible endpoints, and another provider can replace it by implementing the same contract without changing the Documents module.
 
-The pinned community MinIO image is a local-development convenience. Current upstream MinIO security advisories direct production users to patched supported releases, so Trykatch does not publish the local MinIO container as a production storage recommendation.
+RustFS is the local development service, not a production-readiness or high-availability claim. Production remains externally managed S3-compatible storage configured with the existing `Storage__ServiceUrl`, `Storage__AccessKey`, `Storage__SecretKey`, `Storage__Bucket`, and `Storage__Region` settings.
+
+An existing generated application is not automatically updated when its CLI or template package changes. A maintainer upgrading its AppHost must use the new separate object-storage volume and keep the former MinIO volume. Before routing existing document records to the new service or changing their storage URL, copy and verify the objects and confirm the target `Storage:ServiceUrl`; retain the old volume until verification is complete and its owner approves disposal. No automatic object migration occurs.
 
 Configure the production API with `Storage__ServiceUrl`, `Storage__AccessKey`, `Storage__SecretKey`, `Storage__Bucket`, and `Storage__Region`. Pre-create the private bucket, set `Storage__CreateBucket` to `false`, grant the application identity access only to that bucket, use TLS, enable encryption and versioning according to your data policy, and monitor capacity and failed object operations.

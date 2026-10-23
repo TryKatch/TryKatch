@@ -1,0 +1,4 @@
+# Exact historical false positives: contract prose lists cache exclusions, not credentials.
+3804ccfe6a8e4df3c1ebc35d83c38408071e2a33:templates/trykatch/docs/specs/feature-parity-contracts.md:generic-api-key:134
+75be7955b69552aa1a828729db1ec15a8a667f17:templates/trykatch/docs/specs/feature-parity-contracts.md:generic-api-key:134
+d17d25db62549a8cc5ddb9d2e20544d69ec43ade:templates/trykatch/docs/specs/feature-parity-contracts.md:generic-api-key:134

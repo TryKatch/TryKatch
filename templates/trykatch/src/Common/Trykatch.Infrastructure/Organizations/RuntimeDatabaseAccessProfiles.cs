@@ -42,12 +42,9 @@ public static class RuntimeDatabaseAccessProfiles
         "app", "platform", "identity", "reference", "infrastructure"
     };
 
-    public static IReadOnlySet<string> HostOwnedRelations { get; } = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "app.module_event_inbox",
-        "app.module_work_completions",
-        "infrastructure.module_work_items",
-        "infrastructure.module_event_deliveries",
+    public static IReadOnlySet<string> HostOwnedRelations { get; } = new HashSet<string>(
+    [
+        .. OperationalDataResources.All.Select(resource => $"{resource.Schema}.{resource.Table}"),
         "platform.organizations",
         "platform.organization_assistant_settings",
         "platform.memberships",
@@ -80,7 +77,7 @@ public static class RuntimeDatabaseAccessProfiles
         "identity.OpenIddictAuthorizations",
         "identity.OpenIddictScopes",
         "identity.OpenIddictTokens"
-    };
+    ], StringComparer.Ordinal);
 
     public static IReadOnlySet<string> PermissionsFor(
         RuntimeDatabaseRoleKind kind,
@@ -98,6 +95,9 @@ public static class RuntimeDatabaseAccessProfiles
             return (kind, relation) switch
             {
                 (RuntimeDatabaseRoleKind.Organization, "infrastructure.module_work_items") => Insert,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_schedule_cursors") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_work_controls") => SelectInsert,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, _) when Jobs.QuartzSchemaContract.Tables.Any(table => relation == "infrastructure." + table) => Crud,
                 (RuntimeDatabaseRoleKind.Organization, "app.module_event_inbox") => SelectInsert,
                 (RuntimeDatabaseRoleKind.Organization, "app.module_work_completions") => SelectInsert,
                 (RuntimeDatabaseRoleKind.Outbox, "infrastructure.module_event_deliveries") => SelectInsert,

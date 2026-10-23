@@ -1,4 +1,5 @@
 using Trykatch.Infrastructure.Execution;
+using Trykatch.Infrastructure.Jobs;
 using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Organizations;
@@ -14,6 +15,13 @@ internal static class OperationalDataResources
             typeof(ModuleEventDelivery).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
         new("module-event-inbox", "app", "module_event_inbox", ModuleDataOwnership.Organization,
             typeof(ModuleEventInbox).FullName, "module_event_inbox_read", ModuleDataAccessRule.HostOnly),
+        new("module-schedule-cursors", "infrastructure", "module_schedule_cursors", ModuleDataOwnership.Infrastructure,
+            typeof(ModuleScheduleCursor).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
+        new("module-work-controls", "infrastructure", "module_work_controls", ModuleDataOwnership.Infrastructure,
+            typeof(ModuleWorkControl).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
+        .. QuartzSchemaContract.Tables.Select(table => new DataResourceDescriptor(
+            "scheduler-" + table.Replace('_', '-'), "infrastructure", table, ModuleDataOwnership.Infrastructure,
+            AccessRule: ModuleDataAccessRule.HostOnly)),
         new("module-work-completions", "app", "module_work_completions", ModuleDataOwnership.Organization,
             typeof(ModuleWorkCompletion).FullName, "module_work_completions_read", ModuleDataAccessRule.HostOnly)
     ];

@@ -1,8 +1,9 @@
-import { defineConfig } from 'astro/config'
+import { defineConfig, passthroughImageService } from 'astro/config'
 import starlight from '@astrojs/starlight'
 
 export default defineConfig({
   site: 'https://docs.trykatch.net',
+  image: { service: passthroughImageService() },
   integrations: [
     starlight({
       title: 'Trykatch',

@@ -223,13 +223,21 @@ EOF
 
 cat >"$compose_override" <<EOF
 services:
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
-    command: ["server", "/data", "--console-address", ":9001"]
+  object-storage:
+    image: docker.io/rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b
+    command: ["/data"]
     environment:
-      MINIO_ROOT_USER: $storage_access_key
-      MINIO_ROOT_PASSWORD: $storage_secret_key
-    tmpfs: [/data]
+      RUSTFS_ACCESS_KEY: $storage_access_key
+      RUSTFS_SECRET_KEY: $storage_secret_key
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "false"
+    tmpfs: ["/data:mode=755,uid=10001,gid=10001"]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9000/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
   web:
@@ -245,8 +253,8 @@ services:
     environment:
       Storage__CreateBucket: "true"
     depends_on:
-      minio:
-        condition: service_started
+      object-storage:
+        condition: service_healthy
 EOF
 
 cat >"$environment_file" <<EOF
@@ -263,7 +271,7 @@ TRYKATCH_PLATFORM_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;U
 TRYKATCH_IDENTITY_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_identity_runtime;Password=$runtime_password-identity
 TRYKATCH_OUTBOX_WORKER_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_outbox_worker;Password=$runtime_password-outbox
 TRYKATCH_WORK_COORDINATOR_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_work_coordinator;Password=$runtime_password-work-coordinator
-TRYKATCH_STORAGE_SERVICE_URL=http://minio:9000
+TRYKATCH_STORAGE_SERVICE_URL=http://object-storage:9000
 TRYKATCH_STORAGE_ACCESS_KEY=$storage_access_key
 TRYKATCH_STORAGE_SECRET_KEY=$storage_secret_key
 TRYKATCH_STORAGE_BUCKET=trykatch-documents

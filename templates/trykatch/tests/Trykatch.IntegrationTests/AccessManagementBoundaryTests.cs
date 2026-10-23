@@ -843,7 +843,15 @@ public sealed class AccessManagementBoundaryTests
             }
             await InstalledSchemaCatalog.SynchronizeAsync(ownerConnection, catalog.Descriptors.SelectMany(module =>
                 module.DataResources.Select(resource => new InstalledDataResource(module.Id, resource))));
-            await PostgresRuntimeRoleFixture.GrantApplicationPrivilegesAsync(ownerConnection);
+            await RuntimeRoleProvisioner.ProvisionAsync(ownerConnection, new RuntimeDatabaseRoles(
+                PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.PlatformRole,
+                PostgresRuntimeRoleFixture.IdentityRole, PostgresRuntimeRoleFixture.OutboxRole,
+                PostgresRuntimeRoleFixture.WorkCoordinatorRole));
+            string workCoordinatorConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
+            {
+                Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+                Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+            }.ConnectionString;
 
             Dictionary<string, string?> settings = new()
             {
@@ -852,6 +860,7 @@ public sealed class AccessManagementBoundaryTests
                 ["ConnectionStrings:trykatch-platform"] = connections.Platform,
                 ["ConnectionStrings:trykatch-identity"] = connections.Identity,
                 ["ConnectionStrings:trykatch-outbox"] = connections.Outbox,
+                ["ConnectionStrings:trykatch-work"] = workCoordinatorConnection,
                 ["Bootstrap:PlatformAdminEmail"] = AdministratorEmail,
                 ["Bootstrap:PlatformAdminPassword"] = Password,
                 ["DevelopmentDemo:Enabled"] = "false"

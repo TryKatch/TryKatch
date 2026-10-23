@@ -31,8 +31,9 @@ export function Surface({ className, ...props }: HTMLAttributes<HTMLDivElement>)
   return <div className={cn('surface', className)} {...props} />
 }
 
-export function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
-  return <div className="empty-state"><div className="empty-state-icon" aria-hidden>◇</div><h3>{title}</h3><p>{description}</p>{action}</div>
+export function EmptyState({ title, description, action, headingLevel = 3 }: { title: string; description: string; action?: ReactNode; headingLevel?: 2 | 3 }) {
+  const Heading = headingLevel === 2 ? 'h2' : 'h3'
+  return <div className="empty-state"><div className="empty-state-icon" aria-hidden>◇</div><Heading className="empty-state-title">{title}</Heading><p>{description}</p>{action}</div>
 }
 
 export function Skeleton({ className }: { className?: string }) {

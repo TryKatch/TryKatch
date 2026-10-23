@@ -16,6 +16,8 @@ public static class PlatformPermissions
     public const string AuthenticationManage = "platform.authentication.manage";
     public const string OutboxRead = "platform.outbox.read";
     public const string OutboxReplay = "platform.outbox.replay";
+    public const string JobsRead = "platform.jobs.read";
+    public const string JobsManage = "platform.jobs.manage";
 
     public static readonly IReadOnlyList<PlatformPermissionModuleDefinition> Modules =
     [
@@ -42,6 +44,11 @@ public static class PlatformPermissions
         [
             new(AuthenticationRead, "View authentication", "View authentication policy and provider status.", false),
             new(AuthenticationManage, "Manage authentication", "Change security-sensitive authentication settings.", true)
+        ]),
+        new("jobs", "Module work", "Inspect and control registered module work.",
+        [
+            new(JobsRead, "View module work", "View bounded operational job metadata.", false),
+            new(JobsManage, "Manage module work", "Pause, resume and request controlled retries.", true)
         ]),
         new("outbox", "Outbox recovery", "Inspect terminal deliveries and request controlled replay.",
         [

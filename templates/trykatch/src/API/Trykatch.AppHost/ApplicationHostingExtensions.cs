@@ -42,7 +42,7 @@ internal static class ApplicationHostingExtensions
             workCoordinatorPassword);
 
         builder.AddDevelopmentEmail(api);
-        builder.AddDevelopmentObjectStorage(api);
+        builder.AddObjectStorage(api);
         builder.AddObservabilityStack();
 
 #if HAS_REACT_UI
@@ -182,35 +182,50 @@ internal static class ApplicationHostingExtensions
 #endif
     }
 
-    private static void AddDevelopmentObjectStorage(
+    private static void AddObjectStorage(
         this IDistributedApplicationBuilder builder,
         IResourceBuilder<ProjectResource> api)
     {
 #if TRYKATCH_STORAGE
+        if (!builder.ExecutionContext.IsRunMode)
+        {
+            api.WithEnvironment("Storage__ServiceUrl", builder.AddParameter("storage-service-url"))
+                .WithEnvironment("Storage__AccessKey", builder.AddParameter("storage-access-key", secret: true))
+                .WithEnvironment("Storage__SecretKey", builder.AddParameter("storage-secret-key", secret: true))
+                .WithEnvironment("Storage__Bucket", builder.AddParameter("storage-bucket"))
+                .WithEnvironment("Storage__Region", builder.AddParameter("storage-region", "us-east-1", publishValueAsDefault: true))
+                .WithEnvironment("Storage__CreateBucket", "false");
+            return;
+        }
+
+        // Preserve existing local secret parameter names when upgrading a checkout.
         IResourceBuilder<ParameterResource> accessKey =
             builder.AddParameter("minio-access-key", "trykatch-local", secret: true);
         IResourceBuilder<ParameterResource> secretKey =
             builder.AddParameter("minio-secret-key", "local-minio-secret-only", secret: true);
-        IResourceBuilder<ContainerResource> minio = builder
+        IResourceBuilder<ContainerResource> storage = builder
             .AddContainer(
-                "minio",
-                "quay.io/minio/minio",
-                "RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
-            .WithArgs("server", "/data", "--console-address", ":9001")
-            .WithEnvironment("MINIO_ROOT_USER", accessKey)
-            .WithEnvironment("MINIO_ROOT_PASSWORD", secretKey)
-            .WithVolume("trykatch-app-slug-minio-data", "/data")
+                "object-storage",
+                "rustfs/rustfs",
+                "1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b")
+            .WithArgs("/data")
+            .WithEnvironment("RUSTFS_ACCESS_KEY", accessKey)
+            .WithEnvironment("RUSTFS_SECRET_KEY", secretKey)
+            .WithEnvironment("RUSTFS_ADDRESS", "0.0.0.0:9000")
+            .WithEnvironment("RUSTFS_CONSOLE_ADDRESS", "0.0.0.0:9001")
+            .WithEnvironment("RUSTFS_CONSOLE_ENABLE", "true")
+            .WithVolume("trykatch-app-slug-object-storage-data", "/data")
             .WithHttpEndpoint(targetPort: 9000, name: "s3")
             .WithHttpEndpoint(targetPort: 9001, name: "console")
-            .WithHttpHealthCheck("/minio/health/ready", endpointName: "s3");
+            .WithHttpHealthCheck("/health/ready", endpointName: "s3");
 
-        api.WithEnvironment("Storage__ServiceUrl", minio.GetEndpoint("s3"))
+        api.WithEnvironment("Storage__ServiceUrl", storage.GetEndpoint("s3"))
             .WithEnvironment("Storage__AccessKey", accessKey)
             .WithEnvironment("Storage__SecretKey", secretKey)
             .WithEnvironment("Storage__Bucket", "trykatch-documents")
             .WithEnvironment("Storage__Region", "us-east-1")
             .WithEnvironment("Storage__CreateBucket", "true")
-            .WaitFor(minio);
+            .WaitFor(storage);
 #endif
     }
 
