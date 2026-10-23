@@ -16,6 +16,7 @@ services:
       Database__PlatformRuntimeRole: trykatch_platform_runtime
       Database__IdentityRuntimeRole: trykatch_identity_runtime
       Database__OutboxWorkerRole: trykatch_outbox_worker
+      Database__WorkCoordinatorRole: trykatch_work_coordinator
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,6 +46,7 @@ services:
       ConnectionStrings__trykatch-platform: ${TRYKATCH_PLATFORM_RUNTIME_CONNECTION}
       ConnectionStrings__trykatch-identity: ${TRYKATCH_IDENTITY_RUNTIME_CONNECTION}
       ConnectionStrings__trykatch-outbox: ${TRYKATCH_OUTBOX_WORKER_CONNECTION}
+      ConnectionStrings__trykatch-work: ${TRYKATCH_WORK_COORDINATOR_CONNECTION}
       Application__PublicUrl: ${TRYKATCH_PUBLIC_URL}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
@@ -138,6 +140,7 @@ services:
       TRYKATCH_PLATFORM_RUNTIME_PASSWORD: ${TRYKATCH_PLATFORM_RUNTIME_PASSWORD:?set the platform runtime database password}
       TRYKATCH_IDENTITY_RUNTIME_PASSWORD: ${TRYKATCH_IDENTITY_RUNTIME_PASSWORD:?set the identity runtime database password}
       TRYKATCH_OUTBOX_WORKER_PASSWORD: ${TRYKATCH_OUTBOX_WORKER_PASSWORD:?set the outbox worker database password}
+      TRYKATCH_WORK_COORDINATOR_PASSWORD: ${TRYKATCH_WORK_COORDINATOR_PASSWORD:?set the work coordinator database password}
     volumes: [postgres-data:/var/lib/postgresql, ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro]
     read_only: true
     tmpfs: [/tmp, /var/run/postgresql]

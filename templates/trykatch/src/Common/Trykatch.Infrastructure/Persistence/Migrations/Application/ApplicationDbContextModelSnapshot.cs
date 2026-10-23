@@ -68,6 +68,294 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.ToTable("audit_entries", "platform");
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Execution.ModuleEventDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ConsumerKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ConsumerModuleId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EffectiveActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EventKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("GrantKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("GrantVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastFailureCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("OperationVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OriginActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("ReplayGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId", "ConsumerKey")
+                        .IsUnique();
+
+                    b.HasIndex("State", "NextAttemptAtUtc", "LeaseUntilUtc", "CreatedAtUtc", "Id");
+
+                    b.ToTable("module_event_deliveries", "infrastructure", t =>
+                        {
+                            t.HasCheckConstraint("CK_module_delivery_state", "\"State\" IN ('queued', 'leased', 'paused', 'completed', 'terminal')");
+
+                            t.HasCheckConstraint("CK_module_delivery_versions", "\"OperationVersion\" > 0 AND \"SchemaVersion\" > 0 AND \"Attempts\" >= 0 AND \"ReplayGeneration\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Execution.ModuleEventInbox", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConsumerKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("OperationVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer");
+
+                    b.HasKey("OrganizationId", "MessageId", "ConsumerKey");
+
+                    b.HasIndex("OrganizationId", "ProcessedAtUtc");
+
+                    b.ToTable("module_event_inbox", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_module_inbox_version", "\"SchemaVersion\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Execution.ModuleWorkCompletion", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("OperationVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("OrganizationId", "WorkId");
+
+                    b.HasIndex("OrganizationId", "CompletedAtUtc");
+
+                    b.ToTable("module_work_completions", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_module_completion_version", "\"OperationVersion\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Execution.ModuleWorkItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ContextVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DueAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExecutionContextJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ExecutionIdentityKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("JobKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("JobVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastFailureCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("OperationVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("SubmissionMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("State", "DueAtUtc", "LeaseUntilUtc", "Id");
+
+                    b.HasIndex("OrganizationId", "ExecutionIdentityKey", "JobKey", "JobVersion", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("module_work_items", "infrastructure", t =>
+                        {
+                            t.HasCheckConstraint("CK_module_work_payload", "octet_length(\"Payload\"::text) <= 1048576");
+
+                            t.HasCheckConstraint("CK_module_work_state", "\"State\" IN ('queued', 'leased', 'paused', 'completed', 'denied', 'terminal')");
+
+                            t.HasCheckConstraint("CK_module_work_submission", "(\"SubmissionMode\" = 'enqueue' AND \"DueAtUtc\" IS NULL) OR (\"SubmissionMode\" = 'schedule' AND \"DueAtUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_module_work_versions", "\"JobVersion\" > 0 AND \"OperationVersion\" > 0 AND \"ContextVersion\" > 0 AND \"Attempts\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -75,6 +363,12 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         .HasColumnType("uuid");
 
                     b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContextJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int?>("ContextVersion")
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("ExhaustedAt")
@@ -95,6 +389,10 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         .IsRequired()
                         .HasColumnType("jsonb");
 
+                    b.Property<string>("PayloadHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<DateTimeOffset?>("ProcessedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -113,40 +411,90 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.ToTable("outbox_messages", "platform");
                 });
 
-            modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxReplayRequest", b =>
-                {
-                    b.Property<Guid>("RequestId").HasColumnType("uuid");
-                    b.Property<Guid>("ActorId").HasColumnType("uuid");
-                    b.Property<int>("ExpectedFailedGeneration").HasColumnType("integer");
-                    b.Property<Guid>("MessageId").HasColumnType("uuid");
-                    b.Property<DateTimeOffset>("RequestedAt").ValueGeneratedOnAdd().HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
-                    b.HasKey("RequestId");
-                    b.HasIndex("RequestedAt", "RequestId");
-                    b.ToTable("outbox_replay_requests", "platform", t =>
-                        t.HasCheckConstraint("CK_outbox_replay_requests_generation", "\"ExpectedFailedGeneration\" >= 0"));
-                });
-
             modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxRecoveryEvent", b =>
                 {
-                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
-                    b.Property<Guid>("MessageId").HasColumnType("uuid");
-                    b.Property<int>("ReplayGeneration").HasColumnType("integer");
-                    b.Property<string>("Outcome").IsRequired().HasMaxLength(40).HasColumnType("character varying(40)");
-                    b.Property<Guid?>("ActorId").HasColumnType("uuid");
-                    b.Property<string>("FailureCode").HasMaxLength(80).HasColumnType("character varying(80)");
-                    b.Property<string>("FailureType").HasMaxLength(240).HasColumnType("character varying(240)");
-                    b.Property<DateTimeOffset>("OccurredAt").HasColumnType("timestamp with time zone");
-                    b.Property<Guid?>("RequestId").HasColumnType("uuid");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("FailureType")
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("ReplayGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("RequestId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
-                    b.HasIndex("MessageId", "ReplayGeneration", "Outcome").IsUnique().HasFilter("\"Outcome\" = 'terminal'");
+
+                    b.HasIndex("RequestId")
+                        .IsUnique()
+                        .HasFilter("\"RequestId\" IS NOT NULL");
+
+                    b.HasIndex("MessageId", "ReplayGeneration", "Outcome")
+                        .IsUnique()
+                        .HasFilter("\"Outcome\" = 'terminal'");
+
                     b.HasIndex("OccurredAt", "MessageId", "ReplayGeneration");
-                    b.HasIndex("RequestId").IsUnique().HasFilter("\"RequestId\" IS NOT NULL");
+
                     b.ToTable("outbox_recovery_events", "platform", t =>
-                    {
-                        t.HasCheckConstraint("CK_outbox_recovery_events_generation", "\"ReplayGeneration\" >= 0");
-                        t.HasCheckConstraint("CK_outbox_recovery_events_outcome", "\"Outcome\" IN ('terminal', 'replayed', 'not_found', 'not_exhausted', 'stale_generation')");
-                        t.HasCheckConstraint("CK_outbox_recovery_events_terminal", "(\"Outcome\" = 'terminal' AND \"RequestId\" IS NULL AND \"ActorId\" IS NULL AND \"FailureCode\" IS NOT NULL AND \"FailureType\" IS NOT NULL) OR (\"Outcome\" <> 'terminal' AND \"RequestId\" IS NOT NULL AND \"ActorId\" IS NOT NULL AND \"FailureCode\" IS NULL AND \"FailureType\" IS NULL)");
-                    });
+                        {
+                            t.HasCheckConstraint("CK_outbox_recovery_events_generation", "\"ReplayGeneration\" >= 0");
+
+                            t.HasCheckConstraint("CK_outbox_recovery_events_outcome", "\"Outcome\" IN ('terminal', 'replayed', 'not_found', 'not_exhausted', 'stale_generation')");
+
+                            t.HasCheckConstraint("CK_outbox_recovery_events_terminal", "(\"Outcome\" = 'terminal' AND \"RequestId\" IS NULL AND \"ActorId\" IS NULL AND \"FailureCode\" IS NOT NULL AND \"FailureType\" IS NOT NULL) OR (\"Outcome\" <> 'terminal' AND \"RequestId\" IS NOT NULL AND \"ActorId\" IS NOT NULL AND \"FailureCode\" IS NULL AND \"FailureType\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxReplayRequest", b =>
+                {
+                    b.Property<Guid>("RequestId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ExpectedFailedGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("RequestId");
+
+                    b.HasIndex("RequestedAt", "RequestId");
+
+                    b.ToTable("outbox_replay_requests", "platform", t =>
+                        {
+                            t.HasCheckConstraint("CK_outbox_replay_requests_generation", "\"ExpectedFailedGeneration\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("Trykatch.Modules.Documents.Domain.DocumentRecord", b =>
@@ -160,10 +508,6 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
 
                     b.Property<Guid?>("ArchivedBy")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -181,8 +525,41 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("Content");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("other");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("MediaType")
+                        .HasMaxLength(127)
+                        .HasColumnType("character varying(127)");
+
+                    b.Property<string>("ObjectKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -195,6 +572,9 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.HasKey("Id");
 
                     b.HasIndex("OrganizationId", "CreatedAt");
+
+                    b.HasIndex("OrganizationId", "ObjectKey")
+                        .IsUnique();
 
                     b.ToTable("documents", "app", t =>
                         {

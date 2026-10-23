@@ -21,6 +21,7 @@ internal static class HostPostgresPolicyContracts
     private const string Actor = "(\"ActorId\" = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)";
     private const string OutboxWorker = "(CURRENT_USER = 'trykatch_outbox_worker'::name)";
     private const string PlatformRuntime = "(CURRENT_USER = 'trykatch_platform_runtime'::name)";
+    private const string Coordinator = "(CURRENT_USER = 'trykatch_work_coordinator'::name)";
     private const string RequestedTime = "(\"RequestedAt\" = CURRENT_TIMESTAMP)";
     private const string MembershipRole = """
         (EXISTS ( SELECT 1
@@ -36,6 +37,27 @@ internal static class HostPostgresPolicyContracts
 
     public static IReadOnlyDictionary<string, Policy[]> All { get; } = new Dictionary<string, Policy[]>(StringComparer.Ordinal)
     {
+        ["infrastructure.module_work_items"] =
+        [
+            new("module_work_items_append", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
+            new("module_work_items_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])
+        ],
+        ["infrastructure.module_event_deliveries"] =
+        [
+            new("module_event_deliveries_outbox_read", "r", OutboxWorker, Roles: ["trykatch_outbox_worker"]),
+            new("module_event_deliveries_outbox_insert", "a", "", OutboxWorker, ["trykatch_outbox_worker"]),
+            new("module_event_deliveries_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])
+        ],
+        ["app.module_work_completions"] =
+        [
+            new("module_work_completions_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("module_work_completions_insert", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"])
+        ],
+        ["app.module_event_inbox"] =
+        [
+            new("module_event_inbox_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("module_event_inbox_insert", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"])
+        ],
         ["platform.organization_assistant_settings"] = [new("organization_assistant_settings_isolation", "*", Organization, Organization)],
         ["platform.audit_entries"] =
         [

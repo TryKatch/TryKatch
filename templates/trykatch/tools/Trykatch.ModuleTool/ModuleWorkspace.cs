@@ -300,6 +300,7 @@ public sealed partial class ModuleWorkspace
             ValidateContributions(manifest, errors);
         }
 
+        ModuleExecutionManifestRules.Validate(modules, errors);
         ValidateEnabledGraph(modules, errors);
         ValidateGlobalContributions(modules.Where(module => module.Registration.Enabled), errors);
     }
@@ -1110,6 +1111,83 @@ public sealed class ModuleManifest
     public ModuleArtifacts Artifacts { get; init; } = new();
     public ModuleEntrypoints Entrypoints { get; init; } = new();
     public ModuleContributions Contributions { get; init; } = new();
+    public ModuleExecutionManifest Execution { get; init; } = new();
+}
+
+public sealed class ModuleExecutionManifest
+{
+    public List<ModuleOperationManifest> Operations { get; init; } = [];
+    public List<ModuleSystemGrantManifest> SystemGrants { get; init; } = [];
+    public List<ModuleIntegrationEventManifest> IntegrationEvents { get; init; } = [];
+    public List<ModuleEventConsumerManifest> EventConsumers { get; init; } = [];
+    public List<ModuleJobManifest> Jobs { get; init; } = [];
+    public List<ModuleRecurringScheduleManifest> RecurringSchedules { get; init; } = [];
+}
+
+public sealed class ModuleOperationManifest
+{
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
+    public string ExecutionKind { get; init; } = string.Empty;
+    public string PayloadSchemaKey { get; init; } = string.Empty;
+    public int PayloadSchemaVersion { get; init; }
+    public List<string> RequiredPermissionKeys { get; init; } = [];
+    public string ResourcePolicyKey { get; init; } = string.Empty;
+    public string? SystemGrantKey { get; init; }
+    public int MaximumPayloadBytes { get; init; }
+}
+
+public sealed class ModuleSystemGrantManifest
+{
+    public string GrantKey { get; init; } = string.Empty;
+    public int GrantVersion { get; init; }
+    public Guid AuditActorId { get; init; }
+    public List<string> AllowedOperationKeys { get; init; } = [];
+    public List<string> AllowedResourceKeys { get; init; } = [];
+}
+
+public sealed class ModuleIntegrationEventManifest
+{
+    public string EventKey { get; init; } = string.Empty;
+    public int SchemaVersion { get; init; }
+    public int MaximumPayloadBytes { get; init; }
+}
+
+public sealed class ModuleEventVersionManifest
+{
+    public string EventKey { get; init; } = string.Empty;
+    public int SchemaVersion { get; init; }
+}
+
+public sealed class ModuleEventConsumerManifest
+{
+    public string ConsumerKey { get; init; } = string.Empty;
+    public List<ModuleEventVersionManifest> AcceptedEvents { get; init; } = [];
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
+    public string SystemGrantKey { get; init; } = string.Empty;
+}
+
+public sealed class ModuleJobManifest
+{
+    public string JobKey { get; init; } = string.Empty;
+    public int JobVersion { get; init; }
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
+    public string ExecutionKind { get; init; } = string.Empty;
+    public string PayloadSchemaKey { get; init; } = string.Empty;
+    public int PayloadSchemaVersion { get; init; }
+    public int MaximumPayloadBytes { get; init; }
+}
+
+public sealed class ModuleRecurringScheduleManifest
+{
+    public string ScheduleKey { get; init; } = string.Empty;
+    public string JobKey { get; init; } = string.Empty;
+    public int JobVersion { get; init; }
+    public string UtcSchedule { get; init; } = string.Empty;
+    public string MisfirePolicy { get; init; } = string.Empty;
+    public string SystemGrantKey { get; init; } = string.Empty;
 }
 
 public sealed class ModuleDataOwnershipDeclaration

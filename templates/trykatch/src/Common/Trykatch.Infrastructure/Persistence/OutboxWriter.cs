@@ -1,11 +1,24 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using Trykatch.Application.Organizations;
 using Trykatch.Application.Outbox;
+using Trykatch.Infrastructure.Execution;
+using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Persistence;
 
-internal sealed class OutboxWriter(ApplicationDbContext dbContext) : IOutboxWriter
+internal sealed class OutboxWriter(
+    ApplicationDbContext dbContext,
+    ModuleCatalog catalog,
+    IOrganizationContext organization,
+    ModuleWorkExecutionContext? execution = null) : IOutboxWriter
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private const int MaximumPayloadBytes = 1_048_576;
+    private const int UserContextVersion = 1;
+    private const int SystemContextVersion = 2;
 
     public void Enqueue<T>(T message) where T : notnull =>
         dbContext.OutboxMessages.Add(new OutboxMessage
@@ -13,6 +26,142 @@ internal sealed class OutboxWriter(ApplicationDbContext dbContext) : IOutboxWrit
             Type = OutboxContractName.For(typeof(T)),
             Payload = JsonSerializer.Serialize(message, SerializerOptions)
         });
+
+    public void Enqueue<T>(T message, string operationKey, int operationVersion) where T : notnull
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        if (string.IsNullOrWhiteSpace(operationKey) || operationVersion <= 0)
+            throw new InvalidOperationException("The outbox operation registration is invalid.");
+
+        ModuleOperationDescriptor? operation = catalog.Descriptors
+            .SelectMany(descriptor => descriptor.Operations)
+            .SingleOrDefault(candidate =>
+                string.Equals(candidate.OperationKey, operationKey, StringComparison.Ordinal)
+                && candidate.OperationVersion == operationVersion);
+        IntegrationEventDescriptor[] events = catalog.Descriptors
+            .SelectMany(descriptor => descriptor.IntegrationEvents)
+            .Where(descriptor => descriptor.PayloadType == typeof(T))
+            .ToArray();
+
+        if (operation is null
+            || events.Length != 1
+            || !string.Equals(events[0].OwnerModuleId, operation.ModuleId, StringComparison.Ordinal))
+            throw new InvalidOperationException("The outbox operation and event must be explicitly registered to the same module.");
+
+        ModuleExecutionIdentity? identity = execution?.Identity;
+        ModuleOperationDescriptor? frameOperation = execution?.Operation;
+        bool systemExecution = identity?.ExecutionKind is ModuleExecutionKind.CommittedEvent or ModuleExecutionKind.ScheduledSystem;
+        if (systemExecution)
+        {
+            if (identity is null
+                || frameOperation is null
+                || operation.ExecutionKind != identity.ExecutionKind
+                || frameOperation.ModuleId != operation.ModuleId
+                || frameOperation.OperationKey != operationKey
+                || frameOperation.OperationVersion != operationVersion
+                || frameOperation.ExecutionKind != identity.ExecutionKind
+                || identity.OrganizationId == Guid.Empty
+                || identity.EffectiveActorId == Guid.Empty
+                || identity.OriginActorId == Guid.Empty
+                || identity.MembershipId is not null
+                || !organization.IsResolved
+                || organization.OrganizationId != identity.OrganizationId
+                || organization.ActorId != identity.EffectiveActorId)
+                throw new InvalidOperationException("The current system work frame does not authorize this outbox operation.");
+        }
+        else
+        {
+            if (operation.ExecutionKind != ModuleExecutionKind.UserCommand)
+                throw new InvalidOperationException("System outbox operations require a validated work execution frame.");
+            if (!organization.IsResolved
+                || organization.OrganizationId == Guid.Empty
+                || organization.ActorId == Guid.Empty
+                || organization.MembershipId == Guid.Empty)
+                throw new InvalidOperationException("A resolved organization membership is required to enqueue this event.");
+        }
+
+        foreach (string permission in operation.RequiredPermissionKeys)
+        {
+            if (!organization.Permissions.Contains(permission))
+                throw new UnauthorizedAccessException("The current organization membership lacks a required permission.");
+        }
+
+        IntegrationEventDescriptor integrationEvent = events[0];
+        int maximumPayloadBytes = Math.Min(MaximumPayloadBytes, integrationEvent.MaximumPayloadBytes);
+        string payload = JsonSerializer.Serialize<T>(message, SerializerOptions);
+        if (Encoding.UTF8.GetByteCount(payload) > maximumPayloadBytes)
+            throw new InvalidOperationException("The registered outbox event payload exceeds its size limit.");
+
+        bool isSystem = systemExecution;
+        OutboxContext context = new(
+            isSystem ? identity!.OrganizationId : organization.OrganizationId,
+            isSystem ? identity!.EffectiveActorId : organization.ActorId,
+            isSystem ? identity!.OriginActorId : organization.ActorId,
+            isSystem ? identity!.MembershipId : organization.MembershipId,
+            isSystem ? identity!.ExecutionKind.ToString() : nameof(ModuleExecutionKind.UserCommand),
+            operation.OperationKey,
+            operation.OperationVersion,
+            integrationEvent.EventKey,
+            integrationEvent.SchemaVersion,
+            OutboxCatalogVersion.Compute(catalog),
+            Activity.Current?.TraceId.ToString());
+        string contextJson = JsonSerializer.Serialize(context, SerializerOptions);
+        string payloadHash = OutboxPayloadHash.Compute(payload);
+
+        dbContext.OutboxMessages.Add(new OutboxMessage
+        {
+            Type = integrationEvent.EventKey,
+            Payload = payload,
+            ContextVersion = isSystem ? SystemContextVersion : UserContextVersion,
+            ContextJson = contextJson,
+            PayloadHash = payloadHash
+        });
+    }
+}
+
+internal static class OutboxCatalogVersion
+{
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+
+    public static string Compute(ModuleCatalog catalog)
+    {
+        object[] fingerprint = catalog.Descriptors
+            .OrderBy(module => module.Id, StringComparer.Ordinal)
+            .Select(module => (object)new
+            {
+                module.Id,
+                module.Version,
+                Operations = module.Operations
+                    .OrderBy(operation => operation.OperationKey, StringComparer.Ordinal)
+                    .ThenBy(operation => operation.OperationVersion)
+                    .Select(operation => new
+                    {
+                        operation.ModuleId,
+                        operation.OperationKey,
+                        operation.OperationVersion,
+                        operation.ExecutionKind,
+                        operation.PayloadSchemaKey,
+                        operation.PayloadSchemaVersion,
+                        Permissions = operation.RequiredPermissionKeys.Order(StringComparer.Ordinal),
+                        operation.ResourcePolicyKey,
+                        operation.SystemGrantKey,
+                        operation.MaximumPayloadBytes
+                    }),
+                Events = module.IntegrationEvents
+                    .OrderBy(integrationEvent => integrationEvent.EventKey, StringComparer.Ordinal)
+                    .ThenBy(integrationEvent => integrationEvent.SchemaVersion)
+                    .Select(integrationEvent => new
+                    {
+                        integrationEvent.EventKey,
+                        integrationEvent.SchemaVersion,
+                        integrationEvent.OwnerModuleId,
+                        integrationEvent.MaximumPayloadBytes
+                    })
+            })
+            .ToArray();
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(fingerprint, SerializerOptions);
+        return Convert.ToHexString(SHA256.HashData(bytes));
+    }
 }
 
 internal static class OutboxContractName

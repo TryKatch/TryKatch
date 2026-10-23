@@ -38,7 +38,7 @@ public sealed class PostgresRuntimeRoleFixtureTests
         command.CommandText = """
             SELECT rolname, rolcanlogin, rolinherit, rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls
             FROM pg_roles
-            WHERE rolname IN ('trykatch_org_runtime', 'trykatch_platform_runtime', 'trykatch_identity_runtime', 'trykatch_outbox_worker')
+            WHERE rolname IN ('trykatch_org_runtime', 'trykatch_platform_runtime', 'trykatch_identity_runtime', 'trykatch_outbox_worker', 'trykatch_work_coordinator')
             ORDER BY rolname;
             """;
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync();
@@ -55,7 +55,8 @@ public sealed class PostgresRuntimeRoleFixtureTests
             PostgresRuntimeRoleFixture.IdentityRole,
             PostgresRuntimeRoleFixture.OrganizationRole,
             PostgresRuntimeRoleFixture.OutboxRole,
-            PostgresRuntimeRoleFixture.PlatformRole
+            PostgresRuntimeRoleFixture.PlatformRole,
+            PostgresRuntimeRoleFixture.WorkCoordinatorRole
         ]);
     }
 }

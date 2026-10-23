@@ -11,6 +11,9 @@ public sealed class AuditIntent
     private static readonly HashSet<string> ApprovedDetailKeys = new(StringComparer.Ordinal)
     {
         "expiresAt",
+        "originActorId",
+        "executionKind",
+        "systemActor",
         "permissionCount",
         "reasonProvided",
         "roleCount",

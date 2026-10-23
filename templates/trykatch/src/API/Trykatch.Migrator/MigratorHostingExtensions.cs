@@ -175,7 +175,8 @@ internal static class MigratorHostingExtensions
             configuration["Database:OrganizationRuntimeRole"],
             configuration["Database:PlatformRuntimeRole"],
             configuration["Database:IdentityRuntimeRole"],
-            configuration["Database:OutboxWorkerRole"]);
+            configuration["Database:OutboxWorkerRole"],
+            configuration["Database:WorkCoordinatorRole"]);
         if (!runtimeRoles.IsConfigured)
         {
             return;
@@ -209,16 +210,18 @@ internal static class MigratorHostingExtensions
         string? Organization,
         string? Platform,
         string? Identity,
-        string? Outbox)
+        string? Outbox,
+        string? WorkCoordinator)
     {
-        public bool IsConfigured => new[] { Organization, Platform, Identity, Outbox }
+        public bool IsConfigured => new[] { Organization, Platform, Identity, Outbox, WorkCoordinator }
             .Any(role => !string.IsNullOrWhiteSpace(role));
 
         public RuntimeDatabaseRoles RequireAll() => new(
             Required(Organization, "organization"),
             Required(Platform, "platform"),
             Required(Identity, "identity"),
-            Required(Outbox, "outbox"));
+            Required(Outbox, "outbox"),
+            Required(WorkCoordinator, "work coordinator"));
 
         private static string Required(string? role, string purpose) =>
             !string.IsNullOrWhiteSpace(role)

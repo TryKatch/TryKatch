@@ -19,6 +19,8 @@ internal static class ApplicationHostingExtensions
             builder.AddParameter("identity-runtime-password", "local-identity-only", secret: true);
         IResourceBuilder<ParameterResource> outboxPassword =
             builder.AddParameter("outbox-runtime-password", "local-outbox-only", secret: true);
+        IResourceBuilder<ParameterResource> workCoordinatorPassword =
+            builder.AddParameter("work-coordinator-runtime-password", "local-work-coordinator-only", secret: true);
 
         IResourceBuilder<PostgresDatabaseResource> database = builder.AddApplicationDatabase(
             postgresAdminPassword,
@@ -26,7 +28,8 @@ internal static class ApplicationHostingExtensions
             organizationPassword,
             platformPassword,
             identityPassword,
-            outboxPassword);
+            outboxPassword,
+            workCoordinatorPassword);
         IResourceBuilder<ContainerResource> collector = builder.AddOpenTelemetryCollector();
         IResourceBuilder<ProjectResource> api = builder.AddApplicationApi(
             database,
@@ -35,7 +38,8 @@ internal static class ApplicationHostingExtensions
             organizationPassword,
             platformPassword,
             identityPassword,
-            outboxPassword);
+            outboxPassword,
+            workCoordinatorPassword);
 
         builder.AddDevelopmentEmail(api);
         builder.AddDevelopmentObjectStorage(api);
@@ -59,7 +63,8 @@ internal static class ApplicationHostingExtensions
         IResourceBuilder<ParameterResource> organizationPassword,
         IResourceBuilder<ParameterResource> platformPassword,
         IResourceBuilder<ParameterResource> identityPassword,
-        IResourceBuilder<ParameterResource> outboxPassword)
+        IResourceBuilder<ParameterResource> outboxPassword,
+        IResourceBuilder<ParameterResource> workCoordinatorPassword)
     {
         IResourceBuilder<PostgresServerResource> postgres = builder
             .AddPostgres("postgres", password: postgresAdminPassword)
@@ -69,6 +74,7 @@ internal static class ApplicationHostingExtensions
             .WithEnvironment("TRYKATCH_PLATFORM_RUNTIME_PASSWORD", platformPassword)
             .WithEnvironment("TRYKATCH_IDENTITY_RUNTIME_PASSWORD", identityPassword)
             .WithEnvironment("TRYKATCH_OUTBOX_WORKER_PASSWORD", outboxPassword)
+            .WithEnvironment("TRYKATCH_WORK_COORDINATOR_PASSWORD", workCoordinatorPassword)
             .WithBindMount("../../../deploy/postgres/init", "/docker-entrypoint-initdb.d", isReadOnly: true)
             .WithDataVolume("trykatch-app-slug-postgres-data");
 
@@ -100,7 +106,8 @@ internal static class ApplicationHostingExtensions
         IResourceBuilder<ParameterResource> organizationPassword,
         IResourceBuilder<ParameterResource> platformPassword,
         IResourceBuilder<ParameterResource> identityPassword,
-        IResourceBuilder<ParameterResource> outboxPassword)
+        IResourceBuilder<ParameterResource> outboxPassword,
+        IResourceBuilder<ParameterResource> workCoordinatorPassword)
     {
         ReferenceExpression migratorConnection = ReferenceExpression.Create(
             $"{database.Resource.ConnectionStringExpression};Username=trykatch_migrator;Password={migratorPassword}");
@@ -112,6 +119,8 @@ internal static class ApplicationHostingExtensions
             $"{database.Resource.ConnectionStringExpression};Username=trykatch_identity_runtime;Password={identityPassword}");
         ReferenceExpression outboxConnection = ReferenceExpression.Create(
             $"{database.Resource.ConnectionStringExpression};Username=trykatch_outbox_worker;Password={outboxPassword}");
+        ReferenceExpression workCoordinatorConnection = ReferenceExpression.Create(
+            $"{database.Resource.ConnectionStringExpression};Username=trykatch_work_coordinator;Password={workCoordinatorPassword}");
 
         IResourceBuilder<ProjectResource> migrator = builder
             .AddProject<Projects.TemplateProjectIdentifier_Migrator>("migrator")
@@ -120,6 +129,7 @@ internal static class ApplicationHostingExtensions
             .WithEnvironment("Database__PlatformRuntimeRole", "trykatch_platform_runtime")
             .WithEnvironment("Database__IdentityRuntimeRole", "trykatch_identity_runtime")
             .WithEnvironment("Database__OutboxWorkerRole", "trykatch_outbox_worker")
+            .WithEnvironment("Database__WorkCoordinatorRole", "trykatch_work_coordinator")
             .WaitFor(database);
 
         IResourceBuilder<ProjectResource> api = builder
@@ -128,6 +138,7 @@ internal static class ApplicationHostingExtensions
             .WithEnvironment("ConnectionStrings__trykatch-platform", platformConnection)
             .WithEnvironment("ConnectionStrings__trykatch-identity", identityConnection)
             .WithEnvironment("ConnectionStrings__trykatch-outbox", outboxConnection)
+            .WithEnvironment("ConnectionStrings__trykatch-work", workCoordinatorConnection)
             .WaitFor(database)
             .WaitForCompletion(migrator)
             .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", collector.GetEndpoint("otlp-http"))

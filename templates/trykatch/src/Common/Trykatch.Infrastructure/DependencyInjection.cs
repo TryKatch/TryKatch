@@ -1,3 +1,7 @@
+using Trykatch.Application.Execution;
+using Trykatch.Application.Eventing;
+using Trykatch.Infrastructure.Execution;
+using Trykatch.Infrastructure.Eventing;
 using Trykatch.Application.Authorization;
 using Trykatch.Application.Auditing;
 using Trykatch.Application.Identity;
@@ -75,6 +79,20 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationModuleData, OrganizationModuleData>();
         services.TryAddSingleton<IOutboxTransport, LoggingOutboxTransport>();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<ModuleOperationRegistry>();
+        services.AddScoped<ModuleEventRegistry>();
+        services.AddScoped<IModuleEventDeliveryDirectory, ModuleEventDeliveryDirectory>();
+        services.AddScoped<ModuleEventFanout>();
+        services.AddScoped<ModuleWorkExecutionContext>();
+        services.AddSingleton<IModuleWorkStore, ModuleWorkStore>();
+        services.AddSingleton<OrganizationWorkExecutor>();
+        services.AddSingleton<IOrganizationWorkExecutor>(provider => provider.GetRequiredService<OrganizationWorkExecutor>());
+        services.AddSingleton<IModuleEventDeliveryStore, ModuleEventDeliveryStore>();
+        services.AddScoped<ModuleEventDeliveryProcessor>();
+        services.AddSingleton<ModuleEventWorkerState>();
+        services.AddHealthChecks().AddCheck<ModuleEventHealthCheck>("module-events", tags: ["ready"]);
+        if (!isOpenApiGeneration) services.AddHostedService<ModuleEventDeliveryWorker>();
+        services.AddHostedService<ModuleWorkStartupValidator>();
         services.AddOptions<AuditProjectionOptions>()
             .BindConfiguration(AuditProjectionOptions.SectionName)
             .Validate(options => options.BatchSize is >= 1 and <= 500, "Audit projection batch size must be between 1 and 500.")

@@ -15,7 +15,7 @@ public static partial class RuntimeRoleProvisioner
         RuntimeDatabaseRoles roles,
         CancellationToken cancellationToken = default)
     {
-        string[] roleNames = [roles.Organization, roles.Platform, roles.Identity, roles.Outbox];
+        string[] roleNames = roles.All.Select(role => role.Name).ToArray();
         if (roleNames.Distinct(StringComparer.Ordinal).Count() != roleNames.Length)
             throw new InvalidOperationException("Database runtime roles must be distinct.");
         foreach (string roleName in roleNames)
@@ -28,6 +28,8 @@ public static partial class RuntimeRoleProvisioner
         await connection.OpenAsync(cancellationToken);
         foreach (string roleName in roleNames)
             await VerifyRoleAsync(connection, roleName, cancellationToken);
+        if (roles.WorkCoordinator != "trykatch_work_coordinator")
+            throw new InvalidOperationException("Work coordinator role must match the host policy contract: trykatch_work_coordinator.");
         if (roles.Platform != "trykatch_platform_runtime")
             throw new InvalidOperationException("Platform role must match the host policy contract: trykatch_platform_runtime.");
 
@@ -35,12 +37,13 @@ public static partial class RuntimeRoleProvisioner
         string platform = QuoteIdentifier(roles.Platform);
         string identity = QuoteIdentifier(roles.Identity);
         string outbox = QuoteIdentifier(roles.Outbox);
+        string coordinator = QuoteIdentifier(roles.WorkCoordinator);
         bool hostFunctionExists = await HostFunctionExistsAsync(connection, cancellationToken);
         if (hostFunctionExists)
         {
             await using NpgsqlCommand quarantineFunction = new($"""
                 REVOKE ALL ON FUNCTION platform.redact_legacy_outbox_error()
-                FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
+                FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
                 """, connection);
             await quarantineFunction.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -59,20 +62,20 @@ public static partial class RuntimeRoleProvisioner
         foreach (string schema in userSchemas)
         {
             await using NpgsqlCommand revoke = new($"""
-                REVOKE ALL PRIVILEGES ON SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
-                REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
-                REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
-                REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
-                ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON TABLES FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
-                ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON SEQUENCES FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
-                ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON FUNCTIONS FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
+                REVOKE ALL PRIVILEGES ON SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON TABLES FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON SEQUENCES FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON FUNCTIONS FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
                 """, connection);
             await revoke.ExecuteNonQueryAsync(cancellationToken);
         }
 
         await using (NpgsqlCommand databaseGrants = new($"""
-            REVOKE ALL PRIVILEGES ON DATABASE {QuoteIdentifier(connection.Database)} FROM {organization}, {platform}, {identity}, {outbox}, PUBLIC;
-            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {organization}, {platform}, {identity}, {outbox};
+            REVOKE ALL PRIVILEGES ON DATABASE {QuoteIdentifier(connection.Database)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {organization}, {platform}, {identity}, {outbox}, {coordinator};
             GRANT USAGE ON SCHEMA identity TO {identity};
             GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity TO {identity};
             """, connection))
@@ -80,7 +83,7 @@ public static partial class RuntimeRoleProvisioner
 
         IReadOnlyList<DataResourceDescriptor> installed =
             await InstalledSchemaCatalog.ReadAsync(connectionString, cancellationToken);
-        Dictionary<string, DataResourceDescriptor> resources = installed.ToDictionary(
+        Dictionary<string, DataResourceDescriptor> resources = installed.Concat(OperationalDataResources.All).ToDictionary(
             resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
         IReadOnlyList<(string Schema, string Table)> relations = await ReadRelationsAsync(connection, cancellationToken);
         foreach ((RuntimeDatabaseRoleKind kind, string roleName) in roles.All)

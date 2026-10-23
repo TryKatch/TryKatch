@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Trykatch.Infrastructure.Execution;
 
 namespace Trykatch.Infrastructure.Persistence;
 
@@ -7,6 +8,7 @@ internal sealed class OutboxDbContext(DbContextOptions<OutboxDbContext> options)
     public DbSet<OutboxMessage> Messages => Set<OutboxMessage>();
     public DbSet<OutboxReplayRequest> ReplayRequests => Set<OutboxReplayRequest>();
     public DbSet<OutboxRecoveryEvent> RecoveryEvents => Set<OutboxRecoveryEvent>();
+    public DbSet<ModuleEventDelivery> ModuleEventDeliveries => Set<ModuleEventDelivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -16,6 +18,8 @@ internal sealed class OutboxDbContext(DbContextOptions<OutboxDbContext> options)
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Type).HasMaxLength(500);
             entity.Property(x => x.Payload).HasColumnType("jsonb");
+            entity.Property(x => x.ContextJson).HasColumnType("jsonb");
+            entity.Property(x => x.PayloadHash).HasMaxLength(64);
             entity.Property(x => x.LastErrorCode).HasMaxLength(80);
             entity.Property(x => x.LastErrorType).HasMaxLength(500);
             entity.HasIndex(x => new { x.ProcessedAt, x.ExhaustedAt, x.OccurredAt, x.Id });
@@ -38,6 +42,21 @@ internal sealed class OutboxDbContext(DbContextOptions<OutboxDbContext> options)
             entity.HasIndex(x => new { x.MessageId, x.ReplayGeneration, x.Outcome }).IsUnique()
                 .HasFilter("\"Outcome\" = 'terminal'");
             entity.HasIndex(x => new { x.OccurredAt, x.MessageId, x.ReplayGeneration });
+        });
+        modelBuilder.Entity<ModuleEventDelivery>(entity =>
+        {
+            entity.ToTable("module_event_deliveries", "infrastructure", table => table.ExcludeFromMigrations());
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ConsumerKey).HasMaxLength(120);
+            entity.Property(x => x.ConsumerModuleId).HasMaxLength(80);
+            entity.Property(x => x.EventKey).HasMaxLength(120);
+            entity.Property(x => x.GrantKey).HasMaxLength(120);
+            entity.Property(x => x.OperationKey).HasMaxLength(120);
+            entity.Property(x => x.PayloadHash).HasMaxLength(64);
+            entity.Property(x => x.State).HasMaxLength(20);
+            entity.Property(x => x.LastFailureCode).HasMaxLength(80);
+            entity.HasIndex(x => new { x.MessageId, x.ConsumerKey }).IsUnique();
+            entity.HasIndex(x => new { x.State, x.NextAttemptAtUtc, x.LeaseUntilUtc, x.CreatedAtUtc, x.Id });
         });
     }
 }

@@ -179,6 +179,12 @@ public sealed record ModuleDescriptor(
     public IReadOnlyList<DataResourceDescriptor> DataResources { get; init; } = [];
     public string Publisher { get; init; } = "try" + "katch";
     public IReadOnlyList<PermissionDescriptor> Permissions { get; init; } = [];
+    public IReadOnlyList<ModuleOperationDescriptor> Operations { get; init; } = [];
+    public IReadOnlyList<ModuleSystemGrantDescriptor> SystemGrants { get; init; } = [];
+    public IReadOnlyList<IntegrationEventDescriptor> IntegrationEvents { get; init; } = [];
+    public IReadOnlyList<ModuleEventConsumerDescriptor> EventConsumers { get; init; } = [];
+    public IReadOnlyList<ModuleJobDescriptor> Jobs { get; init; } = [];
+    public IReadOnlyList<ModuleRecurringScheduleDescriptor> RecurringSchedules { get; init; } = [];
 }
 
 /// <summary>
@@ -230,6 +236,7 @@ public sealed class ModuleCatalog
             module => module.Descriptor.Id,
             StringComparer.Ordinal);
         ValidateDependencies(byId);
+        ModuleWorkRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
 
         Modules = OrderByDependencies(byId);
         Descriptors = Modules.Select(module => module.Descriptor).ToArray();

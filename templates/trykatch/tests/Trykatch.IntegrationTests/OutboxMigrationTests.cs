@@ -15,7 +15,7 @@ namespace Trykatch.IntegrationTests;
 
 [TestClass]
 [TestCategory("Integration")]
-public sealed class OutboxMigrationTests
+public sealed partial class OutboxMigrationTests
 {
     private const string PreviousMigration = "20260907201519_AddRecoverableLifecycle";
 
