@@ -1,6 +1,6 @@
 # Phase 1 E4 — durable module jobs and schedules
 
-Status: E4 implementation and the integrated review are complete. Local targeted qualification passed as recorded below; packed renamed-output checks also passed. The existing repository dependency-audit gate remains blocked. E5 queued email is excluded.
+Status: E4 implementation and the integrated review are complete. Local targeted qualification passed as recorded below; packed renamed-output checks also passed. The initial dependency-audit blocker was resolved by the merge-gate follow-up below. E5 queued email is excluded.
 
 ## Implementation scope
 
@@ -45,3 +45,15 @@ Runtime regressions also establish persisted future triggers, no early execution
 Backend commands ran from the application root: diagnostic `dotnet build Trykatch.slnx --no-restore`, `dotnet run --project tools/Trykatch.ModuleTool --no-build -- module doctor`, and `dotnet test` with the class filters above. Frontend commands ran from `web/` with `corepack pnpm generate`, `generate:check`, `typecheck`, `build`, API-client tests and the focused page/Storybook/Playwright filters. Package checks use an isolated `dotnet new` hive and fresh namespace-renamed outputs. Actual multi-process cluster failover and a deployed-volume rollout were not exercised locally; local tests exercise the persistent Quartz adapter, concurrent claims/cursors and restart repair.
 
 PR #130 was merged while E4 was in progress. Its merged tree matches the reviewed E3 baseline, so E4 is published as a separate follow-up from the latest `origin/develop`, preserving the implementation and verification evidence above. Apply the one-shot migrator and exact role provisioning before enabling jobs on any existing deployment. E5 remains planned.
+
+## Merge-gate follow-up
+
+The first PR CI run exposed the prior package advisories, an expired Ubuntu curl pin, a historical prose-only secret-scan finding and documentation-site package advisories. These gates were corrected before merging:
+
+- Central transitive pins now resolve Pkcs and Xml 10.0.13 and MessagePack 2.5.303, with corresponding locks. Normal `dotnet restore --locked-mode` and the Debug solution build pass with zero warnings/errors and no audit suppression. `dotnet list ... package --vulnerable --include-transitive --format json` reports no vulnerable packages across 35 solution projects.
+- The API keeps its pinned runtime image and now installs exact curl package `8.5.0-2ubuntu10.16`, verified on amd64 and arm64. The full amd64 API image build passed locked restore/publish and exported the image successfully.
+- `.gitleaksignore` contains only exact historical commit/path/rule/line fingerprints for verified ordinary cache-exclusion prose. The pinned Gitleaks 8.30.1 history scan fails before these entries and passes afterward; no scanner rule or path is disabled.
+- Documentation dependencies stay in their current lines: Astro 7.3.3, Starlight 0.42.7 and `@astrojs/check` 0.9.12. Frozen installation, audit, check and 31-page build pass with no audit exceptions. Vite emits non-fatal pre-existing `astro:head-inject` directive warnings.
+- Additional crypto-related validation passed: 12 invitation/package-signature unit cases; 43 SMTP/production-configuration integration cases; and 39 account-security/production-key-continuity cases, all with zero skips. The production test fixture now supplies the existing fixed coordinator connection; production runtime validation remains intact. The AppHost launch-profile contract also passes.
+
+The merge-gate delta was reviewed in the existing review workflow, with no actionable findings. The earlier table records the original E4 qualification; the later normal restore/audit results supersede its initial advisory limitation. Deployment ordering and multi-process qualification requirements remain unchanged.

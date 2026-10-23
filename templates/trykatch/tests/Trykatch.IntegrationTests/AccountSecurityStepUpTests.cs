@@ -556,6 +556,11 @@ public sealed class AccountSecurityStepUpTests
                     ["ConnectionStrings:trykatch-platform"] = connections.Platform,
                     ["ConnectionStrings:trykatch-identity"] = connections.Identity,
                     ["ConnectionStrings:trykatch-outbox"] = connections.Outbox,
+                    ["ConnectionStrings:trykatch-work"] = new NpgsqlConnectionStringBuilder(ownerConnection)
+                    {
+                        Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+                        Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+                    }.ConnectionString,
                     ["Bootstrap:PlatformAdminEmail"] = Email,
                     ["Bootstrap:PlatformAdminPassword"] = Password,
                     ["DevelopmentDemo:Enabled"] = "false"
