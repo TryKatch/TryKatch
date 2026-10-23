@@ -12,6 +12,7 @@ using Trykatch.Application.Organizations;
 using Trykatch.Application.Outbox;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure.Organizations;
+using Trykatch.Infrastructure.Eventing;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 
@@ -45,7 +46,7 @@ internal sealed partial class OrganizationWorkExecutor(
         ModuleExecutionOutcome outcome;
         try
         {
-            outcome = await ExecuteWithDenialAuditAsync(work, claim.RecoveryOnly, linked.Token);
+            outcome = await ExecuteClaimAsync(work, claim.RecoveryOnly, linked.Token);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -83,13 +84,6 @@ internal sealed partial class OrganizationWorkExecutor(
         }
     }
 
-    private async Task<ModuleExecutionOutcome> ExecuteWithDenialAuditAsync(ModuleWorkItem work, bool recoveryOnly, CancellationToken ct)
-    {
-        try { return await ExecuteClaimAsync(work, recoveryOnly, ct); }
-        catch (ExecutionDeniedException denied) { return await RecordDeniedAsync(work, denied.Code, ct); }
-        catch (OrganizationMembershipRequiredException) { return await RecordDeniedAsync(work, "membership_required", ct); }
-    }
-
     private async Task<ModuleExecutionOutcome> ExecuteClaimAsync(ModuleWorkItem work, bool recoveryOnly, CancellationToken ct)
     {
         if (Encoding.UTF8.GetByteCount(work.ExecutionContextJson) > 16_384)
@@ -106,6 +100,45 @@ internal sealed partial class OrganizationWorkExecutor(
             || identity.OrganizationId != work.OrganizationId || identity.EffectiveActorId != work.ActorId)
             return Terminal("work_context_invalid");
 
+        return await ExecuteWithDenialAuditAsync(new OrganizationOperationInvocation(work.Id, work.OrganizationId, work.ActorId,
+            work.OperationKey, work.OperationVersion, work.Payload, work.PayloadHash, envelope.ModuleId, identity), recoveryOnly, ct);
+    }
+
+    internal async Task<ModuleExecutionOutcome> ExecuteEventAsync(ModuleEventDelivery delivery, bool recoveryOnly, CancellationToken ct)
+    {
+        if (delivery.Id == Guid.Empty || delivery.MessageId == Guid.Empty || delivery.OrganizationId == Guid.Empty
+            || delivery.EffectiveActorId == Guid.Empty || delivery.OriginActorId == Guid.Empty
+            || delivery.OperationVersion < 1 || delivery.SchemaVersion < 1 || delivery.GrantVersion < 1
+            || string.IsNullOrWhiteSpace(delivery.ConsumerModuleId) || string.IsNullOrWhiteSpace(delivery.ConsumerKey)
+            || string.IsNullOrWhiteSpace(delivery.OperationKey) || string.IsNullOrWhiteSpace(delivery.GrantKey))
+            return Terminal("delivery_context_invalid");
+        await using AsyncServiceScope sourceScope = scopeFactory.CreateAsyncScope();
+        OutboxMessage? source = await sourceScope.ServiceProvider.GetRequiredService<OutboxDbContext>().Messages.AsNoTracking()
+            .SingleOrDefaultAsync(row => row.Id == delivery.MessageId, ct);
+        if (source is null || source.ProcessedAt is null
+            || !OutboxContextReader.TryRead(source, out OutboxContext? context, out bool legacy) || legacy || context is null
+            || context.OrganizationId != delivery.OrganizationId || context.OriginActorId != delivery.OriginActorId
+            || context.EventKey != delivery.EventKey || context.SchemaVersion != delivery.SchemaVersion
+            || source.PayloadHash != delivery.PayloadHash || source.ReplayGeneration != delivery.ReplayGeneration)
+            return Terminal("source_event_invalid");
+        ModuleExecutionIdentity identity = new(delivery.OrganizationId, delivery.EffectiveActorId, delivery.OriginActorId, null,
+            ModuleExecutionKind.CommittedEvent, delivery.GrantKey, delivery.GrantVersion, delivery.MessageId,
+            ModuleOperationRegistry.CatalogVersion, context.CorrelationId);
+        return await ExecuteWithDenialAuditAsync(new OrganizationOperationInvocation(delivery.Id, delivery.OrganizationId,
+            delivery.EffectiveActorId, delivery.OperationKey, delivery.OperationVersion, source.Payload, delivery.PayloadHash,
+            delivery.ConsumerModuleId, identity, delivery, source), recoveryOnly, ct);
+    }
+
+    private async Task<ModuleExecutionOutcome> ExecuteWithDenialAuditAsync(OrganizationOperationInvocation work, bool recoveryOnly, CancellationToken ct)
+    {
+        try { return await ExecuteInvocationAsync(work, recoveryOnly, ct); }
+        catch (ExecutionDeniedException denied) { return await RecordDeniedAsync(work, denied.Code, ct); }
+        catch (OrganizationMembershipRequiredException) { return await RecordDeniedAsync(work, "membership_required", ct); }
+    }
+
+    private async Task<ModuleExecutionOutcome> ExecuteInvocationAsync(OrganizationOperationInvocation work, bool recoveryOnly, CancellationToken ct)
+    {
+        ModuleExecutionIdentity identity = work.Identity;
         await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
         IServiceProvider services = scope.ServiceProvider;
         JsonDocument payload;
@@ -127,27 +160,58 @@ internal sealed partial class OrganizationWorkExecutor(
                 control, application, work.OrganizationId, work.ActorId, ct);
             if (control.Database.CreateExecutionStrategy().RetriesOnFailure || application.Database.CreateExecutionStrategy().RetriesOnFailure)
                 return Terminal("automatic_retry_not_supported");
-            string lockKey = $"{work.OrganizationId:N}/{work.Id:N}";
+            string lockKey = work.Delivery is { } eventDelivery
+                ? $"event/{work.OrganizationId:N}/{eventDelivery.MessageId:N}/{eventDelivery.ConsumerKey}"
+                : $"{work.OrganizationId:N}/{work.Id:N}";
             await application.Database.ExecuteSqlInterpolatedAsync(
                 $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 20261023))", ct);
 
             // Recovery reads only the host marker under RLS, before current authorization. It never reruns a handler.
-            ModuleWorkCompletion? completed = await application.Set<ModuleWorkCompletion>().IgnoreQueryFilters().AsNoTracking()
-                .SingleOrDefaultAsync(row => row.OrganizationId == work.OrganizationId && row.WorkId == work.Id, ct);
-            if (completed is not null)
-                return completed.OperationKey == work.OperationKey && completed.OperationVersion == work.OperationVersion
-                    && completed.ActorId == work.ActorId && completed.PayloadHash == work.PayloadHash
-                    ? new(ModuleExecutionState.AlreadyCompleted)
-                    : Terminal("completion_mismatch");
+            if (work.Delivery is { } snapshot)
+            {
+                ModuleEventInbox? inbox = await application.Set<ModuleEventInbox>().IgnoreQueryFilters().AsNoTracking()
+                    .SingleOrDefaultAsync(row => row.OrganizationId == work.OrganizationId && row.MessageId == snapshot.MessageId
+                        && row.ConsumerKey == snapshot.ConsumerKey, ct);
+                if (inbox is not null)
+                    return inbox.ActorId == work.ActorId && inbox.PayloadHash == work.PayloadHash
+                        && inbox.OperationKey == work.OperationKey && inbox.OperationVersion == work.OperationVersion
+                        && inbox.SchemaVersion == snapshot.SchemaVersion
+                        ? new(ModuleExecutionState.AlreadyCompleted) : Terminal("inbox_mismatch");
+            }
+            else
+            {
+                ModuleWorkCompletion? completed = await application.Set<ModuleWorkCompletion>().IgnoreQueryFilters().AsNoTracking()
+                    .SingleOrDefaultAsync(row => row.OrganizationId == work.OrganizationId && row.WorkId == work.Id, ct);
+                if (completed is not null)
+                    return completed.OperationKey == work.OperationKey && completed.OperationVersion == work.OperationVersion
+                        && completed.ActorId == work.ActorId && completed.PayloadHash == work.PayloadHash
+                        ? new(ModuleExecutionState.AlreadyCompleted) : Terminal("completion_mismatch");
+            }
 
             if (recoveryOnly) return Terminal("attempts_exhausted");
 
             ModuleOperationRegistry registry = services.GetRequiredService<ModuleOperationRegistry>();
-            if (!registry.ContainsModule(envelope.ModuleId))
+            if (!registry.ContainsModule(work.ModuleId))
                 return new(ModuleExecutionState.Paused, "module_unavailable");
-            if (!registry.TryGet(envelope.ModuleId, work.OperationKey, work.OperationVersion, out ModuleOperationRegistration? registration)
+            ModuleEventConsumerRegistration? consumer = null;
+            if (work.Delivery is { } eventSnapshot)
+            {
+                ModuleEventRegistry events = services.GetRequiredService<ModuleEventRegistry>();
+                if (!events.TryGet(eventSnapshot.ConsumerKey, out consumer) || consumer is null)
+                    return new(ModuleExecutionState.Paused, "consumer_unavailable");
+                if (consumer.Descriptor.OwnerModuleId != work.ModuleId || consumer.Operation.OperationKey != work.OperationKey
+                    || consumer.Operation.OperationVersion != work.OperationVersion || consumer.Grant.GrantKey != identity.GrantKey
+                    || consumer.Grant.GrantVersion != identity.GrantVersion || consumer.Grant.AuditActorId != work.ActorId
+                    || !consumer.Descriptor.AcceptedEvents.Any(accepted => accepted.EventKey == eventSnapshot.EventKey
+                        && accepted.SchemaVersion == eventSnapshot.SchemaVersion)
+                    || work.Source is null || !OutboxContextReader.TryRead(work.Source, out OutboxContext? sourceContext, out _)
+                    || sourceContext is null || !events.TryValidateSource(sourceContext, work.Payload, out _, out _))
+                    return Terminal("consumer_registration_invalid");
+            }
+            if (!registry.TryGet(work.ModuleId, work.OperationKey, work.OperationVersion, out ModuleOperationRegistration? registration)
                 || registration is null)
                 return Terminal("operation_unavailable");
+            if (work.Delivery is null && registration.Handler is null) return Terminal("operation_adapter_unavailable");
             ModuleOperationDescriptor operation = registration.Descriptor;
             if (identity.ExecutionKind != operation.ExecutionKind)
                 return Terminal("execution_kind_invalid");
@@ -188,7 +252,7 @@ internal sealed partial class OrganizationWorkExecutor(
 
             if (operation.ExecutionKind == ModuleExecutionKind.CommittedEvent)
             {
-                OutboxMessage? source = await services.GetRequiredService<OutboxDbContext>().Messages.AsNoTracking()
+                OutboxMessage? source = work.Source ?? await services.GetRequiredService<OutboxDbContext>().Messages.AsNoTracking()
                     .SingleOrDefaultAsync(row => row.Id == identity.SourceMessageId, ct);
                 if (source is null || !OutboxContextReader.TryRead(source, out OutboxContext? sourceContext, out bool legacy)
                     || legacy || sourceContext is null || sourceContext.OrganizationId != identity.OrganizationId
@@ -202,13 +266,27 @@ internal sealed partial class OrganizationWorkExecutor(
                 identity.ExecutionKind, work.OperationKey, work.OperationVersion);
             if (!await registration.ResourcePolicy.AuthorizeAsync(operationContext, payload.RootElement, ct))
                 throw new ExecutionDeniedException("resource_denied");
-            await registration.Handler.HandleAsync(operationContext, payload.RootElement, ct);
-            application.Set<ModuleWorkCompletion>().Add(new()
+            if (work.Delivery is { } delivery && consumer is not null && work.Source is { } committedSource)
             {
-                OrganizationId = work.OrganizationId, WorkId = work.Id, ActorId = work.ActorId,
-                OperationKey = work.OperationKey, OperationVersion = work.OperationVersion,
-                PayloadHash = work.PayloadHash, CompletedAtUtc = timeProvider.GetUtcNow()
-            });
+                await consumer.Consumer.HandleAsync(new(delivery.MessageId, work.OrganizationId, work.ActorId, identity.OriginActorId,
+                    delivery.EventKey, delivery.SchemaVersion, committedSource.OccurredAt, identity.TraceCorrelation), payload.RootElement.Clone(), ct);
+                application.Set<ModuleEventInbox>().Add(new()
+                {
+                    OrganizationId = work.OrganizationId, MessageId = delivery.MessageId, ConsumerKey = delivery.ConsumerKey,
+                    SchemaVersion = delivery.SchemaVersion, ActorId = work.ActorId, PayloadHash = work.PayloadHash,
+                    OperationKey = work.OperationKey, OperationVersion = work.OperationVersion, ProcessedAtUtc = timeProvider.GetUtcNow()
+                });
+            }
+            else
+            {
+                await registration.Handler!.HandleAsync(operationContext, payload.RootElement.Clone(), ct);
+                application.Set<ModuleWorkCompletion>().Add(new()
+                {
+                    OrganizationId = work.OrganizationId, WorkId = work.Id, ActorId = work.ActorId,
+                    OperationKey = work.OperationKey, OperationVersion = work.OperationVersion,
+                    PayloadHash = work.PayloadHash, CompletedAtUtc = timeProvider.GetUtcNow()
+                });
+            }
             control.AuditIntents.Add(CreateAudit(work, identity, "completed"));
             await application.SaveChangesAsync(ct);
             await control.SaveChangesAsync(ct);
@@ -218,16 +296,15 @@ internal sealed partial class OrganizationWorkExecutor(
         }
     }
 
-    private async Task<ModuleExecutionOutcome> RecordDeniedAsync(ModuleWorkItem work, string code, CancellationToken ct)
+    private async Task<ModuleExecutionOutcome> RecordDeniedAsync(OrganizationOperationInvocation work, string code, CancellationToken ct)
     {
         try
         {
-            ModuleWorkEnvelope envelope = JsonSerializer.Deserialize<ModuleWorkEnvelope>(work.ExecutionContextJson, ContextOptions)!;
             await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
             OrganizationControlPlaneDbContext control = scope.ServiceProvider.GetRequiredService<OrganizationControlPlaneDbContext>();
             await using IOrganizationDataScope transaction = await scope.ServiceProvider.GetRequiredService<IOrganizationDataScopeFactory>()
                 .BeginAsync(work.OrganizationId, work.ActorId, ct);
-            control.AuditIntents.Add(CreateAudit(work, envelope.Identity, code));
+            control.AuditIntents.Add(CreateAudit(work, work.Identity, code));
             await control.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return new(ModuleExecutionState.Denied, code);
@@ -236,9 +313,11 @@ internal sealed partial class OrganizationWorkExecutor(
         catch (Exception) { return Retry("denial_audit_failed"); }
     }
 
-    private AuditIntent CreateAudit(ModuleWorkItem work, ModuleExecutionIdentity identity, string status) => AuditIntent.Create(
-        Guid.CreateVersion7(), work.OrganizationId, work.ActorId, status == "completed" ? "module.work.completed" : "module.work.denied",
-        new AuditTarget("module-work", work.Id.ToString(), "Module work"),
+    private AuditIntent CreateAudit(OrganizationOperationInvocation work, ModuleExecutionIdentity identity, string status) => AuditIntent.Create(
+        Guid.CreateVersion7(), work.OrganizationId, work.ActorId, work.Delivery is null
+            ? status == "completed" ? "module.work.completed" : "module.work.denied"
+            : status == "completed" ? "module.event.completed" : "module.event.denied",
+        new AuditTarget(work.Delivery is null ? "module-work" : "module-event-delivery", work.Id.ToString(), "Module work"),
         new Dictionary<string, string?>
         {
             ["status"] = status,
@@ -273,6 +352,10 @@ internal sealed partial class OrganizationWorkExecutor(
     private static bool IsUser(ModuleExecutionIdentity identity) => identity.MembershipId is { } membership && membership != Guid.Empty
         && identity.OriginActorId == identity.EffectiveActorId && identity.GrantKey is null && identity.GrantVersion is null
         && identity.SourceMessageId is null;
+    private sealed record OrganizationOperationInvocation(Guid Id, Guid OrganizationId, Guid ActorId, string OperationKey,
+        int OperationVersion, string Payload, string PayloadHash, string ModuleId, ModuleExecutionIdentity Identity,
+        ModuleEventDelivery? Delivery = null, OutboxMessage? Source = null);
+
     private sealed class ExecutionDeniedException(string code) : Exception { public string Code { get; } = code; }
 }
 
@@ -283,6 +366,7 @@ internal sealed class ModuleWorkStartupValidator(IServiceScopeFactory scopes) : 
     {
         using IServiceScope scope = scopes.CreateScope();
         _ = scope.ServiceProvider.GetRequiredService<ModuleOperationRegistry>();
+        _ = scope.ServiceProvider.GetRequiredService<ModuleEventRegistry>();
         return Task.CompletedTask;
     }
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

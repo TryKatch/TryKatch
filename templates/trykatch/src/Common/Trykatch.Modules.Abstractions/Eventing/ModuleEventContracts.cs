@@ -24,6 +24,12 @@ public sealed record ModuleEventConsumerDescriptor(
     int OperationVersion,
     string SystemGrantKey);
 
+/// <summary>Explicit module DI binding for one declared event consumer.</summary>
+public sealed record ModuleEventConsumerBinding(
+    string ModuleId,
+    string ConsumerKey,
+    IModuleEventConsumer Consumer);
+
 /// <summary>Validated host provenance supplied to one event consumer invocation.</summary>
 public sealed record ModuleEventContext(
     Guid MessageId,

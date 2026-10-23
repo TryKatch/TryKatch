@@ -417,6 +417,72 @@ public sealed class OutboxRecoveryIntegrationTests
         }
     }
 
+    [TestMethod]
+    public async Task ModuleDeliveryInspectionRechecksReadAccessAndReturnsOnlySafeFields()
+    {
+        await using RecoveryHost host = await RecoveryHost.StartAsync();
+        (Guid deliveryId, Guid messageId) = await host.InsertModuleEventDeliveryAsync("password=raw-delivery-secret");
+
+        using HttpClient anonymous = host.CreateClient();
+        (await anonymous.GetAsync("/api/v1/platform/outbox/module-deliveries")).StatusCode
+            .ShouldBe(HttpStatusCode.Unauthorized);
+
+        using HttpClient administrator = await host.SignInAsync();
+        HttpResponseMessage response = await administrator.GetAsync(
+            "/api/v1/platform/outbox/module-deliveries?page=1&pageSize=100&state=terminal");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        string body = await response.Content.ReadAsStringAsync();
+        body.ShouldContain(deliveryId.ToString());
+        body.ShouldContain(messageId.ToString());
+        body.ShouldContain("unclassified");
+        body.ShouldNotContain("password=raw-delivery-secret");
+        body.ShouldNotContain("payload");
+        body.ShouldNotContain("grantKey");
+        body.ShouldNotContain("effectiveActorId");
+        body.ShouldNotContain("originActorId");
+
+        (HttpClient operatorClient, Guid operatorId) = await host.GrantAndSignInAsync(
+            administrator, "delivery-operator@trykatch.test", "platform-operator");
+        using (operatorClient)
+        {
+            (await operatorClient.GetAsync("/api/v1/platform/outbox/module-deliveries")).StatusCode
+                .ShouldBe(HttpStatusCode.OK);
+
+            string administratorToken = await RecoveryHost.GetAntiforgeryAsync(administrator);
+            using HttpRequestMessage suspend = new(HttpMethod.Post, $"/api/v1/platform-users/{operatorId}/suspend")
+            { Content = JsonContent.Create(new { }) };
+            suspend.Headers.Add("X-CSRF-TOKEN", administratorToken);
+            (await administrator.SendAsync(suspend)).StatusCode.ShouldBe(HttpStatusCode.OK);
+            (await operatorClient.GetAsync("/api/v1/platform/outbox/module-deliveries")).StatusCode
+                .ShouldBe(HttpStatusCode.Forbidden);
+        }
+    }
+
+    [TestMethod]
+    public async Task ModuleDeliveryInspectionRejectsUnknownStateAndBoundsPaging()
+    {
+        await using RecoveryHost host = await RecoveryHost.StartAsync();
+        using HttpClient administrator = await host.SignInAsync();
+
+        HttpResponseMessage invalidState = await administrator.GetAsync(
+            "/api/v1/platform/outbox/module-deliveries?state=secret-state");
+        invalidState.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        HttpResponseMessage bounded = await administrator.GetAsync(
+            "/api/v1/platform/outbox/module-deliveries?page=-3&pageSize=1000");
+        bounded.StatusCode.ShouldBe(HttpStatusCode.OK);
+        JsonElement page = await bounded.Content.ReadFromJsonAsync<JsonElement>();
+        page.GetProperty("page").GetInt32().ShouldBe(1);
+        page.GetProperty("pageSize").GetInt32().ShouldBe(100);
+
+        HttpResponseMessage upperBounded = await administrator.GetAsync(
+            "/api/v1/platform/outbox/module-deliveries?page=10001&pageSize=0");
+        upperBounded.StatusCode.ShouldBe(HttpStatusCode.OK);
+        JsonElement upperPage = await upperBounded.Content.ReadFromJsonAsync<JsonElement>();
+        upperPage.GetProperty("page").GetInt32().ShouldBe(10_000);
+        upperPage.GetProperty("pageSize").GetInt32().ShouldBe(1);
+    }
+
     private sealed class RecoveryHost(
         PostgreSqlContainer postgres,
         WebApplicationFactory<Program> factory,
@@ -439,8 +505,12 @@ public sealed class OutboxRecoveryIntegrationTests
             await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(owner);
             (string organization, string platform, string identity, string outbox) =
                 await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(owner);
+            string workCoordinator = CoordinatorConnection(owner);
             await MigrateAsync(owner);
-            await PostgresRuntimeRoleFixture.GrantApplicationPrivilegesAsync(owner);
+            await RuntimeRoleProvisioner.ProvisionAsync(owner, new RuntimeDatabaseRoles(
+                PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.PlatformRole,
+                PostgresRuntimeRoleFixture.IdentityRole, PostgresRuntimeRoleFixture.OutboxRole,
+                PostgresRuntimeRoleFixture.WorkCoordinatorRole));
 
             await using (NpgsqlConnection consumer = new(owner))
             {
@@ -457,6 +527,7 @@ public sealed class OutboxRecoveryIntegrationTests
                 ["ConnectionStrings:trykatch-platform"] = platform,
                 ["ConnectionStrings:trykatch-identity"] = identity,
                 ["ConnectionStrings:trykatch-outbox"] = outbox,
+                ["ConnectionStrings:trykatch-work"] = workCoordinator,
                 ["Bootstrap:PlatformAdminEmail"] = Email,
                 ["Bootstrap:PlatformAdminPassword"] = Password,
                 ["DevelopmentDemo:Enabled"] = "false",
@@ -585,6 +656,33 @@ public sealed class OutboxRecoveryIntegrationTests
             command.Parameters.AddWithValue("payload", payload);
             command.Parameters.Add("contextVersion", NpgsqlTypes.NpgsqlDbType.Integer).Value = (object?)contextVersion ?? DBNull.Value;
             await command.ExecuteNonQueryAsync();
+        }
+
+        public async Task<(Guid DeliveryId, Guid MessageId)> InsertModuleEventDeliveryAsync(string failureCode)
+        {
+            Guid deliveryId = Guid.CreateVersion7();
+            Guid messageId = Guid.CreateVersion7();
+            await using NpgsqlConnection connection = new(ownerConnection);
+            await connection.OpenAsync();
+            await using NpgsqlCommand command = new("""
+                INSERT INTO infrastructure.module_event_deliveries
+                  ("Id", "MessageId", "OrganizationId", "ConsumerKey", "ConsumerModuleId", "EventKey",
+                   "EffectiveActorId", "OriginActorId", "GrantKey", "GrantVersion", "CreatedAtUtc", "NextAttemptAtUtc",
+                   "OperationKey", "OperationVersion", "SchemaVersion", "PayloadHash", "State", "Attempts",
+                   "LeaseId", "LeaseUntilUtc", "LastFailureCode", "ReplayGeneration")
+                VALUES (@id, @message, @organization, 'probe.safe-consumer', 'probe', 'probe.changed',
+                        @effective, @origin, 'probe.system-grant', 1, CURRENT_TIMESTAMP, NULL,
+                        'probe.consume', 1, 1, repeat('a', 64), 'terminal', 5,
+                        NULL, NULL, @failure, 0)
+                """, connection);
+            command.Parameters.AddWithValue("id", deliveryId);
+            command.Parameters.AddWithValue("message", messageId);
+            command.Parameters.AddWithValue("organization", Guid.CreateVersion7());
+            command.Parameters.AddWithValue("effective", Guid.CreateVersion7());
+            command.Parameters.AddWithValue("origin", Guid.CreateVersion7());
+            command.Parameters.AddWithValue("failure", failureCode);
+            await command.ExecuteNonQueryAsync();
+            return (deliveryId, messageId);
         }
 
         public async Task<long> CountTerminalEventsAsync(Guid messageId)
@@ -749,6 +847,13 @@ public sealed class OutboxRecoveryIntegrationTests
             using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(15));
             while (!await probe()) await Task.Delay(50, timeout.Token);
         }
+
+        private static string CoordinatorConnection(string ownerConnection) =>
+            new NpgsqlConnectionStringBuilder(ownerConnection)
+            {
+                Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+                Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+            }.ConnectionString;
 
         public async ValueTask DisposeAsync()
         {

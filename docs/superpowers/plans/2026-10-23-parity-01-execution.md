@@ -9,7 +9,7 @@
 
 ## Global Constraints
 
-Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`; new names are proposed. Phase 0 resolves D1 through ADR 0015 and the frozen ledger; ADR 0018 selects Quartz.NET/PostgreSQL for D5. Runtime grants/contracts still require E1/E2, and package-graph audit/pinning/qualification still gate E4 adapter installation. E1 now provides compiled contracts, compatible outbox metadata and operational schema/access foundations; see `templates/trykatch/docs/specs/evidence/parity-execution-e1.md`. E2 now implements validated organization work execution; see `templates/trykatch/docs/specs/evidence/parity-execution-e2.md`. E3–E5 remain planned. Read `templates/trykatch/docs/specs/feature-parity-contracts.md` with this plan before implementation.
+Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`; new names are proposed. Phase 0 resolves D1 through ADR 0015 and the frozen ledger; ADR 0018 selects Quartz.NET/PostgreSQL for D5. Runtime grants/contracts and validated organization execution are implemented in E1/E2; see their evidence records. E3 implements durable per-consumer event delivery; see `templates/trykatch/docs/specs/evidence/parity-execution-e3.md` for scope, validation and the dependency-audit blocker. Package-graph audit/pinning/qualification still gate E4 adapter installation. E4 scheduling and E5 queued email remain planned. Read `templates/trykatch/docs/specs/feature-parity-contracts.md` with this plan before implementation.
 
 ## Review Focus
 
@@ -45,15 +45,16 @@ Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`
 
 ## E3: Add durable per-consumer event delivery
 
-**Files:** Create `src/Common/Trykatch.Infrastructure/Eventing/ModuleEventFanout.cs`, `ModuleEventDeliveryProcessor.cs`, `ModuleEventInbox.cs`, `ModuleEventRegistry.cs`; modify `Persistence/OutboxDelivery.cs`, `OutboxBatchProcessor.cs`, `LoggingOutboxTransport.cs`, composition and migrations. Create `tests/Trykatch.UnitTests/ModuleEventDeliveryTests.cs`, `tests/Trykatch.IntegrationTests/ModuleEventDeliveryIntegrationTests.cs`.
+**Files:** E3 implements explicit consumer bindings and registry validation, transactional `ModuleEventFanout` through `Persistence/OutboxDelivery.cs`, durable delivery processing/inbox storage, existing coordinator role grants and an additive migration, and a bounded platform inspection endpoint. Focused unit and PostgreSQL integration coverage is in `tests/Trykatch.UnitTests/ModuleEventDeliveryTests.cs`, `tests/Trykatch.IntegrationTests/ModuleEventDeliveryIntegrationTests.cs` and `OutboxRecoveryIntegrationTests.cs`.
 
-**Interfaces:** Consume E1/E2. Implement an explicit `IOutboxTransport` adapter that atomically records the active-consumer fan-out snapshot. Consumer identity is stable across handler implementation upgrades; payload schema version is separate. Produce durable completed/paused/retryable/terminal delivery outcomes.
+**Interfaces:** Consume E1/E2. An internal transaction-aware fan-out collaborator records active-consumer snapshots within the source outbox transaction; it does not replace the configured `IOutboxTransport` fallback for legacy/no-consumer traffic. Consumer identity is stable across handler implementation upgrades; payload schema version is separate. Produce durable completed/paused/retryable/terminal delivery outcomes.
 
-- [ ] Test `TwoConsumersCommitOnceWhenSecondRetries`: first effect count remains `1`, second eventually becomes `1`, and only its unfinished delivery retries. Test crashes before fan-out commit, after fan-out commit, before effect commit and after uncertain effect acknowledgement.
-- [ ] Insert the inbox marker and database effect in one organization transaction; use a unique `(OrganizationId, MessageId, ConsumerKey)` constraint and deterministic acknowledgement. Persist follow-up external delivery intent instead of sending SMTP/HTTP within the database transaction.
-- [ ] Test duplicate receipt, worker competition, unknown event versions, duplicate consumer registration, organization forgery, disabled consumer pause/re-enable and no implicit history backfill. Preserve existing terminal/replay semantics and message IDs.
-- [ ] Keep payloads, recipient secrets and credentials out of diagnostics. Add bounded backlog/oldest-age/retry/terminal metrics and sanitized operator queries through an explicit platform permission.
-- [ ] Verify: unit `ModuleEventDeliveryTests`; integration `ModuleEventDeliveryIntegrationTests` plus existing `OutboxRecoveryIntegrationTests` and `AuditIntentAtomicityTests` when their transaction paths change; common exit.
+- [x] Validate explicit installed consumer bindings, event/schema readers and trusted source provenance before fan-out or effects; preserve legacy logging/custom transport behavior and do not backfill previously processed history.
+- [x] Persist active-consumer snapshots with source `ProcessedAt` in one outbox-role transaction. Database failures roll back the batch; immutable duplicate snapshots are reused without resetting terminal/completed state.
+- [x] Insert the inbox marker and database effect in one organization transaction; use a unique `(OrganizationId, MessageId, ConsumerKey)` constraint and deterministic acknowledgement. Persist follow-up external delivery intent instead of sending SMTP/HTTP within the database transaction.
+- [x] Implement bounded coordinator claims, leases, cancellation deadline, retry budget, recovery-only inspection after the business-attempt limit, pause/resume and independent per-consumer progress.
+- [x] Add bounded, permission-checked platform inspection with a closed DTO, state filter and redacted failure codes. Keep payloads, recipient secrets and credentials out of diagnostics.
+- [x] Verify: unit `ModuleEventDeliveryTests`; PostgreSQL `ModuleEventDeliveryIntegrationTests`; affected `OutboxRecoveryIntegrationTests`; migration/runtime-role inspection and common exit. Record actual commands and counts in `templates/trykatch/docs/specs/evidence/parity-execution-e3.md`.
 
 ## E4: Implement queued, delayed and recurring jobs
 
@@ -85,4 +86,4 @@ Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`
 - [ ] A synthetic organization operation and a real installed module event survive process restart and competing workers with correct audit and isolation evidence.
 - [ ] Old event IDs, existing outbox replay and default applications remain compatible. New unconfigured capabilities fail closed or report explicit unavailability.
 - [ ] Every operational relation is declared, migrated and checked under real role grants; no coordinator can bypass organization RLS.
-- [ ] Record evidence in proposed `docs/specs/evidence/parity-execution.md`; link it from the coverage ledger.
+- [ ] Record the complete Phase 1 evidence in proposed `docs/specs/evidence/parity-execution.md`; link it from the coverage ledger. E1/E2/E3 evidence is recorded separately; E4/E5 remain planned.

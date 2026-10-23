@@ -82,6 +82,30 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
+                    b.Property<string>("ConsumerModuleId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EffectiveActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EventKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("GrantKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("GrantVersion")
+                        .HasColumnType("integer");
+
                     b.Property<string>("LastFailureCode")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
@@ -95,6 +119,9 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.Property<Guid>("MessageId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("OperationKey")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -104,6 +131,9 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         .HasColumnType("integer");
 
                     b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OriginActorId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("PayloadHash")
@@ -127,7 +157,7 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.HasIndex("MessageId", "ConsumerKey")
                         .IsUnique();
 
-                    b.HasIndex("State", "LeaseUntilUtc", "Id");
+                    b.HasIndex("State", "NextAttemptAtUtc", "LeaseUntilUtc", "CreatedAtUtc", "Id");
 
                     b.ToTable("module_event_deliveries", "infrastructure", t =>
                         {
@@ -151,6 +181,19 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
 
                     b.Property<Guid>("ActorId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("OperationVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<DateTimeOffset>("ProcessedAtUtc")
                         .HasColumnType("timestamp with time zone");

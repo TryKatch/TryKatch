@@ -820,6 +820,10 @@ public sealed class ModuleWorkExecutionIntegrationTests
                 provider.GetRequiredService<ApplicationDbContext>(), provider.GetRequiredService<ProbeExecutionBehavior>(), provider.GetRequiredService<IOutboxWriter>()));
             services.AddScoped<IModuleOperationHandler>(provider => new ProbeOperationHandler("probe.scheduled",
                 provider.GetRequiredService<ApplicationDbContext>(), provider.GetRequiredService<ProbeExecutionBehavior>(), provider.GetRequiredService<IOutboxWriter>()));
+            services.AddScoped<ProbeOperationHandler>(provider => new ProbeOperationHandler("probe.effect",
+                provider.GetRequiredService<ApplicationDbContext>(), provider.GetRequiredService<ProbeExecutionBehavior>(), provider.GetRequiredService<IOutboxWriter>()));
+            services.AddScoped<ModuleEventConsumerBinding>(provider => new("probe", "probe.effect-consumer",
+                provider.GetRequiredService<ProbeOperationHandler>()));
             services.AddScoped<IModuleOperationResourcePolicy, ProbeResourcePolicy>();
         }
     }
@@ -838,7 +842,7 @@ public sealed class ModuleWorkExecutionIntegrationTests
         string operationKey,
         ApplicationDbContext db,
         ProbeExecutionBehavior behavior,
-        IOutboxWriter outbox) : IModuleOperationHandler
+        IOutboxWriter outbox) : IModuleOperationHandler, IModuleEventConsumer
     {
         public string ModuleId => "probe";
         public string OperationKey { get; } = operationKey;
@@ -848,6 +852,10 @@ public sealed class ModuleWorkExecutionIntegrationTests
         {
             return HandleCoreAsync(context, payload, cancellationToken);
         }
+
+        public Task HandleAsync(ModuleEventContext context, JsonElement payload, CancellationToken cancellationToken) =>
+            HandleCoreAsync(new ModuleOperationContext(context.MessageId, context.OrganizationId, context.EffectiveActorId,
+                context.OriginActorId, ModuleExecutionKind.CommittedEvent, OperationKey, OperationVersion), payload, cancellationToken);
 
         private async Task HandleCoreAsync(ModuleOperationContext context, JsonElement payload, CancellationToken cancellationToken)
         {

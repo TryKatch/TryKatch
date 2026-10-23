@@ -36,6 +36,14 @@ internal sealed class ModuleEventDelivery
     public Guid MessageId { get; init; }
     public Guid OrganizationId { get; init; }
     public string ConsumerKey { get; init; } = string.Empty;
+    public string ConsumerModuleId { get; init; } = string.Empty;
+    public string EventKey { get; init; } = string.Empty;
+    public Guid EffectiveActorId { get; init; }
+    public Guid? OriginActorId { get; init; }
+    public string GrantKey { get; init; } = string.Empty;
+    public int GrantVersion { get; init; }
+    public DateTimeOffset CreatedAtUtc { get; init; }
+    public DateTimeOffset? NextAttemptAtUtc { get; set; }
     public string OperationKey { get; init; } = string.Empty;
     public int OperationVersion { get; init; }
     public int SchemaVersion { get; init; }
@@ -53,6 +61,9 @@ internal sealed class ModuleEventInbox : IOrganizationOwned
     public Guid OrganizationId { get; init; }
     public Guid MessageId { get; init; }
     public string ConsumerKey { get; init; } = string.Empty;
+    public string PayloadHash { get; init; } = string.Empty;
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
     public int SchemaVersion { get; init; }
     public Guid ActorId { get; init; }
     public DateTimeOffset ProcessedAtUtc { get; init; }
@@ -94,12 +105,15 @@ internal static class ModuleWorkPersistence
             });
             entity.HasKey(x => x.Id);
             entity.Property(x => x.ConsumerKey).HasMaxLength(120);
+            entity.Property(x => x.ConsumerModuleId).HasMaxLength(80);
+            entity.Property(x => x.EventKey).HasMaxLength(120);
+            entity.Property(x => x.GrantKey).HasMaxLength(120);
             entity.Property(x => x.OperationKey).HasMaxLength(120);
             entity.Property(x => x.PayloadHash).HasMaxLength(64);
             entity.Property(x => x.State).HasMaxLength(20);
             entity.Property(x => x.LastFailureCode).HasMaxLength(80);
             entity.HasIndex(x => new { x.MessageId, x.ConsumerKey }).IsUnique();
-            entity.HasIndex(x => new { x.State, x.LeaseUntilUtc, x.Id });
+            entity.HasIndex(x => new { x.State, x.NextAttemptAtUtc, x.LeaseUntilUtc, x.CreatedAtUtc, x.Id });
         });
         modelBuilder.Entity<ModuleEventInbox>(entity =>
         {
@@ -107,6 +121,8 @@ internal static class ModuleWorkPersistence
                 table.HasCheckConstraint("CK_module_inbox_version", "\"SchemaVersion\" > 0"));
             entity.HasKey(x => new { x.OrganizationId, x.MessageId, x.ConsumerKey });
             entity.Property(x => x.ConsumerKey).HasMaxLength(120);
+            entity.Property(x => x.PayloadHash).HasMaxLength(64);
+            entity.Property(x => x.OperationKey).HasMaxLength(120);
             entity.HasIndex(x => new { x.OrganizationId, x.ProcessedAtUtc });
         });
     }

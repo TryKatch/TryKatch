@@ -1,6 +1,6 @@
 # ADR 0016: Durable, explicit module event consumption
 
-Status: Accepted for the parity implementation architecture. Runtime implementation and qualification remain required.
+Status: Accepted and implemented in E3; targeted verification and integrated review are recorded separately. See [E3 evidence](../specs/evidence/parity-execution-e3.md).
 Date: 2026-10-23.
 
 ## Context
@@ -13,7 +13,7 @@ Fan-out introduces independent consumers. Retrying an entire event after one con
 
 Use explicit event descriptors and stable consumer keys registered by enabled modules. A descriptor binds event key/schema version to a reviewed reader; no serialized CLR type activation or catch-all export of internal events is allowed.
 
-The host fan-out adapter persists a snapshot of compatible installed consumers and their delivery records in the same transaction as acknowledging the source outbox row. E1/E3 must extend the existing transaction/role seam explicitly to make this true. A later connection/commit is not atomic fan-out.
+The host fan-out path persists a snapshot of compatible installed consumers and their delivery records in the same transaction as acknowledging the source outbox row. The implementation re-reads and validates the durable source row; a database failure rolls back both acknowledgement and snapshots. A later connection/commit is not atomic fan-out.
 
 Each delivery invokes the bounded [ADR 0015](0015-bounded-background-execution.md) execution boundary. The organization transaction commits the consumer's database effect, a unique `(OrganizationId, MessageId, ConsumerKey)` inbox marker, required audit and any outgoing delivery intents together. A consumer code upgrade retains its key; payload schema version is recorded separately rather than appended to a dedup key to bypass history.
 
@@ -40,4 +40,4 @@ Webhooks export descriptors and assistant-tool descriptors are separate allowlis
 
 No broker is required for the first slice. Durable fan-out/inbox tables and explicit operational grants are required; see [ADR 0017](0017-operational-data-access-profiles.md). Event registry validation joins the existing doctor/catalog checks without runtime scanning.
 
-Required cases: two consumers with one failure; duplicate publication; competing workers; crashes before fan-out commit/after effect commit; unknown schema/version; consumer disable/re-enable; no historical logging-only backfill; atomic notification follow-up intent. Evidence remains planned until real transaction/runtime tests execute.
+Required cases: two consumers with one failure; duplicate publication; competing workers; crashes before fan-out commit/after effect commit; unknown schema/version; consumer disable/re-enable; no historical logging-only backfill; atomic notification follow-up intent. Implementation and evidence scope are documented in [E3 evidence](../specs/evidence/parity-execution-e3.md); the standard dependency-audit blocker remains open.

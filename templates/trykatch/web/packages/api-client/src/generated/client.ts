@@ -73,10 +73,12 @@ import type {
   OrganizationDto,
   OrganizationsListParams,
   OutboxListFailuresParams,
+  OutboxListModuleDeliveriesParams,
   OutboxReplayAccepted,
   OutboxReplayOutcome,
   OutboxReplayPending,
   OutboxReplayRequestBody,
+  PagedResultOfModuleEventDeliveryView,
   PagedResultOfOrganizationDto,
   PagedResultOfOutboxFailure,
   PagedResultOfPlatformAccessUser,
@@ -6680,6 +6682,114 @@ export function useOutboxListFailures<TData = Awaited<ReturnType<typeof outboxLi
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getOutboxListFailuresQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getOutboxListModuleDeliveriesUrl = (params?: OutboxListModuleDeliveriesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/platform/outbox/module-deliveries?${stringifiedParams}` : `/api/v1/platform/outbox/module-deliveries`
+}
+
+/**
+ * @summary List module deliveries outbox
+ */
+export const outboxListModuleDeliveries = async (params?: OutboxListModuleDeliveriesParams, options?: Parameters<typeof customFetch>[1]): Promise<PagedResultOfModuleEventDeliveryView> => {
+
+  return customFetch<PagedResultOfModuleEventDeliveryView>(getOutboxListModuleDeliveriesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getOutboxListModuleDeliveriesQueryKey = (params?: OutboxListModuleDeliveriesParams,) => {
+    return [
+    `/api/v1/platform/outbox/module-deliveries`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getOutboxListModuleDeliveriesQueryOptions = <TData = Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError = unknown>(params?: OutboxListModuleDeliveriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getOutboxListModuleDeliveriesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof outboxListModuleDeliveries>>> = ({ signal }) => outboxListModuleDeliveries(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type OutboxListModuleDeliveriesQueryResult = NonNullable<Awaited<ReturnType<typeof outboxListModuleDeliveries>>>
+export type OutboxListModuleDeliveriesQueryError = unknown
+
+
+export function useOutboxListModuleDeliveries<TData = Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError = unknown>(
+ params: undefined |  OutboxListModuleDeliveriesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof outboxListModuleDeliveries>>,
+          TError,
+          Awaited<ReturnType<typeof outboxListModuleDeliveries>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOutboxListModuleDeliveries<TData = Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError = unknown>(
+ params?: OutboxListModuleDeliveriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof outboxListModuleDeliveries>>,
+          TError,
+          Awaited<ReturnType<typeof outboxListModuleDeliveries>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOutboxListModuleDeliveries<TData = Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError = unknown>(
+ params?: OutboxListModuleDeliveriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List module deliveries outbox
+ */
+
+export function useOutboxListModuleDeliveries<TData = Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError = unknown>(
+ params?: OutboxListModuleDeliveriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof outboxListModuleDeliveries>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getOutboxListModuleDeliveriesQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

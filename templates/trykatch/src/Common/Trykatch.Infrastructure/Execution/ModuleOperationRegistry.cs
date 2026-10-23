@@ -5,7 +5,7 @@ namespace Trykatch.Infrastructure.Execution;
 /// <summary>The validated adapter set for one installed module operation.</summary>
 internal sealed record ModuleOperationRegistration(
     ModuleOperationDescriptor Descriptor,
-    IModuleOperationHandler Handler,
+    IModuleOperationHandler? Handler,
     IModuleOperationResourcePolicy ResourcePolicy,
     ModuleSystemGrantDescriptor? SystemGrant);
 
@@ -20,7 +20,8 @@ internal sealed class ModuleOperationRegistry
     public ModuleOperationRegistry(
         ModuleCatalog catalog,
         IEnumerable<IModuleOperationHandler> handlers,
-        IEnumerable<IModuleOperationResourcePolicy> policies)
+        IEnumerable<IModuleOperationResourcePolicy> policies,
+        IEnumerable<ModuleEventConsumerBinding>? consumerBindings = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(handlers);
@@ -30,8 +31,10 @@ internal sealed class ModuleOperationRegistry
         ModuleOperationDescriptor[] operations = catalog.Descriptors
             .SelectMany(module => module.Operations)
             .ToArray();
+        HashSet<(string ModuleId, string OperationKey, int Version)> consumerOperations =
+            ResolveConsumerOperations(catalog, consumerBindings ?? []);
         Dictionary<(string ModuleId, string OperationKey, int Version), IModuleOperationHandler> handlerMap =
-            BuildHandlerMap(operations, handlers);
+            BuildHandlerMap(operations, handlers, consumerOperations);
 
         Dictionary<(string ModuleId, string PolicyKey), IModuleOperationResourcePolicy> policyMap =
             BuildPolicyMap(operations, policies);
@@ -50,7 +53,7 @@ internal sealed class ModuleOperationRegistry
             var key = (operation.ModuleId, operation.OperationKey, operation.OperationVersion);
             registrations.Add(key, new ModuleOperationRegistration(
                 operation,
-                handlerMap[key],
+                handlerMap.GetValueOrDefault(key),
                 policyMap[(operation.ModuleId, operation.ResourcePolicyKey)],
                 grant));
         }
@@ -88,9 +91,33 @@ internal sealed class ModuleOperationRegistry
                 && consumer.AcceptedEvents.Any(accepted => accepted.EventKey == eventKey && accepted.SchemaVersion == schemaVersion));
     }
 
+    private static HashSet<(string ModuleId, string OperationKey, int Version)> ResolveConsumerOperations(
+        ModuleCatalog catalog,
+        IEnumerable<ModuleEventConsumerBinding> bindings)
+    {
+        Dictionary<(string ModuleId, string ConsumerKey), ModuleEventConsumerDescriptor> declared = catalog.Descriptors
+            .SelectMany(module => module.EventConsumers)
+            .ToDictionary(consumer => (consumer.OwnerModuleId, consumer.ConsumerKey));
+        HashSet<(string ModuleId, string ConsumerKey)> supplied = [];
+        HashSet<(string ModuleId, string OperationKey, int Version)> operations = [];
+        foreach (ModuleEventConsumerBinding binding in bindings)
+        {
+            ArgumentNullException.ThrowIfNull(binding);
+            ArgumentNullException.ThrowIfNull(binding.Consumer);
+            var key = (binding.ModuleId, binding.ConsumerKey);
+            if (!declared.TryGetValue(key, out ModuleEventConsumerDescriptor? consumer))
+                throw new InvalidOperationException($"Event consumer binding '{binding.ModuleId}/{binding.ConsumerKey}' has no matching installed consumer.");
+            if (!supplied.Add(key))
+                throw new InvalidOperationException($"Duplicate event consumer binding '{binding.ModuleId}/{binding.ConsumerKey}'.");
+            operations.Add((consumer.OwnerModuleId, consumer.OperationKey, consumer.OperationVersion));
+        }
+        return operations;
+    }
+
     private static Dictionary<(string ModuleId, string OperationKey, int Version), IModuleOperationHandler> BuildHandlerMap(
         IReadOnlyCollection<ModuleOperationDescriptor> operations,
-        IEnumerable<IModuleOperationHandler> handlers)
+        IEnumerable<IModuleOperationHandler> handlers,
+        HashSet<(string ModuleId, string OperationKey, int Version)> consumerOperations)
     {
         HashSet<(string ModuleId, string OperationKey, int Version)> declared = operations
             .Select(operation => (operation.ModuleId, operation.OperationKey, operation.OperationVersion))
@@ -108,7 +135,7 @@ internal sealed class ModuleOperationRegistry
 
         foreach (var key in declared)
         {
-            if (!result.ContainsKey(key))
+            if (!result.ContainsKey(key) && !consumerOperations.Contains(key))
                 throw new InvalidOperationException($"Missing handler for installed operation '{key.ModuleId}/{key.OperationKey}' version {key.Version}.");
         }
         return result;

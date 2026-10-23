@@ -1,6 +1,6 @@
 # Feature parity contract ledger
 
-Status: Phase 0 semantic baseline, with E1 contracts and E2 validated execution implemented. See [E1 evidence](evidence/parity-execution-e1.md) and [E2 evidence](evidence/parity-execution-e2.md) for exact scope and validation limits; E3–E5 remain planned.
+Status: Phase 0 semantic baseline, with E1 contracts, E2 validated execution and E3 durable module event delivery implemented. See [E1 evidence](evidence/parity-execution-e1.md), [E2 evidence](evidence/parity-execution-e2.md) and [E3 evidence](evidence/parity-execution-e3.md) for exact scope and verification status. E4 scheduling and E5 queued email remain planned.
 
 Baseline: `origin/develop` at `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, reconciled on 2026-10-23. The repository was fetched again before Phase 0; no upstream source changes were present. The user subsequently authorized Phase 1 beginning with E1. The source baseline above is retained for traceability.
 
@@ -26,7 +26,7 @@ Paths in this table are application-relative and refer to existing source.
 | Existing fact | Source | Required treatment |
 | --- | --- | --- |
 | Explicit composition and module-owned EF contributions already exist. | `src/Common/Trykatch.Modules.Abstractions/TrykatchModule.cs`, `src/Common/Trykatch.Modules.AspNetCore/TrykatchModuleEndpoints.cs` | Extend these seams; do not introduce assembly scanning or private cross-module references. |
-| Runtime connections are four distinct fixed roles; access profiles are closed. | `src/Common/Trykatch.Infrastructure/Persistence/RuntimeDatabaseConnectionContract.cs`, `Organizations/RuntimeDatabaseAccessProfiles.cs`, `Organizations/RuntimeRoleProvisioner.cs` | E1 must extend provisioning, inspection and deployment configuration together. No existing grant implies access to a new `host-only` relation. |
+| Runtime connections and access profiles are distinct and closed; coordinator delivery access is explicitly provisioned. | `src/Common/Trykatch.Infrastructure/Persistence/RuntimeDatabaseConnectionContract.cs`, `Organizations/RuntimeDatabaseAccessProfiles.cs`, `Organizations/RuntimeRoleProvisioner.cs` | E1 extends provisioning and inspection together; E3 uses those exact grants. No existing grant implies access to a new host-only relation; the work coordinator has no business-data access. |
 | Organization resolution requires an actor-scoped transaction and active membership; permissions are read from persisted role grants. | `src/Common/Trykatch.Infrastructure/Organizations/OrganizationAccessResolver.cs` | User jobs must use current resolution. System/event work needs a distinct validated principal, not a fake membership. |
 | New organizations seed Owner from the current permission catalog. | `src/Common/Trykatch.Infrastructure/Organizations/OrganizationDirectory.cs` | S6 must reconcile existing organizations on catalog upgrades. |
 | `Role.AddMissingPermissions` exists; development demo seeding applies defaults to its demo roles. | `src/Common/Trykatch.Domain/Organizations/Role.cs`, `src/API/Trykatch.Api/Development/DevelopmentDemoSeeder.cs` | Reuse the additive primitive; demo-only repair is not a production-wide reconciliation mechanism. Do not broaden existing non-Owner roles automatically. |
@@ -92,9 +92,9 @@ Module-neutral registration and context types belong under `Trykatch.Modules.Abs
 | `ModuleEventDelivery` | Coordinator record: delivery ID, source message ID, organization, consumer key, registered versions, state/lease/attempts, safe last-failure code and expected replay generation. Payload reference/hash is stable. |
 | `ModuleEventInbox` | Organization-owned row uniquely keyed by `(OrganizationId, MessageId, ConsumerKey)`; committed with that consumer's effect. Schema version is recorded separately and never used to defeat deduplication. |
 
-Fan-out atomically snapshots compatible installed consumers and persists their delivery records before the existing outbox is marked processed. The outbox acknowledgement and new records must share a transaction; E1/E3 extend the existing outbox role with exact INSERT/SELECT needs on delivery coordination, not business CRUD. Never use a separate connection/commit while claiming atomic fan-out.
+The installed registry explicitly binds every consumer descriptor to one module-owned consumer. For an active compatible consumer, `ModuleEventFanout` validates the source event/schema/reader and snapshots registered consumers in the same outbox-role transaction that marks the durable source processed. `ModuleEventFanout` rechecks the durable source and its context/hash/type; database failures roll back the source acknowledgement and snapshots together. This branch does not invoke handlers or external transports. Legacy and no-consumer messages continue through the configured `IOutboxTransport`, including logging and custom transports. Previously processed rows are not backfilled.
 
-One successful consumer is not executed again when another fails. Crash after business commit but before coordination acknowledgement is recovered by consulting the inbox in the next organization transaction. Follow-up email/realtime/webhook intents are persisted with the effect; network dispatch happens afterward.
+Each consumer runs through the bounded organization executor. Its business effect, organization-owned inbox row, required audit and outgoing delivery intent commit in one actor-scoped transaction. One successful consumer is not executed again when another fails. Crash after business commit but before coordinator acknowledgement is recovered from the inbox before mutable registry/grant/policy checks. Follow-up email/realtime/webhook intents are persisted with the effect; network dispatch happens afterward. The delivery worker uses the dedicated `trykatch-work` coordinator connection, bounded leases/attempts and recovery-only checks after business attempts are exhausted.
 
 Disabled consumers are paused with retained records. On re-enable, compatible work can resume. Installing a new consumer does not backfill historical events; previously processed logging-only messages stay processed. A deployment with no enabled new consumers retains the current safe logging behavior rather than silently invoking newly discovered handlers.
 
@@ -202,7 +202,7 @@ Not established in Phase 0: executable contracts, new runtime grants/migrations,
 
 ## 13. E1 implementation mapping
 
-E1 compiles neutral registration/event/job shapes and host-only execution request/outcome interfaces. It adds a compatible host-only UserCommand enqueue overload and nullable v1 outbox context, not an executor or fan-out adapter. The legacy enqueue path remains explicitly logging-only. Context-version/hash rejection is implemented; active-catalog compatibility before business effects remains E2/E3. See [E1 evidence](evidence/parity-execution-e1.md) for schema/role allocations, manifest tokens, observed checks and the pre-existing dependency-audit blocker.
+E1 compiles neutral registration/event/job shapes and host-only execution request/outcome interfaces. It adds a compatible host-only UserCommand enqueue overload and nullable v1 outbox context. The legacy enqueue path remains explicitly logging-only. Context-version/hash rejection is implemented; E3 adds active-catalog compatibility before new event effects. See [E1 evidence](evidence/parity-execution-e1.md) for schema/role allocations, manifest tokens, observed checks and the pre-existing dependency-audit blocker.
 
 ## 14. E2 implementation mapping
 
@@ -210,4 +210,12 @@ E1 compiles neutral registration/event/job shapes and host-only execution reques
 
 `app.module_work_completions` is a separate host-owned organization SELECT/INSERT relation, keyed by organization/work. Immutable envelope/actor/hash binding and marker recovery precede mutable registry/grant/current-membership gates. Exhausted claims can only inspect completion, never run a sixth handler. Acknowledged pauses do not consume the failure budget. Dedicated placement and session/delegation execution fail closed in this version.
 
-Existing v1 user outbox contexts remain supported. Validated system frames emit additive v2 contexts with null membership and optional original actor; legacy payload scope is never guessed. This does not activate E3 delivery or E4 scheduling. See [E2 evidence](evidence/parity-execution-e2.md) for schema, migration, recovery and validation detail.
+Existing v1 user outbox contexts remain supported. Validated system frames emit additive v2 contexts with null membership and optional original actor; legacy payload scope is never guessed. E2 supplies the bounded organization transaction used by E3 consumer effects; it does not activate E4 scheduling. See [E2 evidence](evidence/parity-execution-e2.md) for schema, migration, recovery and validation detail.
+
+## 15. E3 implementation mapping
+
+Installed event consumers are explicitly bound to stable descriptors at module registration. Registry startup checks the installed binding set, committed-event operation and finite system grant; delivery validates the registered event reader. Before any new effect, source event/schema and persisted provenance are checked against the current catalog. A mismatch becomes a sanitized compatibility outcome.
+
+For active compatible consumers, immutable delivery snapshots and source `ProcessedAt` commit together through the existing outbox transaction and role. No handler or network call runs during fan-out. The existing logging/custom transport remains the fallback for legacy traffic and messages with no active consumer. No consumer is inferred for already processed history.
+
+The delivery coordinator uses the `trykatch-work` role for bounded claims/acknowledgements; the effect/inbox/audit/outgoing-intent commit remains in the organization transaction. The operator GET endpoint requires current `OutboxRead` access, returns bounded redacted delivery metadata, and does not expose event payload or authority context. Migration rollout applies additive event-delivery metadata and explicit role grants before the worker uses it. E4 jobs/scheduling and E5 queued email remain planned. See [E3 evidence](evidence/parity-execution-e3.md); targeted validation and integrated review are complete, with the standard dependency-audit blocker retained.

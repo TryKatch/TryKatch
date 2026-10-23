@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Encodings.Web;
 using Microsoft.Extensions.Logging;
 using Trykatch.Application.Outbox;
+using Trykatch.Infrastructure.Eventing;
 
 namespace Trykatch.Infrastructure.Persistence;
 
@@ -15,7 +16,8 @@ internal sealed partial class OutboxDelivery(
     IOutboxTransport transport,
     TimeProvider timeProvider,
     OutboxWorkerState state,
-    ILogger<OutboxDelivery> logger)
+    ILogger<OutboxDelivery> logger,
+    ModuleEventFanout? fanout = null)
 {
     private static readonly ActivitySource ActivitySource = new("Trykatch.Outbox");
     private static readonly Meter Meter = new("Trykatch.Outbox");
@@ -35,8 +37,30 @@ internal sealed partial class OutboxDelivery(
             return false;
         }
 
-        await state.WaitForTransportAsync(stoppingToken);
-        stoppingToken.ThrowIfCancellationRequested();
+        OutboxEnvelope envelope = new(message.Id, message.Type, message.Payload, message.OccurredAt, message.Attempts + 1)
+        {
+            Context = legacy ? null : context,
+            PayloadHash = legacy ? null : message.PayloadHash
+        };
+        bool useFanout = false;
+        if (fanout is not null && !legacy)
+        {
+            try
+            {
+                useFanout = fanout.CanFanout(envelope);
+            }
+            catch (ModuleEventCompatibilityException exception)
+            {
+                RecordCompatibilityFailure(message, exception);
+                return false;
+            }
+        }
+
+        if (!useFanout)
+        {
+            await state.WaitForTransportAsync(stoppingToken);
+            stoppingToken.ThrowIfCancellationRequested();
+        }
 
         long started = Stopwatch.GetTimestamp();
         using Activity? activity = ActivitySource.StartActivity("outbox publish", ActivityKind.Producer);
@@ -49,25 +73,26 @@ internal sealed partial class OutboxDelivery(
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, deadline.Token);
         try
         {
-            Task publish = transport.PublishAsync(
-                new OutboxEnvelope(message.Id, message.Type, message.Payload, message.OccurredAt, message.Attempts + 1)
-                {
-                    Context = legacy ? null : context,
-                    PayloadHash = legacy ? null : message.PayloadHash
-                },
-                linked.Token);
-            Task wait = Task.Delay(timeout, timeProvider, stoppingToken);
-            if (await Task.WhenAny(publish, wait) != publish)
+            if (useFanout)
             {
-                linked.Cancel();
-                state.TransportBlocked(true, timeProvider.GetUtcNow());
-                state.TrackTransport(ObserveLatePublicationAsync(publish));
-                stoppingToken.ThrowIfCancellationRequested();
-                RecordFailure(message, "transport_timeout", typeof(TimeoutException).FullName!, activity);
-                return false;
+                await fanout!.PublishAsync(envelope, linked.Token);
             }
+            else
+            {
+                Task publish = transport.PublishAsync(envelope, linked.Token);
+                Task wait = Task.Delay(timeout, timeProvider, stoppingToken);
+                if (await Task.WhenAny(publish, wait) != publish)
+                {
+                    linked.Cancel();
+                    state.TransportBlocked(true, timeProvider.GetUtcNow());
+                    state.TrackTransport(ObserveLatePublicationAsync(publish));
+                    stoppingToken.ThrowIfCancellationRequested();
+                    RecordFailure(message, "transport_timeout", typeof(TimeoutException).FullName!, activity);
+                    return false;
+                }
 
-            await publish;
+                await publish;
+            }
             message.ProcessedAt = timeProvider.GetUtcNow();
             message.LastErrorCode = null;
             message.LastErrorType = null;
@@ -80,10 +105,16 @@ internal sealed partial class OutboxDelivery(
         }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested)
         {
+            if (useFanout) throw;
             RecordFailure(message, "transport_timeout", typeof(TimeoutException).FullName!, activity);
             return false;
         }
-        catch (Exception exception)
+        catch (ModuleEventCompatibilityException exception) when (useFanout)
+        {
+            RecordCompatibilityFailure(message, exception);
+            return false;
+        }
+        catch (Exception exception) when (!useFanout)
         {
             string exceptionType = exception.GetType().FullName ?? exception.GetType().Name;
             string code = exception is TimeoutException ? "transport_timeout"
@@ -123,6 +154,14 @@ internal sealed partial class OutboxDelivery(
         activity?.SetTag("error.type", message.LastErrorType);
         DispatchCounter.Add(1, new KeyValuePair<string, object?>("outcome", code));
         LogFailed(logger, message.Id, message.Attempts, message.LastErrorType);
+    }
+
+    private void RecordCompatibilityFailure(OutboxMessage message, ModuleEventCompatibilityException exception)
+    {
+        message.ExhaustedAt = timeProvider.GetUtcNow();
+        message.LastErrorCode = exception.Code;
+        message.LastErrorType = nameof(ModuleEventCompatibilityException);
+        DispatchCounter.Add(1, new KeyValuePair<string, object?>("outcome", exception.Code));
     }
 
     [LoggerMessage(EventId = 4201, Level = LogLevel.Error, Message = "Outbox message {MessageId} failed on attempt {DeliveryAttempt} with {ExceptionType}")]
