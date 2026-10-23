@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Trykatch.Application.Organizations;
 using Trykatch.Application.Outbox;
+using Trykatch.Infrastructure.Execution;
 using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Persistence;
@@ -11,11 +12,13 @@ namespace Trykatch.Infrastructure.Persistence;
 internal sealed class OutboxWriter(
     ApplicationDbContext dbContext,
     ModuleCatalog catalog,
-    IOrganizationContext organization) : IOutboxWriter
+    IOrganizationContext organization,
+    ModuleWorkExecutionContext? execution = null) : IOutboxWriter
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private const int MaximumPayloadBytes = 1_048_576;
-    private const int ContextVersion = 1;
+    private const int UserContextVersion = 1;
+    private const int SystemContextVersion = 2;
 
     public void Enqueue<T>(T message) where T : notnull =>
         dbContext.OutboxMessages.Add(new OutboxMessage
@@ -30,12 +33,6 @@ internal sealed class OutboxWriter(
         if (string.IsNullOrWhiteSpace(operationKey) || operationVersion <= 0)
             throw new InvalidOperationException("The outbox operation registration is invalid.");
 
-        if (!organization.IsResolved
-            || organization.OrganizationId == Guid.Empty
-            || organization.ActorId == Guid.Empty
-            || organization.MembershipId == Guid.Empty)
-            throw new InvalidOperationException("A resolved organization membership is required to enqueue this event.");
-
         ModuleOperationDescriptor? operation = catalog.Descriptors
             .SelectMany(descriptor => descriptor.Operations)
             .SingleOrDefault(candidate =>
@@ -47,10 +44,41 @@ internal sealed class OutboxWriter(
             .ToArray();
 
         if (operation is null
-            || operation.ExecutionKind != ModuleExecutionKind.UserCommand
             || events.Length != 1
             || !string.Equals(events[0].OwnerModuleId, operation.ModuleId, StringComparison.Ordinal))
             throw new InvalidOperationException("The outbox operation and event must be explicitly registered to the same module.");
+
+        ModuleExecutionIdentity? identity = execution?.Identity;
+        ModuleOperationDescriptor? frameOperation = execution?.Operation;
+        bool systemExecution = identity?.ExecutionKind is ModuleExecutionKind.CommittedEvent or ModuleExecutionKind.ScheduledSystem;
+        if (systemExecution)
+        {
+            if (identity is null
+                || frameOperation is null
+                || operation.ExecutionKind != identity.ExecutionKind
+                || frameOperation.ModuleId != operation.ModuleId
+                || frameOperation.OperationKey != operationKey
+                || frameOperation.OperationVersion != operationVersion
+                || frameOperation.ExecutionKind != identity.ExecutionKind
+                || identity.OrganizationId == Guid.Empty
+                || identity.EffectiveActorId == Guid.Empty
+                || identity.OriginActorId == Guid.Empty
+                || identity.MembershipId is not null
+                || !organization.IsResolved
+                || organization.OrganizationId != identity.OrganizationId
+                || organization.ActorId != identity.EffectiveActorId)
+                throw new InvalidOperationException("The current system work frame does not authorize this outbox operation.");
+        }
+        else
+        {
+            if (operation.ExecutionKind != ModuleExecutionKind.UserCommand)
+                throw new InvalidOperationException("System outbox operations require a validated work execution frame.");
+            if (!organization.IsResolved
+                || organization.OrganizationId == Guid.Empty
+                || organization.ActorId == Guid.Empty
+                || organization.MembershipId == Guid.Empty)
+                throw new InvalidOperationException("A resolved organization membership is required to enqueue this event.");
+        }
 
         foreach (string permission in operation.RequiredPermissionKeys)
         {
@@ -64,12 +92,13 @@ internal sealed class OutboxWriter(
         if (Encoding.UTF8.GetByteCount(payload) > maximumPayloadBytes)
             throw new InvalidOperationException("The registered outbox event payload exceeds its size limit.");
 
+        bool isSystem = systemExecution;
         OutboxContext context = new(
-            organization.OrganizationId,
-            organization.ActorId,
-            organization.ActorId,
-            organization.MembershipId,
-            nameof(ModuleExecutionKind.UserCommand),
+            isSystem ? identity!.OrganizationId : organization.OrganizationId,
+            isSystem ? identity!.EffectiveActorId : organization.ActorId,
+            isSystem ? identity!.OriginActorId : organization.ActorId,
+            isSystem ? identity!.MembershipId : organization.MembershipId,
+            isSystem ? identity!.ExecutionKind.ToString() : nameof(ModuleExecutionKind.UserCommand),
             operation.OperationKey,
             operation.OperationVersion,
             integrationEvent.EventKey,
@@ -83,7 +112,7 @@ internal sealed class OutboxWriter(
         {
             Type = integrationEvent.EventKey,
             Payload = payload,
-            ContextVersion = ContextVersion,
+            ContextVersion = isSystem ? SystemContextVersion : UserContextVersion,
             ContextJson = contextJson,
             PayloadHash = payloadHash
         });

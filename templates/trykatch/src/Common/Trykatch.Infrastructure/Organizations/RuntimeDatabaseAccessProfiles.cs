@@ -45,6 +45,7 @@ public static class RuntimeDatabaseAccessProfiles
     public static IReadOnlySet<string> HostOwnedRelations { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         "app.module_event_inbox",
+        "app.module_work_completions",
         "infrastructure.module_work_items",
         "infrastructure.module_event_deliveries",
         "platform.organizations",
@@ -98,6 +99,7 @@ public static class RuntimeDatabaseAccessProfiles
             {
                 (RuntimeDatabaseRoleKind.Organization, "infrastructure.module_work_items") => Insert,
                 (RuntimeDatabaseRoleKind.Organization, "app.module_event_inbox") => SelectInsert,
+                (RuntimeDatabaseRoleKind.Organization, "app.module_work_completions") => SelectInsert,
                 (RuntimeDatabaseRoleKind.Outbox, "infrastructure.module_event_deliveries") => SelectInsert,
                 (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_work_items") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_event_deliveries") => SelectUpdate,

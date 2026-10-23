@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Trykatch.Application.Organizations;
 using Trykatch.Application.Outbox;
+using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 
@@ -22,6 +23,11 @@ public sealed class OutboxContextTests
     private const string Permission = "projects.write";
     private const string OperationKey = "projects.update";
     private const string EventKey = "projects.changed";
+    private const string SystemOperationKey = "projects.maintenance-refresh";
+    private const string OtherSystemOperationKey = "projects.maintenance-reindex";
+    private const string SystemGrantKey = "projects.maintenance";
+    private const string OtherSystemGrantKey = "projects.reindex-maintenance";
+    private static readonly Guid SystemActorId = Guid.Parse("ffffffff-ffff-4fff-8fff-ffffffffffff");
 
     [TestMethod]
     public void NewEnqueueCapturesTrustedScopeAndExplicitRegistrationSeparatelyFromPayload()
@@ -126,6 +132,60 @@ public sealed class OutboxContextTests
     }
 
     [TestMethod]
+    public void SystemWorkEnqueueCapturesValidatedFrameWithoutMembership()
+    {
+        Fixture fixture = CreateSystemFixture(withExecutionFrame: true);
+
+        fixture.Writer.Enqueue(new UntrustedMessage(Guid.NewGuid(), Guid.NewGuid(), "refresh"), SystemOperationKey, 1);
+
+        OutboxMessage stored = fixture.DbContext.OutboxMessages.Local.ShouldHaveSingleItem();
+        stored.ContextVersion.ShouldBe(2);
+        using JsonDocument contextDocument = JsonDocument.Parse(stored.ContextJson!);
+        JsonElement context = contextDocument.RootElement;
+        context.GetProperty("organizationId").GetGuid().ShouldBe(OrganizationId);
+        context.GetProperty("effectiveActorId").GetGuid().ShouldBe(SystemActorId);
+        context.GetProperty("originActorId").GetGuid().ShouldBe(ActorId);
+        context.GetProperty("membershipId").ValueKind.ShouldBe(JsonValueKind.Null);
+        context.GetProperty("executionKind").GetString().ShouldBe("ScheduledSystem");
+        context.GetProperty("operationKey").GetString().ShouldBe(SystemOperationKey);
+
+        OutboxContextReader.TryRead(stored, out OutboxContext? parsed, out bool legacy).ShouldBeTrue();
+        legacy.ShouldBeFalse();
+        parsed!.MembershipId.ShouldBeNull();
+        parsed.EffectiveActorId.ShouldBe(SystemActorId);
+    }
+
+    [TestMethod]
+    public void SystemWorkEnqueueRequiresMatchingFrameAndRejectsMissingFrame()
+    {
+        Fixture fixture = CreateSystemFixture(withExecutionFrame: true);
+
+        Should.Throw<InvalidOperationException>(() => fixture.Writer.Enqueue(
+            new UntrustedMessage(Guid.NewGuid(), Guid.NewGuid(), "refresh"), OtherSystemOperationKey, 1));
+        fixture.DbContext.OutboxMessages.Local.ShouldBeEmpty();
+
+        Fixture unframed = CreateSystemFixture(withExecutionFrame: false);
+        Should.Throw<InvalidOperationException>(() => unframed.Writer.Enqueue(
+            new UntrustedMessage(Guid.NewGuid(), Guid.NewGuid(), "refresh"), SystemOperationKey, 1));
+        unframed.DbContext.OutboxMessages.Local.ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public void OutboxContextReaderRejectsSystemMembershipAndVersionKindMismatch()
+    {
+        Fixture fixture = CreateSystemFixture(withExecutionFrame: true);
+        fixture.Writer.Enqueue(new UntrustedMessage(Guid.NewGuid(), Guid.NewGuid(), "refresh"), SystemOperationKey, 1);
+        OutboxMessage stored = fixture.DbContext.OutboxMessages.Local.ShouldHaveSingleItem();
+        OutboxMessage withMembership = Copy(stored, contextJson: stored.ContextJson!.Replace(
+            "\"membershipId\":null", $"\"membershipId\":\"{MembershipId:D}\"", StringComparison.Ordinal));
+        OutboxMessage wrongKind = Copy(stored, contextJson: stored.ContextJson!.Replace(
+            "ScheduledSystem", "UserCommand", StringComparison.Ordinal));
+
+        OutboxContextReader.TryRead(withMembership, out _, out _).ShouldBeFalse();
+        OutboxContextReader.TryRead(wrongKind, out _, out _).ShouldBeFalse();
+    }
+
+    [TestMethod]
     public async Task LegacyEnqueueKeepsCompatibilityNameAndDoesNotGuessContext()
     {
         Fixture fixture = CreateFixture();
@@ -225,6 +285,59 @@ public sealed class OutboxContextTests
         return new Fixture(dbContext, writer);
     }
 
+    private static Fixture CreateSystemFixture(bool withExecutionFrame)
+    {
+        DataResourceDescriptor resource = new("projects.item", "app", "projects_items", ModuleDataOwnership.Organization, IsolationPolicy: "projects-rls");
+        ModuleOperationDescriptor operation = new("projects", SystemOperationKey, 1, ModuleExecutionKind.ScheduledSystem,
+            "projects.maintenance-refresh.payload", 1, [Permission], resource.Name, SystemGrantKey, 1_048_576);
+        ModuleOperationDescriptor otherOperation = new("projects", OtherSystemOperationKey, 1, ModuleExecutionKind.ScheduledSystem,
+            "projects.maintenance-reindex.payload", 1, [Permission], resource.Name, OtherSystemGrantKey, 1_048_576);
+        ModuleDescriptor descriptor = new("projects", "Projects", "1.0.0", "Project operations", [], [],
+            ModuleCapabilities.Api | ModuleCapabilities.BackgroundWork | ModuleCapabilities.Data, [])
+        {
+            DefaultDataOwnership = ModuleDataOwnership.Organization,
+            Permissions = [new PermissionDescriptor(Permission, "Write projects", "Write project data")],
+            Operations = [operation, otherOperation],
+            SystemGrants =
+            [
+                new ModuleSystemGrantDescriptor(SystemGrantKey, 1, "projects", SystemActorId, [SystemOperationKey], [resource.Name]),
+                new ModuleSystemGrantDescriptor(OtherSystemGrantKey, 1, "projects", SystemActorId, [OtherSystemOperationKey], [resource.Name])
+            ],
+            DataResources = [resource],
+            IntegrationEvents = [new IntegrationEventDescriptor(EventKey, 1, "projects", typeof(UntrustedMessage), element => element.Clone(), 1_048_576)]
+        };
+        ModuleCatalog catalog = new([new StubModule(descriptor)]);
+        DbContextOptions<ApplicationDbContext> options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql("Host=localhost;Database=outbox_context_test;Username=test;Password=test")
+            .Options;
+        TestOrganizationContext organizationContext = new(
+            new OrganizationAccess(OrganizationId, "workspace", SystemActorId, Guid.Empty, new HashSet<string> { Permission }),
+            rejectMembershipRead: true);
+        ApplicationDbContext dbContext = new(options, [], organizationContext, catalog);
+        ModuleWorkExecutionContext? execution = null;
+        if (withExecutionFrame)
+        {
+            execution = new ModuleWorkExecutionContext();
+            execution.Initialize(
+                new ModuleExecutionIdentity(OrganizationId, SystemActorId, ActorId, null, ModuleExecutionKind.ScheduledSystem,
+                    SystemGrantKey, 1, null, 1, null),
+                operation);
+        }
+        OutboxWriter writer = new(dbContext, catalog, organizationContext, execution);
+        return new Fixture(dbContext, writer);
+    }
+
+    private static OutboxMessage Copy(OutboxMessage source, string? contextJson = null) => new()
+    {
+        Id = source.Id,
+        Type = source.Type,
+        Payload = source.Payload,
+        OccurredAt = source.OccurredAt,
+        ContextVersion = source.ContextVersion,
+        ContextJson = contextJson ?? source.ContextJson,
+        PayloadHash = source.PayloadHash
+    };
+
     private sealed record Fixture(ApplicationDbContext DbContext, OutboxWriter Writer);
     private sealed record UntrustedMessage(Guid OrganizationId, Guid ActorId, string Change);
 
@@ -245,12 +358,20 @@ public sealed class OutboxContextTests
                     permissionGranted ? new HashSet<string> { Permission } : new HashSet<string>());
         }
 
-        public TestOrganizationContext(OrganizationAccess access) => this.access = access;
+        private readonly bool rejectMembershipRead;
+
+        public TestOrganizationContext(OrganizationAccess access, bool rejectMembershipRead = false)
+        {
+            this.access = access;
+            this.rejectMembershipRead = rejectMembershipRead;
+        }
         public bool IsResolved => access is not null;
         public Guid OrganizationId => access?.OrganizationId ?? Guid.Empty;
         public string OrganizationSlug => access?.OrganizationSlug ?? string.Empty;
         public Guid ActorId => access?.ActorId ?? Guid.Empty;
-        public Guid MembershipId => access?.MembershipId ?? Guid.Empty;
+        public Guid MembershipId => rejectMembershipRead
+            ? throw new InvalidOperationException("System work cannot read a user membership.")
+            : access?.MembershipId ?? Guid.Empty;
         public IReadOnlySet<string> Permissions => access?.Permissions ?? new HashSet<string>();
     }
 

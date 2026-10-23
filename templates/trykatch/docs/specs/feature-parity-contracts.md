@@ -1,6 +1,6 @@
 # Feature parity contract ledger
 
-Status: Phase 0 semantic baseline, with E1 contracts and operational foundations now implemented. See [E1 evidence](evidence/parity-execution-e1.md) for exact implemented scope and validation limits; E2–E5 behavior remains planned.
+Status: Phase 0 semantic baseline, with E1 contracts and E2 validated execution implemented. See [E1 evidence](evidence/parity-execution-e1.md) and [E2 evidence](evidence/parity-execution-e2.md) for exact scope and validation limits; E3–E5 remain planned.
 
 Baseline: `origin/develop` at `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, reconciled on 2026-10-23. The repository was fetched again before Phase 0; no upstream source changes were present. The user subsequently authorized Phase 1 beginning with E1. The source baseline above is retained for traceability.
 
@@ -203,3 +203,11 @@ Not established in Phase 0: executable contracts, new runtime grants/migrations,
 ## 13. E1 implementation mapping
 
 E1 compiles neutral registration/event/job shapes and host-only execution request/outcome interfaces. It adds a compatible host-only UserCommand enqueue overload and nullable v1 outbox context, not an executor or fan-out adapter. The legacy enqueue path remains explicitly logging-only. Context-version/hash rejection is implemented; active-catalog compatibility before business effects remains E2/E3. See [E1 evidence](evidence/parity-execution-e1.md) for schema/role allocations, manifest tokens, observed checks and the pre-existing dependency-audit blocker.
+
+## 14. E2 implementation mapping
+
+`IOrganizationWorkExecutor` now resolves only explicit module handler/policy adapters in a fresh scope. Its coordinator claim and acknowledgement use the restricted work credential; its effect, completion marker, audit and outgoing intent share the existing actor-scoped organization transaction. The system context has a finite permission set and rejects membership-only use cases. Committed sources retain origin attribution without reauthorizing the origin user; the current resource policy still gates recipients.
+
+`app.module_work_completions` is a separate host-owned organization SELECT/INSERT relation, keyed by organization/work. Immutable envelope/actor/hash binding and marker recovery precede mutable registry/grant/current-membership gates. Exhausted claims can only inspect completion, never run a sixth handler. Acknowledged pauses do not consume the failure budget. Dedicated placement and session/delegation execution fail closed in this version.
+
+Existing v1 user outbox contexts remain supported. Validated system frames emit additive v2 contexts with null membership and optional original actor; legacy payload scope is never guessed. This does not activate E3 delivery or E4 scheduling. See [E2 evidence](evidence/parity-execution-e2.md) for schema, migration, recovery and validation detail.

@@ -134,7 +134,8 @@ internal sealed partial class OutboxDelivery(
 
 internal static class OutboxContextReader
 {
-    private const int SupportedVersion = 1;
+    private const int UserContextVersion = 1;
+    private const int SystemContextVersion = 2;
     private const int MaximumPayloadBytes = 1_048_576;
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
@@ -148,7 +149,7 @@ internal static class OutboxContextReader
             return true;
         }
 
-        if (message.ContextVersion != SupportedVersion
+        if (message.ContextVersion is not (UserContextVersion or SystemContextVersion)
             || string.IsNullOrWhiteSpace(message.ContextJson)
             || string.IsNullOrWhiteSpace(message.PayloadHash)
             || Encoding.UTF8.GetByteCount(message.ContextJson) > 16_384
@@ -169,12 +170,23 @@ internal static class OutboxContextReader
             return false;
         }
 
+        bool validUserContext = parsed is not null
+            && message.ContextVersion == UserContextVersion
+            && string.Equals(parsed.ExecutionKind, "UserCommand", StringComparison.Ordinal)
+            && parsed.OriginActorId is { } userOriginActorId
+            && userOriginActorId != Guid.Empty
+            && parsed.MembershipId is { } userMembershipId
+            && userMembershipId != Guid.Empty;
+        bool validSystemContext = parsed is not null
+            && message.ContextVersion == SystemContextVersion
+            && (parsed.ExecutionKind is "CommittedEvent" or "ScheduledSystem")
+            && parsed.MembershipId is null
+            && parsed.OriginActorId != Guid.Empty;
+
         if (parsed is null
             || parsed.OrganizationId == Guid.Empty
             || parsed.EffectiveActorId == Guid.Empty
-            || parsed.OriginActorId == Guid.Empty
-            || parsed.MembershipId == Guid.Empty
-            || !string.Equals(parsed.ExecutionKind, "UserCommand", StringComparison.Ordinal)
+            || (!validUserContext && !validSystemContext)
             || !IsStableKey(parsed.OperationKey)
             || parsed.OperationVersion <= 0
             || !IsStableKey(parsed.EventKey)

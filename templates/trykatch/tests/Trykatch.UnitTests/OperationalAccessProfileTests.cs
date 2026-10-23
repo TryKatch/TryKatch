@@ -38,4 +38,34 @@ public sealed class OperationalAccessProfileTests
         RuntimeDatabaseAccessProfiles.PermissionsFor(RuntimeDatabaseRoleKind.Outbox,
             "app.module_event_inbox", resources).ShouldBeEmpty();
     }
+
+    [TestMethod]
+    public void HostWorkCompletionsHaveOnlyOrganizationReadAndActorBoundInsert()
+    {
+        DataResourceDescriptor completions = new("module-work-completions", "app", "module_work_completions",
+            ModuleDataOwnership.Organization, IsolationPolicy: "module_work_completions_read",
+            AccessRule: ModuleDataAccessRule.HostOnly);
+        Should.Throw<InvalidOperationException>(() => ModuleDataResourceRules.Validate(completions));
+        Should.NotThrow(() => ModuleDataResourceRules.Validate(completions, hostOwned: true));
+
+        Dictionary<string, DataResourceDescriptor> resources = new()
+        {
+            ["app.module_work_completions"] = completions
+        };
+        RuntimeDatabaseAccessProfiles.PermissionsFor(RuntimeDatabaseRoleKind.Organization,
+            "app.module_work_completions", resources).Order().ShouldBe(["INSERT", "SELECT"]);
+        foreach (RuntimeDatabaseRoleKind role in Enum.GetValues<RuntimeDatabaseRoleKind>()
+                     .Where(role => role != RuntimeDatabaseRoleKind.Organization))
+        {
+            RuntimeDatabaseAccessProfiles.PermissionsFor(role, "app.module_work_completions", resources)
+                .ShouldBeEmpty();
+        }
+
+        DataResourceDescriptor wrongPolicy = completions with { IsolationPolicy = "unexpected_policy" };
+        RuntimeDatabaseAccessProfiles.PermissionsFor(RuntimeDatabaseRoleKind.Organization,
+            "app.module_work_completions", new Dictionary<string, DataResourceDescriptor>
+            {
+                ["app.module_work_completions"] = wrongPolicy
+            }).ShouldBeEmpty();
+    }
 }

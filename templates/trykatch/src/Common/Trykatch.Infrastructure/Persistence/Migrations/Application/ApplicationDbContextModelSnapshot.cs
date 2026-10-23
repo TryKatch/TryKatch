@@ -168,6 +168,43 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         });
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Execution.ModuleWorkCompletion", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("OperationVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("OrganizationId", "WorkId");
+
+                    b.HasIndex("OrganizationId", "CompletedAtUtc");
+
+                    b.ToTable("module_work_completions", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_module_completion_version", "\"OperationVersion\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Infrastructure.Execution.ModuleWorkItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -219,6 +256,9 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("OperationKey")

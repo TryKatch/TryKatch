@@ -1,6 +1,8 @@
 # Phase 1 E1 — execution contracts and operational ownership
 
-Status: E1 implementation and targeted validation complete; the pre-existing standard dependency-audit gate remains failing as recorded below. E2–E5 remain unimplemented. This slice does not deliver background business execution, consumer fan-out, a scheduler or queued email.
+Historical E1 checkpoint; subsequent E2 implementation is recorded in [E2 evidence](parity-execution-e2.md).
+
+Status at E1 completion: E1 implementation and targeted validation complete; the pre-existing standard dependency-audit gate remains failing as recorded below. E2–E5 remain unimplemented. This slice does not deliver background business execution, consumer fan-out, a scheduler or queued email.
 
 ## Scope and compatibility
 

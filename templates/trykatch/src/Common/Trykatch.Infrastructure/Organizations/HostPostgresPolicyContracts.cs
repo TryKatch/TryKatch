@@ -48,6 +48,11 @@ internal static class HostPostgresPolicyContracts
             new("module_event_deliveries_outbox_insert", "a", "", OutboxWorker, ["trykatch_outbox_worker"]),
             new("module_event_deliveries_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])
         ],
+        ["app.module_work_completions"] =
+        [
+            new("module_work_completions_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("module_work_completions_insert", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"])
+        ],
         ["app.module_event_inbox"] =
         [
             new("module_event_inbox_read", "r", Organization, Roles: ["trykatch_org_runtime"]),

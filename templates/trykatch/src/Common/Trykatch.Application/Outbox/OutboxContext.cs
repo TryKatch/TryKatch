@@ -4,8 +4,8 @@ namespace Trykatch.Application.Outbox;
 public sealed record OutboxContext(
     Guid OrganizationId,
     Guid EffectiveActorId,
-    Guid OriginActorId,
-    Guid MembershipId,
+    Guid? OriginActorId,
+    Guid? MembershipId,
     string ExecutionKind,
     string OperationKey,
     int OperationVersion,

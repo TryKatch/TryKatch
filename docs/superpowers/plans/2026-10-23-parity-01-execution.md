@@ -9,7 +9,7 @@
 
 ## Global Constraints
 
-Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`; new names are proposed. Phase 0 resolves D1 through ADR 0015 and the frozen ledger; ADR 0018 selects Quartz.NET/PostgreSQL for D5. Runtime grants/contracts still require E1/E2, and package-graph audit/pinning/qualification still gate E4 adapter installation. E1 now provides compiled contracts, compatible outbox metadata and operational schema/access foundations; see `templates/trykatch/docs/specs/evidence/parity-execution-e1.md`. E2–E5 behavior remains planned. Read `templates/trykatch/docs/specs/feature-parity-contracts.md` with this plan before implementation.
+Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`; new names are proposed. Phase 0 resolves D1 through ADR 0015 and the frozen ledger; ADR 0018 selects Quartz.NET/PostgreSQL for D5. Runtime grants/contracts still require E1/E2, and package-graph audit/pinning/qualification still gate E4 adapter installation. E1 now provides compiled contracts, compatible outbox metadata and operational schema/access foundations; see `templates/trykatch/docs/specs/evidence/parity-execution-e1.md`. E2 now implements validated organization work execution; see `templates/trykatch/docs/specs/evidence/parity-execution-e2.md`. E3–E5 remain planned. Read `templates/trykatch/docs/specs/feature-parity-contracts.md` with this plan before implementation.
 
 ## Review Focus
 
@@ -37,11 +37,11 @@ Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`
 
 **Interfaces:** Consume E1. Produce `IOrganizationWorkExecutor.ExecuteAsync(ModuleExecutionRequest request, CancellationToken ct)` with typed success, denied, retryable-fault and terminal-fault outcomes; no caller-owned transaction or unchecked ambient organization context.
 
-- [ ] Test `RevokedUserCommandDoesNotExecute`: enqueue with permission, revoke it, execute, assert `effects == 0`, terminal authorization outcome and sanitized audit. Test `CommittedEventSurvivesOriginMembershipRevocation`: bounded committed-event bookkeeping still executes, preserving origin actor attribution.
-- [ ] Establish a fresh host scope and validate trusted work registration/module state. Begin the actor-scoped control-plane transaction and set transaction-local organization/actor values before resolving current membership/access. Validate user/event/system authority inside that scope, resolve supported placement, enlist application data in the same transaction, then invoke the handler. Add `MembershipResolutionBeginsInsideActorScopedTransaction`; roll back business/audit/outbox together on failure.
-- [ ] Test `SystemGrantCannotRunAnotherOperation`, `MissingContextCannotReadOrganizationRows`, `OrganizationAJobCannotMutateB`, `PooledConnectionDoesNotRetainPriorScope` and `DeniedRecipientIsNotDisclosedByEventEffect`. Use real runtime roles/raw SQL for the latter isolation assertions.
-- [ ] Treat missing/revoked grants and unknown operation versions as terminal; cancellation rolls back and releases the claim for bounded retry. Do not surround external publication with EF automatic retries.
-- [ ] Verify: unit filter `FullyQualifiedName~ModuleWorkExecutionTests`; integration filter `FullyQualifiedName~ModuleWorkExecutionIntegrationTests`, directly affected `PostgresRlsTests` and `OrganizationScopeMiddlewareTests`; common exit. D1 must be recorded before this task can be implemented.
+- [x] Test `RevokedUserCommandDoesNotExecute`: enqueue with permission, revoke it, execute, assert `effects == 0`, terminal authorization outcome and sanitized audit. Test `CommittedEventSurvivesOriginMembershipRevocation`: bounded committed-event bookkeeping still executes, preserving origin actor attribution.
+- [x] Establish a fresh host scope and validate trusted work registration/module state. Begin the actor-scoped control-plane transaction and set transaction-local organization/actor values before resolving current membership/access. Validate user/event/system authority inside that scope, resolve supported placement, enlist application data in the same transaction, then invoke the handler. Add `MembershipResolutionBeginsInsideActorScopedTransaction`; roll back business/audit/outbox together on failure.
+- [x] Test `SystemGrantCannotRunAnotherOperation`, `MissingContextCannotReadOrganizationRows`, `OrganizationAJobCannotMutateB`, `PooledConnectionDoesNotRetainPriorScope` and `DeniedRecipientIsNotDisclosedByEventEffect`. Use real runtime roles/raw SQL for the latter isolation assertions.
+- [x] Treat missing/revoked grants and unknown operation versions as terminal; cancellation rolls back and releases the claim for bounded retry. Do not surround external publication with EF automatic retries.
+- [x] Verify: unit filter `FullyQualifiedName~ModuleWorkExecutionTests`; integration filter `FullyQualifiedName~ModuleWorkExecutionIntegrationTests`, directly affected `PostgresRlsTests` and `OrganizationScopeMiddlewareTests`; common exit. D1 must be recorded before this task can be implemented.
 
 ## E3: Add durable per-consumer event delivery
 

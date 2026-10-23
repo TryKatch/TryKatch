@@ -510,6 +510,8 @@ public sealed class PostgresIsolationInspectionTests
         await owner.OpenAsync();
         await using (NpgsqlCommand exists = new("SELECT to_regclass('infrastructure.module_work_items')::text", owner))
             (await exists.ExecuteScalarAsync()).ShouldBe("infrastructure.module_work_items");
+        await using (NpgsqlCommand completionsExist = new("SELECT to_regclass('app.module_work_completions')::text", owner))
+            (await completionsExist.ExecuteScalarAsync()).ShouldBe("app.module_work_completions");
         await using (NpgsqlCommand before = new("SELECT has_table_privilege('trykatch_outbox_worker', 'infrastructure.module_work_items', 'SELECT')", owner))
             (await before.ExecuteScalarAsync()).ShouldBe(false);
 
@@ -525,7 +527,15 @@ public sealed class PostgresIsolationInspectionTests
                    has_table_privilege('trykatch_org_runtime', 'infrastructure.module_work_items', 'SELECT'),
                    has_table_privilege('trykatch_org_runtime', 'infrastructure.module_work_items', 'INSERT'),
                    has_table_privilege('trykatch_org_runtime', 'app.module_event_inbox', 'DELETE'),
-                   has_table_privilege('trykatch_outbox_worker', 'infrastructure.module_event_deliveries', 'INSERT')
+                   has_table_privilege('trykatch_outbox_worker', 'infrastructure.module_event_deliveries', 'INSERT'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_work_completions', 'SELECT'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_work_completions', 'INSERT'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_work_completions', 'UPDATE'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_work_completions', 'DELETE'),
+                   has_table_privilege('trykatch_platform_runtime', 'app.module_work_completions', 'SELECT'),
+                   has_table_privilege('trykatch_identity_runtime', 'app.module_work_completions', 'SELECT'),
+                   has_table_privilege('trykatch_outbox_worker', 'app.module_work_completions', 'SELECT'),
+                   has_table_privilege('trykatch_work_coordinator', 'app.module_work_completions', 'SELECT')
             """, owner);
         await using NpgsqlDataReader reader = await privileges.ExecuteReaderAsync();
         (await reader.ReadAsync()).ShouldBeTrue();
@@ -534,6 +544,113 @@ public sealed class PostgresIsolationInspectionTests
         reader.GetBoolean(2).ShouldBeTrue();
         reader.GetBoolean(3).ShouldBeFalse();
         reader.GetBoolean(4).ShouldBeTrue();
+        reader.GetBoolean(5).ShouldBeTrue();
+        reader.GetBoolean(6).ShouldBeTrue();
+        reader.GetBoolean(7).ShouldBeFalse();
+        reader.GetBoolean(8).ShouldBeFalse();
+        reader.GetBoolean(9).ShouldBeFalse();
+        reader.GetBoolean(10).ShouldBeFalse();
+        reader.GetBoolean(11).ShouldBeFalse();
+        reader.GetBoolean(12).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task OperationalCompletionMarkerEnforcesOrganizationAndActorScope()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
+            new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
+        RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
+        await RuntimeRoleProvisioner.ProvisionAsync(database.ConnectionString, roles);
+
+        Guid organizationA = Guid.NewGuid();
+        Guid organizationB = Guid.NewGuid();
+        Guid actorA = Guid.NewGuid();
+        Guid workA = Guid.NewGuid();
+        await using (NpgsqlConnection owner = new(database.ConnectionString))
+        {
+            await owner.OpenAsync();
+            await using NpgsqlCommand seed = new("""
+                INSERT INTO app.module_work_completions
+                    ("OrganizationId", "WorkId", "OperationKey", "OperationVersion", "ActorId", "PayloadHash", "CompletedAtUtc")
+                VALUES (@organization, @work, 'kernel.probe', 1, @actor, repeat('a', 64), CURRENT_TIMESTAMP),
+                       (@otherOrganization, @otherWork, 'kernel.probe', 1, @actor, repeat('b', 64), CURRENT_TIMESTAMP)
+                """, owner);
+            seed.Parameters.AddWithValue("organization", organizationA);
+            seed.Parameters.AddWithValue("work", workA);
+            seed.Parameters.AddWithValue("actor", actorA);
+            seed.Parameters.AddWithValue("otherOrganization", organizationB);
+            seed.Parameters.AddWithValue("otherWork", Guid.NewGuid());
+            await seed.ExecuteNonQueryAsync();
+        }
+
+        string organizationConnection = (await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(database.ConnectionString)).Organization;
+        await using NpgsqlConnection connection = new(organizationConnection);
+        await connection.OpenAsync();
+        await using (NpgsqlCommand noScope = new("SELECT count(*) FROM app.module_work_completions", connection))
+            (await noScope.ExecuteScalarAsync()).ShouldBe(0L);
+
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await SetOrganizationActorAsync(connection, transaction, organizationA, actorA);
+            await using NpgsqlCommand visible = new("SELECT count(*) FROM app.module_work_completions", connection, transaction);
+            (await visible.ExecuteScalarAsync()).ShouldBe(1L);
+            await transaction.RollbackAsync();
+        }
+
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await SetOrganizationActorAsync(connection, transaction, organizationA, actorA);
+            await using NpgsqlCommand crossOrganization = CompletionInsert(connection, transaction,
+                organizationB, Guid.NewGuid(), actorA);
+            (await Should.ThrowAsync<PostgresException>(() => crossOrganization.ExecuteNonQueryAsync()))
+                .SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
+            await transaction.RollbackAsync();
+        }
+
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await SetOrganizationActorAsync(connection, transaction, organizationA, actorA);
+            await using NpgsqlCommand wrongActor = CompletionInsert(connection, transaction,
+                organizationA, Guid.NewGuid(), Guid.NewGuid());
+            (await Should.ThrowAsync<PostgresException>(() => wrongActor.ExecuteNonQueryAsync()))
+                .SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
+            await transaction.RollbackAsync();
+        }
+    }
+
+    private static async Task SetOrganizationActorAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid organizationId,
+        Guid actorId)
+    {
+        await using NpgsqlCommand context = new(
+            "SELECT set_config('app.organization_id', @organization, true), set_config('app.actor_id', @actor, true)",
+            connection,
+            transaction);
+        context.Parameters.AddWithValue("organization", organizationId.ToString());
+        context.Parameters.AddWithValue("actor", actorId.ToString());
+        await context.ExecuteNonQueryAsync();
+    }
+
+    private static NpgsqlCommand CompletionInsert(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid organizationId,
+        Guid workId,
+        Guid actorId)
+    {
+        NpgsqlCommand command = new("""
+            INSERT INTO app.module_work_completions
+                ("OrganizationId", "WorkId", "OperationKey", "OperationVersion", "ActorId", "PayloadHash", "CompletedAtUtc")
+            VALUES (@organization, @work, 'kernel.probe', 1, @actor, repeat('c', 64), CURRENT_TIMESTAMP)
+            """, connection, transaction);
+        command.Parameters.AddWithValue("organization", organizationId);
+        command.Parameters.AddWithValue("work", workId);
+        command.Parameters.AddWithValue("actor", actorId);
+        return command;
     }
 
     [TestMethod]
@@ -739,10 +856,17 @@ public sealed class PostgresIsolationInspectionTests
                 .Where(operation => operation is not AddColumnOperation).ToArray();
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(operations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            MigrationOperation[] workExecutionOperations = new AddOrganizationWorkExecution().UpOperations
+                .Where(operation => operation is CreateTableOperation or CreateIndexOperation or SqlOperation
+                    || operation is AddColumnOperation { Table: "module_work_items" })
+                .ToArray();
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(workExecutionOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             await result.ExecuteAsync($"""
                 GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
                 GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.module_event_inbox TO {result.RuntimeRole};
+                GRANT SELECT, INSERT ON app.module_work_completions TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON infrastructure.module_work_items TO trykatch_work_coordinator;
                 GRANT SELECT, UPDATE ON infrastructure.module_event_deliveries TO trykatch_work_coordinator;
                 GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO trykatch_outbox_worker;

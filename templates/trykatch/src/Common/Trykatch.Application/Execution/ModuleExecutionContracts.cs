@@ -16,7 +16,7 @@ public enum ModuleExecutionState
 /// <summary>A value-free execution result. Cancellation can propagate before acknowledgement.</summary>
 public sealed record ModuleExecutionOutcome(ModuleExecutionState State, string? FailureCode = null, DateTimeOffset? RetryAtUtc = null);
 
-/// <summary>Host implementation follows in E2; this contract does not establish an organization scope.</summary>
+/// <summary>The host validates persisted authority in a fresh organization scope for every execution.</summary>
 public interface IOrganizationWorkExecutor
 {
     Task<ModuleExecutionOutcome> ExecuteAsync(ModuleExecutionRequest request, CancellationToken cancellationToken);

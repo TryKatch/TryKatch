@@ -102,6 +102,7 @@ public sealed class ApplicationDbContext(
         });
 
         ModuleWorkPersistence.Configure(modelBuilder);
+        ModuleWorkCompletion.Configure(modelBuilder);
         ApplyOrganizationIsolation(modelBuilder);
         ApplicationModelIsolationValidator.Validate(modelBuilder.Model, moduleCatalog?.Descriptors ?? []);
     }

@@ -1,3 +1,5 @@
+using Trykatch.Application.Execution;
+using Trykatch.Infrastructure.Execution;
 using Trykatch.Application.Authorization;
 using Trykatch.Application.Auditing;
 using Trykatch.Application.Identity;
@@ -75,6 +77,11 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationModuleData, OrganizationModuleData>();
         services.TryAddSingleton<IOutboxTransport, LoggingOutboxTransport>();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<ModuleOperationRegistry>();
+        services.AddScoped<ModuleWorkExecutionContext>();
+        services.AddSingleton<IModuleWorkStore, ModuleWorkStore>();
+        services.AddSingleton<IOrganizationWorkExecutor, OrganizationWorkExecutor>();
+        services.AddHostedService<ModuleWorkStartupValidator>();
         services.AddOptions<AuditProjectionOptions>()
             .BindConfiguration(AuditProjectionOptions.SectionName)
             .Validate(options => options.BatchSize is >= 1 and <= 500, "Audit projection batch size must be between 1 and 500.")

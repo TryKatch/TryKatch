@@ -21,6 +21,7 @@ internal sealed class ModuleWorkItem
     public string IntentHash { get; init; } = string.Empty;
     public string SubmissionMode { get; init; } = string.Empty;
     public DateTimeOffset? DueAtUtc { get; init; }
+    public DateTimeOffset? NextAttemptAtUtc { get; set; }
     public string State { get; set; } = "queued";
     public int Attempts { get; set; }
     public Guid? LeaseId { get; set; }
