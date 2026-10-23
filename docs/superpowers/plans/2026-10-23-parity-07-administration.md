@@ -34,7 +34,7 @@ Apply roadmap constraints. Paths below are relative to `templates/trykatch/`; ne
 
 **Files:** New organization Domain `OrganizationGroup.cs`/membership/role assignment entities, Application `Organizations/OrganizationGroupUseCases.cs`, Infrastructure `Organizations/OrganizationGroupStore.cs`, organization model/migrations and permission invalidation; API `OrganizationGroupsController.cs`; UI group views in existing user-management feature. Add `OrganizationGroupTests.cs`, `OrganizationGroupIntegrationTests.cs`, component/stories/browser scenario.
 
-**Interfaces:** Organization group CRUD, member/role assignment and effective-permission evaluation; proposed permissions `people.groups.read`, sensitive `people.groups.manage`, validated against the existing naming catalog before freeze. Groups are workspace-owned, never global ASP.NET Identity roles.
+**Interfaces:** Organization group CRUD, member/role assignment and effective-permission evaluation; frozen Phase 0 permissions `groups.read`, sensitive `groups.manage`, validated against the existing naming catalog. Groups are workspace-owned, never global ASP.NET Identity roles.
 
 - [ ] Test adding/removing membership and group roles, direct-plus-group grant union, no duplicate grants, current grant ceiling, protected Owner handling and cross-organization IDs. Assert no administrator can use a group to delegate authority they cannot grant directly.
 - [ ] Update the one effective-permission resolver and authorization/invitation paths instead of introducing a second RBAC engine. Re-evaluate on membership/role/group changes; invalidate active sessions/realtime according to the established authority contract.

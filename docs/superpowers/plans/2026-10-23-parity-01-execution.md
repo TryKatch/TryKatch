@@ -9,7 +9,7 @@
 
 ## Global Constraints
 
-Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`; new names are proposed. D1 gates E2; D5 gates scheduler adapter installation in E4. No product code exists for these proposed contracts yet.
+Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`; new names are proposed. Phase 0 resolves D1 through ADR 0015 and the frozen ledger; ADR 0018 selects Quartz.NET/PostgreSQL for D5. Runtime grants/contracts still require E1/E2, and package-graph audit/pinning/qualification still gate E4 adapter installation. No product code exists for these proposed contracts yet. Read `templates/trykatch/docs/specs/feature-parity-contracts.md` with this plan before implementation.
 
 ## Review Focus
 
@@ -38,7 +38,7 @@ Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`
 **Interfaces:** Consume E1. Produce `IOrganizationWorkExecutor.ExecuteAsync(ModuleExecutionRequest request, CancellationToken ct)` with typed success, denied, retryable-fault and terminal-fault outcomes; no caller-owned transaction or unchecked ambient organization context.
 
 - [ ] Test `RevokedUserCommandDoesNotExecute`: enqueue with permission, revoke it, execute, assert `effects == 0`, terminal authorization outcome and sanitized audit. Test `CommittedEventSurvivesOriginMembershipRevocation`: bounded committed-event bookkeeping still executes, preserving origin actor attribution.
-- [ ] Establish a fresh host scope, validate work registration/module enabled state, resolve current organization/placement and appropriate user/event/system authority, set transaction-local RLS values, then call the registered handler. Roll back business/audit/outbox together on failure.
+- [ ] Establish a fresh host scope and validate trusted work registration/module state. Begin the actor-scoped control-plane transaction and set transaction-local organization/actor values before resolving current membership/access. Validate user/event/system authority inside that scope, resolve supported placement, enlist application data in the same transaction, then invoke the handler. Add `MembershipResolutionBeginsInsideActorScopedTransaction`; roll back business/audit/outbox together on failure.
 - [ ] Test `SystemGrantCannotRunAnotherOperation`, `MissingContextCannotReadOrganizationRows`, `OrganizationAJobCannotMutateB`, `PooledConnectionDoesNotRetainPriorScope` and `DeniedRecipientIsNotDisclosedByEventEffect`. Use real runtime roles/raw SQL for the latter isolation assertions.
 - [ ] Treat missing/revoked grants and unknown operation versions as terminal; cancellation rolls back and releases the claim for bounded retry. Do not surround external publication with EF automatic retries.
 - [ ] Verify: unit filter `FullyQualifiedName~ModuleWorkExecutionTests`; integration filter `FullyQualifiedName~ModuleWorkExecutionIntegrationTests`, directly affected `PostgresRlsTests` and `OrganizationScopeMiddlewareTests`; common exit. D1 must be recorded before this task can be implemented.
@@ -61,7 +61,7 @@ Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`
 
 **Interfaces:** Implement E1's enqueue/schedule contract and explicit recurring registration with stable module/job IDs and UTC due times. Consume E2 for every business execution. Return durable work IDs; retries keep the logical identity.
 
-- [ ] Test immediate/delayed execution, no early execution, duplicate recurring registration, two-worker competition, restart after lease expiry and bounded retry exhaustion. Assert `businessEffects == 1` for one idempotent logical work item.
+- [ ] Test immediate/delayed execution, no early execution, duplicate recurring registration, two-worker competition, restart after lease expiry and bounded retry exhaustion. Assert `businessEffects == 1` for one idempotent logical work item. Add `JobRequestIdIsScopedToTrustedActor` and `JobRequestIdConflictIncludesDueTimeAndSubmissionMode` in unit/integration coverage: current authorization precedes receipt reuse; RequestId scope includes organization/trusted actor/job/version; the host assigns WorkId; canonical payload, Enqueue/Schedule and normalized UTC due time (fixed null for immediate) determine intent equality. Cross-actor/organization requests never expose another scope's WorkId; changed same-scope intent conflicts.
 - [ ] Integrate the selected maintained adapter or documented worker extension behind these contracts. If external queue storage cannot join the domain transaction, enqueue via the existing outbox/transactional work intent; never acknowledge a business commit before its work intent is durable.
 - [ ] Test `DisabledModulePausesQueuedAndRecurringWork`, `RevokedActorJobIsTerminal` and `CancelledLeaseDoesNotLoseWork`. Re-enable resumes compatible queued versions; removed handler versions surface as visible terminal incompatibility.
 - [ ] Add platform-only inspection, pause/retry controls and audit. Job names/destinations/payload types are allowlisted; UI cannot invoke arbitrary serialized methods. Add health, telemetry, shutdown bounds and an operator recovery runbook.

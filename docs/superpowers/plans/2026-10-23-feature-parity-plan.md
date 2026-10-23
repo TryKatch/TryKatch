@@ -10,7 +10,7 @@
 
 **Spec:** [Functional parity design](../specs/2026-10-23-feature-parity-design.md).
 
-**Status:** Planning only. All implementation tasks are unchecked. Baseline: `origin/develop`, `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, inspected 2026-10-23. Source inspection establishes planned change points, not runtime readiness.
+**Status:** Phase 0 complete; Phase 1+ runtime implementation remains planned and unchecked. See the [frozen contract ledger](../../../templates/trykatch/docs/specs/feature-parity-contracts.md) and [Phase 0 evidence](../../../templates/trykatch/docs/specs/evidence/feature-parity-phase-zero.md). Baseline: `origin/develop`, `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, inspected 2026-10-23. Source inspection establishes planned change points, not runtime readiness.
 
 ## Global Constraints
 
@@ -68,13 +68,13 @@ Each phase is several reviewable work packages; no credible calendar estimate is
 
 **Interfaces:** Consumes the existing contracts and this design. Produces the contract ledger naming DTOs, methods, ownership, permissions, event versions and allowed execution policies used by E1 onward.
 
-- [ ] Confirm source still matches the baseline table; reconcile any subsequent `develop` changes before assigning tasks.
-- [ ] Resolve D1 for a narrowly scoped synthetic operation and the first real consumer; record worker/coordinator grants and organization work authorization separately.
-- [ ] Resolve D5: compare a maintained PostgreSQL-backed job adapter with extending existing worker machinery; select the smallest supportable implementation after license/security/version review. Choose cache/backplane adapters without changing module APIs. Record failover and no-adapter behavior.
-- [ ] Freeze the contracts from spec section 4, including a typed failure/result vocabulary, trusted context provenance and cancellation semantics; remove speculative methods with no phase caller.
-- [ ] Record legacy event-name mappings and treatment of old logging-only records. Prohibit automatic replay/backfill of previously processed history.
-- [ ] Review five scenarios from Review Focus against the ledger. Each must have a named test owner and no authority inferred from payload strings.
-- [ ] Exit: D1/D5 decisions needed for the first implementation slice are approved, source references resolve, and no implementation task depends on an unnamed interface.
+- [x] Confirm source still matches the baseline table; reconcile any subsequent `develop` changes before assigning tasks.
+- [x] Resolve D1 for a narrowly scoped synthetic operation and the first real consumer; record worker/coordinator grants and organization work authorization separately.
+- [x] Resolve D5: compare a maintained PostgreSQL-backed job adapter with extending existing worker machinery; select the smallest supportable implementation after license/security/version review. Choose cache/backplane adapters without changing module APIs. Record failover and no-adapter behavior.
+- [x] Freeze the contracts from spec section 4, including a typed failure/result vocabulary, trusted context provenance and cancellation semantics; remove speculative methods with no phase caller.
+- [x] Record legacy event-name mappings and treatment of old logging-only records. Prohibit automatic replay/backfill of previously processed history.
+- [x] Review five scenarios from Review Focus against the ledger. Each must have a named test owner and no authority inferred from payload strings.
+- [x] Exit: D1/D5 decisions needed for the first implementation slice are approved, source references resolve, and no implementation task depends on an unnamed interface.
 
 ### Task P0.2: Define acceptance slices, permissions and module selection
 
@@ -82,14 +82,14 @@ Each phase is several reviewable work packages; no credible calendar estimate is
 
 **Interfaces:** Produces stable module IDs, permission IDs, safe default grants, optional dependency rules and a release coverage ledger. Consumes the contract ledger.
 
-- [ ] Use module IDs `notifications`, `webhooks`, `billing`, `catalog`, `tickets`, `chat`; keep existing `documents`. Decide module descriptors and dependency edges before scaffolding.
-- [ ] Preserve existing Projects/Documents defaults. New sensitive permissions default to deny for non-Owners unless the feature spec explicitly grants them. Notification/session self-service derives recipient/user from the current principal.
-- [ ] Agree an opt-in module selection flow using the existing catalog/CLI. New module source can be bundled disabled; enabling code remains explicit and atomic.
-- [ ] Document that existing `--documents` selects optional spreadsheet/PDF exporters, not the Documents business module; `--storage false` can disable its storage adapter. New flags/profile names must not change either meaning.
-- [ ] Specify behavior when an optional dependency is absent: Catalog image features require Documents; Tickets notifications are optional; Notifications cannot require Chat just to consume mentions when Chat is installed.
-- [ ] Validate adapter capability/configuration without requiring live external credentials or network probes during template generation/build. Runtime readiness and integration qualification prove actual storage/cache/backplane availability separately.
-- [ ] Add a parity coverage row for each spec subsystem and every D1-D8 decision; use `planned`, `implemented`, `verified`, `deferred` separately.
-- [ ] Exit: first slice is executable without choosing financial/retention rules prematurely; deferred mechanism parity is visible and cannot be counted as delivered.
+- [x] Use module IDs `notifications`, `webhooks`, `billing`, `catalog`, `tickets`, `chat`; keep existing `documents`. Decide module descriptors and dependency edges before scaffolding.
+- [x] Preserve existing Projects/Documents defaults. New sensitive permissions default to deny for non-Owners unless the feature spec explicitly grants them. Notification/session self-service derives recipient/user from the current principal.
+- [x] Agree an opt-in module selection flow using the existing catalog/CLI. New module source can be bundled disabled; enabling code remains explicit and atomic.
+- [x] Document that existing `--documents` selects optional spreadsheet/PDF exporters, not the Documents business module; `--storage false` can disable its storage adapter. New flags/profile names must not change either meaning.
+- [x] Specify behavior when an optional dependency is absent: Catalog image features require Documents; Tickets notifications are optional; Notifications cannot require Chat just to consume mentions when Chat is installed.
+- [x] Validate adapter capability/configuration without requiring live external credentials or network probes during template generation/build. Runtime readiness and integration qualification prove actual storage/cache/backplane availability separately.
+- [x] Add a parity coverage row for each spec subsystem and every D1-D8 decision; use `planned`, `implemented`, `verified`, `deferred` separately.
+- [x] Exit: first slice is executable without choosing financial/retention rules prematurely; deferred mechanism parity is visible and cannot be counted as delivered.
 
 ## File and responsibility map
 

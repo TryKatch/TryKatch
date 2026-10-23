@@ -23,7 +23,7 @@ Apply all roadmap constraints. Paths below are relative to repository root. This
 
 **Files:** `templates/trykatch/.template.config/template.json`, `Trykatch.Templates.csproj`, `templates/trykatch/trykatch.modules.json`, module manifests, module-tool lifecycle/scaffolder/facts/help, solution/project/package graphs/locks, source conditions, `scripts/test-template.sh`, `scripts/test-generated-application.sh`, `templates/trykatch/scripts/test-module-packages.sh`, relevant source/CLI tests and docs-site pages.
 
-**Interfaces:** Existing `module enable/disable/install/doctor/facts` remain the lifecycle surface. If a generation-time `--modules` selection is added, define one allowlisted module-ID parser and atomic dependency closure; it must not change existing `--documents` exporter semantics. New module source defaults disabled; full parity profile is explicit.
+**Interfaces:** Existing `module enable/disable/install/doctor/facts` remain the lifecycle surface. Phase 0 selects that workflow and explicitly adds no generation-time `--modules` flag; a convenience profile is documentation over the same catalog, not another installer. Preserve existing `--documents` exporter semantics. New module source defaults disabled; full parity profile is explicit.
 
 - [ ] Add selection/disable/upgrade tests proving generated backend/API/migrator/Web/worker agreement, exact paired package versions and stable renamed event contracts. Host compatibility ranges reflect actual new required contracts.
 - [ ] Add required dependency validation for Catalog→Documents and Chat→Documents/storage; preserve optional Notifications integration without cycles. Do not silently activate unrelated modules when a flag changes.

@@ -1,6 +1,6 @@
 # TryKatch functional parity design
 
-**Status:** Proposed implementation scope; no implementation or policy approval is implied.
+**Status:** Phase 0 technical decisions are recorded in the application contract ledger and ADRs 0015–0018. Runtime additions remain planned; unresolved business/deployment policies retain their stated gates.
 **Observed:** 2026-10-23, `origin/develop` at `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`.
 **Requested outcome:** Match the application capabilities discussed in the FullStackHero comparison while preserving TryKatch's architecture.
 **Delivery plan:** [Phased roadmap](../plans/2026-10-23-feature-parity-plan.md).
@@ -9,7 +9,7 @@
 
 Developers can generate a TryKatch application, select optional capabilities, and deliver organization-based software with notifications, integrations, subscriptions, product data, support workflows and messaging. Operators can administer those capabilities without gaining implicit access to organization data.
 
-The user supplied two requirements: plan the additions discussed in this conversation in detail, and preserve TryKatch's architecture. The decomposition, technical defaults and delivery order below are proposed engineering choices, not previously approved product decisions.
+The user supplied two requirements: plan the additions discussed in this conversation in detail, and preserve TryKatch's architecture; the user subsequently authorized implementation beginning with Phase 0. Technical choices recorded in the application ledger/ADRs are the lead's Phase 0 decisions. Financial, retention, support and optional deployment policies remain separate decisions rather than assumed user requirements.
 
 Functional parity means comparable observable workflows. It does not mean the same project count, libraries, endpoint names, browser token storage or physical database topology. FullStackHero documentation is the comparison baseline; this work has not executed its application or certified either project's production readiness.
 
@@ -62,7 +62,7 @@ Older plans can describe desired features that are not shipped. Current source a
 
 ## 4. Proposed contracts and ownership
 
-All names in this section are proposed. Phase 0 freezes them before implementation and records changes in one contract ledger. Methods exposed to modules belong in `Trykatch.Modules.Abstractions`; HTTP-specific contributions belong in `Trykatch.Modules.AspNetCore`. Host implementation stays in the existing owning Application/Infrastructure/API projects.
+The Phase 0 [contract ledger](../../../templates/trykatch/docs/specs/feature-parity-contracts.md) freezes the v1 names/shapes for implementation; it takes precedence over this earlier overview's shorthand. Methods exposed to modules belong in `Trykatch.Modules.Abstractions`; the host-only executor belongs in Application/Infrastructure, and HTTP-specific contributions belong in `Trykatch.Modules.AspNetCore`. No compiled contract is introduced by these documents.
 
 | Contract | Responsibility and fixed behavior |
 | --- | --- |
@@ -147,11 +147,11 @@ An exported webhook event is not an exported assistant tool. New module operatio
 
 | ID | Decision | Proposed engineering position | Blocks |
 | --- | --- | --- | --- |
-| D1 | Autonomous execution/delegation authority | Host-registered operation grants, audited system principal, current resource validation and no global bypass. | Async business execution and support delegation implementation. |
+| D1 | Autonomous execution authority | Resolved for technical architecture by ADR 0015 and the ledger: distinguish user commands, committed-event effects and scheduled system grants. D4 support delegation remains separate. | Runtime executor/grant implementation and proof remain E1/E2 prerequisites, not an undecided technical model. |
 | D2 | Billing policy | Require explicit plan currency, anchor/timezone rule, rounding, proration choice, tax responsibility and grace/access policy. Never infer commercial defaults. | Issued invoices, automatic expiry enforcement and commercial release; domain/storage work can proceed against explicit fixtures. |
 | D3 | Retention/scanning/content policy | No automatic permanent purge until durations, legal hold requirements, scanner failure behavior and operator authority are configured. | Destructive retention and a claim that scanned content is safe. |
 | D4 | Support impersonation/delegation UX | Explicit target organization, permitted actions, reason, short bounded expiry, recent assurance, visible banner, full initiator/effective-actor audit and revocation. | Support-delegation workflow only. |
-| D5 | Optional deployment services | PostgreSQL durable scheduler first; SignalR with an optional shared backplane and HybridCache-compatible distributed adapter. Verify licenses and maintained versions before introducing packages. | Adapter installation/production configuration; not domain specifications. |
+| D5 | Optional deployment services | Resolved at architecture level by ADR 0018: Quartz.NET 4/PostgreSQL, HybridCache/Valkey and SignalR with optional Valkey backplane. | Resolved-graph vulnerability/license audit, version/image pinning and runtime qualification still gate installation/deployment. |
 | D6 | Dedicated PostgreSQL placement | Separate workstream using existing placement seam; implement provisioning, routing, worker and operational qualification together. | Dedicated-placement parity only. |
 | D7 | Presigned/public object access | Separate ADR; default remains opaque references and API-mediated bytes. | Direct-to-storage/public URL mechanism parity only. |
 | D8 | Cloud IaC target | Select deployment provider, region/stamp model, secrets and recovery requirements before writing provider-specific IaC. | Cloud-provider deployment parity only. |
