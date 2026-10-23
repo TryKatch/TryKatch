@@ -77,10 +77,11 @@ export const FilterByStatus: Story = {
     const canvas = within(canvasElement)
     await canvas.findByText('billing.reconcile')
     await userEvent.click(canvas.getByRole('button', { name: 'Next' }))
+    await expect(await canvas.findByText('Page 2 of 2')).toBeVisible()
     await userEvent.click(await canvas.findByRole('combobox', { name: 'Filter by status' }))
     await userEvent.click(within(canvasElement.ownerDocument.body).getByRole('option', { name: 'denied' }))
+    await expect(await canvas.findByText('Page 1 of 1')).toBeVisible()
     await expect(canvas.getByRole('combobox', { name: 'Filter by status' })).toHaveTextContent('denied')
-    await expect(canvas.getByText('Page 1 of 1')).toBeVisible()
   },
 }
 

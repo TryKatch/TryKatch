@@ -9,8 +9,8 @@ description: Reference the generated UI and optional adapters available from dot
 | `--ui react` | enabled | Generates the React, TanStack, Vite, owned UI, and API-client workspace. |
 | `--ui none` | disabled | Generates the backend without the web workspace. |
 | `--email true` | disabled | Adds MailKit SMTP and a Mailpit development resource. |
-| `--storage true` | enabled | Runs a private MinIO resource in local Aspire development and adds a provider-neutral S3-compatible adapter. Use `--storage false` for filesystem-backed local storage. |
+| `--storage true` | enabled | Runs a private RustFS 1.0.3 resource in local Aspire development and adds a provider-neutral S3-compatible adapter. Use `--storage false` for filesystem-backed local storage. |
 | `--documents true` | disabled | Adds Open XML SDK and PDFsharp/MigraDoc adapters. |
 | `--images true` | disabled | Adds SkiaSharp validation, resizing, and metadata removal. |
 
-MinIO is pulled as a separate AGPL-3.0 local-development container; it is not embedded in the generated application. Current upstream security guidance makes the pinned community image a development convenience, not the production storage recommendation. Production must use a supported, patched S3-compatible service with bucket-scoped credentials.
+RustFS 1.0.3 is pulled as a separate Apache-2.0 local-development container; its image is pinned to `rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b`. It is not embedded in the generated application and is not a production-readiness claim. Production continues to use an externally managed S3-compatible service with bucket-scoped credentials. Existing generated applications are not rewritten by a CLI/template update; preserve their old storage volume until any separately planned object copy is verified.
