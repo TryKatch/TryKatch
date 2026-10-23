@@ -107,9 +107,8 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
         try
         {
             await host.GetRequiredService<ModuleJobProcessor>().ReconcileAsync(CancellationToken.None);
-            await fixture.WaitForEffectCountAsync(work.OrganizationId, 1);
+            await fixture.WaitForWorkStateAsync(work.WorkId, "completed");
             (await fixture.CountEffectsAsync(work.OrganizationId)).ShouldBe(1);
-            (await fixture.ReadWorkStateAsync(work.WorkId)).ShouldBe("completed");
         }
         finally
         {
@@ -242,8 +241,8 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
             await enabled.GetRequiredService<ModuleJobProcessor>().ReconcileAsync(CancellationToken.None);
             (await scheduler.GetTrigger(key)).ShouldNotBeNull();
             await scheduler.Start();
-            await fixture.WaitForEffectCountAsync(seed.OrganizationId, 1);
-            (await fixture.ReadWorkStateAsync(workId)).ShouldBe("completed");
+            await fixture.WaitForWorkStateAsync(workId, "completed");
+            (await fixture.CountEffectsAsync(seed.OrganizationId)).ShouldBe(1);
         }
         finally { await scheduler.Shutdown(waitForJobsToComplete: true); }
     }
@@ -374,6 +373,19 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
 
         public Task<string> ReadWorkStateAsync(Guid workId) => ReadJsonOwnerAsync(
             "SELECT \"State\" FROM infrastructure.module_work_items WHERE \"Id\"=@work", ("work", workId));
+
+        public async Task WaitForWorkStateAsync(Guid workId, string expected)
+        {
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+            string state;
+            do
+            {
+                state = await ReadWorkStateAsync(workId);
+                if (state == expected) return;
+                await Task.Delay(25);
+            } while (DateTimeOffset.UtcNow < deadline);
+            throw new TimeoutException($"Expected work {workId} in state {expected}; observed {state}.");
+        }
 
         public async Task WaitForEffectCountAsync(Guid organizationId, long expected)
         {

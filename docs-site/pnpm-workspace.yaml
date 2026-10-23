@@ -3,3 +3,9 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@astrojs/markdown-satteri@0.4.1'
   - astro@7.3.2
+overrides:
+  # Static assets use Astro's passthrough image service.
+  'astro@7.3.3>sharp': '-'
+  # Retain the existing cache graph; review these pins with the next Astro upgrade.
+  'astro@7.3.3>unstorage': 1.17.5
+  'unstorage@1.17.5>lru-cache': 11.5.2
