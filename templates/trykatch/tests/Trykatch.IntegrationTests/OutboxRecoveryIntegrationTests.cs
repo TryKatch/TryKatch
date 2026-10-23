@@ -28,7 +28,7 @@ namespace Trykatch.IntegrationTests;
 [TestClass]
 [TestCategory("Integration")]
 [DoNotParallelize]
-public sealed class OutboxRecoveryIntegrationTests
+public sealed partial class OutboxRecoveryIntegrationTests
 {
     private const string Email = "outbox-admin@trykatch.test";
     private const string Password = "Local-only!Outbox-Password-42";
@@ -483,7 +483,7 @@ public sealed class OutboxRecoveryIntegrationTests
         upperPage.GetProperty("pageSize").GetInt32().ShouldBe(1);
     }
 
-    private sealed class RecoveryHost(
+    private sealed partial class RecoveryHost(
         PostgreSqlContainer postgres,
         WebApplicationFactory<Program> factory,
         string ownerConnection,

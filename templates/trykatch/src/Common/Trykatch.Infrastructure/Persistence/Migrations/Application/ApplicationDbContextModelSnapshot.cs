@@ -304,6 +304,9 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.Property<DateTimeOffset?>("NextAttemptAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("OccurrenceAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("OperationKey")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -311,6 +314,9 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
 
                     b.Property<int>("OperationVersion")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("OperatorPaused")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
@@ -324,8 +330,19 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<int>("RecoveryGeneration")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ScheduleKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ScheduleTargetKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -338,6 +355,10 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         .HasColumnType("character varying(20)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId", "ScheduleKey", "ScheduleTargetKey", "OccurrenceAtUtc")
+                        .IsUnique()
+                        .HasFilter("\"ScheduleKey\" IS NOT NULL");
 
                     b.HasIndex("State", "DueAtUtc", "LeaseUntilUtc", "Id");
 
@@ -353,6 +374,87 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                             t.HasCheckConstraint("CK_module_work_submission", "(\"SubmissionMode\" = 'enqueue' AND \"DueAtUtc\" IS NULL) OR (\"SubmissionMode\" = 'schedule' AND \"DueAtUtc\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_module_work_versions", "\"JobVersion\" > 0 AND \"OperationVersion\" > 0 AND \"ContextVersion\" > 0 AND \"Attempts\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Jobs.ModuleScheduleCursor", b =>
+                {
+                    b.Property<string>("ScheduleKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("TargetKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConfigurationHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("ReconciledThroughUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("SkippedOccurrences")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("StartAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ScheduleKey", "TargetKey", "OrganizationId");
+
+                    b.ToTable("module_schedule_cursors", "infrastructure", t =>
+                        {
+                            t.HasCheckConstraint("CK_module_schedule_skipped", "\"SkippedOccurrences\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Jobs.ModuleWorkControl", b =>
+                {
+                    b.Property<Guid>("RequestId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ExpectedGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("OperatorPaused")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("ResultGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("WorkId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("RequestId");
+
+                    b.HasIndex("WorkId", "OccurredAtUtc");
+
+                    b.ToTable("module_work_controls", "infrastructure", t =>
+                        {
+                            t.HasCheckConstraint("CK_module_control_action", "\"Action\" IN ('pause','resume','retry')");
+
+                            t.HasCheckConstraint("CK_module_control_generation", "\"ExpectedGeneration\" >= 0 AND \"ResultGeneration\" > \"ExpectedGeneration\"");
                         });
                 });
 

@@ -18,6 +18,7 @@ const PlatformOverviewPage = lazy(() => pages().then((module) => ({ default: mod
 const PlatformOrganizationsPage = lazy(() => pages().then((module) => ({ default: module.PlatformOrganizationsPage })))
 const PlatformUsersPage = lazy(() => pages().then((module) => ({ default: module.PlatformUsersPage })))
 const PlatformAuthenticationPage = lazy(() => pages().then((module) => ({ default: module.PlatformAuthenticationPage })))
+const ModuleWorkPage = lazy(() => import('./views/ModuleWorkPage').then((module) => ({ default: module.ModuleWorkPage })))
 const AcceptInvitationPage = lazy(() => pages().then((module) => ({ default: module.AcceptInvitationPage })))
 const PlatformAccessActivationPage = lazy(() => pages().then((module) => ({ default: module.PlatformAccessActivationPage })))
 const ArchivePage = lazy(() => import('./features/archive/ArchivePage').then((module) => ({ default: module.ArchivePage })))
@@ -63,6 +64,7 @@ export function createApplicationRouter(IndexPage: RouteComponent) {
   const platformUsersRoute = createRoute({ getParentRoute: () => platformRoute, path: 'users', component: withSuspense(PlatformUsersPage) })
   const platformInvitationsRoute = createRoute({ getParentRoute: () => platformRoute, path: 'invitations', beforeLoad: () => { throw redirect({ to: '/dashboard/users', replace: true }) } })
   const platformAuthenticationRoute = createRoute({ getParentRoute: () => platformRoute, path: 'authentication', component: withSuspense(PlatformAuthenticationPage) })
+  const moduleWorkRoute = createRoute({ getParentRoute: () => platformRoute, path: 'module-work', component: withSuspense(ModuleWorkPage) })
   const platformProfileRoute = createRoute({ getParentRoute: () => platformRoute, path: 'profile', component: withSuspense(ProfilePage) })
   const invitationRoute = createRoute({ getParentRoute: () => rootRoute, path: '/invite/$token', component: withSuspense(AcceptInvitationPage) })
   const platformActivationRoute = createRoute({ getParentRoute: () => rootRoute, path: '/activate-access', component: withSuspense(PlatformAccessActivationPage) })
@@ -72,7 +74,7 @@ export function createApplicationRouter(IndexPage: RouteComponent) {
     loginRoute,
     forgotPasswordRoute,
     resetPasswordRoute,
-    platformRoute.addChildren([platformOverviewRoute, tenantDirectoryRoute, platformUsersRoute, platformInvitationsRoute, platformAuthenticationRoute, platformProfileRoute, ...platformModuleRoutes]),
+    platformRoute.addChildren([platformOverviewRoute, tenantDirectoryRoute, platformUsersRoute, platformInvitationsRoute, platformAuthenticationRoute, moduleWorkRoute, platformProfileRoute, ...platformModuleRoutes]),
     legacyTeamRoute,
     invitationRoute,
     platformActivationRoute,

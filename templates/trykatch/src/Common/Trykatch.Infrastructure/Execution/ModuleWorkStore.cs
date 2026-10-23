@@ -69,6 +69,12 @@ internal sealed class ModuleWorkStore : IModuleWorkStore
             return FailedClaim(workItem, "request_mismatch");
         }
 
+        if (workItem.OperatorPaused)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return PausedClaim(workItem);
+        }
+
         DateTimeOffset now = DateTimeOffset.UtcNow;
         switch (workItem.State)
         {
@@ -126,7 +132,8 @@ internal sealed class ModuleWorkStore : IModuleWorkStore
         {
             ModuleExecutionState.Completed or ModuleExecutionState.AlreadyCompleted => ("completed", (DateTimeOffset?)null),
             ModuleExecutionState.Denied => ("denied", (DateTimeOffset?)null),
-            ModuleExecutionState.Paused => ("paused", (DateTimeOffset?)null),
+            ModuleExecutionState.Paused =>
+                ("paused", Later(outcome.RetryAtUtc, now + MinimumRetryDelay)),
             ModuleExecutionState.RetryableFailure =>
                 ("queued", Later(outcome.RetryAtUtc, now + MinimumRetryDelay)),
             ModuleExecutionState.TerminalFailure => ("terminal", (DateTimeOffset?)null),
