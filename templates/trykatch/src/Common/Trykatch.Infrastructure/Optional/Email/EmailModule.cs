@@ -82,6 +82,8 @@ public static class EmailModule
 {
     public static IServiceCollection AddEmailModule(this IServiceCollection services, IConfiguration configuration, bool isDevelopment = false, bool isOpenApiGeneration = false)
     {
+        services.AddDataProtection();
+        services.TryAddSingleton<IEmailPayloadProtector, DataProtectionEmailPayloadProtector>();
         services.AddOptions<EmailBrandingOptions>().Bind(configuration.GetSection("Email:Branding"))
             .Validate(options => options.IsValid(), "Email branding is invalid. Use an application name, a six-digit hex accent color, and an optional HTTPS logo URL.")
             .ValidateOnStart();

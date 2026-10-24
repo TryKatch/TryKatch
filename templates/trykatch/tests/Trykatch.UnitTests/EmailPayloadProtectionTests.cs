@@ -1,6 +1,8 @@
 #if TRYKATCH_EMAIL
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Trykatch.Application.Mailing;
 using Trykatch.Infrastructure.Modules.Email;
@@ -10,6 +12,24 @@ namespace Trykatch.UnitTests;
 [TestClass]
 public sealed class EmailPayloadProtectionTests
 {
+    [TestMethod]
+    public void EmailModuleResolvesProtectionFromTheSharedHostProviderWithoutOpeningSmtp()
+    {
+        EphemeralDataProtectionProvider keys = new();
+        ServiceCollection services = new();
+        services.AddSingleton<IDataProtectionProvider>(keys);
+        services.AddEmailModule(new ConfigurationBuilder().Build(), isDevelopment: true);
+        using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true, ValidateScopes = true
+        });
+
+        IEmailPayloadProtector protector = provider.GetRequiredService<IEmailPayloadProtector>();
+        string protectedIntent = protector.Protect(Context, "private intent");
+
+        new DataProtectionEmailPayloadProtector(keys).Unprotect(Context, protectedIntent).ShouldBe("private intent");
+    }
+
     private static readonly EmailDeliveryProtectionContext Context = new(
         EmailDeliveryBoundary.Organization,
         Guid.Parse("44e22c6f-e44c-4572-92d0-ff98cac013b7"),

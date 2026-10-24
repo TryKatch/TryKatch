@@ -23,7 +23,7 @@ internal sealed class IdentitySecurityEmailDelivery(
     private const int MaximumTokenLength = 4096;
     private const int MaximumResetUrlLength = 8192;
 
-    public bool IsConfigured => true;
+    public bool IsConfigured => linkPolicy.IsAvailable;
     public EmailDeliveryBoundary Boundary => EmailDeliveryBoundary.Identity;
 
     public async Task<ModuleWorkReceipt> EnqueuePasswordResetAsync(

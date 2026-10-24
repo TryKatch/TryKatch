@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -12,6 +13,8 @@ using Trykatch.Application.Mailing;
 using Trykatch.Identity;
 using Trykatch.Infrastructure.Modules.Email;
 using Trykatch.Modules;
+using System.Data.Common;
+using System.IO;
 
 namespace Trykatch.IntegrationTests;
 
@@ -58,6 +61,53 @@ public sealed class IdentitySecurityEmailDeliveryTests
         conflict.FailureCode.ShouldNotBeNull();
         conflict.FailureCode!.ShouldNotContain(replacementToken);
         (await host.Store.FindAsync(deliveryId, CancellationToken.None))!.ProtectedIntent.ShouldBe(stored.ProtectedIntent);
+    }
+
+    [TestMethod]
+    public async Task EnqueueRecoversExactRowWhenInsertAcknowledgementIsLostAfterCommit()
+    {
+        InsertAcknowledgementFault fault = new(failAfterExecution: true);
+        await using TestHost host = await TestHost.StartAsync(queueInterceptor: fault);
+        ApplicationUser user = await host.CreateUserAsync("ack-lost@trykatch.test");
+        string token = await host.Users.GeneratePasswordResetTokenAsync(user);
+        PasswordResetEmailIntent intent = host.CreateIntent(user, Guid.NewGuid(), token);
+
+        ModuleWorkReceipt receipt = await host.Submission.EnqueuePasswordResetAsync(intent, CancellationToken.None);
+
+        fault.Fired.ShouldBeTrue();
+        fault.InsertExecutions.ShouldBe(1);
+        receipt.State.ShouldBe(ModuleWorkState.Accepted);
+        receipt.WorkId.ShouldBe(intent.DeliveryId);
+        IdentityEmailDeliveryRecord? persisted = await host.Store.FindAsync(intent.DeliveryId, CancellationToken.None);
+        persisted.ShouldNotBeNull();
+        persisted!.ProtectedIntent.ShouldNotContain(token);
+        await using IdentityEmailDeliveryDbContext queue = new(host.QueueOptions);
+        (await queue.EmailDeliveries.CountAsync(row => row.Id == intent.DeliveryId)).ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task EnqueueDoesNotRetryInsertAfterPreInsertFailureButLaterSameIdSubmissionCanSucceed()
+    {
+        InsertAcknowledgementFault fault = new(failAfterExecution: false);
+        await using TestHost host = await TestHost.StartAsync(queueInterceptor: fault);
+        ApplicationUser user = await host.CreateUserAsync("pre-insert-fault@trykatch.test");
+        string token = await host.Users.GeneratePasswordResetTokenAsync(user);
+        PasswordResetEmailIntent intent = host.CreateIntent(user, Guid.NewGuid(), token);
+
+        ModuleWorkReceipt uncertain = await host.Submission.EnqueuePasswordResetAsync(intent, CancellationToken.None);
+
+        fault.Fired.ShouldBeTrue();
+        fault.InsertExecutions.ShouldBe(1);
+        uncertain.State.ShouldBe(ModuleWorkState.Unavailable);
+        uncertain.FailureCode.ShouldBe("delivery_state_uncertain");
+        (await host.Store.FindAsync(intent.DeliveryId, CancellationToken.None)).ShouldBeNull();
+
+        fault.Disarm();
+        ModuleWorkReceipt retriedByCaller = await host.Submission.EnqueuePasswordResetAsync(intent, CancellationToken.None);
+        retriedByCaller.State.ShouldBe(ModuleWorkState.Accepted);
+        fault.InsertExecutions.ShouldBe(2);
+        await using IdentityEmailDeliveryDbContext queue = new(host.QueueOptions);
+        (await queue.EmailDeliveries.CountAsync(row => row.Id == intent.DeliveryId)).ShouldBe(1);
     }
 
     [TestMethod]
@@ -278,6 +328,49 @@ public sealed class IdentitySecurityEmailDeliveryTests
 
     private sealed class UnexpectedRendererException : Exception { }
 
+    private sealed class InsertAcknowledgementFault(bool failAfterExecution) : DbCommandInterceptor
+    {
+        private int _armed = 1;
+        private int _fired;
+        private int _insertExecutions;
+
+        public bool Fired => Volatile.Read(ref _fired) == 1;
+        public int InsertExecutions => Volatile.Read(ref _insertExecutions);
+        public void Disarm() => Interlocked.Exchange(ref _armed, 0);
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (IsDeliveryInsert(command))
+            {
+                Interlocked.Increment(ref _insertExecutions);
+                if (!failAfterExecution && TryFire())
+                    throw new IOException("Injected failure before the delivery insert.");
+            }
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<int> NonQueryExecutedAsync(
+            DbCommand command,
+            CommandExecutedEventData eventData,
+            int result,
+            CancellationToken cancellationToken = default)
+        {
+            if (IsDeliveryInsert(command) && failAfterExecution && TryFire())
+                throw new IOException("Injected lost acknowledgement after the delivery insert committed.");
+            return ValueTask.FromResult(result);
+        }
+
+        private bool TryFire() => Interlocked.CompareExchange(ref _armed, 0, 1) == 1
+                                  && Interlocked.Exchange(ref _fired, 1) == 0;
+
+        private static bool IsDeliveryInsert(DbCommand command) =>
+            command.CommandText.Contains("INSERT INTO identity.email_deliveries", StringComparison.Ordinal);
+    }
+
     private sealed class TestHost : IAsyncDisposable
     {
         private readonly PostgreSqlContainer _postgres;
@@ -318,7 +411,9 @@ public sealed class IdentitySecurityEmailDeliveryTests
             Clock = clock;
         }
 
-        public static async Task<TestHost> StartAsync(TimeSpan? tokenLifespan = null)
+        public static async Task<TestHost> StartAsync(
+            TimeSpan? tokenLifespan = null,
+            DbCommandInterceptor? queueInterceptor = null)
         {
             PostgreSqlContainer postgres = new PostgreSqlBuilder(
                 "postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
@@ -329,8 +424,11 @@ public sealed class IdentitySecurityEmailDeliveryTests
             await using (IdentityDbContext identity = new(identityOptions))
                 await identity.Database.MigrateAsync();
 
-            DbContextOptions<IdentityEmailDeliveryDbContext> queueOptions = new DbContextOptionsBuilder<IdentityEmailDeliveryDbContext>()
-                .UseNpgsql(connectionString).Options;
+            DbContextOptionsBuilder<IdentityEmailDeliveryDbContext> queueOptionsBuilder = new DbContextOptionsBuilder<IdentityEmailDeliveryDbContext>()
+                .UseNpgsql(connectionString);
+            if (queueInterceptor is not null)
+                queueOptionsBuilder.AddInterceptors(queueInterceptor);
+            DbContextOptions<IdentityEmailDeliveryDbContext> queueOptions = queueOptionsBuilder.Options;
             ServiceCollection services = new();
             services.AddLogging();
             services.AddDataProtection().SetApplicationName("IdentitySecurityEmailDeliveryTests");
