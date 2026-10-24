@@ -10,6 +10,8 @@ public static class ModuleDataResourceRules
         {
             ModuleDataOwnership.Organization => !string.IsNullOrWhiteSpace(resource.IsolationPolicy)
                 && (resource.AccessRule is null && (resource.Schema == "app" || hostOwned && resource.Schema == "platform")
+                    || hostOwned && resource.Schema == "platform" && resource.Table == "organization_feature_overrides"
+                        && resource.AccessRule == ModuleDataAccessRule.HostOnly
                     || hostOwned && resource.Schema == "app" && resource.Table is "module_event_inbox" or "module_work_completions" or "cache_invalidations" or "realtime_streams" or "realtime_history" or "mutation_receipts"
                         && resource.AccessRule == ModuleDataAccessRule.HostOnly),
             ModuleDataOwnership.Platform => resource.Schema == "platform"

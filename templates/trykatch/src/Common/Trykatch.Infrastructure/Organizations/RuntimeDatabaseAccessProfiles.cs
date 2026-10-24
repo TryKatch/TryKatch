@@ -94,6 +94,9 @@ public static class RuntimeDatabaseAccessProfiles
                 return None;
             return (kind, relation) switch
             {
+                (RuntimeDatabaseRoleKind.Organization, "platform.feature_environment_controls" or "platform.organization_feature_overrides") => Select,
+                (RuntimeDatabaseRoleKind.Platform, "platform.feature_environment_controls" or "platform.organization_feature_overrides") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Platform, "platform.feature_control_history") => SelectInsert,
                 (RuntimeDatabaseRoleKind.Organization, "app.mutation_receipts") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "app.cache_invalidations") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "app.realtime_streams") => SelectInsertUpdate,

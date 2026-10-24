@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 declaration/composition checks are implemented and locally verified; S4–S6 runtime acceptance remains outstanding. This is not a release claim.
+Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 declarations, precedence and control persistence are locally verified; request evaluation, enforcement, UI and final S4–S6 acceptance remain outstanding. This is not a release claim.
 
 ## S1 — Scoped organization cache
 
@@ -55,7 +55,7 @@ The approved platform-services roadmap remains the source for later scope. This 
 | --- | --- | --- |
 | S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Verified and merged in PR #135 as `b919234`; qualification below. |
 | S3 | Transaction-aware mutation idempotency | Verified and merged in PR #136 as `a3f19df`; qualification below. |
-| S4 | Installed-feature availability and runtime policy evaluation | Declaration/catalog/CLI/SDK composition checkpoint verified; runtime persistence, enforcement, UI and final qualification remain outstanding. |
+| S4 | Installed-feature availability and runtime policy evaluation | Declarations, precedence and control persistence verified locally; request evaluation, enforcement, UI and final qualification remain outstanding. |
 | S5 | Entitlement projection, quota reservation, and organization throttling | Planned; no S5 implementation evidence here. |
 | S6 | Permission reconciliation for existing organizations | Planned; no S6 implementation evidence here. |
 
@@ -314,4 +314,14 @@ Projects 1.4.0 declares `projects.reads` and `projects.writes`, both defaulting 
 
 Test-first evidence and exact filters are recorded in the [refined S4 plan](../../../../../docs/superpowers/plans/2026-10-24-parity-s4-feature-availability.md). Local validation passes 141 targeted host unit cases, two Projects metadata cases, 37 SDK catalog cases and five existing host extension/catalog cases, with zero skips. SDK, Projects and host typechecks pass; API and migrator Debug builds pass with zero warnings/errors. The API build executes the generated composition guard, and the host tests import the actual generated Web registry. Legacy signed-install and renamed/empty expectations are covered by the targeted cases. No dependency versions change.
 
-This checkpoint does not implement policy persistence, evaluation, API/use-case enforcement or operator controls. The five real SQL-role tests, packaged React/backend qualification, whole-S4 review and CI remain required before S4 completion.
+That declaration checkpoint precedes policy persistence, evaluation, API/use-case enforcement and operator controls. Packaged React/backend qualification, whole-S4 review and CI remain required before S4 completion.
+
+### Control persistence checkpoint
+
+Forward Platform migration `20261024160455_AddFeatureAvailabilityControls`, scaffolded with the existing EF 10.0.11 tool/design factory, adds exactly three host relations: environment controls, organization overrides and immutable history. Control rows contain safe values/version/time; actor identity exists only in platform-private history. Typed fields, bounded identifiers, organization foreign keys, fresh nonempty versions and ten forced-RLS policies implement the declared storage contract. The organization profile can select safe environment values and its own override; the platform profile can read/insert/update controls and read/insert history. Other profiles receive no access. Runtime delete and history update remain forbidden.
+
+The scoped store requires its current actor and actual platform-profile ReadCommitted transaction. An immediate advisory try-lock covers the full environment/key/optional-organization identity shared by different operators; a stale expected version returns conflict without changes. `Guid.Empty` denotes only a missing row. A reset retains NULL and a new version, preventing ABA. Accepted controls and typed before/after history share the caller's transaction, including when history insertion, update history or deferred commit fails. The store does not commit or supply platform permission authority.
+
+Local evidence passes five real migration/role cases, five real store cases, 165 focused unit cases and 38 SDK cases, all with zero skips. The 46-case existing migration/inspector/provisioner/role regression group also passes; its failure-injection case is expanded to prove an existing control value/version survives failed update history. Focused follow-ups prove different-actor contention, unknown-parent FK rejection and deletion restrictions for both overrides and history. The minimal inspector fixture retains its catalog/policy scope; actual migrator tests establish directory FK behavior. A .NET-only terminal-newline key validation mismatch is corrected with failing-then-passing catalog/CLI regressions; the web check already rejects it.
+
+These results establish storage and pure precedence. Strict current platform authority, one-statement current-organization evaluation, API/use-case/replay/realtime gates and the operator/browser UI remain Tasks 2–4. No cache fallback, permission grant, entitlement or release claim is added.

@@ -221,6 +221,8 @@ public sealed class PostgresIsolationInspectionTests
             GRANT USAGE ON SCHEMA platform TO {platform};
             GRANT SELECT, INSERT ON platform.outbox_replay_requests TO {platform};
             GRANT SELECT ON platform.outbox_recovery_events TO {platform};
+            GRANT SELECT, INSERT, UPDATE ON platform.feature_environment_controls, platform.organization_feature_overrides TO {platform};
+            GRANT SELECT, INSERT ON platform.feature_control_history TO {platform};
             """);
         try
         {
@@ -278,6 +280,7 @@ public sealed class PostgresIsolationInspectionTests
         await using PlatformDbContext owner = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(database.ConnectionString).Options);
         // This behavior test replaces the inspector's minimal stub with the full control-plane model.
         await database.ExecuteAsync("DROP TABLE platform.audit_intents");
+        await database.ExecuteAsync("DROP TABLE platform.feature_control_history, platform.organization_feature_overrides, platform.feature_environment_controls");
         await database.ExecuteAsync(owner.Database.GenerateCreateScript());
         foreach (SqlOperation operation in new ScopeControlPlaneAccess().UpOperations.OfType<SqlOperation>())
         {
@@ -285,6 +288,12 @@ public sealed class PostgresIsolationInspectionTests
                 .Replace("trykatch_org_runtime", database.RuntimeRole, StringComparison.Ordinal)
                 .Replace("trykatch_platform_runtime", database.OwnerRole, StringComparison.Ordinal);
             await database.ExecuteAsync(testRoles);
+        }
+        foreach (SqlOperation operation in new AddFeatureAvailabilityControls().UpOperations.OfType<SqlOperation>())
+        {
+            await database.ExecuteAsync(operation.Sql
+                .Replace("trykatch_org_runtime", database.RuntimeRole, StringComparison.Ordinal)
+                .Replace("trykatch_platform_runtime", database.OwnerRole, StringComparison.Ordinal));
         }
         await database.ExecuteAsync($"""
             GRANT SELECT ON platform.organizations TO {database.RuntimeRole};
@@ -914,6 +923,14 @@ public sealed class PostgresIsolationInspectionTests
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
                          new AddMutationReceipts().UpOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            // This catalog-inspection fixture omits the organization directory.
+            // Real feature migration tests separately prove its restricting FKs.
+            // Retain the actual column/key/index and forced-RLS operations here.
+            MigrationOperation[] featureOperations = new AddFeatureAvailabilityControls().UpOperations.ToArray();
+            foreach (CreateTableOperation table in featureOperations.OfType<CreateTableOperation>())
+                table.ForeignKeys.Clear();
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(featureOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             await result.ExecuteAsync($"""
                 GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
                 GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
@@ -923,6 +940,7 @@ public sealed class PostgresIsolationInspectionTests
                 GRANT SELECT, INSERT, UPDATE ON app.mutation_receipts TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON app.realtime_streams TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.realtime_history TO {result.RuntimeRole};
+                GRANT SELECT ON platform.feature_environment_controls, platform.organization_feature_overrides TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON infrastructure.module_work_items TO trykatch_work_coordinator;
                 GRANT SELECT, UPDATE ON infrastructure.module_event_deliveries TO trykatch_work_coordinator;
                 GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO trykatch_outbox_worker;
@@ -943,6 +961,9 @@ public sealed class PostgresIsolationInspectionTests
             Dictionary<string, DataResourceDescriptor> resources = OperationalDataResources.All
                 .ToDictionary(resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
             string[] relations = [
+                "platform.feature_environment_controls",
+                "platform.organization_feature_overrides",
+                "platform.feature_control_history",
                 "app.mutation_receipts",
                 "app.cache_invalidations",
                 "app.realtime_streams",
