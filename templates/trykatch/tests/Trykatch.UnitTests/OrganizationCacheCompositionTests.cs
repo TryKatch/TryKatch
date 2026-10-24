@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Shouldly;
 using Trykatch.Infrastructure.Caching;
 
@@ -13,6 +14,27 @@ namespace Trykatch.UnitTests;
 [TestClass]
 public sealed class OrganizationCacheCompositionTests
 {
+    [TestMethod]
+    public async Task CacheHealthDistinguishesOptionalModesAndSanitizesUnavailableBackend()
+    {
+        foreach (string mode in new[] { "Disabled", "LocalOnly", "Distributed" })
+        {
+            using ServiceProvider provider = Build(new Dictionary<string, string?>
+            {
+                ["Cache:Mode"] = mode,
+                ["ConnectionStrings:cache"] = "127.0.0.1:1,password=private-health-credential"
+            });
+            HealthReport report = await provider.GetRequiredService<HealthCheckService>()
+                .CheckHealthAsync(registration => registration.Name == "organization-cache");
+            HealthReportEntry entry = report.Entries["organization-cache"];
+            entry.Status.ShouldBe(mode == "Distributed" ? HealthStatus.Degraded : HealthStatus.Healthy);
+            entry.Exception.ShouldBeNull();
+            entry.Description!.ShouldNotContain("127.0.0.1");
+            entry.Description!.ShouldNotContain("private-health-credential");
+            entry.Data.ShouldBeEmpty();
+        }
+    }
+
     [TestMethod]
     public void BindingFailuresDoNotExposeRawConfigurationOrInnerExceptions()
     {

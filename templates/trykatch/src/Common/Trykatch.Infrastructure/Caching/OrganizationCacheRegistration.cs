@@ -65,6 +65,7 @@ internal static class OrganizationCacheRegistration
             options.DisableCompression = true;
         });
         services.AddScoped<IOrganizationCache, HybridOrganizationCache>();
+        services.AddHealthChecks().AddCheck<OrganizationCacheHealthCheck>("organization-cache", tags: ["ready"]);
     }
 
     private static ConfigurationOptions ParseConnection(string? value)
