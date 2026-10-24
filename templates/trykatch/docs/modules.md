@@ -21,6 +21,8 @@ Web modules use `@trykatch/module-sdk`. Each definition owns lazy-loadable typed
 
 Data-capable modules declare their ownership and relations, then explicitly register `IApplicationModelContributor`. Organization entities implement `IOrganizationOwned`; the host supplies their named EF isolation filter and validates the entity shape, tenant-first index, declared relation, and policy contract. The migrator consumes the same generated ordered catalog as the API, rejects undeclared SQL tables, and inspects the live PostgreSQL schema after migration. A package may also implement `IModuleMigrationContributor` for immutable forward-only SQL changes. PostgreSQL serializes those changes with an advisory transaction lock and records module, version, migration ID, checksum, and application time in `platform.module_migrations`. Editing or removing an applied migration fails closed. Existing migrations and tables are retained; disabling or unregistering a module is never a data-deletion operation. See [Module data isolation](module-data-isolation.md).
 
+Modules that publish invalidations or contribute browser subscriptions must follow the [realtime module-authoring guidance](assistant/module-authoring.md#add-a-realtime-invalidation) and [authorized realtime operations](operations/realtime.md).
+
 ## Package lifecycle
 
 - `register` adds reviewed workspace source and leaves it disabled.
