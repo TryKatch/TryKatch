@@ -2,7 +2,7 @@
 
 Status: upstream storage primitives qualified locally; quota implementation remains incomplete.
 
-On 2026-10-24, `ObjectStorageConditionalWriteIntegrationTests` passed five cases with zero skips against the pinned `docker.io/rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b` image and the repository's AWS SDK. The Release build used .NET SDK 10.0.402/runtime 10.0.13. The existing `ObjectStorageIntegrationTests` baseline also passed its one case with zero skips.
+On 2026-10-24, `ObjectStorageConditionalWriteIntegrationTests` passed six cases with zero skips against the pinned `docker.io/rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b` image and the repository's AWS SDK. The Release build used .NET SDK 10.0.402/runtime 10.0.13. The existing `ObjectStorageIntegrationTests` baseline also passed its one case with zero skips.
 
 Run from the template repository root:
 
@@ -13,6 +13,7 @@ dotnet test templates/trykatch/tests/Trykatch.IntegrationTests -c Release \
 
 The cases exercise real requests and stored bytes:
 
+- HEAD returns exact object length, operation ID, content SHA-256 and an opaque request fingerprint after conditional creation. An independent GET returns the same fingerprint and bytes whose computed SHA-256 matches. This qualifies metadata transport; it does not implement production fingerprint canonicalization or actor binding.
 - Eight concurrent create-if-absent requests produce exactly one winner. Rejected writers receive HTTP 412; a subsequent read matches the winning bytes and operation metadata.
 - A zero-byte cancellation sentinel survives a storage-container restart and rejects delayed and duplicate initial writes using `If-None-Match: *`.
 - Replacement using the current ETag succeeds; a fabricated stale ETag, the previous ETag after replacement, and an initial-write retry all fail without changing the sentinel.

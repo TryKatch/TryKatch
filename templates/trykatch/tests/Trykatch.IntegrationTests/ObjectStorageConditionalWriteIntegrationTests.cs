@@ -1,6 +1,7 @@
 #if TRYKATCH_STORAGE
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using Amazon.Runtime;
 using Amazon.S3;
@@ -66,6 +67,34 @@ public sealed class ObjectStorageConditionalWriteIntegrationTests
         (byte[] bytes, string operationId) = await _fixture.ReadAsync(key);
         bytes.ShouldBe(winners[0].Bytes);
         operationId.ShouldBe(winners[0].OperationId);
+    }
+
+    [TestMethod]
+    public async Task HeadMetadataAndLengthMatchConditionallyCreatedObjectAndIndependentReadHash()
+    {
+        const string key = "immutable/head-fingerprint";
+        const string operationId = "head-fingerprint-operation";
+        byte[] expectedBytes = Encoding.UTF8.GetBytes("payload with an independently verified content hash");
+        string expectedSha256 = Convert.ToHexString(SHA256.HashData(expectedBytes)).ToLowerInvariant();
+        string requestFingerprint = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes("{\"documentType\":\"report\",\"title\":\"Head metadata\"}"))).ToLowerInvariant();
+        PutObjectRequest request = CreatePutRequest(key, expectedBytes, operationId, ifNoneMatch: "*");
+        request.Metadata.Add("sha256", expectedSha256);
+        request.Metadata.Add("request-fingerprint", requestFingerprint);
+        await _fixture.Client.PutObjectAsync(request);
+
+        GetObjectMetadataResponse head = await _fixture.Client.GetObjectMetadataAsync(_fixture.Bucket, key);
+        head.Headers.ContentLength.ShouldBe((long)expectedBytes.Length);
+        head.Metadata["x-amz-meta-operation-id"].ShouldBe(operationId);
+        head.Metadata["x-amz-meta-sha256"].ShouldBe(expectedSha256);
+        head.Metadata["x-amz-meta-request-fingerprint"].ShouldBe(requestFingerprint);
+
+        using GetObjectResponse response = await _fixture.Client.GetObjectAsync(_fixture.Bucket, key);
+        response.Metadata["x-amz-meta-request-fingerprint"].ShouldBe(requestFingerprint);
+        using MemoryStream actualBytes = new();
+        await response.ResponseStream.CopyToAsync(actualBytes);
+        actualBytes.ToArray().ShouldBe(expectedBytes);
+        Convert.ToHexString(SHA256.HashData(actualBytes.ToArray())).ToLowerInvariant().ShouldBe(expectedSha256);
     }
 
     [TestMethod]
