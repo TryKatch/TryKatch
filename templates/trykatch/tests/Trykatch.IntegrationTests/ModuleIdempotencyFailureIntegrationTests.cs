@@ -36,6 +36,13 @@ public sealed class ModuleIdempotencyFailureIntegrationTests
     public static async Task InitializeAsync(TestContext _)
     {
         host = await SecurityHost.StartAsync();
+    }
+
+    [TestInitialize]
+    public async Task InitializeTestAsync()
+    {
+        // Give each scenario independent authentication rate windows without disabling limits.
+        browser?.Dispose();
         failureModes = new FailureModeController();
         await host.RestartAsync(new Dictionary<string, string?>
         {
@@ -62,6 +69,88 @@ public sealed class ModuleIdempotencyFailureIntegrationTests
         Guid organizationId = await CreateWorkspaceAsync();
         await AssertFailureThenRetryAsync(organizationId, "failed-400-01", FailureMode.BadRequest, HttpStatusCode.BadRequest);
         await AssertFailureThenRetryAsync(organizationId, "failed-500-01", FailureMode.TransientFailure, HttpStatusCode.InternalServerError);
+    }
+
+    [TestMethod]
+    public async Task OnStartingNonSuccessStatusDoesNotCommitMutationOrReceiptAndAllowsRetry()
+    {
+        Guid organizationId = await CreateWorkspaceAsync();
+        ProjectSnapshot before = await ReadProjectSnapshotAsync(organizationId);
+        const string key = "onstarting-400-01";
+        failureModes.SetNext(FailureMode.NonSuccessOnStarting);
+
+        using HttpResponseMessage failed = await SendMutationAsync(key);
+
+        failed.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        failed.Headers.Location.ShouldBeNull();
+        (await ReadProjectSnapshotAsync(organizationId)).ShouldBe(before);
+        await WaitForRetrySuccessAsync(organizationId, before, key);
+    }
+
+    [TestMethod]
+    public async Task SuccessfulOnStartingMetadataIsCapturedAndReplayedExactly()
+    {
+        Guid organizationId = await CreateWorkspaceAsync();
+        ProjectSnapshot before = await ReadProjectSnapshotAsync(organizationId);
+        const string key = "onstarting-metadata-01";
+        failureModes.SetNext(FailureMode.SuccessOnStarting);
+
+        using HttpResponseMessage first = await SendMutationAsync(key);
+        first.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        byte[] responseBody = await first.Content.ReadAsByteArrayAsync();
+        string contentType = first.Content.Headers.ContentType!.ToString();
+        string location = first.Headers.Location!.OriginalString;
+        using JsonDocument project = JsonDocument.Parse(responseBody);
+        Guid projectId = project.RootElement.GetProperty("id").GetGuid();
+        contentType.ShouldBe("application/vnd.trykatch+json");
+        location.ShouldBe($"/api/v1/projects/{projectId:D}/accepted");
+        ProjectSnapshot after = await ReadProjectSnapshotAsync(organizationId);
+        after.ShouldBe(new(before.Projects + 1, before.Audits + 1, before.Outbox + 2, before.Receipts + 1));
+
+        using HttpResponseMessage replay = await SendMutationAsync(key);
+        replay.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        replay.Content.Headers.ContentType!.ToString().ShouldBe(contentType);
+        replay.Headers.Location!.OriginalString.ShouldBe(location);
+        (await replay.Content.ReadAsByteArrayAsync()).SequenceEqual(responseBody).ShouldBeTrue();
+        (await ReadProjectSnapshotAsync(organizationId)).ShouldBe(after);
+    }
+
+    [TestMethod]
+    public async Task FreshOuterOnStartingCallbackCannotChangeReplayedReceiptFields()
+    {
+        Guid organizationId = await CreateWorkspaceAsync();
+        ProjectSnapshot before = await ReadProjectSnapshotAsync(organizationId);
+        const string key = "onstarting-fresh-callback-01";
+
+        using HttpResponseMessage first = await SendMutationAsync(key, receiptCallback: true);
+        first.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        byte[] responseBody = await first.Content.ReadAsByteArrayAsync();
+        string contentType = first.Content.Headers.ContentType!.ToString();
+        string location = first.Headers.Location!.OriginalString;
+        string firstCallback = first.Headers.GetValues("X-Fresh-Callback").Single();
+        string firstCookie = first.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("probe=", StringComparison.Ordinal));
+        ProjectSnapshot after = await ReadProjectSnapshotAsync(organizationId);
+        after.ShouldBe(new(before.Projects + 1, before.Audits + 1, before.Outbox + 2, before.Receipts + 1));
+
+        using HttpResponseMessage replay = await SendMutationAsync(key, receiptCallback: true);
+        replay.StatusCode.ShouldBe(first.StatusCode);
+        replay.Content.Headers.ContentType!.ToString().ShouldBe(contentType);
+        replay.Headers.Location!.OriginalString.ShouldBe(location);
+        (await replay.Content.ReadAsByteArrayAsync()).SequenceEqual(responseBody).ShouldBeTrue();
+        replay.Headers.GetValues("X-Fresh-Callback").Single().ShouldNotBe(firstCallback);
+        replay.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("probe=", StringComparison.Ordinal)).ShouldNotBe(firstCookie);
+        (await ReadProjectSnapshotAsync(organizationId)).ShouldBe(after);
+    }
+
+    [TestMethod]
+    public async Task AsynchronousOnStartingFailureRollsBackAndAllowsTheSameRequestToRetry()
+    {
+        Guid organizationId = await CreateWorkspaceAsync();
+        await AssertFailureThenRetryAsync(
+            organizationId,
+            "onstarting-async-failure-01",
+            FailureMode.AsynchronousStartingFailure,
+            HttpStatusCode.InternalServerError);
     }
 
     [TestMethod]
@@ -165,14 +254,14 @@ public sealed class ModuleIdempotencyFailureIntegrationTests
         await WorkspaceSessionLifecycleTests.CreateOrganizationForCurrentUserAsync(
             browser, "idem-fail-" + Guid.NewGuid().ToString("N")[..18]);
 
-    private static async Task<HttpResponseMessage> SendMutationAsync(string key)
+    private static async Task<HttpResponseMessage> SendMutationAsync(string key, bool receiptCallback = false)
     {
         string csrf = await GetCsrfTokenAsync();
-        using HttpRequestMessage request = CreateRequest(key, csrf);
+        using HttpRequestMessage request = CreateRequest(key, csrf, receiptCallback);
         return await browser.SendAsync(request);
     }
 
-    private static HttpRequestMessage CreateRequest(string key, string csrf)
+    private static HttpRequestMessage CreateRequest(string key, string csrf, bool receiptCallback = false)
     {
         HttpRequestMessage request = new(HttpMethod.Post, FailurePath)
         {
@@ -180,6 +269,7 @@ public sealed class ModuleIdempotencyFailureIntegrationTests
         };
         request.Headers.Add("Idempotency-Key", key);
         request.Headers.Add("X-CSRF-TOKEN", csrf);
+        if (receiptCallback) request.Headers.Add("X-Receipt-Callback", "1");
         return request;
     }
 
@@ -260,6 +350,9 @@ internal enum FailureMode
     BadRequest,
     TransientFailure,
     CancelAfterCreate,
+    NonSuccessOnStarting,
+    SuccessOnStarting,
+    AsynchronousStartingFailure,
     ResponseOverflow,
     ReceiptOverflow,
     SerializationFailure,
@@ -326,10 +419,35 @@ internal sealed class FailureProbeEndpoints : IOrganizationEndpointContributor
     {
         organizationApi.MapPost("/idempotency-failure-probe", HandleAsync)
             .RequireAuthorization("permission:projects.manage")
+            .AddEndpointFilter<ReceiptCallbackProbeFilter>()
             .WithMutationIdempotency(ModuleMutationPolicy.Default with { MaximumResponseBytes = 512 }, AuthorizeRequestAsync, AuthorizeReplayAsync)
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true))
             .WithName("Projects_IdempotencyFailureProbe")
             .Produces<ProjectDto>(StatusCodes.Status201Created);
+    }
+
+    private sealed class ReceiptCallbackProbeFilter : IEndpointFilter
+    {
+        public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+        {
+            HttpContext http = context.HttpContext;
+            if (http.Request.Headers["X-Receipt-Callback"] == "1")
+            {
+                string nonce = Guid.NewGuid().ToString("N");
+                http.Response.OnStarting(static state =>
+                {
+                    (HttpContext responseContext, string callbackNonce) = ((HttpContext, string))state;
+                    responseContext.Response.StatusCode = StatusCodes.Status202Accepted;
+                    responseContext.Response.ContentType = "application/vnd.trykatch+json";
+                    responseContext.Response.Headers["Location"] = $"/callback/{callbackNonce}";
+                    responseContext.Response.Headers["X-Fresh-Callback"] = callbackNonce;
+                    responseContext.Response.Headers.Append("Set-Cookie", $"probe={callbackNonce}; Path=/; HttpOnly");
+                    return Task.CompletedTask;
+                }, (http, nonce));
+            }
+
+            return await next(context);
+        }
     }
 
     private static async Task<IResult> HandleAsync(
@@ -352,6 +470,32 @@ internal sealed class FailureProbeEndpoints : IOrganizationEndpointContributor
                 return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "synthetic_bad_request");
             case FailureMode.TransientFailure:
                 return Results.Problem(statusCode: StatusCodes.Status500InternalServerError, title: "synthetic_transient_failure");
+            case FailureMode.NonSuccessOnStarting:
+                http.Response.OnStarting(static state =>
+                {
+                    HttpContext context = (HttpContext)state;
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    context.Response.Headers.Remove("Location");
+                    return Task.CompletedTask;
+                }, http);
+                return Results.Created($"/api/v1/projects/{created.Value.Id:D}", created.Value);
+            case FailureMode.SuccessOnStarting:
+                http.Response.OnStarting(static state =>
+                {
+                    (HttpContext context, Guid projectId) = ((HttpContext, Guid))state;
+                    context.Response.StatusCode = StatusCodes.Status202Accepted;
+                    context.Response.ContentType = "application/vnd.trykatch+json";
+                    context.Response.Headers["Location"] = $"/api/v1/projects/{projectId:D}/accepted";
+                    return Task.CompletedTask;
+                }, (http, created.Value.Id));
+                return Results.Created($"/api/v1/projects/{created.Value.Id:D}", created.Value);
+            case FailureMode.AsynchronousStartingFailure:
+                http.Response.OnStarting(static async _ =>
+                {
+                    await Task.Yield();
+                    throw new InvalidOperationException("synthetic asynchronous OnStarting failure");
+                }, http);
+                return Results.Created($"/api/v1/projects/{created.Value.Id:D}", created.Value);
             case FailureMode.CancelAfterCreate:
                 controller.MarkReached();
                 try

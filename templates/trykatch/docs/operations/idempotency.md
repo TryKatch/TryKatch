@@ -57,6 +57,8 @@ Identity is scoped by organization, actor, module, operation, and hashed key. A 
 
 The receipt preserves only the HTTP status, content type, optional root-relative `Location`, and exact response body bytes. It does not restore other response headers or cookies, including cookies from an earlier response. Do not use a receipt as a source of fresh cookies or expiring URLs.
 
+Application `OnStarting` callbacks finish before a new response is captured and committed. Callback failure or a final non-2xx status rolls back that execution. Callbacks run again on retry for fresh cookies/general headers, while replay preserves the stored status, content type, `Location` and body. Receipt metadata remains protected through network publication.
+
 ## Client example
 
 Generate the key once when the user starts the logical operation, keep it with the pending operation, and resend the same payload and key after a timeout or lost response. The example obtains the existing same-origin antiforgery token and sends the normal HttpOnly-cookie credentials:

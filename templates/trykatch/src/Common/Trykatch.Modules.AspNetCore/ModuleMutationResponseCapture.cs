@@ -1,3 +1,5 @@
+using Trykatch.Modules;
+
 namespace Trykatch.Modules.AspNetCore;
 
 /// <summary>Executed response data, captured before its owning transaction finalizes.</summary>
@@ -10,3 +12,5 @@ public interface IModuleMutationResponseCaptureFeature
     bool RequiresRollback { get; }
     Task CaptureAsync(StagedMutationResponse response, CancellationToken cancellationToken);
 }
+
+internal sealed record ModuleMutationReplayResponse(MutationReceipt Receipt);

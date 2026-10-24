@@ -191,9 +191,11 @@ internal sealed class MutationReplayResult(MutationReceipt receipt) : IResult
 {
     public async Task ExecuteAsync(HttpContext context)
     {
+        context.Features.Set(new ModuleMutationReplayResponse(receipt));
         context.Response.StatusCode = receipt.StatusCode;
         context.Response.ContentType = receipt.ContentType;
         if (receipt.Location is not null) context.Response.Headers.Location = receipt.Location;
+        else context.Response.Headers.Remove("Location");
         await context.Response.Body.WriteAsync(receipt.Body, context.RequestAborted);
     }
 }
