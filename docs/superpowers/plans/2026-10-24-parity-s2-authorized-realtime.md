@@ -1,0 +1,131 @@
+# TryKatch S2 Authorized Realtime Implementation Plan
+
+> Execute the approved S2 scope task by task using the existing Sol/Luna workflow, targeted RED/GREEN validation and one final independent integrated review. This is an implementation refinement of the approved platform-services plan, not a new product scope.
+
+**Outcome:** Installed modules can persist small authorized invalidations through committed event consumers. Cookie-authenticated browsers receive them through SignalR and recover missed changes through authoritative HTTP history.
+
+**Authority:** [Parent S2 plan](2026-10-23-parity-02-platform-services.md), [design](../specs/2026-10-23-feature-parity-design.md), [frozen contracts](../../../templates/trykatch/docs/specs/feature-parity-contracts.md#7-cache-and-realtime--s1s2) and [ADR 0018](../../../templates/trykatch/docs/adr/0018-scheduler-cache-and-realtime-adapters.md). Paths below are relative to `templates/trykatch/` unless stated otherwise.
+
+## Execution boundaries
+
+- Start from latest `origin/develop` in the clean isolated `feat/authorized-realtime` worktree. S1 PR #134 must merge and this branch must be cleanly rebased before product implementation. Preserve the primary checkout.
+- Sol owns authorization, migrations, role grants, integration and release decisions. Scoped Luna workers may own contracts/pure validation or browser reconciliation after interfaces are fixed. Workers do not spawn agents. One local .NET writer at a time.
+- Module contracts contain no SignalR, Redis, EF or Identity types. PostgreSQL owns history and scope. Redis and browser state never supply permission or session authority.
+- Source publication persists intent inside an E3 consumer transaction; network delivery follows commit. Preserve the existing Projects typed and legacy event publications.
+- Reuse Identity for the session foundation needed by S2. A1 later adds session administration and password policy; those surfaces are not implemented here.
+- Installed modules remain an explicit immutable registry per running host. Module removal requires draining/restarting the old deployment. Verify that real boundary; do not invent hot module loading or prove it with a mutable mock.
+- Existing RustFS storage remains unchanged. The user explicitly retained the already merged PR #131/ADR 0019 solution after answering the older MinIO prompt.
+
+## Lead design decisions
+
+**History and delivery.** An E3 consumer calls `IModuleRealtimePublisher` to append organization-owned history in the same transaction as its inbox marker and effect. A per-organization counter row serializes cursor allocation and append; a database sequence/timestamp cannot safely establish commit order. Identical repeated event identity is a no-op; changed content under that identity rejects the transaction.
+
+Each API maintains a bounded registry of its own live connections and polls committed history. Every individual send uses fresh session, membership, permission, installed-catalog and resource-policy checks. It never broadcasts sensitive payloads to generic groups, retains scoped EF services or queues preauthorized values for later delivery. The check-to-send/in-flight boundary in the approved design still applies; strict serialization of revocation commits with network receipt is not claimed.
+
+The approved optional Microsoft Redis backplane remains available in Distributed mode and receives separate real cross-node qualification. Local-owner sends bypass Redis in the pinned implementation, so this adapter is redundant for the reference relay. This explicit compatibility cost is smaller than adding a durable cross-node connection registry merely to make Redis necessary. HTTP history remains authoritative through outages.
+
+**Session and workspace.** Identity owns a persistent session row bound to the issued session ID, actor, security-stamp epoch, expiry, revocation and current workspace generation. Issue/register centrally during authenticated cookie sign-in; validate current state on HTTP and each realtime attempt; revoke centrally on sign-out. Preserve renewal IDs. Missing, old or revoked rows require reauthentication and are never recreated by delivery. Workspace select/clear and invitation activation/accept rotate the durable generation, including A→B→A. Platform suspension remains separate from organization membership.
+
+**Payloads and cursors.** The first version carries only invalidation references: module/event/schema/event ID and a registered organization/user/resource audience. No arbitrary JSON, message body, entity or caller-supplied organization/group/cursor is accepted. HTTP history scans at most 100 rows and advances after the last scanned row even when every row is filtered. Protected continuations bind organization, actor, session and workspace generation. A null history cursor starts at zero; initial state separately provides a head cursor paired with full domain-query refetch. Invalidated cursors require an explicit reset/refetch outcome. No history deletion or retention window is invented.
+
+**Bounds and transport.** Start with 256 connections per replica, 16 subscriptions per connection, 16 concurrent senders, a one-second polling target, 100-row scans, two-second sends, five-second cooperative authority deadlines, 2 KiB invalidations and 4 KiB incoming hub messages. Coalesce pending work and retain only one sender per connection. Cancel and abort slow transports; never abandon scoped resource-policy work. Cookie-only WebSocket connections require exact same-origin validation; applicable negotiation/transport HTTP writes require explicit antiforgery validation. Do not hold the organization transaction around an upgraded connection's lifetime.
+
+## Task 0: Qualify and pin the patched runtime and adapters
+
+**Owner:** Sol; bounded isolated dependency work may be delegated.
+
+- [x] Verify official SDK 10.0.402 checksum and actual .NET/ASP.NET Core 10.0.13 runtimes. The former local wrapper's 10.0.9 runtime cannot qualify the new SignalR feature.
+- [x] Isolated combined graph: SignalR Redis/client 10.0.13, HybridCache 10.11.0, Redis cache 10.0.13 and MessagePack 2.5.303; normal/locked restore, build with zero warnings/errors, 11 permitted MIT package licenses, transitive audit without findings.
+- [x] Live isolated pinned authenticated Valkey: actual nonlocal delivery, application-prefix isolation, failed outage send/no receipt, unchanged endpoint restart, existing and new client recovery. Earlier random-port restart failures are fixture diagnostics, not passing evidence or established adapter defects.
+- [ ] Update root/template `global.json` to 10.0.402, all applicable root/template CI/release selectors to 10.0.4xx, API/Migrator SDK/runtime image tags and verified digests, and current prerequisite/reproducibility docs. Preserve historical evidence versions.
+- [ ] Add the server backplane dependency only to the API host, client dependency only to affected test/support projects, and `@microsoft/signalr` 10.0.11 only to the web host. Restore the actual graph normally and locked; audit its resolved licenses/advisories. No vendor dependency enters module abstractions or the web SDK.
+
+**Expected:** Real builds/tests execute on the fixed runtime; no graph conflict, unreviewed dependency or generation-time Redis connection. Isolated vendor checks do not qualify application authority, OS replicas or browsers.
+
+## Task 1: Freeze module-neutral contracts and finite registration
+
+**Owner:** A bounded Luna may own `Modules.Abstractions/Realtime/`, its pure tests and the explicitly assigned descriptor properties. Sol integrates catalog/runtime binding.
+
+**Proposed files:** `Realtime/ModuleRealtimeContracts.cs`, `ModuleRealtimeRegistrationRules.cs`; descriptor additions in `TrykatchModule.cs` and `Execution/ModuleExecutionContracts.cs`; `tests/Trykatch.UnitTests/RealtimeAudienceTests.cs`.
+
+Freeze these fields before adapters consume them:
+
+| Type | Fields / signature |
+| --- | --- |
+| `ModuleRealtimePolicyRef` | OwnerModuleId, PolicyKey, positive PolicyVersion |
+| `ModuleRealtimeResourceRef` | Registered ResourceKey, nonempty ResourceId |
+| `ModuleRealtimeAudience` | Policy, kind Organization/User/Resource, optional UserId and Resource |
+| `ModuleRealtimeNotification` | ModuleId, EventKey, positive SchemaVersion, nonempty EventId, Audience |
+| `IModuleRealtimePublisher` | `Task PublishAsync(ModuleRealtimeNotification notification, CancellationToken cancellationToken = default)` |
+| `ModuleRealtimeProducerRef` | ModuleId, OperationKey, positive OperationVersion |
+| `ModuleRealtimeAudiencePolicyDescriptor` | Owner/key/version; finite allowed audience kinds, owner resource keys, required recipient permissions, event/version pairs and exact system producer refs |
+| `ModuleRealtimeAudienceContext` | Host-injected OrganizationId and ActorId |
+| `IModuleRealtimeAudiencePolicy` | `Task<bool> AuthorizeAsync(ModuleRealtimeAudienceContext context, ModuleRealtimeAudience audience, CancellationToken cancellationToken)` |
+| `ModuleRealtimeAudiencePolicyBinding` | Exact policy ref and explicitly registered scoped adapter |
+
+- [ ] RED: malformed/unknown/wildcard/duplicate policy, event, user and resource selectors; wrong ownership/version; absent module/permission/resource; excessive arrays; missing/duplicate bindings; producer/grant mismatch. Descriptions must not leak user/resource IDs.
+- [ ] GREEN: validate bounded stable keys and exact installed declarations; add `RealtimeAudiencePolicies` and reciprocal `AllowedRealtimePolicies` grant metadata. Committed-event producers require explicit owner consent and a finite installed grant. Empty recipient permissions are permitted only for explicit self-service user/resource policies with a current adapter, never an unrestricted organization broadcast.
+- [ ] Verify focused unit tests and directly affected catalog/operation registration cases. Expected: every negative case fails closed; no runtime assembly scanning or arbitrary group names.
+
+## Task 2: Add authoritative history, publication and opaque cursors
+
+**Owner:** Sol for schema, RLS, transaction/provenance and migration decisions.
+
+**Proposed files:** Infrastructure `Realtime/ModuleRealtimePublisher.cs`, history store/mapping; Application history read DTOs; API cursor protector; forward application migration; reserved-resource/profile/policy definitions.
+
+- [ ] RED: cross-organization/raw-role access; missing actor/shared transaction; forged producer; identical duplicate/conflict; consumer rollback; concurrent first cursor; delayed earlier commit; read-only publication; filtered-page progress; tampered/foreign/future cursor.
+- [ ] GREEN: host-reserved `app.realtime_streams` counter and append-only `app.realtime_history`, organization indexes and exact grants. Force RLS; history runtime access is SELECT/INSERT, not DELETE/UPDATE. Reuse the actual shared organization transaction and authoritative `ModuleWorkExecutionContext`; persist no network side effect.
+- [ ] Allocate the counter with a transactionally serialized row upsert and append immutable event identity. Validate actual current database scope and reciprocal installed grant/policy. Let rollback discard both history and counter changes.
+- [ ] Read bounded ordered pages through current recipient policy, with continuation after the last scanned position. Protect cursor scope and bound input before decoding. Retain history; explicitly handle reset without treating missing history as successful delivery.
+- [ ] Verify real PostgreSQL migrations/role inspection, concurrency/rollback and focused publication/history tests. Update every directly affected hand-built schema fixture. Expected: no uncommitted event, skipped late commit, private audience disclosure or inspector exception.
+
+## Task 3: Add the session foundation and workspace revocation boundary
+
+**Owner:** Sol security integration; isolated registry work may be delegated after its exact brief is fixed.
+
+**Proposed files:** Identity `IdentitySessionRegistry.cs`, `IdentitySessionRecord.cs`; Application `Identity/AccountSessions.cs`; Identity forward migration; cookie events and workspace/invitation controllers.
+
+- [ ] RED: independent devices, renewal, missing/legacy/tampered rows, logout/revocation, expiry, stamp/MFA changes, workspace A→B→A, same-request invitation sign-in and restart continuity.
+- [ ] GREEN: hashed issued session identity, actor/stamp/created/last-seen/expiry/revocation/workspace generation; fresh validity checks with throttled last-seen writes. Narrow parameterized registry operations must not flush unrelated tracked Identity state.
+- [ ] Wrap existing cookie/security-stamp events. Capture trustworthy issued/current session in an Identity request feature for centralized sign-out and invitation workspace binding. Rotate workspace generation before writing the corresponding cookie; fail closed rather than resurrect missing sessions.
+- [ ] Verify focused session tests plus directly affected `AuthenticationSecurityTests`, `AccountSecurityStepUpTests`, invitation activation and `ProductionIdentityContinuityTests`. Expected: revoked sessions cannot supply HTTP or realtime authority; MFA, last-admin and organization/platform separation remain intact.
+
+## Task 4: Secure the hub, owner relay and HTTP reconciliation
+
+**Owner:** Sol host integration. No public module API receives `IHubContext` or connection-group management.
+
+**Proposed files:** API `Realtime/ModuleRealtimeHub.cs`, audience authorizer, connection registry/relay, state/history endpoints and configuration; optional Redis backplane composition, sanitized health/metrics and reverse-proxy settings.
+
+- [ ] RED: unauthenticated/cross-origin/missing-antiforgery negotiation, foreign user/resource, arbitrary group/unknown method, invalid selectors, session/stamp/membership/permission changes after connect, workspace ABA and real module-absent restart.
+- [ ] GREEN: cookie-only WebSocket hub; explicit atomic subscription replacement; host-injected organization/user scope; registered current resource adapter; fresh authority before each individual bounded send. No scoped service or permission snapshot lives with a connection.
+- [ ] Add stable `Realtime_GetState` and `Realtime_GetHistory` operations. Disabled/default mode performs no adapter network work; durable append/history remain supported. Distributed mode uses explicit authenticated finite configuration and isolated channel prefix. Generation cannot require a live backend.
+- [ ] RED/GREEN: commit versus rollback, reconnect gaps, duplicate/out-of-order wakeups, filtered history, slow-client backpressure, cancellation/scope disposal, actual two OS replicas, live backplane outage/recovery and separate nonlocal routing. A backplane failure cannot erase history or fabricate current access.
+- [ ] Verify actual Vite/deployment proxy WebSocket upgrades and exact Origin after trusted forwarding. Export only closed diagnostic dimensions and sanitized health. Expected: no unbounded pending queue, leaked scoped work, credential disclosure or stronger-than-tested availability claim.
+
+## Task 5: Connect the Projects reference and browser lifecycle
+
+**Owner:** Sol E3/source integration; a bounded Luna may own the SDK/host browser lifecycle and explicitly assigned stories/tests after backend DTOs are fixed.
+
+- [ ] RED: existing `projects.created` commits one reference invalidation through a registered E3 consumer; rollback/retry/uncertain acknowledgment preserves inbox/history atomicity. No change to existing legacy/typed event publication shapes or count.
+- [ ] GREEN: Projects read policy, committed-event operation/consumer and finite producer grant. Send only the project reference. Use an additive module minor version consistently in its web descriptor/catalog lock; preserve event v1 and current user permissions.
+- [ ] Include affected existing event fanout/worker/Phase 1 exit tests and default/backend coordinator startup. Do not install a consumer whose required coordinator is silently absent.
+- [ ] RED/GREEN SDK tests: serialized HTTP page processing, bounded deduplication, unordered/duplicate push coalescing, reconnect/periodic repair, failed HTTP without cursor advancement, and late callbacks/responses after session/workspace generation changes.
+- [ ] Add module-owned query invalidation contributions using actual generated query keys and any still-consumed local keys. The host never imports a module's private UI. Pushes wake HTTP reconciliation rather than advancing cursors directly.
+- [ ] Connect the real cookie-authenticated vendor client in AppShell; stop/cancel old work and clear relevant organization query state on logout/workspace/authority loss. Backend-only products omit React and the vendor browser client.
+- [ ] Consult real shell/Projects stories before edits; maintain loading, permission and failure interactions without adding unrelated controls. Verify focused SDK/component/Storybook interaction/accessibility checks and actual `e2e/realtime.spec.ts` with two clients, revocation, workspace switching and missed-push recovery. Regenerate OpenAPI/client/assistant metadata with actual tools and inspect drift.
+
+## Task 6: Qualify, document, review and merge
+
+- [ ] Update ADR 0018 implementation status, canonical contracts, roadmap/acceptance matrix and `docs/specs/evidence/parity-platform-services.md`. Record the session foundation as partial A1 work, not completed administration.
+- [ ] Add English/French operations guidance: required forward migrations and legacy reauthentication, default/backend behavior, coordinator/backplane configuration, bounds, restart/module-removal procedure, proxy/Origin/antiforgery, cursor recovery and the precise revocation/in-flight boundary. Do not invent retention or production HA guarantees.
+- [ ] Fresh actual packaged CLI renamed React and backend-only outputs: normal/locked restore, affected runtime/build/doctor/contracts and selected authority/transport/browser checks. Run targeted checks by default; established CI supplies its broader gates. Explain any additional broad run before executing it.
+- [ ] Sol inspects actual diff and evidence, then one fresh independent integrated review uses the existing reviewer workflow plus the supplemental ECC checklist. Fix substantive findings with focused regressions in one bounded pass; no duplicate review workflow.
+- [ ] Commit/push a neutral branch, open/attach the PR, wait for successful exact-head required checks and merge under standing authorization. Save verified local project memory, then begin S3 in a new clean worktree from latest `origin/develop`.
+
+## Review focus
+
+1. A copied cookie, sliding renewal or A→B→A transition must not resurrect revoked live access.
+2. A delayed commit or entirely filtered history page must not create an unrecoverable cursor gap.
+3. Current recipient authority must precede each send, including retained history, private resources and backend failures.
+4. Slow transport/module callbacks must not leak or abandon scoped EF work or accumulate unchecked payloads.
+5. Vendor, in-process, OS-replica, generated-product and real-browser evidence must remain distinct; a successful Redis publish is not receipt or authorization.
