@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR.StackExchangeRedis;
+using StackExchange.Redis;
 using Trykatch.Identity;
 using Trykatch.Infrastructure;
 
@@ -31,7 +34,8 @@ internal static class RealtimeRegistration
         services.AddSingleton<RealtimeConnectionOperations>();
         if (settings.Mode != RealtimeMode.Disabled && !isOpenApiGeneration) services.AddHostedService<RealtimeRelay>();
         services.AddSingleton<RealtimeOriginPolicy>();
-        services.AddSignalR(options =>
+        services.AddHealthChecks().AddCheck<RealtimeHealthCheck>("realtime", tags: ["ready"]);
+        ISignalRServerBuilder signalR = services.AddSignalR(options =>
         {
             options.MaximumReceiveMessageSize = RealtimeOptions.MaximumIncomingBytes;
             options.MaximumParallelInvocationsPerClient = 1;
@@ -41,6 +45,14 @@ internal static class RealtimeRegistration
             options.ClientTimeoutInterval = TimeSpan.FromSeconds(15);
             options.KeepAliveInterval = TimeSpan.FromSeconds(5);
         });
+        if (settings.Mode == RealtimeMode.Distributed && !isOpenApiGeneration)
+        {
+            ConfigurationOptions connection = RealtimeBackplaneSettings.Parse(configuration.GetConnectionString("realtime"));
+            services.AddSingleton(_ => new RealtimeBackplaneProbe(connection));
+            signalR.AddStackExchangeRedis(redis => redis.Configuration = connection);
+            services.AddOptions<RedisOptions>().Configure<IHostEnvironment>((redis, environment) =>
+                redis.Configuration.ChannelPrefix = RealtimeBackplaneSettings.ChannelPrefix(settings.ApplicationNamespace!, environment.EnvironmentName));
+        }
     }
 
     internal static void MapRealtimeHub(this WebApplication app)

@@ -41,6 +41,7 @@ public static class Extensions
                 .AddMeter("Trykatch.AuditProjection")
                 .AddMeter("Trykatch.EmailDelivery")
                 .AddMeter("Trykatch.OrganizationCache")
+                .AddMeter("Trykatch.Realtime")
                 .AddView(instrument => ObservabilityPolicy.MetricView(instrument)))
             .WithTracing(traces => traces
                 .SetSampler(policy.Sampler)

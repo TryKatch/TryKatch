@@ -137,6 +137,7 @@ internal sealed class RealtimeConnectionRegistry(IOptions<RealtimeOptions> optio
             entries.Remove(entry.ConnectionId);
         }
         // Quarantine before Abort, which may synchronously notify the connection's disconnect path.
+        RealtimeMetrics.Record(options.Value.Mode, RealtimeOutcome.Closed);
         entry.Close(abort);
     }
 }

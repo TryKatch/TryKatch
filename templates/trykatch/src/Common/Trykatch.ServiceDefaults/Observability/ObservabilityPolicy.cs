@@ -109,6 +109,8 @@ internal sealed class ObservabilityPolicy
             "Trykatch.OrganizationCache" when instrument.Name is "trykatch.cache.reads" or "trykatch.cache.sources"
                 or "trykatch.cache.invalidations" or "trykatch.cache.refusals" => ["mode", "outcome"],
             "Trykatch.OrganizationCache" => [],
+            "Trykatch.Realtime" when instrument.Name == "trykatch.realtime.outcomes" => ["mode", "outcome"],
+            "Trykatch.Realtime" => [],
             "Microsoft.AspNetCore.Hosting" => ["http.request.method", "http.response.status_code", "http.route", "network.protocol.version", "url.scheme"],
             "Npgsql" => ["db.operation.name", "db.namespace", "server.address", "server.port"],
             _ => []
