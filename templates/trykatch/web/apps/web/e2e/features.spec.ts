@@ -108,6 +108,10 @@ test.describe('packaged application feature policy acceptance', () => {
         const dialog = ownerPage.getByRole('dialog', { name: 'Create project' })
         await dialog.getByRole('textbox', { name: 'Name' }).fill(`Rejected stale write ${runId}`)
         await dialog.getByRole('textbox', { name: 'Description' }).fill('Must remain absent after the write control changes.')
+        await refreshFeatureSnapshot(ownerPage)
+        await expect(dialog).toBeVisible()
+        await expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveValue(`Rejected stale write ${runId}`)
+        await expect(dialog.getByRole('textbox', { name: 'Description' })).toHaveValue('Must remain absent after the write control changes.')
         const staleForm = await dialog.locator('form').elementHandle()
         expect(staleForm).toBeTruthy()
 

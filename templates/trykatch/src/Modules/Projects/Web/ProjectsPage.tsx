@@ -1,9 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch } from '@trykatch/api-client'
 import { ModuleExtensionSlot, useModuleFeature, useModuleFeatures, useModuleI18n } from '@trykatch/module-sdk'
 import { Badge, Button, DataTable, Dialog, EmptyState, FloatingInput, FloatingTextarea, PageHeader, RowActions, Skeleton, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
 import { Plus } from 'lucide-react'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { projectSchema } from './validation'
 
 interface RecordLifecycle { status: 'Active' | 'Archived' | 'Deleted'; archivedAt?: string | null; deletedAt?: string | null; deletionReason?: string | null }
@@ -16,6 +16,7 @@ function LifecycleBadge({ lifecycle }: { lifecycle: RecordLifecycle }) {
 interface Project { id: string; name: string; description: string; createdAt: string; updatedAt?: string; lifecycle: RecordLifecycle }
 interface ProjectPage { items: Project[]; page: number; pageSize: number; totalCount: number }
 interface OrganizationAccess { organizationId: string; membershipId: string; permissions: string[] }
+interface ProjectDraft { id?: string; name: string; description: string }
 
 export function ProjectsPage() {
   const { organizationId } = useModuleFeatures()
@@ -38,7 +39,16 @@ function ProjectsPageContent() {
     previous: t('Previous'), page: (page: number, count: number) => t('Page {page} of {count}', { page, count }), next: t('Next'),
   }
   const queryClient = useQueryClient()
-  const [editing, setEditing] = useState<Project | null | undefined>(undefined)
+  // Keep an unsaved draft in this session's organization-keyed memory while the
+  // route is temporarily unmounted for a fresh policy check. No network or storage.
+  const draft = useQuery<ProjectDraft | null>({
+    queryKey: ['project-editor', organizationId], queryFn: skipToken, initialData: null, gcTime: 5 * 60_000,
+  })
+  const [editing, setEditingState] = useState<ProjectDraft | null>(draft.data ?? null)
+  const setEditing = useCallback((value: ProjectDraft | null) => {
+    setEditingState(value)
+    queryClient.setQueryData(['project-editor', organizationId], value)
+  }, [organizationId, queryClient])
   const [viewing, setViewing] = useState<Project>()
   const [error, setError] = useState<string>()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -60,8 +70,10 @@ function ProjectsPageContent() {
   })
   const accessLoading = !organizationId || access.isLoading || (access.data !== undefined && currentAccess === undefined && access.isFetching)
   useEffect(() => {
-    if (!canWrite) setEditing(undefined)
-  }, [canWrite])
+    const denied = features.status === 'error' || features.status === 'success' && (!writesEnabled
+      || access.isError || access.isSuccess && (!currentAccess || !currentAccess.permissions.includes('projects.manage')))
+    if (denied) setEditing(null)
+  }, [access.isError, access.isSuccess, currentAccess, features.status, setEditing, writesEnabled])
   useEffect(() => {
     if (!canRead) setViewing(undefined)
   }, [canRead])
@@ -73,7 +85,7 @@ function ProjectsPageContent() {
         { method: input.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) },
       )
     },
-    onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }) },
+    onSuccess: async () => { setEditing(null); await queryClient.invalidateQueries({ queryKey: ['projects'] }) },
     onError: (reason) => setError(reason instanceof Error ? reason.message : t('Unable to save project')),
   })
   const changeLifecycle = useMutation({
@@ -100,14 +112,14 @@ function ProjectsPageContent() {
 
   const openCreate = () => {
     if (!canSubmitWrite.current) return
-    setError(undefined); setFieldErrors({}); setEditing(null)
+    setError(undefined); setFieldErrors({}); setEditing({ name: '', description: '' })
   }
   const actionsFor = (project: Project): RowAction[] => [
     { label: t('View'), icon: 'view', onSelect: () => canRead && setViewing(project) },
     ...(canWrite ? [
       { label: t('Edit'), icon: 'edit' as const, onSelect: () => {
         if (!canSubmitWrite.current) return
-        setError(undefined); setFieldErrors({}); setEditing(project)
+        setError(undefined); setFieldErrors({}); setEditing({ id: project.id, name: project.name, description: project.description })
       } },
       { label: t('Archive'), icon: 'archive' as const, onSelect: () => changeLifecycle.mutate({ id: project.id, action: 'archive' }) },
     ] : []),
@@ -132,13 +144,13 @@ function ProjectsPageContent() {
                 : <DataTable labels={dataTableLabels} ariaLabel={t('Projects')} data={query.data?.items ?? []} columns={columns} getRowId={(project) => project.id} searchPlaceholder={t('Search projects…')} initialSort={{ id: 'created', direction: 'desc' }} empty={<EmptyState headingLevel={2} title={t('No projects')} description={t('Create the first project to exercise organization-scoped RLS.')} action={canWrite && <Button variant="primary" onClick={openCreate}>{t('Create project')}</Button>} />} />}
     </Surface>
     {canRead && currentAccess && <ModuleExtensionSlot point="projects.list.after-table" context={{ resultCount: query.data?.items.length ?? 0 }} permissions={currentAccess.permissions} />}
-    <Dialog open={canWrite && editing !== undefined} onOpenChange={(open) => !open && setEditing(undefined)} title={t(editing ? 'Edit project' : 'Create project')} description={t('Changes are authorized in the application layer and isolated by PostgreSQL RLS.')}>
+    <Dialog open={canWrite && editing !== null} onOpenChange={(open) => !open && setEditing(null)} title={t(editing?.id ? 'Edit project' : 'Create project')} description={t('Changes are authorized in the application layer and isolated by PostgreSQL RLS.')}>
       <form className="dialog-form" onSubmit={submit} noValidate aria-busy={save.isPending}>
-        <FloatingInput label={t('Name')} name="name" defaultValue={editing?.name} maxLength={120} required autoFocus disabled={save.isPending || !canWrite} error={fieldErrors.name ? t(fieldErrors.name) : undefined} onChange={() => setFieldErrors((current) => ({ ...current, name: '' }))} />
-        <FloatingTextarea label={t('Description')} name="description" defaultValue={editing?.description} maxLength={2000} rows={5} disabled={save.isPending || !canWrite} error={fieldErrors.description ? t(fieldErrors.description) : undefined} onChange={() => setFieldErrors((current) => ({ ...current, description: '' }))} />
+        <FloatingInput label={t('Name')} name="name" value={editing?.name ?? ''} maxLength={120} required autoFocus disabled={save.isPending || !canWrite} error={fieldErrors.name ? t(fieldErrors.name) : undefined} onChange={(event) => { if (editing) setEditing({ ...editing, name: event.target.value }); setFieldErrors((current) => ({ ...current, name: '' })) }} />
+        <FloatingTextarea label={t('Description')} name="description" value={editing?.description ?? ''} maxLength={2000} rows={5} disabled={save.isPending || !canWrite} error={fieldErrors.description ? t(fieldErrors.description) : undefined} onChange={(event) => { if (editing) setEditing({ ...editing, description: event.target.value }); setFieldErrors((current) => ({ ...current, description: '' })) }} />
         {error && <div className="form-error" role="alert">{error}</div>}
         <div className="dialog-actions">
-          <Button type="button" variant="ghost" onClick={() => setEditing(undefined)}>{t('Cancel')}</Button>
+          <Button type="button" variant="ghost" onClick={() => setEditing(null)}>{t('Cancel')}</Button>
           <Button type="submit" variant="primary" disabled={save.isPending || !canWrite}>{t(save.isPending ? 'Saving…' : 'Save project')}</Button>
         </div>
       </form>
