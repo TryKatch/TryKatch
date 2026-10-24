@@ -35,6 +35,13 @@ namespace Trykatch.Infrastructure;
 
 public static class DependencyInjection
 {
+    /// <summary>Opt-in for HTTP hosts that already configure the application Data Protection key ring.</summary>
+    public static IServiceCollection AddRealtimeHistoryCursors(this IServiceCollection services)
+    {
+        services.AddScoped<IRealtimeCursorProtector, RealtimeCursorProtector>();
+        return services;
+    }
+
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration, bool isDevelopment = false, bool isOpenApiGeneration = false)
     {
         string platformConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Platform);

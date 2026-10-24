@@ -10,6 +10,7 @@ using Trykatch.Api.Development;
 using Trykatch.Api.Modules;
 using Trykatch.Api.OpenApi;
 using Trykatch.Api.Security;
+using Trykatch.Api.Realtime;
 using Trykatch.Application;
 using Trykatch.Identity;
 using Trykatch.Infrastructure;
@@ -58,6 +59,7 @@ internal static class ApiHostingExtensions
             builder.Configuration,
             builder.Environment.IsDevelopment(),
             isOpenApiGeneration);
+        builder.Services.AddRealtime(builder.Configuration);
 #if TRYKATCH_EMAIL
         builder.Services.AddQueuedEmailDelivery(isOpenApiGeneration);
 #endif
@@ -240,6 +242,7 @@ internal static class ApiHostingExtensions
         }
 
         app.MapControllers();
+        app.MapRealtimeHistory();
         app.MapOrganizationModuleEndpoints();
         app.MapPlatformModuleEndpoints();
         app.MapDefaultEndpoints();

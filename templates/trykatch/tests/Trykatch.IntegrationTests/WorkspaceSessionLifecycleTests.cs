@@ -143,7 +143,7 @@ public sealed class WorkspaceSessionLifecycleTests
         (await browser.GetAsync("/api/v1/auth/session")).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
-    private static async Task<Guid> CreateOrganizationForCurrentUserAsync(HttpClient client, string slug)
+    internal static async Task<Guid> CreateOrganizationForCurrentUserAsync(HttpClient client, string slug)
     {
         using HttpResponseMessage create = await PostAsync(client, "/api/v1/tenants", new
         {
