@@ -122,7 +122,8 @@ public static class DependencyInjection
         services.AddSingleton<ModuleEventWorkerState>();
         services.AddHealthChecks().AddCheck<ModuleEventHealthCheck>("module-events", tags: ["ready"]);
         if (!isOpenApiGeneration) services.AddHostedService<ModuleEventDeliveryWorker>();
-        services.AddHostedService<ModuleWorkStartupValidator>();
+        services.AddHostedService(provider => new ModuleWorkStartupValidator(
+            provider.GetRequiredService<IServiceScopeFactory>(), configuration, isOpenApiGeneration));
         services.AddOptions<AuditProjectionOptions>()
             .BindConfiguration(AuditProjectionOptions.SectionName)
             .Validate(options => options.BatchSize is >= 1 and <= 500, "Audit projection batch size must be between 1 and 500.")

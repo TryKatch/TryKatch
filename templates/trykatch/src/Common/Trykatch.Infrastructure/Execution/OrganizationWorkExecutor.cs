@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -381,13 +382,18 @@ internal sealed partial class OrganizationWorkExecutor(
 }
 
 /// <summary>Validates explicit adapters at startup; it does not schedule or dispatch work.</summary>
-internal sealed class ModuleWorkStartupValidator(IServiceScopeFactory scopes) : IHostedService
+internal sealed class ModuleWorkStartupValidator(
+    IServiceScopeFactory scopes, IConfiguration configuration, bool isOpenApiGeneration) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
         using IServiceScope scope = scopes.CreateScope();
         _ = scope.ServiceProvider.GetRequiredService<ModuleOperationRegistry>();
         _ = scope.ServiceProvider.GetRequiredService<ModuleEventRegistry>();
+        if (!isOpenApiGeneration
+            && scope.ServiceProvider.GetRequiredService<ModuleCatalog>().Descriptors.Any(module => module.EventConsumers.Count > 0)
+            && string.IsNullOrWhiteSpace(configuration.GetConnectionString(RuntimeDatabaseConnectionContract.WorkCoordinator)))
+            throw new InvalidOperationException("Installed event consumers require connection string 'trykatch-work'.");
         return Task.CompletedTask;
     }
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

@@ -17,7 +17,7 @@ using Trykatch.Modules.Projects.IntegrationEvents;
 namespace Trykatch.Modules.Projects.UnitTests;
 
 [TestClass]
-public sealed class ProjectsCreationExecutionTests
+public sealed partial class ProjectsCreationExecutionTests
 {
     private static readonly JsonSerializerOptions PayloadJson = new(JsonSerializerDefaults.Web);
     private static readonly Guid OrganizationId = Guid.Parse("70bd4d87-1c40-4eb0-93bd-c06bab0d4481");
@@ -32,7 +32,7 @@ public sealed class ProjectsCreationExecutionTests
     {
         ProjectsModule module = new();
 
-        module.Descriptor.Version.ShouldBe("1.1.0");
+        module.Descriptor.Version.ShouldBe("1.2.0");
         module.Descriptor.Operations.ShouldContain(operation =>
             operation.ModuleId == "projects"
             && operation.OperationKey == "projects.create"
@@ -50,7 +50,7 @@ public sealed class ProjectsCreationExecutionTests
             && integrationEvent.OwnerModuleId == "projects"
             && integrationEvent.PayloadType == typeof(ProjectCreated)
             && integrationEvent.MaximumPayloadBytes == 1_024);
-        module.Descriptor.SystemGrants.ShouldBeEmpty();
+        module.Descriptor.SystemGrants.ShouldHaveSingleItem().AllowedOperationKeys.ShouldBe(["projects.publish-created-invalidation"]);
     }
 
     [TestMethod]
@@ -146,7 +146,8 @@ public sealed class ProjectsCreationExecutionTests
         public List<Project> Added { get; } = [];
         public Task<PagedResult<Project>> ListAsync(Guid organizationId, int page, int pageSize, string? search, RecordLifecycleFilter lifecycle, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<Project?> FindAsync(Guid organizationId, Guid projectId, CancellationToken cancellationToken) => Task.FromResult<Project?>(null);
+        public Task<Project?> FindAsync(Guid organizationId, Guid projectId, CancellationToken cancellationToken) =>
+            Task.FromResult(Added.SingleOrDefault(project => project.OrganizationId == organizationId && project.Id == projectId));
         public Task AddAsync(Project project, CancellationToken cancellationToken) { Added.Add(project); return Task.CompletedTask; }
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

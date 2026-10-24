@@ -23,7 +23,7 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
     public ModuleDescriptor Descriptor { get; } = new(
         Id: "projects",
         Name: "Projects",
-        Version: "1.1.0",
+        Version: "1.2.0",
         Description: "Organization-scoped project management and lifecycle reference feature.",
         Requires: [],
         OptionalDependencies: [],
@@ -95,7 +95,25 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
                 [Permissions.ProjectsManage],
                 "projects",
                 null,
-                16_384)
+                16_384),
+            new("projects", ProjectsRealtime.Operation, 1, ModuleExecutionKind.CommittedEvent,
+                "projects.created", 1, [], "projects", ProjectsRealtime.Grant, 1_024)
+        ],
+        SystemGrants =
+        [
+            new(ProjectsRealtime.Grant, 1, "projects", ProjectsRealtime.AuditActor,
+                [ProjectsRealtime.Operation], ["projects"])
+            { AllowedRealtimePolicies = [ProjectsRealtime.ReadPolicy] }
+        ],
+        EventConsumers =
+        [
+            new(ProjectsRealtime.Consumer, "projects", [new("projects.created", 1)], ProjectsRealtime.Operation, 1, ProjectsRealtime.Grant)
+        ],
+        RealtimeAudiencePolicies =
+        [
+            new("projects", "projects.read", 1,
+                [ModuleRealtimeAudienceKind.Organization, ModuleRealtimeAudienceKind.User, ModuleRealtimeAudienceKind.Resource],
+                ["projects"], [Permissions.ProjectsRead], [new("projects.created", 1)], [new("projects", ProjectsRealtime.Operation, 1)])
         ],
         IntegrationEvents =
         [
@@ -160,6 +178,12 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
         services.AddScoped<ProjectUseCases>();
         services.AddScoped<IModuleOperationHandler, ProjectsCreateOperationHandler>();
         services.AddScoped<IModuleOperationResourcePolicy, ProjectsResourcePolicy>();
+        services.AddScoped<ProjectCreatedRealtimeConsumer>();
+        services.AddScoped<ModuleEventConsumerBinding>(provider => new("projects", ProjectsRealtime.Consumer,
+            provider.GetRequiredService<ProjectCreatedRealtimeConsumer>()));
+        services.AddScoped<ProjectsReadAudiencePolicy>();
+        services.AddScoped<ModuleRealtimeAudiencePolicyBinding>(provider => new(ProjectsRealtime.ReadPolicy,
+            provider.GetRequiredService<ProjectsReadAudiencePolicy>()));
         services.AddScoped<IProjectStore, ProjectStore>();
         services.AddSingleton<IApplicationModelContributor, ProjectsModelContributor>();
         services.AddScoped<IWorkspaceOverviewMetricProvider, ProjectsOverviewMetricProvider>();

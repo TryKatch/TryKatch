@@ -42,7 +42,8 @@ internal sealed class ProjectsCreateOperationHandler(ProjectUseCases projects) :
 internal sealed class ProjectsResourcePolicy(
     IOrganizationContext organization,
     IPermissionAuthorizer authorizer,
-    IValidator<CreateProjectCommand> validator) : IModuleOperationResourcePolicy
+    IValidator<CreateProjectCommand> validator,
+    IProjectStore store) : IModuleOperationResourcePolicy
 {
     private static readonly JsonSerializerOptions PayloadJson = new(JsonSerializerDefaults.Web);
 
@@ -51,6 +52,17 @@ internal sealed class ProjectsResourcePolicy(
 
     public async Task<bool> AuthorizeAsync(ModuleOperationContext context, JsonElement payload, CancellationToken cancellationToken)
     {
+        if (context.ExecutionKind == ModuleExecutionKind.CommittedEvent && context.OperationKey == ProjectsRealtime.Operation)
+        {
+            if (context.WorkId == Guid.Empty || context.OperationVersion != 1
+                || context.EffectiveActorId != ProjectsRealtime.AuditActor || !organization.IsResolved
+                || organization.OrganizationId != context.OrganizationId || organization.ActorId != context.EffectiveActorId)
+                return false;
+            var source = ProjectsRealtime.ReadSource(payload, context.OrganizationId, context.OriginActorId);
+            if (source is null) return false;
+            var project = await store.FindAsync(context.OrganizationId, source.ProjectId, cancellationToken);
+            return project is not null && project.CreatedBy == source.ActorId;
+        }
         if (context.WorkId == Guid.Empty
             || context.OperationKey != "projects.create"
             || context.OperationVersion != 1

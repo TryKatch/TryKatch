@@ -30,6 +30,7 @@ namespace Trykatch.IntegrationTests;
 
 internal sealed class ExecutionProcessAcceptanceFixture : IAsyncDisposable
 {
+    internal const string ProjectsRealtimeConsumerKey = "projects.created-realtime";
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
     private static readonly string[] RuntimeRoles =
     [
@@ -309,6 +310,9 @@ internal sealed class ExecutionProcessAcceptanceFixture : IAsyncDisposable
             "UPDATE infrastructure.module_event_deliveries SET \"State\"='queued', \"Attempts\"=1, \"NextAttemptAtUtc\"=CURRENT_TIMESTAMP - interval '1 second', \"LeaseId\"=NULL, \"LeaseUntilUtc\"=NULL WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer",
             ("message", messageId), ("consumer", AcceptanceModule.ConsumerKey))).ShouldBe(1);
         (await ExecuteOwnerAsync(
+            "UPDATE infrastructure.module_event_deliveries SET \"State\"='queued', \"Attempts\"=1, \"NextAttemptAtUtc\"=CURRENT_TIMESTAMP - interval '1 second', \"LeaseId\"=NULL, \"LeaseUntilUtc\"=NULL WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer",
+            ("message", messageId), ("consumer", ProjectsRealtimeConsumerKey))).ShouldBe(1);
+        (await ExecuteOwnerAsync(
             "UPDATE infrastructure.module_work_items SET \"State\"='queued', \"LastFailureCode\"='acknowledgement_lost' WHERE \"Id\"=@work",
             ("work", workId))).ShouldBe(1);
     }
@@ -328,6 +332,92 @@ internal sealed class ExecutionProcessAcceptanceFixture : IAsyncDisposable
     public Task<long> CountEventDeliveriesAsync(Guid messageId) => ScalarLongAsync(
         "SELECT count(*) FROM infrastructure.module_event_deliveries WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer",
         ("message", messageId), ("consumer", AcceptanceModule.ConsumerKey));
+
+    public Task<long> CountProjectsRealtimeInboxAsync(Guid organizationId, Guid messageId) => ScalarLongAsync(
+        "SELECT count(*) FROM app.module_event_inbox WHERE \"OrganizationId\"=@organization AND \"MessageId\"=@message AND \"ConsumerKey\"=@consumer",
+        ("organization", organizationId), ("message", messageId), ("consumer", ProjectsRealtimeConsumerKey));
+
+    public Task<long> CountProjectsRealtimeDeliveryAsync(Guid messageId) => ScalarLongAsync(
+        "SELECT count(*) FROM infrastructure.module_event_deliveries WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer",
+        ("message", messageId), ("consumer", ProjectsRealtimeConsumerKey));
+
+    public Task<long> CountProjectsRealtimeHistoryAsync(Guid organizationId, Guid sourceMessageId) => ScalarLongAsync(
+        "SELECT count(*) FROM app.realtime_history WHERE \"OrganizationId\"=@organization AND \"SourceMessageId\"=@message",
+        ("organization", organizationId), ("message", sourceMessageId));
+
+    public async Task<ProjectRealtimeEvidence> ReadProjectsRealtimeHistoryAsync(Guid organizationId, Guid sourceMessageId)
+    {
+        await using NpgsqlConnection connection = new(owner);
+        await connection.OpenAsync();
+        await using NpgsqlCommand command = new("""
+            SELECT "EventId"::text, "SourceMessageId"::text, "ModuleId", "EventKey", "SchemaVersion",
+                   "PolicyOwnerModuleId", "PolicyKey", "PolicyVersion", "AudienceKind", "UserId"::text,
+                   "ResourceKey", "ResourceId"::text
+            FROM app.realtime_history
+            WHERE "OrganizationId"=@organization AND "SourceMessageId"=@message
+            """, connection);
+        command.Parameters.AddWithValue("organization", organizationId);
+        command.Parameters.AddWithValue("message", sourceMessageId);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync();
+        (await reader.ReadAsync()).ShouldBeTrue("the Projects consumer should append its realtime history row");
+        ProjectRealtimeEvidence evidence = new(Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1)),
+            reader.GetString(2), reader.GetString(3), reader.GetInt32(4), reader.GetString(5), reader.GetString(6),
+            reader.GetInt32(7), reader.GetInt32(8), reader.IsDBNull(9) ? null : Guid.Parse(reader.GetString(9)),
+            reader.IsDBNull(10) ? null : reader.GetString(10), reader.IsDBNull(11) ? null : Guid.Parse(reader.GetString(11)));
+        (await reader.ReadAsync()).ShouldBeFalse("one source event should produce one Projects history row");
+        return evidence;
+    }
+
+    public async Task CreateProjectsRealtimeInboxFailureGateAsync()
+    {
+        await ExecuteOwnerAsync($"""
+            CREATE FUNCTION app.fail_projects_realtime_inbox_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF NEW."ConsumerKey" = '{ProjectsRealtimeConsumerKey}' THEN
+                    RAISE EXCEPTION 'injected Projects realtime inbox failure';
+                END IF;
+                RETURN NEW;
+            END;
+            $$;
+            CREATE TRIGGER fail_projects_realtime_inbox_insert
+                BEFORE INSERT ON app.module_event_inbox
+                FOR EACH ROW EXECUTE FUNCTION app.fail_projects_realtime_inbox_insert();
+            """);
+    }
+
+    public Task DropProjectsRealtimeInboxFailureGateAsync() => ExecuteOwnerAsync("""
+        DROP TRIGGER fail_projects_realtime_inbox_insert ON app.module_event_inbox;
+        DROP FUNCTION app.fail_projects_realtime_inbox_insert();
+        """);
+
+    public Task<int> MakeProjectsRealtimeDeliveryEligibleAsync(Guid messageId) => ExecuteOwnerAsync(
+        "UPDATE infrastructure.module_event_deliveries SET \"State\"='queued', \"NextAttemptAtUtc\"=CURRENT_TIMESTAMP - interval '1 second', \"LeaseId\"=NULL, \"LeaseUntilUtc\"=NULL WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer",
+        ("message", messageId), ("consumer", ProjectsRealtimeConsumerKey));
+
+    public async Task WaitForProjectsRealtimeDeliveryStateAsync(Guid messageId, string state, bool attempted = false)
+    {
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(40));
+        string attemptPredicate = attempted ? " AND \"Attempts\">0" : string.Empty;
+        while (await ScalarLongAsync($"SELECT count(*) FROM infrastructure.module_event_deliveries WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer AND \"State\"=@state{attemptPredicate}",
+                   ("message", messageId), ("consumer", ProjectsRealtimeConsumerKey), ("state", state)) != 1)
+            await Task.Delay(50, deadline.Token);
+    }
+
+    public async Task WaitForProjectsRealtimeCompletionAsync(Guid organizationId, Guid messageId)
+    {
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(45));
+        while (true)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            if (await CountProjectsRealtimeInboxAsync(organizationId, messageId) == 1
+                && await CountProjectsRealtimeDeliveryAsync(messageId) == 1
+                && await ScalarLongAsync("SELECT count(*) FROM infrastructure.module_event_deliveries WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer AND \"State\"='completed'",
+                    ("message", messageId), ("consumer", ProjectsRealtimeConsumerKey)) == 1
+                && await CountProjectsRealtimeHistoryAsync(organizationId, messageId) == 1)
+                return;
+            await Task.Delay(50, deadline.Token);
+        }
+    }
 
     public async Task<SourceEvidence> ReadProjectSourceAsync(Guid organizationId)
     {
@@ -389,6 +479,11 @@ internal sealed class ExecutionProcessAcceptanceFixture : IAsyncDisposable
             deadline.Token.ThrowIfCancellationRequested();
             if (await CountEventInboxAsync(organizationId, messageId) == 1
                 && await CountEventDeliveriesAsync(messageId) == 1
+                && await CountProjectsRealtimeInboxAsync(organizationId, messageId) == 1
+                && await CountProjectsRealtimeDeliveryAsync(messageId) == 1
+                && await CountProjectsRealtimeHistoryAsync(organizationId, messageId) == 1
+                && await ScalarLongAsync("SELECT count(*) FROM infrastructure.module_event_deliveries WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer AND \"State\"='completed'",
+                    ("message", messageId), ("consumer", ProjectsRealtimeConsumerKey)) == 1
                 && await ScalarLongAsync("SELECT count(*) FROM infrastructure.module_work_items WHERE \"Id\"=@work AND \"State\"='completed'",
                     ("work", jobWorkId)) == 1
                 && await ScalarLongAsync("SELECT count(*) FROM app.execution_acceptance_effects WHERE \"Id\"=@target AND \"CompletedAtUtc\" IS NOT NULL",
@@ -406,7 +501,7 @@ internal sealed class ExecutionProcessAcceptanceFixture : IAsyncDisposable
             await Task.Delay(50, deadline.Token);
     }
 
-    public async Task WaitForAcknowledgementRecoveryAsync(Guid messageId, Guid workId)
+    public async Task WaitForAcknowledgementRecoveryAsync(Guid organizationId, Guid messageId, Guid workId)
     {
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(45));
         while (true)
@@ -415,6 +510,10 @@ internal sealed class ExecutionProcessAcceptanceFixture : IAsyncDisposable
             if (await CountEventDeliveriesAsync(messageId) == 1
                 && await ScalarLongAsync("SELECT count(*) FROM infrastructure.module_event_deliveries WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer AND \"State\"='completed'",
                     ("message", messageId), ("consumer", AcceptanceModule.ConsumerKey)) == 1
+                && await ScalarLongAsync("SELECT count(*) FROM infrastructure.module_event_deliveries WHERE \"MessageId\"=@message AND \"ConsumerKey\"=@consumer AND \"State\"='completed'",
+                    ("message", messageId), ("consumer", ProjectsRealtimeConsumerKey)) == 1
+                && await CountProjectsRealtimeInboxAsync(organizationId, messageId) == 1
+                && await CountProjectsRealtimeHistoryAsync(organizationId, messageId) == 1
                 && await ScalarLongAsync("SELECT count(*) FROM infrastructure.module_work_items WHERE \"Id\"=@work AND \"State\"='completed'",
                     ("work", workId)) == 1)
                 return;
@@ -680,6 +779,9 @@ internal sealed record ProducerEvidence(string Kind, int ProcessId, Guid Project
     string JobState, Guid OrganizationId, Guid ActorId);
 internal sealed record EventEffectEvidence(Guid ProjectId, Guid EffectiveActorId, Guid OriginActorId);
 internal sealed record JobEffectEvidence(Guid? EffectiveActorId, Guid? OriginActorId, bool Completed);
+internal sealed record ProjectRealtimeEvidence(Guid EventId, Guid SourceMessageId, string ModuleId, string EventKey,
+    int SchemaVersion, string PolicyOwnerModuleId, string PolicyKey, int PolicyVersion, int AudienceKind,
+    Guid? UserId, string? ResourceKey, Guid? ResourceId);
 internal sealed record WorkerReady(string Kind, int ProcessId, string Instance, string SchedulerInstanceId,
     string OrganizationRole, string OutboxRole, string WorkCoordinatorRole);
 

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "projects",
   "name": "Projects",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Organization-scoped project management and lifecycle reference feature.",
   "publisher": "try\u006batch",
   "distribution": {
@@ -16,7 +16,13 @@
   },
   "requires": [],
   "optionalDependencies": [],
-  "capabilities": ["api", "web", "data", "background-work", "assistant"],
+  "capabilities": [
+    "api",
+    "web",
+    "data",
+    "background-work",
+    "assistant"
+  ],
   "dataOwnership": {
     "default": "organization",
     "resources": [
@@ -44,12 +50,20 @@
     }
   },
   "contributions": {
-    "permissions": ["projects.read", "projects.manage"],
+    "permissions": [
+      "projects.read",
+      "projects.manage"
+    ],
     "routes": [
-      { "id": "projects.list", "path": "/projects" }
+      {
+        "id": "projects.list",
+        "path": "/projects"
+      }
     ],
     "extensionPoints": [
-      { "id": "projects.list.after-table" }
+      {
+        "id": "projects.list.after-table"
+      }
     ],
     "extensions": [],
     "assistantTools": [
@@ -75,13 +89,45 @@
         "executionKind": "user-command",
         "payloadSchemaKey": "projects.create-command",
         "payloadSchemaVersion": 1,
-        "requiredPermissionKeys": ["projects.manage"],
+        "requiredPermissionKeys": [
+          "projects.manage"
+        ],
         "resourcePolicyKey": "projects",
         "systemGrantKey": null,
         "maximumPayloadBytes": 16384
+      },
+      {
+        "operationKey": "projects.publish-created-invalidation",
+        "operationVersion": 1,
+        "executionKind": "committed-event",
+        "payloadSchemaKey": "projects.created",
+        "payloadSchemaVersion": 1,
+        "requiredPermissionKeys": [],
+        "resourcePolicyKey": "projects",
+        "systemGrantKey": "projects.created-realtime",
+        "maximumPayloadBytes": 1024
       }
     ],
-    "systemGrants": [],
+    "systemGrants": [
+      {
+        "grantKey": "projects.created-realtime",
+        "grantVersion": 1,
+        "auditActorId": "13af09b6-8885-46bb-a25d-cf883d77502d",
+        "allowedOperationKeys": [
+          "projects.publish-created-invalidation"
+        ],
+        "allowedResourceKeys": [
+          "projects"
+        ],
+        "allowedRealtimePolicies": [
+          {
+            "ownerModuleId": "projects",
+            "policyKey": "projects.read",
+            "policyVersion": 1
+          }
+        ]
+      }
+    ],
     "integrationEvents": [
       {
         "eventKey": "projects.created",
@@ -89,8 +135,51 @@
         "maximumPayloadBytes": 1024
       }
     ],
-    "eventConsumers": [],
+    "eventConsumers": [
+      {
+        "consumerKey": "projects.created-realtime",
+        "acceptedEvents": [
+          {
+            "eventKey": "projects.created",
+            "schemaVersion": 1
+          }
+        ],
+        "operationKey": "projects.publish-created-invalidation",
+        "operationVersion": 1,
+        "systemGrantKey": "projects.created-realtime"
+      }
+    ],
     "jobs": [],
-    "recurringSchedules": []
+    "recurringSchedules": [],
+    "realtimeAudiencePolicies": [
+      {
+        "policyKey": "projects.read",
+        "policyVersion": 1,
+        "allowedAudiences": [
+          "organization",
+          "user",
+          "resource"
+        ],
+        "allowedResourceKeys": [
+          "projects"
+        ],
+        "requiredUserPermissionKeys": [
+          "projects.read"
+        ],
+        "allowedEvents": [
+          {
+            "eventKey": "projects.created",
+            "schemaVersion": 1
+          }
+        ],
+        "allowedSystemProducers": [
+          {
+            "moduleId": "projects",
+            "operationKey": "projects.publish-created-invalidation",
+            "operationVersion": 1
+          }
+        ]
+      }
+    ]
   }
 }
