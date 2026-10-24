@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Shouldly;
 using Trykatch.Application.Authorization;
+using Trykatch.Application.Quotas;
 using Trykatch.Infrastructure.Quotas;
 using Trykatch.Modules;
 
@@ -99,6 +100,10 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
         await using MutationScope secondScope = await fixture.BeginMutationScopeAsync(user);
         OrganizationQuotaService firstQuota = CreateQuota(firstScope);
         OrganizationQuotaService secondQuota = CreateQuota(secondScope);
+        // Isolate the final-slot contest from independent nonblocking publication admission.
+        foreach (MutationScope participant in new[] { firstScope, secondScope })
+            await participant.Services.GetRequiredService<QuotaPublicationAuthority>().EnsurePublishedAsync(
+                participant.Services.GetRequiredService<IOrganizationEntitlementProjectionPublisher>(), CancellationToken.None);
         Guid firstOperation = Guid.NewGuid();
         Guid secondOperation = Guid.NewGuid();
         Task<QuotaReservationResult> firstTask = firstQuota.ReserveAsync(DocumentsQuotaResource, 1, firstOperation);

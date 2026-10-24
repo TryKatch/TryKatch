@@ -7,6 +7,26 @@ namespace Trykatch.Infrastructure.Quotas;
 
 internal sealed class OrganizationUsageLedger(ApplicationDbContext application)
 {
+    internal async Task AppendUploadAsync(ModuleUploadOperationRecord operation, DateTimeOffset now, CancellationToken token)
+    {
+        OrganizationUsageRecord? existing = await application.Set<OrganizationUsageRecord>().AsNoTracking()
+            .SingleOrDefaultAsync(row => row.OrganizationId == operation.OrganizationId && row.ResourceKey == operation.ResourceKey
+                && row.EffectId == operation.OperationId, token);
+        if (existing is not null)
+        {
+            if (existing.SourceId != operation.SubjectId || existing.Units != operation.Length || existing.SourceEffectId is not null
+                || existing.ReservationId is { } reservationId && reservationId != operation.ReservationId)
+                throw new OrganizationQuotaUnavailableException();
+            return;
+        }
+        await application.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO app.organization_usage
+                ("OrganizationId", "ResourceKey", "EffectId", "SourceId", "SourceEffectId", "ReservationId", "ActorId", "Units", "OccurredAtUtc")
+            VALUES ({operation.OrganizationId}, {operation.ResourceKey}, {operation.OperationId}, {operation.SubjectId}, NULL,
+                {operation.ReservationId}, {operation.ActorId}, {operation.Length}, {now})
+            """, token);
+    }
+
     internal async Task AppendInventoryAsync(Guid organizationId, string resourceKey,
         IReadOnlyList<ModuleQuotaInventoryEntry> entries, Guid actorId, DateTimeOffset now, CancellationToken cancellationToken)
     {

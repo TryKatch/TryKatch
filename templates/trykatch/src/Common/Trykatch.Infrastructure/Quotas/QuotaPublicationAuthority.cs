@@ -16,14 +16,24 @@ internal sealed class QuotaPublicationAuthority(ApplicationDbContext application
     private bool publishing;
     private bool resourceLocked;
 
+    internal void EnsureChildAdmissionAllowed()
+    {
+        DbTransaction transaction = RequireTransaction();
+        if (publishing || current is not null && ReferenceEquals(current.Transaction, transaction)
+            && current.TransactionId == control.Database.CurrentTransaction!.TransactionId && resourceLocked)
+            throw new InvalidOperationException("Upload admission must precede parent quota resource locks.");
+    }
+
     internal async Task<QuotaPublicationReceipt> EnsurePublishedAsync(IOrganizationEntitlementProjectionPublisher publisher,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         DbTransaction transaction = RequireTransaction();
-        if (current is null || !ReferenceEquals(current.Transaction, transaction))
+        if (current is null || !ReferenceEquals(current.Transaction, transaction)
+            || current.TransactionId != control.Database.CurrentTransaction!.TransactionId)
         {
-            current = new(this, transaction, organization.OrganizationId, organization.ActorId, settings);
+            current = new(this, transaction, control.Database.CurrentTransaction!.TransactionId,
+                organization.OrganizationId, organization.ActorId, settings);
             resourceLocked = false;
         }
         Frame frame = Validate(current);
@@ -45,6 +55,7 @@ internal sealed class QuotaPublicationAuthority(ApplicationDbContext application
     {
         if (publication is not Frame frame || !ReferenceEquals(frame, current) || !ReferenceEquals(frame.Issuer, this)
             || !ReferenceEquals(frame.Settings, settings) || !ReferenceEquals(frame.Transaction, RequireTransaction())
+            || frame.TransactionId != control.Database.CurrentTransaction!.TransactionId
             || frame.OrganizationId != organization.OrganizationId || frame.ActorId != organization.ActorId)
             throw new InvalidOperationException("Quota publication requires the current compiled host authority.");
         return frame;
@@ -73,11 +84,12 @@ internal sealed class QuotaPublicationAuthority(ApplicationDbContext application
         return transaction;
     }
 
-    internal sealed class Frame(QuotaPublicationAuthority issuer, DbTransaction transaction, Guid organizationId,
+    internal sealed class Frame(QuotaPublicationAuthority issuer, DbTransaction transaction, Guid transactionId, Guid organizationId,
         Guid actorId, QuotaSettings snapshot) : EntitlementPublication
     {
         internal QuotaPublicationAuthority Issuer { get; } = issuer;
         internal DbTransaction Transaction { get; } = transaction;
+        internal Guid TransactionId { get; } = transactionId;
         internal Guid OrganizationId { get; } = organizationId;
         internal Guid ActorId { get; } = actorId;
         internal QuotaSettings Settings { get; } = snapshot;
