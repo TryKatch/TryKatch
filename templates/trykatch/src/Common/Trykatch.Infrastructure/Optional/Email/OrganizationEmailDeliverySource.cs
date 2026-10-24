@@ -28,6 +28,8 @@ internal sealed class OrganizationEmailDeliverySource(IServiceScopeFactory scope
             || row.LeaseUntilUtc <= clock.GetUtcNow() || row.LeaseUntilUtc != lease.LeaseUntilUtc
             || !string.Equals(row.ProtectedIntent, lease.ProtectedIntent, StringComparison.Ordinal))
             return Denied(EmailFailureCode.SourceDenied);
+        if (row.TemplateKey == InvitationEmailIntentCodec.TemplateKey)
+            return await PrepareInvitationAsync(row, cancellationToken);
         if (!OrganizationModuleEmailIntentCodec.TryRead(row, protector, out OrganizationModuleEmailIntent? intent) || intent is null)
             return Denied(EmailFailureCode.PayloadInvalid);
 
@@ -46,6 +48,17 @@ internal sealed class OrganizationEmailDeliverySource(IServiceScopeFactory scope
             return Denied(EmailFailureCode.RecipientChanged);
         // Read-only disclosure transaction and scope are disposed before the caller can invoke SMTP.
         return preparation;
+    }
+
+    private async Task<EmailDeliveryPreparation> PrepareInvitationAsync(OrganizationEmailDeliveryRecord row, CancellationToken cancellationToken)
+    {
+        if (!InvitationEmailIntentCodec.TryRead(row, protector, out InvitationEmailIntent? intent) || intent is null)
+            return Denied(EmailFailureCode.PayloadInvalid);
+        await using AsyncServiceScope scope = scopes.CreateAsyncScope();
+        await using IOrganizationDataScope transaction = await scope.ServiceProvider.GetRequiredService<IOrganizationDataScopeFactory>()
+            .BeginAsync(row.OrganizationId, row.ActorId, cancellationToken);
+        // The usable invitation carries its own pending access grant; no synthetic membership is introduced.
+        return await scope.ServiceProvider.GetRequiredService<OrganizationInvitationEmailPolicy>().PrepareAsync(intent, cancellationToken);
     }
 
     private static EmailDeliveryPreparation Denied(EmailFailureCode failure) => new(EmailPreparationDisposition.Suppressed, FailureCode: failure);

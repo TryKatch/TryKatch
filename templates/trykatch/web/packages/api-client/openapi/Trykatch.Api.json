@@ -5511,7 +5511,8 @@
         "required": [
           "invitation",
           "invitationUrl",
-          "emailDelivered"
+          "emailDelivered",
+          "emailQueued"
         ],
         "type": "object",
         "properties": {
@@ -5522,6 +5523,9 @@
             "type": "string"
           },
           "emailDelivered": {
+            "type": "boolean"
+          },
+          "emailQueued": {
             "type": "boolean"
           }
         }

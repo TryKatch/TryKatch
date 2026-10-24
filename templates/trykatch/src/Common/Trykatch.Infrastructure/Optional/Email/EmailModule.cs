@@ -55,7 +55,7 @@ internal sealed class SmtpAccountRecoveryNotifier(IEmailSender emailSender, Pass
         rendering.SendAsync(emailSender, recipient, displayName, resetUrl, cancellationToken);
 }
 
-internal sealed class SmtpInvitationNotifier(IEmailSender emailSender, BrandedEmailTemplate template) : IInvitationNotifier
+internal sealed class SmtpInvitationNotifier(IEmailSender emailSender, InvitationEmailRendering rendering) : IInvitationNotifier
 {
     public bool IsConfigured => true;
 
@@ -66,17 +66,8 @@ internal sealed class SmtpInvitationNotifier(IEmailSender emailSender, BrandedEm
         string invitationUrl,
         CancellationToken cancellationToken = default)
     {
-        string safeOrganization = System.Net.WebUtility.HtmlEncode(organizationName);
-        string safeRole = System.Net.WebUtility.HtmlEncode(roleName);
-        return emailSender.SendAsync(new EmailMessage(
-            recipient,
-            $"Join {organizationName} on {template.ApplicationName}",
-            $"You have been invited to join {organizationName}.\n\nWorkspace role: {roleName}\n\nAccept the invitation and set up your account:\n{invitationUrl}\n\nThis invitation can be accepted once. If you were not expecting it, you can safely ignore this message.",
-            template.Render("You're invited", $"Join {organizationName} as {roleName}.",
-                $"<p>You have been invited to join <strong>{safeOrganization}</strong>.</p><p style=\"padding:16px;background-color:#f8faf9;border:1px solid #dce3e1;border-radius:4px;\">Workspace role: <strong>{safeRole}</strong></p><p>Accept the invitation and set up your account to get started.</p>",
-                "Accept invitation", invitationUrl,
-                "This invitation can be accepted once. If you were not expecting it, you can safely ignore this message.")),
-            cancellationToken);
+        EmailPreparedMessage message = rendering.Render(recipient, organizationName, roleName, invitationUrl);
+        return emailSender.SendAsync(new EmailMessage(message.Recipient, message.Subject, message.TextBody, message.HtmlBody), cancellationToken);
     }
 }
 
@@ -91,6 +82,7 @@ public static class EmailModule
             .ValidateOnStart();
         services.TryAddSingleton<BrandedEmailTemplate>();
         services.TryAddSingleton<PasswordResetEmailRendering>();
+        services.TryAddSingleton<InvitationEmailRendering>();
         services.AddOptions<SmtpOptions>().Configure(options =>
         {
             SmtpOptions configured = SmtpOptions.Load(configuration, isDevelopment || isOpenApiGeneration);
@@ -116,6 +108,9 @@ public static class EmailModule
             services.TryAddSingleton<OrganizationEmailDeliveryStore>();
             services.TryAddScoped<EmailTemplateRegistry>();
             services.TryAddScoped<OrganizationModuleEmailPolicy>();
+            services.TryAddSingleton(new InvitationEmailLinkPolicy(configuration, isDevelopment));
+            services.TryAddScoped<OrganizationInvitationEmailPolicy>();
+            services.TryAddScoped<IOrganizationInvitationEmailSubmission, OrganizationInvitationEmailQueue>();
             services.TryAddScoped<Trykatch.Modules.IModuleEmailQueue, OrganizationModuleEmailQueue>();
             services.AddSingleton<OrganizationEmailDeliverySource>();
             services.AddSingleton<Trykatch.Application.Mailing.IEmailDeliverySource>(provider =>
