@@ -41,6 +41,7 @@ public static class DependencyInjection
 
         services.AddScoped<CacheInvalidationCommitState>();
         services.AddScoped<CacheGenerationStore>();
+        services.AddOrganizationCache(configuration, isOpenApiGeneration);
         services.AddScoped<CacheInvalidationTransactionInterceptor>();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));
         services.AddDbContext<OrganizationControlPlaneDbContext>((provider, options) => options

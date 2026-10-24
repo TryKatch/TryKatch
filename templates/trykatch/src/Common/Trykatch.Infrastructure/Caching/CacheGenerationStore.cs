@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
@@ -38,8 +39,36 @@ internal sealed class CacheGenerationStore(
         if (!await reader.ReadAsync(cancellationToken)) throw new InvalidOperationException(InvalidScope);
         ValidateDatabaseScope(reader, 1, 2);
         return reader.GetBoolean(0)
+            && !application.ChangeTracker.Entries().Any()
+            && !control.ChangeTracker.Entries().Any()
             ? new(true, reader.IsDBNull(3) ? Guid.Empty : reader.GetGuid(3))
             : default;
+    }
+
+    internal bool CanPublishSourceResult()
+    {
+        // Explicit detection also covers factories that disable automatic change detection.
+        application.ChangeTracker.DetectChanges();
+        control.ChangeTracker.DetectChanges();
+        return !application.ChangeTracker.Entries().Any(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            && !control.ChangeTracker.Entries().Any(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+    }
+
+    internal JsonSerializerOptions CreatePayloadSerializerOptions()
+    {
+        Type[] entityTypes = application.Model.GetEntityTypes().Concat(control.Model.GetEntityTypes())
+            .Select(entity => entity.ClrType).Distinct().ToArray();
+        // The resolver captures only type metadata, never a scoped DbContext or tracked graph.
+        return CachePayloadCodec.CreateSerializerOptions(type =>
+        {
+            if (entityTypes.Any(entity => entity.IsAssignableFrom(type))
+                || typeof(global::Trykatch.Domain.Common.Entity).IsAssignableFrom(type)
+                || typeof(DbContext).IsAssignableFrom(type)
+                || typeof(IQueryable).IsAssignableFrom(type)
+                || typeof(IOrganizationContext).IsAssignableFrom(type)
+                || type == typeof(OrganizationAccess))
+                throw new NotSupportedException("Organization cache payloads must contain detached read DTOs.");
+        });
     }
 
     public async Task<Guid> InvalidateAsync(string logicalHash, CancellationToken cancellationToken = default)

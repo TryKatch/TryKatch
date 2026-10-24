@@ -13,21 +13,22 @@ internal static class CachePayloadCodec
     private const int HeaderLength = sizeof(byte) + TypeHashLength;
     private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
 
-    private static JsonSerializerOptions CreateSerializerOptions()
+    internal static JsonSerializerOptions CreateSerializerOptions(Action<Type>? validateType = null)
     {
         DefaultJsonTypeInfoResolver resolver = new();
         resolver.Modifiers.Add(typeInfo =>
         {
             if (typeof(IOrganizationOwned).IsAssignableFrom(typeInfo.Type))
                 throw new NotSupportedException("Organization cache payloads must contain detached read DTOs.");
+            validateType?.Invoke(typeInfo.Type);
         });
         return new() { MaxDepth = 16, TypeInfoResolver = resolver };
     }
 
-    public static byte[] Encode<T>(T value)
+    public static byte[] Encode<T>(T value, JsonSerializerOptions? serializerOptions = null)
     {
         byte[] typeHash = SHA256.HashData(Encoding.UTF8.GetBytes(GetAssemblyQualifiedTypeName<T>()));
-        byte[] json = JsonSerializer.SerializeToUtf8Bytes(value, SerializerOptions);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(value, serializerOptions ?? SerializerOptions);
         byte[] payload = new byte[HeaderLength + json.Length];
         payload[0] = FormatVersion;
         typeHash.CopyTo(payload, 1);
@@ -35,7 +36,7 @@ internal static class CachePayloadCodec
         return payload;
     }
 
-    public static bool TryDecode<T>(ReadOnlySpan<byte> payload, out T? value)
+    public static bool TryDecode<T>(ReadOnlySpan<byte> payload, out T? value, JsonSerializerOptions? serializerOptions = null)
     {
         value = default;
         if (payload.Length < HeaderLength || payload[0] != FormatVersion)
@@ -47,7 +48,7 @@ internal static class CachePayloadCodec
 
         try
         {
-            value = JsonSerializer.Deserialize<T>(payload[HeaderLength..], SerializerOptions);
+            value = JsonSerializer.Deserialize<T>(payload[HeaderLength..], serializerOptions ?? SerializerOptions);
             return true;
         }
         catch (JsonException)

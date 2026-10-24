@@ -10,6 +10,18 @@ public sealed class OrganizationCacheOptionsTests
     private readonly OrganizationCacheOptionsValidator validator = new();
 
     [TestMethod]
+    public void InvalidLargeMapDoesNotMultiplyDiagnosticMessages()
+    {
+        Dictionary<string, int> values = DefaultTtls();
+        for (int index = 0; index < 100; index++) values["invalid_value_" + index] = -1;
+
+        ValidateOptionsResult result = validator.Validate(null, new OrganizationCacheOptions { TtlSeconds = values });
+
+        result.Failed.ShouldBeTrue();
+        result.Failures!.Count().ShouldBeLessThanOrEqualTo(7);
+    }
+
+    [TestMethod]
     public void DefaultsAreDisabledAndUseBoundedHostTtlPolicies()
     {
         OrganizationCacheOptions options = new();

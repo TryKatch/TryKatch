@@ -36,7 +36,7 @@ internal sealed class OrganizationCacheOptionsValidator : IValidateOptions<Organ
 
     public ValidateOptionsResult Validate(string? name, OrganizationCacheOptions options)
     {
-        List<string> failures = [];
+        HashSet<string> failures = new(StringComparer.Ordinal);
 
         if (!Enum.IsDefined(options.Mode))
             failures.Add(InvalidMode);

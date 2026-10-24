@@ -142,7 +142,11 @@ public sealed partial class OrganizationCacheScopeIntegrationTests
         return postgres;
     }
 
-    private static ServiceProvider BuildProvider(string ownerConnection, params IModule[] modules)
+    private static ServiceProvider BuildProvider(string ownerConnection, params IModule[] modules) =>
+        BuildProvider(ownerConnection, new Dictionary<string, string?>(), modules);
+
+    private static ServiceProvider BuildProvider(
+        string ownerConnection, IReadOnlyDictionary<string, string?> cacheSettings, params IModule[] modules)
     {
         NpgsqlConnectionStringBuilder owner = new(ownerConnection);
         Dictionary<string, string?> settings = new()
@@ -158,6 +162,7 @@ public sealed partial class OrganizationCacheScopeIntegrationTests
             [$"ConnectionStrings:{RuntimeDatabaseConnectionContract.WorkCoordinator}"] = RoleConnection(
                 owner, PostgresRuntimeRoleFixture.WorkCoordinatorRole, PostgresRuntimeRoleFixture.WorkCoordinatorPassword)
         };
+        foreach ((string name, string? value) in cacheSettings) settings[name] = value;
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         ServiceCollection services = new();
         services.AddSingleton(configuration);
