@@ -94,6 +94,7 @@ export function AppShell() {
     queryKey: ['access'],
     queryFn: () => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET' }),
     enabled: Boolean(session.data),
+    refetchInterval: (query) => (query.state.error as RequestError | null)?.status === 429 ? 30_000 : false,
   })
   const currentWorkspace = useQuery({
     queryKey: getWorkspaceCurrentQueryKey(),

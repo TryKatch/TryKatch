@@ -31,7 +31,7 @@ let accessOrganizationId: string
 let workspaceOrganizationId: string
 let featureResponseOrganizationId: string
 let featureValues: Record<string, boolean>
-let accessFailure: Error | undefined
+let accessFailure: (Error & { status?: number }) | undefined
 
 const accessDto = (organizationId: string) => ({ organizationId, userId: 'user-1', membershipId: `membership-${organizationId}`, permissions })
 const workspaceDto = (organizationId: string) => ({ organizationId, membershipId: `membership-${organizationId}`, permissions })
@@ -62,6 +62,10 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  if (vi.isFakeTimers()) {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+  }
   vi.resetAllMocks()
   vi.unstubAllGlobals()
   localStorage.clear()
@@ -135,5 +139,88 @@ describe('Projects availability in the actual workspace shell', () => {
       expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
       expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
     })
+  })
+
+  it('recovers from a 429 access response only after a fresh access snapshot authorizes the switched workspace', async () => {
+    const { client } = mount()
+    expect(await screen.findByText('Protected Projects outlet probe')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Projects' })).toBeInTheDocument()
+    const initialFeatureRequests = vi.mocked(featuresCurrent).mock.calls.length
+
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    workspaceOrganizationId = organizationB
+    accessOrganizationId = organizationB
+    featureResponseOrganizationId = organizationB
+    accessFailure = Object.assign(new Error('Too many requests'), { status: 429 })
+
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: getWorkspaceCurrentQueryKey(), exact: true })
+    })
+    expect(workspaceCurrent).toHaveBeenCalled()
+    expect(client.getQueryData(getWorkspaceCurrentQueryKey())).toMatchObject({ organizationId: organizationB })
+
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['access'], exact: true })
+    })
+
+    expect(client.getQueryState(['access'])?.status).toBe('error')
+    expect(client.getQueryState(['access'])?.error).toMatchObject({ status: 429 })
+    await waitFor(() => {
+      expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
+      expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
+    })
+    expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests)
+
+    accessFailure = undefined
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument()
+      expect(screen.getByText('Protected Projects outlet probe')).toBeInTheDocument()
+    })
+    expect(client.getQueryData(['access'])).toMatchObject({ organizationId: organizationB })
+    expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests + 1)
+    expect(client.getQueryData(['organization-features', organizationB])).toMatchObject({ organizationId: organizationB })
+  })
+
+  it('does not automatically retry a 403 access failure on the 429 recovery interval', async () => {
+    const { client } = mount()
+    expect(await screen.findByText('Protected Projects outlet probe')).toBeInTheDocument()
+    const initialAccessRequests = vi.mocked(customFetch).mock.calls.filter(([url]) => url === '/api/v1/access').length
+    const initialFeatureRequests = vi.mocked(featuresCurrent).mock.calls.length
+
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    workspaceOrganizationId = organizationB
+    accessOrganizationId = organizationB
+    featureResponseOrganizationId = organizationB
+    accessFailure = Object.assign(new Error('Forbidden'), { status: 403 })
+
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: getWorkspaceCurrentQueryKey(), exact: true })
+    })
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['access'], exact: true })
+    })
+
+    expect(client.getQueryState(['access'])?.status).toBe('error')
+    expect(client.getQueryState(['access'])?.error).toMatchObject({ status: 403 })
+    await waitFor(() => {
+      expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
+      expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
+    })
+    expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests)
+
+    accessFailure = undefined
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000)
+    })
+
+    expect(vi.mocked(customFetch).mock.calls.filter(([url]) => url === '/api/v1/access')).toHaveLength(initialAccessRequests + 1)
+    expect(client.getQueryState(['access'])?.status).toBe('error')
+    expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
+    expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests)
   })
 })
