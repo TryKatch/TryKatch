@@ -8,6 +8,11 @@ test_root=$(cd "$test_root" && pwd -P)
 trap 'rm -rf "$test_root"' EXIT
 template_hive="$test_root/template-hive"
 template_manifest="$repository_root/templates/trykatch/.template.config/template.json"
+template_profile=${TRYKATCH_TEMPLATE_PROFILE:-full}
+case "$template_profile" in
+  full|features) ;;
+  *) printf 'TRYKATCH_TEMPLATE_PROFILE must be full or features.\n' >&2; exit 2 ;;
+esac
 
 fail() {
   printf 'Template contract failed: %s\n' "$1" >&2
@@ -185,15 +190,28 @@ generate_and_build() {
       --filter PreviewNine
   fi
   if [[ $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ]]; then
+    local feature_facts="$test_root/$namespace_name.feature-facts.json"
+    local feature_results="$test_root/$namespace_name.feature-results"
+    # Several real HTTP cases share a partial test class; select their method names too.
+    local feature_filter='FullyQualifiedName~OrganizationFeature|FullyQualifiedName~FeatureControlStoreIntegrationTests|FullyQualifiedName~PlatformFeature|FullyQualifiedName~ModuleFeatureHttpTests|FullyQualifiedName~ProjectsFeature|FullyQualifiedName~FeatureAdministrationRejects|FullyQualifiedName~FeatureBusyLock|FullyQualifiedName~FeatureSnapshotSurvives|FullyQualifiedName~ProjectsAssistant|FullyQualifiedName~PersistedProjectsCreateWorkCanRetryAfterWritesFeatureIsEnabled|FullyQualifiedName~ProjectsReadFeature'
+    "$test_root/tools/trykatch" module facts projects --root "$output" >"$feature_facts"
     dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" \
       -c "$configuration" --no-build --no-restore \
-      --filter 'FullyQualifiedName~OrganizationFeature|FullyQualifiedName~FeatureControlStoreIntegrationTests|FullyQualifiedName~PlatformFeatureAdministrationIntegrationTests|FullyQualifiedName~ModuleFeatureHttpTests|FullyQualifiedName~ProjectsFeature'
+      --filter "$feature_filter" --logger 'trx;LogFileName=feature-policy.trx' --results-directory "$feature_results"
+    node "$repository_root/scripts/assert-feature-policy-output.mjs" "$output" "$namespace_name" "$feature_facts" "$feature_results/feature-policy.trx"
   fi
   # Each generated solution can produce several gigabytes of runtime assets.
   # Retain the generated source for assertions, but release build intermediates
   # before exercising the next template permutation on constrained CI runners.
   find "$output" -path '*/node_modules' -prune -o -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
 }
+
+if [[ $template_profile == features ]]; then
+  generate_and_build Horizon
+  generate_and_build Acme.Tools-Portal --ui none
+  printf 'Renamed React and backend-only feature policy qualification passed.\n'
+  exit 0
+fi
 
 generate_and_build Horizon
 grep -Fq 'rustfs/rustfs' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||

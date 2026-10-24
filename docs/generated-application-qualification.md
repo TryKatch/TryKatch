@@ -53,6 +53,8 @@ The `verify-generated-application` job runs when backend, frontend, deployment, 
 
 The renamed React and backend-only template fixtures also run normal and locked restore, Release build/doctor, and focused feature-policy PostgreSQL integration cases.
 
+Use `TRYKATCH_TEMPLATE_PROFILE=features bash scripts/test-template.sh` for only those two renamed fixtures. The runner checks their actual generated OpenAPI/schema, installed feature facts and assistant-contract parity, and validates real test reports so a missing or skipped selection cannot pass qualification.
+
 The base generated-app CI profile and the release candidate's production gate include feature qualification. The email and realtime profiles retain their separate scenarios. These describe required gates; a source change or a successful component test alone does not establish that a candidate passed them.
 
 ## References
