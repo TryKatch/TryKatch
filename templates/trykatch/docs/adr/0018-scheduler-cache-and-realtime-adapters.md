@@ -57,3 +57,7 @@ Do not expose Quartz's HTTP API/dashboard or serialized CLR job invocation autom
 ## Evidence scope
 
 Official package/docs/license sources were reviewed on 2026-10-23. Direct NuGet metadata observations and their limitations are recorded in [Phase 0 evidence](../specs/evidence/feature-parity-phase-zero.md). No dependency was restored, security-audited as a resolved graph, built or exercised in this phase.
+
+## S1 cache implementation qualification
+
+The cache adapter now has local qualification in [platform-services evidence](../specs/evidence/parity-platform-services.md): the actual application HybridCache/StackExchangeRedis graph and permitted licenses, authenticated pinned Valkey, durable organization-RLS generations, safe read-only scope admission, current Projects authority, HTTP commit/rollback, two independent cache processes, outage/recovery, optional private topology and packaged renamed outputs. It deliberately performs a committed PostgreSQL generation lookup on each eligible hit. Default reads remain Disabled; invalidation generations persist independently of read mode or cache availability. This does not qualify SignalR/backplane behavior or production HA failover. Integrated independent review approved the implementation with zero findings; exact-head PR gates remain pending.

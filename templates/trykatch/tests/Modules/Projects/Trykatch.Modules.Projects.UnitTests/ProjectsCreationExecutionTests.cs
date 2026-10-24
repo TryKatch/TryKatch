@@ -122,6 +122,7 @@ public sealed class ProjectsCreationExecutionTests
         services.Replace(ServiceDescriptor.Singleton<IOutboxWriter>(outbox));
         services.Replace(ServiceDescriptor.Singleton<IAuditWriter>(audit));
         services.Replace(ServiceDescriptor.Singleton<IPermissionAuthorizer>(new TestPermissionAuthorizer(permission)));
+        services.Replace(ServiceDescriptor.Singleton<IOrganizationCache>(new PassThroughOrganizationCache()));
         return services.BuildServiceProvider();
     }
 
@@ -168,5 +169,13 @@ public sealed class ProjectsCreationExecutionTests
             TypedMessages.Add(message);
             TypedRegistrations.Add((operationKey, operationVersion));
         }
+    }
+
+    private sealed class PassThroughOrganizationCache : IOrganizationCache
+    {
+        public Task<T> GetOrCreateAsync<T>(ModuleCacheKey key, Func<CancellationToken, Task<T>> factory,
+            CancellationToken cancellationToken = default) => factory(cancellationToken);
+
+        public Task InvalidateAsync(ModuleCacheKey key, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

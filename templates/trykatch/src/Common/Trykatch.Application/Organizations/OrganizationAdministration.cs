@@ -85,6 +85,9 @@ public interface IOrganizationDataScope : IAsyncDisposable
 public interface IOrganizationDataScopeFactory
 {
     Task<IOrganizationDataScope> BeginAsync(Guid organizationId, Guid actorId, CancellationToken cancellationToken);
+
+    Task<IOrganizationDataScope> BeginReadOnlyAsync(Guid organizationId, Guid actorId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("This organization data scope factory does not support read-only scopes.");
 }
 
 public sealed class OrganizationAdministration(

@@ -1,6 +1,6 @@
 # Phase 1 execution evidence
 
-Status: Phase 1 implementation and local exit qualification are complete, including the single integrated review and packed generated-output checks below. E1–E5 slices are linked below; E4/E5 are already merged. This exit branch still requires exact-head CI and merge checks, recorded on its pull request. Later parity phases and final release qualification remain open.
+Status: Phase 1 implementation and local exit qualification are complete, including the single integrated review and packed generated-output checks below. E1–E5 slices are linked below; E4/E5 are already merged. The exit merged in [PR #133](https://github.com/TryKatch/TryKatch/pull/133) after exact-head CI; its result is recorded below. Later parity phases and final release qualification remain open.
 
 ## Qualified slices
 
@@ -48,4 +48,8 @@ Fresh actual template/CLI packages were installed into a custom hive and used th
 
 The corrected packages are qualification candidates, not final release bytes. Logs are retained under `packed-reviewed/` alongside `packed-reviewed-qualification.log`; review regression logs are `root-worker-exit-red-targeted.log`, `root-review-process-green.log` and `root-default-job-units.log`. The earlier `packed/` candidate passed before the harness corrections and is retained as historical evidence only. No HTTP/browser acceptance of the new Projects adapter or later module matrix is claimed here.
 
-This branch's exact-head CI and merge result belong to its pull request. No default release or later parity phase is accepted by this document.
+## Final Phase 1 exit merge
+
+Final head `7f056a8bbefb711043ef087dcfa8224dd6769b04` passed [template CI](https://github.com/TryKatch/TryKatch/actions/runs/40060164910) and [dependency review](https://github.com/TryKatch/TryKatch/actions/runs/40060164904). The backend gate passed 634 host unit, 27 architecture, 20 module unit and 405 integration cases with zero skips; the integration run took 14 minutes 48 seconds. Builds reported zero warnings/errors and the complete package graph audit reported no vulnerable packages. All applicable web, generated production profiles, first-feature/blueprint, image/migrator, package, release-transfer, documentation and supply-chain checks passed. Deployment and observability jobs were not selected by the changed-scope detector; their E5 qualification remains separately recorded.
+
+[PR #133](https://github.com/TryKatch/TryKatch/pull/133) merged on 2026-10-24 at `b70fbe49b4426e50b35c35d9ba2dc26578facc5e`. Fetching develop and comparing it with the tested head returned no tree differences. The next S1 worktree was rebased cleanly onto that merge before product implementation. Phase 1 is complete within the recorded evidence scope. No default release or later parity phase is accepted by this document.

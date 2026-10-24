@@ -41,6 +41,21 @@ internal static class ApplicationHostingExtensions
             outboxPassword,
             workCoordinatorPassword);
 
+        string? cacheMode = builder.Configuration["Cache:Mode"];
+        if (!string.IsNullOrWhiteSpace(cacheMode))
+        {
+            api.WithEnvironment("Cache__Mode", cacheMode);
+        }
+
+        AddOptionalCacheSetting(builder, api, "Cache:ApplicationNamespace", "Cache__ApplicationNamespace");
+        AddOptionalCacheSetting(builder, api, "Cache:TtlSeconds:short", "Cache__TtlSeconds__short");
+        AddOptionalCacheSetting(builder, api, "Cache:TtlSeconds:standard", "Cache__TtlSeconds__standard");
+
+        if (string.Equals(cacheMode, "Distributed", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.AddDistributedCache(api);
+        }
+
         builder.AddDevelopmentEmail(api);
         builder.AddObjectStorage(api);
         builder.AddObservabilityStack();
@@ -54,6 +69,52 @@ internal static class ApplicationHostingExtensions
 #endif
 
         return builder;
+    }
+
+    private static void AddOptionalCacheSetting(
+        IDistributedApplicationBuilder builder,
+        IResourceBuilder<ProjectResource> api,
+        string configurationKey,
+        string environmentVariable)
+    {
+        string? value = builder.Configuration[configurationKey];
+        if (value is not null)
+        {
+            api.WithEnvironment(environmentVariable, value);
+        }
+    }
+
+    private static void AddDistributedCache(
+        this IDistributedApplicationBuilder builder,
+        IResourceBuilder<ProjectResource> api)
+    {
+        IResourceBuilder<ParameterResource> cachePassword = builder.AddParameter("cache-password", secret: true);
+        IResourceBuilder<ContainerResource> cache = builder
+            .AddContainer(
+                "cache",
+                "valkey/valkey",
+                "9.1.2-alpine3.24@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11")
+            .WithArgs(
+                "--requirepass",
+                cachePassword,
+                "--maxmemory",
+                "64mb",
+                "--maxmemory-policy",
+                "allkeys-lru",
+                "--save",
+                "",
+                "--appendonly",
+                "no")
+            .WithArgs("--dir", "/tmp")
+            .WithContainerRuntimeArgs("--user", "999:1000")
+            .WithEndpoint(targetPort: 6379, name: "redis");
+
+        ReferenceExpression cacheConnection = ReferenceExpression.Create(
+            $"{cache.GetEndpoint("redis").Property(EndpointProperty.Host)}:"
+            + $"{cache.GetEndpoint("redis").Property(EndpointProperty.Port)},password={cachePassword}");
+
+        api.WithEnvironment("ConnectionStrings__cache", cacheConnection)
+            .WaitFor(cache);
     }
 
     private static IResourceBuilder<PostgresDatabaseResource> AddApplicationDatabase(

@@ -1,6 +1,7 @@
 using Trykatch.Application.Execution;
 using Trykatch.Application.Eventing;
 using Trykatch.Infrastructure.Execution;
+using Trykatch.Infrastructure.Caching;
 using Trykatch.Infrastructure.Jobs;
 using Trykatch.Application.Jobs;
 using Trykatch.Infrastructure.Eventing;
@@ -38,13 +39,22 @@ public static class DependencyInjection
         string organizationConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Organization);
         string outboxConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Outbox);
 
+        services.AddLogging();
+        services.AddScoped<CacheInvalidationCommitState>();
+        services.AddScoped<CacheGenerationStore>();
+        services.AddOrganizationCache(configuration, isOpenApiGeneration);
+        services.AddScoped<CacheInvalidationTransactionInterceptor>();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));
-        services.AddDbContext<OrganizationControlPlaneDbContext>(options => options.UseNpgsql(organizationConnection));
+        services.AddDbContext<OrganizationControlPlaneDbContext>((provider, options) => options
+            .UseNpgsql(organizationConnection)
+            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>()));
         // Organization-scoped requests use explicit transactions on both contexts so
         // PostgreSQL transaction-local RLS variables cannot leak between pooled
         // connections. Retrying an entire HTTP transaction could replay downstream
         // side effects, therefore these contexts deliberately avoid EF retries.
-        services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(organizationConnection));
+        services.AddDbContext<ApplicationDbContext>((provider, options) => options
+            .UseNpgsql(organizationConnection)
+            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>()));
         services.AddOptions<OutboxRecoveryOptions>()
             .BindConfiguration(OutboxRecoveryOptions.SectionName)
             .ValidateOnStart();
