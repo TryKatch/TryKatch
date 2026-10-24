@@ -114,9 +114,9 @@ public static class EmailModule
             services.TryAddSingleton(new InvitationEmailLinkPolicy(configuration, isDevelopment));
             services.TryAddScoped<OrganizationInvitationEmailPolicy>();
             services.TryAddScoped<IOrganizationInvitationEmailSubmission, OrganizationInvitationEmailQueue>();
-            services.TryAddScoped<Trykatch.Modules.IModuleEmailQueue, OrganizationModuleEmailQueue>();
+            services.TryAddScoped<global::Trykatch.Modules.IModuleEmailQueue, OrganizationModuleEmailQueue>();
             services.AddSingleton<OrganizationEmailDeliverySource>();
-            services.AddSingleton<Trykatch.Application.Mailing.IEmailDeliverySource>(provider =>
+            services.AddSingleton<global::Trykatch.Application.Mailing.IEmailDeliverySource>(provider =>
                 provider.GetRequiredService<OrganizationEmailDeliverySource>());
         }
         return services;
