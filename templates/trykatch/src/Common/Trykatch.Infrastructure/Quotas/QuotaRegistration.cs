@@ -14,6 +14,9 @@ internal static class QuotaRegistration
         services.AddHostedService<QuotaStartupValidator>();
         services.AddScoped<QuotaPublicationAuthority>();
         services.AddScoped<QuotaWorkflowRegistry>();
+        services.AddScoped<QuotaMaintenanceAuthority>();
+        services.AddScoped<QuotaMaintenanceScopeFactory>();
+        services.AddScoped<QuotaInventoryReconciler>();
         services.AddScoped<IOrganizationEntitlementProjectionPublisher, HostEntitlementPublisher>();
         services.AddScoped<OrganizationQuotaService>();
         services.AddScoped<IOrganizationQuota>(provider => provider.GetRequiredService<OrganizationQuotaService>());

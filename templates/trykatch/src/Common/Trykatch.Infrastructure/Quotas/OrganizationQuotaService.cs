@@ -103,9 +103,11 @@ internal sealed class OrganizationQuotaService(
             if (!receipt.IsSatisfiedBy(projection)) return Unavailable("quota_projection_stale");
 
             (long committed, long held) = await ledger.TotalsAsync(organization.OrganizationId, resourceKey, token);
+            ModuleQuotaInventorySourceRef? source = resource.InventorySource;
             bool inventoryComplete = await application.Set<OrganizationQuotaInventoryRecord>().AsNoTracking()
                 .AnyAsync(row => row.OrganizationId == organization.OrganizationId && row.ResourceKey == resourceKey
-                    && row.State == QuotaInventoryState.Complete, token);
+                    && row.State == QuotaInventoryState.Complete
+                    && (source == null || row.SourceKey == source.SourceKey && row.SourceVersion == source.SourceVersion), token);
             QuotaCapacityDecision decision = QuotaCapacityPolicy.Evaluate(
                 OrganizationEntitlementStore.ToContract(projection), inventoryComplete, committed, held, units);
             if (decision.Disposition != QuotaReservationDisposition.Reserved)

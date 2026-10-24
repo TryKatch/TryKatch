@@ -1,10 +1,49 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Trykatch.Infrastructure.Persistence;
+using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Quotas;
 
 internal sealed class OrganizationUsageLedger(ApplicationDbContext application)
 {
+    internal async Task AppendInventoryAsync(Guid organizationId, string resourceKey,
+        IReadOnlyList<ModuleQuotaInventoryEntry> entries, Guid actorId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        Dictionary<Guid, ModuleQuotaInventoryEntry> unique = [];
+        foreach (ModuleQuotaInventoryEntry entry in entries)
+        {
+            if (unique.TryGetValue(entry.OperationId, out ModuleQuotaInventoryEntry? prior)
+                && (prior.SourceId != entry.SourceId || prior.Units != entry.Units))
+                throw new OrganizationQuotaUnavailableException();
+            unique[entry.OperationId] = entry;
+        }
+        if (unique.Count == 0) return;
+        Guid[] ids = unique.Keys.ToArray();
+        OrganizationUsageRecord[] existing = await application.Set<OrganizationUsageRecord>().AsNoTracking()
+            .Where(row => row.OrganizationId == organizationId && row.ResourceKey == resourceKey && ids.Contains(row.EffectId))
+            .ToArrayAsync(cancellationToken);
+        foreach (OrganizationUsageRecord row in existing)
+        {
+            ModuleQuotaInventoryEntry entry = unique[row.EffectId];
+            if (row.SourceId != entry.SourceId || row.Units != entry.Units || row.SourceEffectId is not null)
+                throw new OrganizationQuotaUnavailableException();
+            unique.Remove(row.EffectId);
+        }
+        if (unique.Count == 0) return;
+        string payload = JsonSerializer.Serialize(unique.Values.Select(entry => new
+        {
+            EffectId = entry.OperationId, entry.SourceId, entry.Units
+        }));
+        int written = await application.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO app.organization_usage
+                ("OrganizationId", "ResourceKey", "EffectId", "SourceId", "SourceEffectId", "ReservationId", "ActorId", "Units", "OccurredAtUtc")
+            SELECT {organizationId}, {resourceKey}, item."EffectId", item."SourceId", NULL, NULL, {actorId}, item."Units", {now}
+            FROM jsonb_to_recordset({payload}::jsonb) AS item("EffectId" uuid, "SourceId" uuid, "Units" bigint)
+            """, cancellationToken);
+        if (written != unique.Count) throw new OrganizationQuotaUnavailableException();
+    }
+
     internal async Task<(long Committed, long Held)> TotalsAsync(Guid organizationId, string resourceKey,
         CancellationToken cancellationToken)
     {
