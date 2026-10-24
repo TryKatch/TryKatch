@@ -1,5 +1,7 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
 import { hasValidTableBinding, resolveTableContributions, type TableExtensionPoint, type TableParts, type WebTableContribution } from './tables'
+import type { RealtimeAudience, WebRealtimeInvalidationContribution } from './realtime'
+export { createRealtimeReconciler, type RealtimeAudience, type RealtimeHistoryPage, type RealtimeNotification, type RealtimePolicyRef, type RealtimeReconcilerOptions, type RealtimeResourceRef, type RealtimeState, type WebRealtimeInvalidationContribution } from './realtime'
 export { defineTableExtensionPoint, defineTableContribution, type TableColumn, type TableAction, type TableParts, type TableExtensionPoint, type WebTableContribution } from './tables'
 
 export { ModuleExtensionSlot, ModuleProvider, useTableContributions } from './extensions'
@@ -89,6 +91,7 @@ export interface WebModule {
   extensions: readonly WebExtension[]
   archiveResources?: readonly ArchiveResourceContribution[]
   tableContributions?: readonly WebTableContribution[]
+  realtimeInvalidations?: readonly WebRealtimeInvalidationContribution[]
 }
 
 export interface WebOverrides {
@@ -114,6 +117,8 @@ export class WebModuleCatalog {
   readonly extensions: readonly WebExtension[]
   readonly archiveResources: readonly ArchiveResourceContribution[]
   readonly tableContributions: readonly WebTableContribution[]
+  readonly realtimeInvalidations: readonly WebRealtimeInvalidationContribution[]
+  readonly realtimeSubscriptions: readonly RealtimeAudience[]
 
   constructor(modules: readonly WebModule[], overrides: WebOverrides = {}) {
     validateModules(modules)
@@ -143,6 +148,18 @@ export class WebModuleCatalog {
         throw new Error(`Trykatch archive resource '${resource.kind}' requires valid read and manage permissions.`)
       }
     }
+    this.realtimeInvalidations = this.modules.flatMap((module) => module.realtimeInvalidations ?? [])
+      .toSorted((left, right) => left.id.localeCompare(right.id))
+    ensureUnique(this.realtimeInvalidations.map((item) => item.id), 'realtime invalidation contribution id')
+    for (const item of this.realtimeInvalidations) {
+      if (!stableContractId.test(item.id) || typeof item.matches !== 'function' || !item.queryKeys.length
+        || item.queryKeys.some((key) => !Array.isArray(key) || !key.length))
+        throw new Error(`Invalid Trykatch realtime invalidation contribution '${item.id}'.`)
+      validateRealtimeAudience(item.id, item.subscription)
+    }
+    this.realtimeSubscriptions = this.realtimeInvalidations
+      .map((item) => item.subscription)
+      .filter((subscription, index, all) => all.findIndex((candidate) => sameRealtimeAudience(candidate, subscription)) === index)
     validateEffectiveContracts(this.routes, this.navigation, this.extensionPoints, this.extensions)
   }
 
@@ -162,6 +179,23 @@ export class WebModuleCatalog {
   navigationFor(surface: 'workspace' | 'platform') {
     return this.navigation.filter((item) => (item.surface ?? 'workspace') === surface)
   }
+}
+
+function validateRealtimeAudience(contributionId: string, audience: RealtimeAudience) {
+  if (!audience || !audience.policy || !stableId.test(audience.policy.ownerModuleId)
+    || !stableContractId.test(audience.policy.policyKey) || typeof audience.policy.policyVersion !== 'number'
+    || !Number.isSafeInteger(audience.policy.policyVersion) || audience.policy.policyVersion < 1 || ![0, 1, 2].includes(audience.kind))
+    throw new Error(`Trykatch realtime contribution '${contributionId}' has an invalid subscription.`)
+  if (audience.kind === 0 && audience.userId != null || audience.kind === 1 && !audience.userId
+    || audience.kind === 2 && (audience.userId != null || !audience.resource?.resourceKey || !audience.resource.resourceId))
+    throw new Error(`Trykatch realtime contribution '${contributionId}' has an invalid audience selector.`)
+}
+
+function sameRealtimeAudience(left: RealtimeAudience, right: RealtimeAudience) {
+  return left.policy.ownerModuleId === right.policy.ownerModuleId && left.policy.policyKey === right.policy.policyKey
+    && left.policy.policyVersion === right.policy.policyVersion && left.kind === right.kind
+    && left.userId === right.userId && left.resource?.resourceKey === right.resource?.resourceKey
+    && left.resource?.resourceId === right.resource?.resourceId
 }
 
 function validateModules(modules: readonly WebModule[]) {

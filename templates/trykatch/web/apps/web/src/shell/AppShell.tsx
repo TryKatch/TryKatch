@@ -1,7 +1,7 @@
 import { applicationName } from '../branding'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { customFetch } from '@trykatch/api-client'
+import { customFetch, getWorkspaceCurrentQueryKey, workspaceCurrent } from '@trykatch/api-client'
 import { Button, Dialog, Skeleton } from '@trykatch/ui'
 import {
   Activity,
@@ -34,6 +34,7 @@ import { applyAppearance, defaultShellColor, type Theme } from './appearance'
 import { navigationLabel } from './navigationLabel'
 import { permittedWorkspaceNavigation, type WorkspaceNavigation } from './workspaceNavigation'
 import { AssistantChat, AssistantChatProvider } from '../features/assistant/AssistantChat'
+import { useWorkspaceRealtimeLifecycle } from './useWorkspaceRealtimeLifecycle'
 
 const coreNavigation: readonly WorkspaceNavigation[] = [
   { id: 'core.overview', section: 'Workspace', order: 10, to: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -46,7 +47,7 @@ const allNavigation = [...coreNavigation, ...workspaceModules.navigationFor('wor
   .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
 const sectionOrder = ['Workspace', 'Administration', 'Recovery']
 
-interface Session { displayName: string; email: string; isPlatformAdministrator: boolean }
+interface Session { userId: string; displayName: string; email: string; isPlatformAdministrator: boolean }
 interface OrganizationAccess { permissions: string[] }
 interface RequestError extends Error { status?: number }
 
@@ -92,6 +93,18 @@ export function AppShell() {
     queryFn: () => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET' }),
     enabled: Boolean(session.data),
   })
+  const currentWorkspace = useQuery({
+    queryKey: getWorkspaceCurrentQueryKey(),
+    queryFn: ({ signal }) => workspaceCurrent({ signal }),
+    enabled: Boolean(session.data),
+    retry: false,
+  })
+  const realtimeContext = session.data && access.data && currentWorkspace.data
+    ? `${session.data.userId}:${currentWorkspace.data.organizationId}:${currentWorkspace.data.membershipId}`
+    : undefined
+  const hasSession = Boolean(session.data)
+  useWorkspaceRealtimeLifecycle({ realtimeContext, hasSession })
+
   const logout = useMutation({
     mutationFn: () => customFetch<void>('/api/v1/auth/logout', { method: 'POST' }),
     onSuccess: () => {
