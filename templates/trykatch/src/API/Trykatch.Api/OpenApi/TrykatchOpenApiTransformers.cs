@@ -52,11 +52,18 @@ public sealed partial class ModuleOpenApiOperationTransformer(ModuleCatalog cata
         operation.Summary ??= HumanizeOperationId(operation.OperationId);
         AddTypeScriptCodeSample(operation, context);
 
-        string? moduleId = context.Description.ActionDescriptor.EndpointMetadata
+        var endpointMetadata = context.Description.ActionDescriptor.EndpointMetadata;
+        ModuleMutationIdempotencyMetadata? mutation = endpointMetadata
+            .OfType<ModuleMutationIdempotencyMetadata>()
+            .FirstOrDefault();
+        if (mutation is not null)
+            AddMutationIdempotency(operation, mutation);
+
+        string? moduleId = endpointMetadata
             .OfType<ModuleEndpointMetadata>()
             .Select(metadata => metadata.ModuleId)
             .FirstOrDefault()
-            ?? context.Description.ActionDescriptor.EndpointMetadata
+            ?? endpointMetadata
                 .OfType<ModuleAttribute>()
                 .Select(attribute => attribute.ModuleId)
                 .FirstOrDefault();
@@ -90,6 +97,42 @@ public sealed partial class ModuleOpenApiOperationTransformer(ModuleCatalog cata
             })!));
 
         return Task.CompletedTask;
+    }
+
+    private static void AddMutationIdempotency(OpenApiOperation operation, ModuleMutationIdempotencyMetadata metadata)
+    {
+        operation.Parameters ??= [];
+        operation.Parameters.Add(new OpenApiParameter
+        {
+            Name = "Idempotency-Key",
+            In = ParameterLocation.Header,
+            Required = metadata.Policy.KeyRequired,
+            Description = "Reuse this key with the same request intent after an uncertain network outcome.",
+            Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                MinLength = 1,
+                MaxLength = 128,
+                Pattern = "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+            }
+        });
+
+        operation.AddExtension(
+            "x-trykatch-idempotency",
+            new JsonNodeExtension(JsonSerializer.SerializeToNode(new
+            {
+                keyRequired = metadata.Policy.KeyRequired,
+                replayLifetimeSeconds = metadata.Policy.ReplayLifetime.TotalSeconds,
+                maximumRequestBytes = metadata.Policy.MaximumRequestBytes,
+                maximumResponseBytes = metadata.Policy.MaximumResponseBytes,
+                responseLimitAlsoBoundedByAtomicStaging = true
+            })!));
+
+        string lifetimeSeconds = metadata.Policy.ReplayLifetime.TotalSeconds.ToString("G", System.Globalization.CultureInfo.InvariantCulture);
+        string guidance = $"For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is {lifetimeSeconds} seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.";
+        operation.Description = string.IsNullOrWhiteSpace(operation.Description)
+            ? guidance
+            : $"{operation.Description.TrimEnd()}\n\n{guidance}";
     }
 
     private static void AddTypeScriptCodeSample(

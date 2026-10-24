@@ -23,7 +23,7 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
     public ModuleDescriptor Descriptor { get; } = new(
         Id: "projects",
         Name: "Projects",
-        Version: "1.2.0",
+        Version: "1.3.0",
         Description: "Organization-scoped project management and lifecycle reference feature.",
         Requires: [],
         OptionalDependencies: [],
