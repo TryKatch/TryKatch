@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 scoped-cache implementation and local qualification are in progress. The evidence below records completed local checks only; it does not claim that S1 is accepted, reviewed, merged, or released. Local packaged-product checks have passed. One integrated implementation review, PR, exact-head CI, and merge are still pending.
+Status: S1 scoped-cache implementation and local qualification are in progress. The evidence below records completed local checks only; it does not claim that S1 is accepted, reviewed, merged, or released. Local packaged-product checks have passed. The integrated independent review approved the implementation through `6bb457c` with zero findings. PR, exact-head CI, and merge are still pending.
 
 ## S1 — Scoped organization cache
 
@@ -45,7 +45,7 @@ Operational bounds are fixed or validated: default `short` and `standard` TTLs a
 
 ### Remaining S1 work
 
-S1 remains incomplete pending integrated review, PR, required exact-head CI, and merge. The full solution/AppHost compile and API/web contract generation are qualified above; they do not replace packaged-product or remote PR gates. Do not use this evidence as a release or S1-complete claim. Additional qualifications must be added here with their exact test layer and results after they run.
+S1 remains incomplete pending PR, required exact-head CI, and merge; integrated independent review returned zero findings. The full solution/AppHost compile and API/web contract generation are qualified above; they do not replace packaged-product or remote PR gates. Do not use this evidence as a release or S1-complete claim. Additional qualifications must be added here with their exact test layer and results after they run.
 
 ## S2–S6 — Planned, not implemented by this evidence
 

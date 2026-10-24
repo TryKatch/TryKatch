@@ -89,7 +89,7 @@ The existing independent reviewer checked these architecture choices against act
 
 ## Evidence status
 
-S1 implementation and local qualification are complete; integrated implementation review, PR, exact-head CI and merge remain open. The [platform-services evidence](../../../templates/trykatch/docs/specs/evidence/parity-platform-services.md) records actual HTTP, live Distributed, OS-process, topology and packaged-product checks. No release-readiness claim is made.
+S1 implementation and local qualification are complete; PR, exact-head CI and merge remain open; the integrated independent review approved code through `6bb457c` with zero findings. The [platform-services evidence](../../../templates/trykatch/docs/specs/evidence/parity-platform-services.md) records actual HTTP, live Distributed, OS-process, topology and packaged-product checks. No release-readiness claim is made.
 
 The actual application graph pins Hybrid10.11.0 and Microsoft.Extensions.Caching.StackExchangeRedis10.0.13, with its required DI.Abstractions10.0.13 patch alignment. Normal and locked solution restore pass; the full vulnerability audit covers36projects with zero findings/messages. Ten newly resolved package/version pairs declare permitted MIT licenses. Earlier isolated pinned Valkey9.1.2 command, expiry, coalescing, fresh-provider L2 and fixed-endpoint outage/recovery checks remain library evidence, separate from pending host Distributed acceptance.
 
