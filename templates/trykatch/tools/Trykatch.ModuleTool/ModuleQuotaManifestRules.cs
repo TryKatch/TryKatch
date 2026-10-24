@@ -30,6 +30,9 @@ internal static class ModuleQuotaManifestRules
                 errors.Add($"Module '{moduleId}' declares more than {MaximumDeclarations} quota resources.");
 
             HashSet<string> keys = new(StringComparer.Ordinal);
+            HashSet<(string Key, int Version)> uploads = [];
+            HashSet<(string Key, int Version)> sources = [];
+            HashSet<(string Key, int Version)> removals = [];
             foreach (ModuleQuotaResourceManifest? resource in resources)
             {
                 if (resource is null)
@@ -51,6 +54,18 @@ internal static class ModuleQuotaManifestRules
                     errors.Add($"Quota resource '{resource.Key}' in module '{moduleId}' requires a nonblank description of at most {MaximumDescriptionLength} characters.");
                 if (resource.Unit is not "bytes" and not "count")
                     errors.Add($"Quota resource '{resource.Key}' in module '{moduleId}' declares unknown unit '{resource.Unit}'. Expected 'bytes' or 'count'.");
+                if (resource.UploadPolicy is { } upload)
+                {
+                    ValidateReference(moduleId, upload.PolicyKey, upload.PolicyVersion, "upload policy", uploads, errors);
+                    if (resource.Unit != "bytes") errors.Add($"Quota upload policy in module '{moduleId}' requires a byte resource.");
+                    if (!IsOwnedKey(moduleId, upload.RequiredPermission)
+                        || !module.Manifest.Contributions.Permissions.Contains(upload.RequiredPermission, StringComparer.Ordinal))
+                        errors.Add($"Quota upload policy in module '{moduleId}' requires a declared module-owned permission.");
+                }
+                if (resource.InventorySource is { } source)
+                    ValidateReference(moduleId, source.SourceKey, source.SourceVersion, "inventory source", sources, errors);
+                if (resource.RemovalPolicy is { } removal)
+                    ValidateReference(moduleId, removal.PolicyKey, removal.PolicyVersion, "removal policy", removals, errors);
             }
 
             foreach (ModuleSystemGrantManifest grant in module.Manifest.Execution.SystemGrants)
@@ -69,4 +84,15 @@ internal static class ModuleQuotaManifestRules
             }
         }
     }
+
+    private static void ValidateReference(string owner, string key, int version, string kind,
+        HashSet<(string Key, int Version)> identities, List<string> errors)
+    {
+        if (!IsOwnedKey(owner, key) || version <= 0)
+            errors.Add($"Module '{owner}' declares an invalid owned quota {kind} identity/version.");
+        if (!identities.Add((key, version))) errors.Add($"Module '{owner}' declares a duplicate quota {kind} identity.");
+    }
+
+    private static bool IsOwnedKey(string owner, string? key) => key is { Length: <= MaximumKeyLength }
+        && StableKey.IsMatch(key) && key.StartsWith(owner + ".", StringComparison.Ordinal);
 }

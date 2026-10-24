@@ -12,7 +12,12 @@ public sealed record ModuleQuotaResourceDescriptor(
     string Key,
     string Name,
     string Description,
-    ModuleQuotaUnit Unit);
+    ModuleQuotaUnit Unit)
+{
+    public ModuleUploadPolicyDescriptor? UploadPolicy { get; init; }
+    public ModuleQuotaInventorySourceRef? InventorySource { get; init; }
+    public ModuleUsageRemovalPolicyRef? RemovalPolicy { get; init; }
+}
 
 /// <summary>One explicit generated-manifest expectation for a module quota resource.</summary>
 public sealed record InstalledModuleQuotaResource(string ModuleId, ModuleQuotaResourceDescriptor Resource);

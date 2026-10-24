@@ -741,7 +741,23 @@ public sealed partial class ModuleWorkspace
                     .Append(JsonSerializer.Serialize(resource.Key)).Append(", ")
                     .Append(JsonSerializer.Serialize(resource.Name)).Append(", ")
                     .Append(JsonSerializer.Serialize(resource.Description)).Append(", ")
-                    .Append(unit).AppendLine(")),");
+                    .Append(unit).Append(')');
+                if (resource.UploadPolicy is not null || resource.InventorySource is not null || resource.RemovalPolicy is not null)
+                {
+                    output.Append(" { ");
+                    if (resource.UploadPolicy is { } upload)
+                        output.Append("UploadPolicy = new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", ")
+                            .Append(JsonSerializer.Serialize(upload.PolicyKey)).Append(", ").Append(upload.PolicyVersion)
+                            .Append(", ").Append(JsonSerializer.Serialize(upload.RequiredPermission)).Append("), ");
+                    if (resource.InventorySource is { } source)
+                        output.Append("InventorySource = new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", ")
+                            .Append(JsonSerializer.Serialize(source.SourceKey)).Append(", ").Append(source.SourceVersion).Append("), ");
+                    if (resource.RemovalPolicy is { } removal)
+                        output.Append("RemovalPolicy = new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", ")
+                            .Append(JsonSerializer.Serialize(removal.PolicyKey)).Append(", ").Append(removal.PolicyVersion).Append("), ");
+                    output.Append('}');
+                }
+                output.AppendLine("),");
             }
         }
         output.AppendLine("        ]);");
@@ -1206,6 +1222,35 @@ public sealed class ModuleQuotaResourceManifest
     public string Description { get; init; } = string.Empty;
     [JsonRequired]
     public string Unit { get; init; } = string.Empty;
+    public ModuleQuotaUploadPolicyManifest? UploadPolicy { get; init; }
+    public ModuleQuotaInventorySourceManifest? InventorySource { get; init; }
+    public ModuleQuotaRemovalPolicyManifest? RemovalPolicy { get; init; }
+}
+
+public sealed class ModuleQuotaUploadPolicyManifest
+{
+    [JsonRequired]
+    public string PolicyKey { get; init; } = string.Empty;
+    [JsonRequired]
+    public int PolicyVersion { get; init; }
+    [JsonRequired]
+    public string RequiredPermission { get; init; } = string.Empty;
+}
+
+public sealed class ModuleQuotaInventorySourceManifest
+{
+    [JsonRequired]
+    public string SourceKey { get; init; } = string.Empty;
+    [JsonRequired]
+    public int SourceVersion { get; init; }
+}
+
+public sealed class ModuleQuotaRemovalPolicyManifest
+{
+    [JsonRequired]
+    public string PolicyKey { get; init; } = string.Empty;
+    [JsonRequired]
+    public int PolicyVersion { get; init; }
 }
 
 public sealed class ModuleExecutionManifest

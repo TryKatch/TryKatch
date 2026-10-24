@@ -47,7 +47,10 @@ public sealed partial class ModuleWorkspace
                             resource!.Key,
                             resource.Name,
                             resource.Description,
-                            resource.Unit
+                            resource.Unit,
+                            resource.UploadPolicy,
+                            resource.InventorySource,
+                            resource.RemovalPolicy
                         }).ToArray() ?? [],
                     assistantExecution = "Descriptors are metadata, not executable configuration or authorization grants. Adapter execution is outside this discovery command."
                 }),

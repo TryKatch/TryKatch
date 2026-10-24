@@ -261,7 +261,35 @@
         "key": { "$ref": "#/$defs/quotaStableKey" },
         "name": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "\\S" },
         "description": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" },
-        "unit": { "enum": ["bytes", "count"] }
+        "unit": { "enum": ["bytes", "count"] },
+        "uploadPolicy": { "$ref": "#/$defs/quotaUploadPolicy" },
+        "inventorySource": { "$ref": "#/$defs/quotaInventorySource" },
+        "removalPolicy": { "$ref": "#/$defs/quotaRemovalPolicy" }
+      }
+    },
+    "quotaUploadPolicy": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "required": ["policyKey", "policyVersion", "requiredPermission"],
+      "properties": {
+        "policyKey": { "$ref": "#/$defs/quotaStableKey" },
+        "policyVersion": { "$ref": "#/$defs/positiveVersion" },
+        "requiredPermission": { "$ref": "#/$defs/quotaStableKey" }
+      }
+    },
+    "quotaInventorySource": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "required": ["sourceKey", "sourceVersion"],
+      "properties": {
+        "sourceKey": { "$ref": "#/$defs/quotaStableKey" },
+        "sourceVersion": { "$ref": "#/$defs/positiveVersion" }
+      }
+    },
+    "quotaRemovalPolicy": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "required": ["policyKey", "policyVersion"],
+      "properties": {
+        "policyKey": { "$ref": "#/$defs/quotaStableKey" },
+        "policyVersion": { "$ref": "#/$defs/positiveVersion" }
       }
     },
     "quotaStableKey": {
