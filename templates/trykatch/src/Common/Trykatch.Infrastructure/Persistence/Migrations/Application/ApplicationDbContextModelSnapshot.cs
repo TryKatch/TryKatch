@@ -68,6 +68,33 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.ToTable("audit_entries", "platform");
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Caching.CacheInvalidation", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("KeyHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("Generation")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("OrganizationId", "KeyHash");
+
+                    b.HasIndex("OrganizationId", "UpdatedAtUtc");
+
+                    b.ToTable("cache_invalidations", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_cache_invalidations_generation", "\"Generation\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_cache_invalidations_hash", "\"KeyHash\" ~ '^[0-9a-f]{64}$'");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Infrastructure.Execution.ModuleEventDelivery", b =>
                 {
                     b.Property<Guid>("Id")

@@ -100,6 +100,7 @@ internal static class PostgresRuntimeRoleFixture
             GRANT INSERT ON platform.audit_intents TO {OrganizationRole};
             GRANT INSERT ON platform.outbox_messages TO {OrganizationRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects, app.documents TO {OrganizationRole};
+            GRANT SELECT, INSERT, UPDATE ON app.cache_invalidations TO {OrganizationRole};
 
             GRANT USAGE ON SCHEMA platform TO {PlatformRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON platform.organizations,

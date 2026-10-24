@@ -19,6 +19,7 @@ internal static class HostPostgresPolicyContracts
 
     private const string Organization = "(\"OrganizationId\" = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)";
     private const string Actor = "(\"ActorId\" = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)";
+    private const string CacheActor = "((NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid <> '00000000-0000-0000-0000-000000000000'::uuid)";
     private const string OutboxWorker = "(CURRENT_USER = 'trykatch_outbox_worker'::name)";
     private const string PlatformRuntime = "(CURRENT_USER = 'trykatch_platform_runtime'::name)";
     private const string Coordinator = "(CURRENT_USER = 'trykatch_work_coordinator'::name)";
@@ -41,6 +42,12 @@ internal static class HostPostgresPolicyContracts
     {
         Dictionary<string, Policy[]> policies = new(StringComparer.Ordinal)
     {
+        ["app.cache_invalidations"] =
+        [
+            new("cache_invalidations_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("cache_invalidations_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"]),
+            new("cache_invalidations_update", "w", Organization, $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
         ["infrastructure.email_deliveries"] =
         [
             new("email_deliveries_append", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
