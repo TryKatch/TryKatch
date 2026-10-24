@@ -1,6 +1,26 @@
 using Trykatch.Application.Common;
+using Trykatch.Modules;
 
 namespace Trykatch.Application.Features;
+
+/// <summary>Immutable server configuration; callers cannot choose an environment.</summary>
+public sealed record FeaturePolicySettings(string Environment, IReadOnlySet<string> Disabled,
+    IReadOnlyDictionary<string, bool> Defaults);
+
+public sealed record FeatureAdministrationItem(string ModuleId, ModuleFeatureDescriptor Declaration,
+    bool DeploymentDisabled, bool? ConfiguredDefault, FeatureControlState EnvironmentControl,
+    FeatureControlState? OrganizationControl);
+
+public sealed record FeatureAdministrationSnapshot(string Environment, Guid? OrganizationId,
+    IReadOnlyList<FeatureAdministrationItem> Items);
+
+public sealed record OrganizationFeatureSnapshot(Guid OrganizationId, DateTimeOffset EvaluatedAtUtc,
+    IReadOnlyDictionary<string, bool> Values);
+
+public interface IOrganizationFeatureSnapshotReader
+{
+    Task<OrganizationFeatureSnapshot> ReadAsync(CancellationToken ct);
+}
 
 public sealed record FeatureControlTarget(string FeatureKey, Guid? OrganizationId = null);
 public sealed record SaveEnvironmentFeatureControl(bool? DefaultEnabled, bool ForceDisabled, Guid ExpectedVersion);

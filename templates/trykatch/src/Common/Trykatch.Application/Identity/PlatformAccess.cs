@@ -19,6 +19,8 @@ public static class PlatformPermissions
     public const string JobsRead = "platform.jobs.read";
     public const string JobsManage = "platform.jobs.manage";
     public const string EmailRead = "platform.email.read";
+    public const string FeaturesRead = "platform.features.read";
+    public const string FeaturesManage = "platform.features.manage";
 
     public static readonly IReadOnlyList<PlatformPermissionModuleDefinition> Modules =
     [
@@ -50,6 +52,11 @@ public static class PlatformPermissions
         [
             new(JobsRead, "View module work", "View bounded operational job metadata.", false),
             new(JobsManage, "Manage module work", "Pause, resume and request controlled retries.", true)
+        ]),
+        new("features", "Feature availability", "Control installed features in this environment and organization workspaces.",
+        [
+            new(FeaturesRead, "View feature controls", "View feature policy values and change history.", false),
+            new(FeaturesManage, "Manage feature controls", "Change feature defaults, force-disable controls and organization overrides.", true)
         ]),
         new("email", "Email delivery", "Inspect safe delivery status and synthetic template previews.",
         [

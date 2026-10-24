@@ -3778,6 +3778,44 @@
         ]
       }
     },
+    "/api/v1/features": {
+      "get": {
+        "tags": [
+          "OrganizationFeatures"
+        ],
+        "summary": "Current features",
+        "operationId": "Features_Current",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationFeatureSnapshot"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationFeatureSnapshot"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationFeatureSnapshot"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/features', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/tenants": {
       "get": {
         "tags": [
@@ -4566,6 +4604,281 @@
             "lang": "TypeScript",
             "label": "TypeScript · fetch",
             "source": "const response = await fetch('/api/v1/platform/outbox/replay-requests/{requestId}', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/features": {
+      "get": {
+        "tags": [
+          "PlatformFeatures"
+        ],
+        "summary": "List platform features",
+        "operationId": "PlatformFeatures_List",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureAdministrationSnapshot"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureAdministrationSnapshot"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureAdministrationSnapshot"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/features', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/features/{featureKey}/history": {
+      "get": {
+        "tags": [
+          "PlatformFeatures"
+        ],
+        "summary": "History platform features",
+        "operationId": "PlatformFeatures_History",
+        "parameters": [
+          {
+            "name": "featureKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "organizationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfFeatureControlHistoryEntry"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfFeatureControlHistoryEntry"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfFeatureControlHistoryEntry"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/features/{featureKey}/history', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/features/{featureKey}/environment": {
+      "put": {
+        "tags": [
+          "PlatformFeatures"
+        ],
+        "summary": "Save environment platform features",
+        "operationId": "PlatformFeatures_SaveEnvironment",
+        "parameters": [
+          {
+            "name": "featureKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveEnvironmentFeatureControl"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveEnvironmentFeatureControl"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveEnvironmentFeatureControl"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/features/{featureKey}/environment', {\n  method: 'PUT',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/features/{featureKey}/organizations/{organizationId}": {
+      "put": {
+        "tags": [
+          "PlatformFeatures"
+        ],
+        "summary": "Save organization platform features",
+        "operationId": "PlatformFeatures_SaveOrganization",
+        "parameters": [
+          {
+            "name": "featureKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveOrganizationFeatureOverride"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveOrganizationFeatureOverride"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveOrganizationFeatureOverride"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/features/{featureKey}/organizations/{organizationId}', {\n  method: 'PUT',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ]
       }
@@ -6324,6 +6637,193 @@
           }
         }
       },
+      "FeatureAdministrationItem": {
+        "required": [
+          "moduleId",
+          "declaration",
+          "deploymentDisabled",
+          "configuredDefault",
+          "environmentControl",
+          "organizationControl"
+        ],
+        "type": "object",
+        "properties": {
+          "moduleId": {
+            "type": "string"
+          },
+          "declaration": {
+            "$ref": "#/components/schemas/ModuleFeatureDescriptor"
+          },
+          "deploymentDisabled": {
+            "type": "boolean"
+          },
+          "configuredDefault": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "environmentControl": {
+            "$ref": "#/components/schemas/FeatureControlState"
+          },
+          "organizationControl": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FeatureControlState"
+              }
+            ]
+          }
+        }
+      },
+      "FeatureAdministrationSnapshot": {
+        "required": [
+          "environment",
+          "organizationId",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureAdministrationItem"
+            }
+          }
+        }
+      },
+      "FeatureControlHistoryEntry": {
+        "required": [
+          "id",
+          "target",
+          "actorId",
+          "previousVersion",
+          "version",
+          "previousEnabled",
+          "enabled",
+          "previousForceDisabled",
+          "forceDisabled",
+          "changedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "target": {
+            "$ref": "#/components/schemas/FeatureControlTarget"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previousVersion": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previousEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "enabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "previousForceDisabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "forceDisabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "changedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FeatureControlState": {
+        "required": [
+          "target",
+          "enabled",
+          "forceDisabled",
+          "version",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/FeatureControlTarget"
+          },
+          "enabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "forceDisabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updatedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "FeatureControlTarget": {
+        "required": [
+          "featureKey"
+        ],
+        "type": "object",
+        "properties": {
+          "featureKey": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "ForgotPasswordRequest": {
         "required": [
           "email"
@@ -6807,6 +7307,29 @@
           }
         }
       },
+      "ModuleFeatureDescriptor": {
+        "required": [
+          "key",
+          "name",
+          "description",
+          "defaultEnabled"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "defaultEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "ModuleRealtimeAudience": {
         "required": [
           "policy",
@@ -7193,6 +7716,30 @@
           }
         }
       },
+      "OrganizationFeatureSnapshot": {
+        "required": [
+          "organizationId",
+          "evaluatedAtUtc",
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "evaluatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
       "OutboxFailure": {
         "required": [
           "messageId",
@@ -7384,6 +7931,47 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/EmailTemplateView"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "PagedResultOfFeatureControlHistoryEntry": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureControlHistoryEntry"
             }
           },
           "page": {
@@ -8174,6 +8762,48 @@
           }
         }
       },
+      "SaveEnvironmentFeatureControl": {
+        "required": [
+          "defaultEnabled",
+          "forceDisabled",
+          "expectedVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "defaultEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "forceDisabled": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SaveOrganizationFeatureOverride": {
+        "required": [
+          "enabled",
+          "expectedVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "expectedVersion": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "SavePlatformRoleRequest": {
         "required": [
           "name",
@@ -8630,6 +9260,9 @@
       "name": "OrganizationAdministration"
     },
     {
+      "name": "OrganizationFeatures"
+    },
+    {
       "name": "Organizations"
     },
     {
@@ -8637,6 +9270,9 @@
     },
     {
       "name": "OutboxRecovery"
+    },
+    {
+      "name": "PlatformFeatures"
     },
     {
       "name": "PlatformUsers"

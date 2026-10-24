@@ -54,6 +54,8 @@ import type {
   EmailTemplatePreview,
   EmailTemplatesListParams,
   EmailTemplatesPreviewParams,
+  FeatureAdministrationSnapshot,
+  FeatureControlState,
   ForgotPasswordRequest,
   ForgotPasswordResponse,
   GrantPlatformAccessRequest,
@@ -78,6 +80,7 @@ import type {
   OrganizationAiConfiguration,
   OrganizationAiConnectionResult,
   OrganizationDto,
+  OrganizationFeatureSnapshot,
   OrganizationsListParams,
   OutboxListFailuresParams,
   OutboxListModuleDeliveriesParams,
@@ -87,6 +90,7 @@ import type {
   OutboxReplayRequestBody,
   PagedResultOfEmailDeliveryView,
   PagedResultOfEmailTemplateView,
+  PagedResultOfFeatureControlHistoryEntry,
   PagedResultOfModuleEventDeliveryView,
   PagedResultOfModuleWorkView,
   PagedResultOfOrganizationDto,
@@ -98,6 +102,8 @@ import type {
   PlatformAccessGrant,
   PlatformAccessUser,
   PlatformActivationTokenResponse,
+  PlatformFeaturesHistoryParams,
+  PlatformFeaturesListParams,
   PlatformPermissionModuleDefinition,
   PlatformRoleDefinition,
   PlatformUsersListParams,
@@ -112,6 +118,8 @@ import type {
   ResetPasswordRequest,
   RoleDto,
   RolesListParams,
+  SaveEnvironmentFeatureControl,
+  SaveOrganizationFeatureOverride,
   SavePlatformRoleRequest,
   SaveRoleCommand,
   SelectWorkspaceRequest,
@@ -6701,6 +6709,107 @@ export function useAuditList<TData = Awaited<ReturnType<typeof auditList>>, TErr
 
 
 
+export const getFeaturesCurrentUrl = () => {
+
+
+
+
+  return `/api/v1/features`
+}
+
+/**
+ * @summary Current features
+ */
+export const featuresCurrent = async ( options?: Parameters<typeof customFetch>[1]): Promise<OrganizationFeatureSnapshot> => {
+
+  return customFetch<OrganizationFeatureSnapshot>(getFeaturesCurrentUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getFeaturesCurrentQueryKey = () => {
+    return [
+    `/api/v1/features`
+    ] as const;
+    }
+
+
+export const getFeaturesCurrentQueryOptions = <TData = Awaited<ReturnType<typeof featuresCurrent>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof featuresCurrent>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getFeaturesCurrentQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof featuresCurrent>>> = ({ signal }) => featuresCurrent({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof featuresCurrent>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type FeaturesCurrentQueryResult = NonNullable<Awaited<ReturnType<typeof featuresCurrent>>>
+export type FeaturesCurrentQueryError = unknown
+
+
+export function useFeaturesCurrent<TData = Awaited<ReturnType<typeof featuresCurrent>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof featuresCurrent>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof featuresCurrent>>,
+          TError,
+          Awaited<ReturnType<typeof featuresCurrent>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useFeaturesCurrent<TData = Awaited<ReturnType<typeof featuresCurrent>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof featuresCurrent>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof featuresCurrent>>,
+          TError,
+          Awaited<ReturnType<typeof featuresCurrent>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useFeaturesCurrent<TData = Awaited<ReturnType<typeof featuresCurrent>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof featuresCurrent>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Current features
+ */
+
+export function useFeaturesCurrent<TData = Awaited<ReturnType<typeof featuresCurrent>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof featuresCurrent>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getFeaturesCurrentQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getOrganizationsListUrl = (params?: OrganizationsListParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -7917,6 +8026,410 @@ export function useOutboxGetReplayOutcome<TData = Awaited<ReturnType<typeof outb
 
 
 
+
+export const getPlatformFeaturesListUrl = (params?: PlatformFeaturesListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/platform/features?${stringifiedParams}` : `/api/v1/platform/features`
+}
+
+/**
+ * @summary List platform features
+ */
+export const platformFeaturesList = async (params?: PlatformFeaturesListParams, options?: Parameters<typeof customFetch>[1]): Promise<FeatureAdministrationSnapshot> => {
+
+  return customFetch<FeatureAdministrationSnapshot>(getPlatformFeaturesListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPlatformFeaturesListQueryKey = (params?: PlatformFeaturesListParams,) => {
+    return [
+    `/api/v1/platform/features`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getPlatformFeaturesListQueryOptions = <TData = Awaited<ReturnType<typeof platformFeaturesList>>, TError = unknown>(params?: PlatformFeaturesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPlatformFeaturesListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof platformFeaturesList>>> = ({ signal }) => platformFeaturesList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PlatformFeaturesListQueryResult = NonNullable<Awaited<ReturnType<typeof platformFeaturesList>>>
+export type PlatformFeaturesListQueryError = unknown
+
+
+export function usePlatformFeaturesList<TData = Awaited<ReturnType<typeof platformFeaturesList>>, TError = unknown>(
+ params: undefined |  PlatformFeaturesListParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof platformFeaturesList>>,
+          TError,
+          Awaited<ReturnType<typeof platformFeaturesList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePlatformFeaturesList<TData = Awaited<ReturnType<typeof platformFeaturesList>>, TError = unknown>(
+ params?: PlatformFeaturesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof platformFeaturesList>>,
+          TError,
+          Awaited<ReturnType<typeof platformFeaturesList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePlatformFeaturesList<TData = Awaited<ReturnType<typeof platformFeaturesList>>, TError = unknown>(
+ params?: PlatformFeaturesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List platform features
+ */
+
+export function usePlatformFeaturesList<TData = Awaited<ReturnType<typeof platformFeaturesList>>, TError = unknown>(
+ params?: PlatformFeaturesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPlatformFeaturesListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPlatformFeaturesHistoryUrl = (featureKey: string,
+    params?: PlatformFeaturesHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/platform/features/${featureKey}/history?${stringifiedParams}` : `/api/v1/platform/features/${featureKey}/history`
+}
+
+/**
+ * @summary History platform features
+ */
+export const platformFeaturesHistory = async (featureKey: string,
+    params?: PlatformFeaturesHistoryParams, options?: Parameters<typeof customFetch>[1]): Promise<PagedResultOfFeatureControlHistoryEntry> => {
+
+  return customFetch<PagedResultOfFeatureControlHistoryEntry>(getPlatformFeaturesHistoryUrl(featureKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPlatformFeaturesHistoryQueryKey = (featureKey: string,
+    params?: PlatformFeaturesHistoryParams,) => {
+    return [
+    `/api/v1/platform/features/${featureKey}/history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getPlatformFeaturesHistoryQueryOptions = <TData = Awaited<ReturnType<typeof platformFeaturesHistory>>, TError = unknown>(featureKey: string,
+    params?: PlatformFeaturesHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPlatformFeaturesHistoryQueryKey(featureKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof platformFeaturesHistory>>> = ({ signal }) => platformFeaturesHistory(featureKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: featureKey !== null && featureKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesHistory>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PlatformFeaturesHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof platformFeaturesHistory>>>
+export type PlatformFeaturesHistoryQueryError = unknown
+
+
+export function usePlatformFeaturesHistory<TData = Awaited<ReturnType<typeof platformFeaturesHistory>>, TError = unknown>(
+ featureKey: string,
+    params: undefined |  PlatformFeaturesHistoryParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesHistory>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof platformFeaturesHistory>>,
+          TError,
+          Awaited<ReturnType<typeof platformFeaturesHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePlatformFeaturesHistory<TData = Awaited<ReturnType<typeof platformFeaturesHistory>>, TError = unknown>(
+ featureKey: string,
+    params?: PlatformFeaturesHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesHistory>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof platformFeaturesHistory>>,
+          TError,
+          Awaited<ReturnType<typeof platformFeaturesHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePlatformFeaturesHistory<TData = Awaited<ReturnType<typeof platformFeaturesHistory>>, TError = unknown>(
+ featureKey: string,
+    params?: PlatformFeaturesHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary History platform features
+ */
+
+export function usePlatformFeaturesHistory<TData = Awaited<ReturnType<typeof platformFeaturesHistory>>, TError = unknown>(
+ featureKey: string,
+    params?: PlatformFeaturesHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof platformFeaturesHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPlatformFeaturesHistoryQueryOptions(featureKey,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPlatformFeaturesSaveEnvironmentUrl = (featureKey: string,) => {
+
+
+
+
+  return `/api/v1/platform/features/${featureKey}/environment`
+}
+
+/**
+ * @summary Save environment platform features
+ */
+export const platformFeaturesSaveEnvironment = async (featureKey: string,
+    saveEnvironmentFeatureControl: SaveEnvironmentFeatureControl, options?: Parameters<typeof customFetch>[1]): Promise<FeatureControlState> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<FeatureControlState>(getPlatformFeaturesSaveEnvironmentUrl(featureKey),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveEnvironmentFeatureControl)
+  }
+);}
+
+
+
+
+
+export const getPlatformFeaturesSaveEnvironmentMutationKey = () => ['platformFeaturesSaveEnvironment'] as const;
+
+export const getPlatformFeaturesSaveEnvironmentMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof platformFeaturesSaveEnvironment>>, TError,PlatformFeaturesSaveEnvironmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof platformFeaturesSaveEnvironment>>, TError,PlatformFeaturesSaveEnvironmentMutationVariables, TContext> => {
+
+const mutationKey = getPlatformFeaturesSaveEnvironmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof platformFeaturesSaveEnvironment>>, PlatformFeaturesSaveEnvironmentMutationVariables> = (props) => {
+          const {featureKey,data} = props ?? {};
+
+          return  platformFeaturesSaveEnvironment(featureKey,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PlatformFeaturesSaveEnvironmentMutationResult = NonNullable<Awaited<ReturnType<typeof platformFeaturesSaveEnvironment>>>
+    export type PlatformFeaturesSaveEnvironmentMutationBody = SaveEnvironmentFeatureControl
+    export type PlatformFeaturesSaveEnvironmentMutationError = unknown
+    export type PlatformFeaturesSaveEnvironmentMutationVariables = {featureKey: string;data: SaveEnvironmentFeatureControl}
+
+    /**
+ * @summary Save environment platform features
+ */
+export const usePlatformFeaturesSaveEnvironment = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof platformFeaturesSaveEnvironment>>, TError,PlatformFeaturesSaveEnvironmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof platformFeaturesSaveEnvironment>>,
+        TError,
+        PlatformFeaturesSaveEnvironmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPlatformFeaturesSaveEnvironmentMutationOptions(options), queryClient);
+    }
+
+export const getPlatformFeaturesSaveOrganizationUrl = (featureKey: string,
+    organizationId: string,) => {
+
+
+
+
+  return `/api/v1/platform/features/${featureKey}/organizations/${organizationId}`
+}
+
+/**
+ * @summary Save organization platform features
+ */
+export const platformFeaturesSaveOrganization = async (featureKey: string,
+    organizationId: string,
+    saveOrganizationFeatureOverride: SaveOrganizationFeatureOverride, options?: Parameters<typeof customFetch>[1]): Promise<FeatureControlState> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<FeatureControlState>(getPlatformFeaturesSaveOrganizationUrl(featureKey,organizationId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveOrganizationFeatureOverride)
+  }
+);}
+
+
+
+
+
+export const getPlatformFeaturesSaveOrganizationMutationKey = () => ['platformFeaturesSaveOrganization'] as const;
+
+export const getPlatformFeaturesSaveOrganizationMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof platformFeaturesSaveOrganization>>, TError,PlatformFeaturesSaveOrganizationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof platformFeaturesSaveOrganization>>, TError,PlatformFeaturesSaveOrganizationMutationVariables, TContext> => {
+
+const mutationKey = getPlatformFeaturesSaveOrganizationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof platformFeaturesSaveOrganization>>, PlatformFeaturesSaveOrganizationMutationVariables> = (props) => {
+          const {featureKey,organizationId,data} = props ?? {};
+
+          return  platformFeaturesSaveOrganization(featureKey,organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PlatformFeaturesSaveOrganizationMutationResult = NonNullable<Awaited<ReturnType<typeof platformFeaturesSaveOrganization>>>
+    export type PlatformFeaturesSaveOrganizationMutationBody = SaveOrganizationFeatureOverride
+    export type PlatformFeaturesSaveOrganizationMutationError = unknown
+    export type PlatformFeaturesSaveOrganizationMutationVariables = {featureKey: string;organizationId: string;data: SaveOrganizationFeatureOverride}
+
+    /**
+ * @summary Save organization platform features
+ */
+export const usePlatformFeaturesSaveOrganization = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof platformFeaturesSaveOrganization>>, TError,PlatformFeaturesSaveOrganizationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof platformFeaturesSaveOrganization>>,
+        TError,
+        PlatformFeaturesSaveOrganizationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPlatformFeaturesSaveOrganizationMutationOptions(options), queryClient);
+    }
 
 export const getPlatformUsersListUrl = (params?: PlatformUsersListParams,) => {
   const normalizedParams = new URLSearchParams();

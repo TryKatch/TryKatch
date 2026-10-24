@@ -2,6 +2,7 @@ using Trykatch.Application.Execution;
 using Trykatch.Application.Realtime;
 using Trykatch.Application.Eventing;
 using Trykatch.Infrastructure.Execution;
+using Trykatch.Infrastructure.Features;
 using Trykatch.Infrastructure.Caching;
 using Trykatch.Infrastructure.Realtime;
 using Trykatch.Infrastructure.Jobs;
@@ -57,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<CacheInvalidationCommitState>();
         services.AddScoped<CacheGenerationStore>();
         services.AddOrganizationCache(configuration, isOpenApiGeneration);
+        services.AddFeaturePolicy(configuration);
         services.AddScoped<CacheInvalidationTransactionInterceptor>();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));
         services.AddDbContext<OrganizationControlPlaneDbContext>((provider, options) => options

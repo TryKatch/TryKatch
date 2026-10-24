@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 declarations, precedence and control persistence are locally verified; request evaluation, enforcement, UI and final S4–S6 acceptance remain outstanding. This is not a release claim.
+Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 declarations, precedence, persistence, strict administration APIs and current-organization evaluation are locally verified; Projects/HTTP/replay/realtime enforcement, UI and final S4–S6 acceptance remain outstanding. This is not a release claim.
 
 ## S1 — Scoped organization cache
 
@@ -55,7 +55,7 @@ The approved platform-services roadmap remains the source for later scope. This 
 | --- | --- | --- |
 | S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Verified and merged in PR #135 as `b919234`; qualification below. |
 | S3 | Transaction-aware mutation idempotency | Verified and merged in PR #136 as `a3f19df`; qualification below. |
-| S4 | Installed-feature availability and runtime policy evaluation | Declarations, precedence and control persistence verified locally; request evaluation, enforcement, UI and final qualification remain outstanding. |
+| S4 | Installed-feature availability and runtime policy evaluation | Declarations, precedence, persistence, strict administration APIs and current-organization evaluation verified locally; Projects enforcement, UI and final qualification remain outstanding. |
 | S5 | Entitlement projection, quota reservation, and organization throttling | Planned; no S5 implementation evidence here. |
 | S6 | Permission reconciliation for existing organizations | Planned; no S6 implementation evidence here. |
 
@@ -325,3 +325,14 @@ The scoped store requires its current actor and actual platform-profile ReadComm
 Local evidence passes five real migration/role cases, five real store cases, 165 focused unit cases and 38 SDK cases, all with zero skips. The 46-case existing migration/inspector/provisioner/role regression group also passes; its failure-injection case is expanded to prove an existing control value/version survives failed update history. Focused follow-ups prove different-actor contention, unknown-parent FK rejection and deletion restrictions for both overrides and history. The minimal inspector fixture retains its catalog/policy scope; actual migrator tests establish directory FK behavior. A .NET-only terminal-newline key validation mismatch is corrected with failing-then-passing catalog/CLI regressions; the web check already rejects it.
 
 These results establish storage and pure precedence. Strict current platform authority, one-statement current-organization evaluation, API/use-case/replay/realtime gates and the operator/browser UI remain Tasks 2–4. No cache fallback, permission grant, entitlement or release claim is added.
+
+
+### Strict administration and organization evaluation checkpoint
+
+Five stable operations expose the current organization snapshot and platform control list/history/environment/organization saves. The server derives actor and normalized environment; snapshot responses contain only organization ID, evaluation time and declared feature values. Platform use cases use the strict current Identity authority reader, independently check features.read/features.manage, and reread authority after one immediate target-lock attempt. Busy and stale-version results return distinct 409 codes without automatic save retry. Existing role authoring still adds read when manage is selected; the actual stored permission remains the application boundary. No feature permission grants organization-directory browsing or membership.
+
+Each organization evaluation reads the environment control and its own override in one PostgreSQL statement, guarded by the actual organization profile, actor and ReadCommitted transaction. Declarations and immutable deployment settings supply the remaining precedence layers. Unknown/absent features are unavailable. No cache supplies or retains an enabled decision: an unavailable policy source returns 503 `feature_policy_unavailable`, cancellation propagates, and an unavailable actual L2 cache boundary does not change feature results. Control changes are observed on the next evaluation.
+
+Test-first evidence is recorded in the refined S4 plan. Final focused coverage passes 43 unit cases; the ten new PostgreSQL/HTTP cases are qualified through the initial eight passes plus the two corrected focused passes, all with zero skips. Those corrections preserve the existing role-editor normalization and support the hosting provider's verified empty-parent configuration marker while retaining strict typed-child validation. Tests cover identity revocation/suspension/unconfirmed/passwordless/legacy-only rejection, busy and authority revocation at admission with zero effects, current-org isolation, precedence, policy outage/recovery, cancellation, cookie CSRF, CAS and history rollback. The 13 selected existing atomic-response, module-antiforgery and platform-access regressions pass.
+
+The actual API build and normal OpenAPI/client/assistant generation add exactly `Features_Current` and four `PlatformFeatures_*` operations, changing no existing operation or schema and adding no assistant tool. Generated client and host TypeScript checks pass. These are local Task 2 results; Projects/use-case/replay/realtime gates, UI, packed qualification, the single integrated S4 review and exact-head CI/merge remain pending.
