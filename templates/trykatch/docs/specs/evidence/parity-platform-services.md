@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234` after successful exact-head CI and dependency review. S3 receipt/HTTP authority, failure/crash recovery and renamed packed products are locally qualified below. The single integrated review is complete and its substantive callback finding is fixed with focused evidence and fresh final packed qualification. Exact-head CI and merge remain pending. This is not a release claim.
+Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 planning has started; S4–S6 runtime acceptance remains outstanding. This is not a release claim.
 
 ## S1 — Scoped organization cache
 
@@ -53,9 +53,9 @@ The approved platform-services roadmap remains the source for later scope. This 
 
 | Slice | Planned capability | Status |
 | --- | --- | --- |
-| S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Implementation started after S1 merge; application acceptance remains pending. |
-| S3 | Transaction-aware mutation idempotency | Planned; no S3 implementation evidence here. |
-| S4 | Installed-feature availability and runtime policy evaluation | Planned; no S4 implementation evidence here. |
+| S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Verified and merged in PR #135 as `b919234`; qualification below. |
+| S3 | Transaction-aware mutation idempotency | Verified and merged in PR #136 as `a3f19df`; qualification below. |
+| S4 | Installed-feature availability and runtime policy evaluation | Refined plan adopted; implementation and qualification remain outstanding. |
 | S5 | Entitlement projection, quota reservation, and organization throttling | Planned; no S5 implementation evidence here. |
 | S6 | Permission reconciliation for existing organizations | Planned; no S6 implementation evidence here. |
 
@@ -301,3 +301,7 @@ At `ed382bd`, CI `40103404893` passes the two NGINX checks but Vite fails the de
 The outbox polls after five seconds, module delivery waits one second between batches, the relay polls each second, and periodic browser repair runs every 15 seconds. Five seconds cannot cover that staged delivery. Both Beta and Alpha now use the same authorized replacement-subscription gate before publication, require a subsequent actual notification within 30 seconds, and require current domain rows within 90 seconds for the existing request window plus repair. Returning Alpha's positive row checks use that same domain bound. The complete journey cap is five minutes to allow those bounded request windows; no condition is skipped, no admitted mutation is retried, and no production limiter, worker interval or lifecycle is changed. The existing Vite failure is the runtime regression. Fresh final packaged qualification and new exact-head CI are required.
 
 Fresh actual CLI/template output in `trykatch-generated-application.frYwfP` passes the complete affected harness: NGINX two checks, Vite two checks, and module removal one check, with zero failures/skips and exit0 (`realtime-delivery-boundaries-packed.log`). Both switched workspaces now prove actual subscription and notification before their successful domain assertions. The module-absent restart retains committed history and denies absent routes. Compose cleanup completes. CI `40103404893` also completes the unchanged backend with 839 host units and 619 integration cases, zero skips; only the earlier realtime acceptance failure and its aggregate gate are red. This is supporting backend evidence, not a substitute for new exact-head CI. Lead diff inspection and `git diff --check` pass; merge remains gated on that new run.
+
+### S3 acceptance
+
+[Final template CI](https://github.com/TryKatch/TryKatch/actions/runs/40105161282) succeeds on `486baee`: 18 jobs pass and only deployment/observability are intentionally scope-skipped. All 839 host unit, 27 architecture, 39 module unit and 619 integration cases pass with zero skips. All five actual generated realtime browser checks pass through NGINX, Vite and module removal. Dependency review and both preview contexts pass. The lead verifies the current PR head/base and clean worktree, squash-merges [PR #136](https://github.com/TryKatch/TryKatch/pull/136) with the head guard at15:25:53UTC, and confirms fetched merge `a3f19df` has exactly the tested tree. S3 is complete. Earlier failed runs above remain historical evidence; no release or production HA claim is added.
