@@ -24,6 +24,8 @@ internal static partial class Program
     {
         if (args is ["realtime-host"])
             return await RealtimeHost.RunAsync();
+        if (args is ["local-storage"])
+            return await LocalStorageHost.RunAsync();
 
         if (args.Length != 1 || args[0] is not ("producer" or "worker" or "cache-reader"))
         {

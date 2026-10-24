@@ -1,13 +1,13 @@
 # ADR 0022: Organization quotas and provisional upload fencing
 
-Status: Architecture decision for S5; reconciled against merged S4 `d1c54d0`. Production implementation and composed qualification remain pending.
+Status: Architecture decision for S5; reconciled against merged S4 `d1c54d0`. Tasks1–4 contracts, quota engine, publication and conditional adapters are locally qualified. Durable uploads and composed qualification remain pending.
 Date: 2026-10-24.
 
 ## Context
 
 The frozen parity contracts require module-neutral entitlement reading, reserve/commit/release, immutable usage, abandoned-work reconciliation and organization request throttling. PostgreSQL already supplies trusted organization transactions and five explicit runtime profiles. Documents writes object bytes before its metadata transaction commits; an in-memory rollback callback cannot recover a process crash or indeterminate outcome.
 
-The existing storage interface has PUT/GET/DELETE only. Six local tests against the pinned RustFS1.0.3 image establish conditional create/replacement, exact HEAD metadata/length, independent byte/hash reads, restart and actual successful-response loss. They also show that versioned storage retains noncurrent payload bytes after a zero-byte replacement. These are primitive qualifications, not completed quota or crash-safety proofs.
+The original storage interface had PUT/GET/DELETE only. Six local tests against the pinned RustFS1.0.3 image establish conditional create/replacement, exact HEAD metadata/length, independent byte/hash reads, restart and actual successful-response loss. They also show that versioned storage retains noncurrent payload bytes after a zero-byte replacement. Task4 adds qualified production conditional adapters and actual local subprocess checks. These layers do not establish the composed quota/upload lifecycle.
 
 ## Decisions
 
@@ -48,6 +48,8 @@ Expiry/technical cancellation first commits Fencing under the same resource lock
 Never delete the sentinel or reuse its key: a late initial writer must continue to lose create-if-absent. External lifecycle deletion of sentinels is incompatible with the qualified protocol. A storage namespace mismatch cannot silently target another endpoint, bucket or root. Versioned provider copies may remain physically stored; S5 neither purges nor bills those copies as committed document usage.
 
 The S3 adapter uses the qualified conditional operations and HEAD metadata without assuming ETag equals SHA-256. The local adapter must qualify atomic no-overwrite publication and cross-process compare/replacement with atomically consistent identity/data. A stat followed by ordinary overwrite, or a rename alone, is insufficient. Local multi-process support requires a coherent qualified filesystem/root; independent replica disks are not a shared object store.
+
+Task4 implements a bounded verified disk spool before visible publication, strict canonical `_module-uploads/v1/` keys, and raw PUT/DELETE refusal for the entire reserved namespace. S3 captures its endpoint/bucket, and local storage captures its normalized absolute root, for a credential-free namespace fingerprint. Local payload and identity share one bounded versioned envelope; reads expose the payload only. Cooperating writers hold a permanent hash-named per-key `FileShare.None` file, prove exclusion through an independent second open, and publish a closed same-filesystem staging file atomically. Never unlink or replace the lock inode. Known platform-specific contention is retried for at most two seconds; other lock failures refuse the operation. Conditional operations have a thirty-second cancellation deadline. This is qualified for process crash/restart on the exercised filesystem, not arbitrary filesystem behavior or power-loss durability. See [adapter operations](../operations/conditional-object-storage.md) ([français](../operations/conditional-object-storage.fr.md)).
 
 ### Inventory and bounded maintenance
 
