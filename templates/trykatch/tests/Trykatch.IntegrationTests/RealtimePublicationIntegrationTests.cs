@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
@@ -447,6 +446,11 @@ public sealed class RealtimePublicationIntegrationTests
 
     private sealed class RealtimeTestModule : IModule
     {
+        private readonly bool resourceVisibilityPolicy;
+
+        public RealtimeTestModule(bool resourceVisibilityPolicy) =>
+            this.resourceVisibilityPolicy = resourceVisibilityPolicy;
+
         public static ModuleOperationDescriptor Operation { get; } = new(
             "projects", OperationKey, 1, ModuleExecutionKind.CommittedEvent,
             "projects.realtime-test-payload", 1, [], "projects", GrantKey, 1024);
@@ -463,20 +467,26 @@ public sealed class RealtimePublicationIntegrationTests
             AllowedRealtimePolicies = [PolicyReference]
         };
 
+        private static ModuleDescriptor ProjectsDescriptor { get; } = new ProjectsModule().Descriptor;
         private readonly ProjectsModule projects = new();
 
-        public ModuleDescriptor Descriptor { get; } = new ProjectsModule().Descriptor with
+        public ModuleDescriptor Descriptor { get; } = ProjectsDescriptor with
         {
-            Operations = [.. new ProjectsModule().Descriptor.Operations, Operation],
-            SystemGrants = [Grant],
-            RealtimeAudiencePolicies = [Policy]
+            Operations = [.. ProjectsDescriptor.Operations, Operation],
+            SystemGrants = [.. ProjectsDescriptor.SystemGrants, Grant],
+            RealtimeAudiencePolicies = [.. ProjectsDescriptor.RealtimeAudiencePolicies, Policy]
         };
 
         public void Register(IServiceCollection services, IConfiguration configuration)
         {
             projects.Register(services, configuration);
-            services.AddScoped<ModuleRealtimeAudiencePolicyBinding>(_ =>
-                new(PolicyReference, new AllowAllAudiencePolicy()));
+            services.AddScoped<ModuleRealtimeAudiencePolicyBinding>(provider =>
+            {
+                IModuleRealtimeAudiencePolicy policy = resourceVisibilityPolicy
+                    ? new ResourceExistsAudiencePolicy(provider.GetRequiredService<ApplicationDbContext>())
+                    : new AllowAllAudiencePolicy();
+                return new(PolicyReference, policy);
+            });
         }
     }
 
@@ -547,14 +557,8 @@ public sealed class RealtimePublicationIntegrationTests
                 services.AddSingleton(configuration);
                 services.AddLogging();
                 services.AddApplication();
-                services.AddModules(configuration, [new RealtimeTestModule()]);
+                services.AddModules(configuration, [new RealtimeTestModule(resourceVisibilityPolicy)]);
                 services.AddInfrastructure(configuration, isDevelopment: true, isOpenApiGeneration: true);
-                if (resourceVisibilityPolicy)
-                {
-                    services.RemoveAll<ModuleRealtimeAudiencePolicyBinding>();
-                    services.AddScoped<ModuleRealtimeAudiencePolicyBinding>(provider => new(PolicyReference,
-                        new ResourceExistsAudiencePolicy(provider.GetRequiredService<ApplicationDbContext>())));
-                }
                 ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
                 return new(postgres, owner, provider);
             }

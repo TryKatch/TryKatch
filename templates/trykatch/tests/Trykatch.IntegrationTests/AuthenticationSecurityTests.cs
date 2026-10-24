@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using OpenIddict.Abstractions;
 using Shouldly;
 using Testcontainers.PostgreSql;
@@ -37,6 +38,11 @@ public sealed partial class AuthenticationSecurityTests
         await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
         await postgres.StartAsync();
         await ApplyMigrationsAsync(postgres.GetConnectionString());
+        string workCoordinator = new NpgsqlConnectionStringBuilder(postgres.GetConnectionString())
+        {
+            Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+            Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+        }.ConnectionString;
 
         await using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(webHost =>
@@ -45,9 +51,11 @@ public sealed partial class AuthenticationSecurityTests
                 // AddInfrastructure reads the connection string while Program is registering
                 // services, before late application-configuration callbacks are applied.
                 webHost.UseSetting("ConnectionStrings:trykatchdb", postgres.GetConnectionString());
+                webHost.UseSetting("ConnectionStrings:trykatch-work", workCoordinator);
                 webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:trykatchdb"] = postgres.GetConnectionString(),
+                    ["ConnectionStrings:trykatch-work"] = workCoordinator,
                     ["Bootstrap:PlatformAdminEmail"] = AdministratorEmail,
                     ["Bootstrap:PlatformAdminPassword"] = AdministratorPassword,
                     ["OpenIddict:Clients:0:ClientId"] = "automation-tests",

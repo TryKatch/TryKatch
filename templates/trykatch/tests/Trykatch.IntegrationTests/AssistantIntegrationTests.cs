@@ -41,6 +41,11 @@ public sealed class AssistantIntegrationTests
         await postgres.StartAsync();
         string owner = postgres.GetConnectionString();
         (string organization, string platform, string identity, string outbox) = await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(owner);
+        string workCoordinator = new NpgsqlConnectionStringBuilder(owner)
+        {
+            Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+            Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+        }.ConnectionString;
         IModule[] modules = global::Trykatch.Api.Modules.EnabledModules.All.ToArray();
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:trykatchdb"] = identity }).Build();
         await MigrateAsync(owner, configuration, modules);
@@ -58,6 +63,7 @@ public sealed class AssistantIntegrationTests
             host.UseSetting("ConnectionStrings:trykatch-platform", platform);
             host.UseSetting("ConnectionStrings:trykatch-identity", identity);
             host.UseSetting("ConnectionStrings:trykatch-outbox", outbox);
+            host.UseSetting("ConnectionStrings:trykatch-work", workCoordinator);
             host.ConfigureAppConfiguration((_, settings) => settings.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:trykatchdb"] = organization,
@@ -65,6 +71,7 @@ public sealed class AssistantIntegrationTests
                 ["ConnectionStrings:trykatch-platform"] = platform,
                 ["ConnectionStrings:trykatch-identity"] = identity,
                 ["ConnectionStrings:trykatch-outbox"] = outbox,
+                ["ConnectionStrings:trykatch-work"] = workCoordinator,
                 ["Bootstrap:PlatformAdminEmail"] = "assistant-platform@trykatch.test",
                 ["Bootstrap:PlatformAdminPassword"] = Password,
                 ["DevelopmentDemo:Enabled"] = "true",

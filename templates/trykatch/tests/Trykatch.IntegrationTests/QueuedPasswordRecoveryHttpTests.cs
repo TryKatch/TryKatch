@@ -8,10 +8,12 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Trykatch.Api.Controllers;
@@ -195,6 +197,17 @@ public sealed partial class AuthenticationSecurityTests
         {
             host.UseEnvironment("Development");
             host.UseSetting("ConnectionStrings:trykatchdb", connection);
+            string workCoordinator = new NpgsqlConnectionStringBuilder(connection)
+            {
+                Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+                Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+            }.ConnectionString;
+            host.UseSetting("ConnectionStrings:trykatch-work", workCoordinator);
+            host.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:trykatch-work"] = workCoordinator
+                }));
             host.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IIdentitySecurityEmailSubmission>();

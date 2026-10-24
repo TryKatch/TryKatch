@@ -413,7 +413,9 @@ public sealed partial class OutboxRecoveryIntegrationTests
             { Content = JsonContent.Create(new { }) };
             suspend.Headers.Add("X-CSRF-TOKEN", administratorToken);
             (await administrator.SendAsync(suspend)).StatusCode.ShouldBe(HttpStatusCode.OK);
-            (await operatorClient.GetAsync("/api/v1/platform/outbox/failures")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+            (await operatorClient.GetAsync("/api/v1/platform/outbox/failures")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+            using HttpClient suspendedOperator = await host.SignInAsync("outbox-operator@trykatch.test");
+            (await suspendedOperator.GetAsync("/api/v1/platform/outbox/failures")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
     }
 
@@ -454,6 +456,9 @@ public sealed partial class OutboxRecoveryIntegrationTests
             suspend.Headers.Add("X-CSRF-TOKEN", administratorToken);
             (await administrator.SendAsync(suspend)).StatusCode.ShouldBe(HttpStatusCode.OK);
             (await operatorClient.GetAsync("/api/v1/platform/outbox/module-deliveries")).StatusCode
+                .ShouldBe(HttpStatusCode.Unauthorized);
+            using HttpClient suspendedOperator = await host.SignInAsync("delivery-operator@trykatch.test");
+            (await suspendedOperator.GetAsync("/api/v1/platform/outbox/module-deliveries")).StatusCode
                 .ShouldBe(HttpStatusCode.Forbidden);
         }
     }
