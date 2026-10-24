@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { customFetch } from '@trykatch/api-client'
+import { customFetch, getWorkspaceCurrentQueryKey, workspaceCurrent } from '@trykatch/api-client'
 import { Badge, Button, DataTable, DeleteConfirmationDialog, EmptyState, PageHeader, RowActions, Skeleton, Surface, type DataTableColumn } from '@trykatch/ui'
 import { ArchiveRestore, FolderKanban, Mail, RefreshCw, ShieldCheck, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -57,15 +57,24 @@ function ArchivePageForOrganization({ organizationId }: { organizationId?: strin
   const [recordState, setRecordState] = useState<StateFilter>('all')
   const [viewing, setViewing] = useState<ArchiveItem>()
   const [deleting, setDeleting] = useState<ArchiveItem>()
+  const [deletionReason, setDeletionReason] = useState('')
   const access = useQuery({
-    queryKey: ['access', organizationId],
+    queryKey: ['access'],
     queryFn: ({ signal }) => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET', signal }),
     enabled: Boolean(organizationId),
   })
+  const workspace = useQuery({
+    queryKey: getWorkspaceCurrentQueryKey(),
+    queryFn: ({ signal }) => workspaceCurrent({ signal }),
+    enabled: Boolean(organizationId),
+    retry: false,
+  })
   const accessData = access.data
-  const currentAccess = Boolean(organizationId) && access.isSuccess && !access.isFetching
-    && accessData?.organizationId === organizationId
-  const permissions = currentAccess && accessData ? accessData.permissions : []
+  const currentAccess = Boolean(organizationId) && access.isSuccess && access.fetchStatus === 'idle'
+    && workspace.isSuccess && workspace.fetchStatus === 'idle'
+    && accessData?.organizationId === organizationId && workspace.data.organizationId === organizationId
+  const permissions = currentAccess && accessData
+    ? accessData.permissions.filter((permission) => workspace.data!.permissions.includes(permission)) : []
   permissionsRef.current = permissions
   const canUseFeature = (key: string) => isFeatureEnabledRef.current(key)
   const isReadable = (definition: ArchiveResourceDefinition) => permissions.includes(definition.readPermission)
@@ -106,6 +115,7 @@ function ArchivePageForOrganization({ organizationId }: { organizationId?: strin
     },
     onSuccess: async (_, { item }) => {
       setDeleting(undefined)
+      setDeletionReason('')
       setViewing(undefined)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['archive'] }),
@@ -115,9 +125,24 @@ function ArchivePageForOrganization({ organizationId }: { organizationId?: strin
   })
 
   useEffect(() => {
-    if (viewing && !canReadItem(viewing)) setViewing(undefined)
-    if (deleting && (!canReadItem(deleting) || !canRequestArchiveItemDeletion(deleting, permissions, canUseFeature))) setDeleting(undefined)
-  }, [deleting, viewing, readableSignature, permissionSignature, features.isEnabled])
+    const accessDenied = [access.error, workspace.error].some((error) => [401, 403].includes((error as { status?: number } | null)?.status ?? 0))
+      || access.isSuccess && accessData?.organizationId !== organizationId
+      || workspace.isSuccess && workspace.data.organizationId !== organizationId
+    const confirmedDenial = (item: ArchiveItem, forDeletion: boolean) => {
+      if (accessDenied) return true
+      if (!currentAccess) return false
+      const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
+      if (!definition || !permissions.includes(definition.readPermission)) return true
+      if (forDeletion && !canRequestArchiveItemDeletion(item, permissions, () => true)) return true
+      return features.status === 'success' && (!canReadItem(item)
+        || forDeletion && !canRequestArchiveItemDeletion(item, permissions, canUseFeature))
+    }
+    if (viewing && confirmedDenial(viewing, false)) setViewing(undefined)
+    if (deleting && confirmedDenial(deleting, true)) {
+      setDeleting(undefined)
+      setDeletionReason('')
+    }
+  }, [deleting, viewing, readableSignature, permissionSignature, features.isEnabled, features.status, access.error, access.isSuccess, accessData?.organizationId, workspace.error, workspace.isSuccess, workspace.data?.organizationId, organizationId, currentAccess])
 
   const visibleResourceTypes = readableResources
   const readableItems = currentAccess ? (archive.data ?? []).filter(canReadItem) : []
@@ -153,9 +178,10 @@ function ArchivePageForOrganization({ organizationId }: { organizationId?: strin
     },
   ]
 
-  const loadError = access.error ?? archive.error
-  const accessUnavailable = !organizationId || access.isSuccess && !currentAccess
-  const isLoading = Boolean(organizationId) && (access.isLoading || access.isFetching
+  const loadError = access.error ?? workspace.error ?? archive.error
+  const accessUnavailable = !organizationId || access.isSuccess && workspace.isSuccess && !currentAccess
+  const isLoading = Boolean(organizationId) && (access.isPending || access.fetchStatus !== 'idle'
+    || workspace.isPending || workspace.fetchStatus !== 'idle'
     || currentAccess && readableResources.length > 0 && archive.isLoading)
   const visibleViewing = viewing && canReadItem(viewing) ? viewing : undefined
   const visibleDeleting = deleting && canReadItem(deleting)
@@ -204,6 +230,6 @@ function ArchivePageForOrganization({ organizationId }: { organizationId?: strin
       ] : []}
       actions={visibleViewing && canRestoreArchiveItem(visibleViewing, permissions, canUseFeature) ? <><Button variant="primary" disabled={restore.isPending} onClick={() => restore.mutate(visibleViewing)}><ArchiveRestore size={14} /> {t(restore.isPending ? 'Restoring…' : 'Restore record')}</Button>{canRequestArchiveItemDeletion(visibleViewing, permissions, canUseFeature) && <Button variant="danger" onClick={() => setDeleting(visibleViewing)}>{t('Delete')}</Button>}</> : undefined}
     />
-    <DeleteConfirmationDialog open={visibleDeleting !== undefined} onOpenChange={(open) => !open && setDeleting(undefined)} recordType={t(visibleDeleting?.typeLabel.toLowerCase() ?? 'record')} recordName={visibleDeleting?.title ?? ''} isDeleting={requestDeletion.isPending} error={requestDeletion.error?.message} labels={deleteConfirmationLabels} onConfirm={(reason) => visibleDeleting && requestDeletion.mutate({ item: visibleDeleting, reason })} />
+    <DeleteConfirmationDialog open={visibleDeleting !== undefined} onOpenChange={(open) => { if (!open) { setDeleting(undefined); setDeletionReason('') } }} reason={deletionReason} onReasonChange={setDeletionReason} recordType={t(visibleDeleting?.typeLabel.toLowerCase() ?? 'record')} recordName={visibleDeleting?.title ?? ''} isDeleting={requestDeletion.isPending} error={requestDeletion.error?.message} labels={deleteConfirmationLabels} onConfirm={(reason) => visibleDeleting && requestDeletion.mutate({ item: visibleDeleting, reason })} />
   </>
 }

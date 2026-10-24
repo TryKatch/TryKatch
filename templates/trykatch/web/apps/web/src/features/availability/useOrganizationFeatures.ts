@@ -5,12 +5,12 @@ import { useEffect } from 'react'
 
 export const organizationFeatureQueryKey = (organizationId?: string) => ['organization-features', organizationId] as const
 
-export function useOrganizationFeatures(organizationId?: string): FeatureAvailabilityState {
+export function useOrganizationFeatures(organizationId?: string, authorityReady = true): FeatureAvailabilityState {
   const client = useQueryClient()
   const query = useQuery({
     queryKey: organizationFeatureQueryKey(organizationId),
     queryFn: ({ signal }) => featuresCurrent({ signal }),
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && authorityReady,
     retry: false,
     staleTime: 0,
     refetchInterval: 30_000,
@@ -18,7 +18,7 @@ export function useOrganizationFeatures(organizationId?: string): FeatureAvailab
   })
 
   useEffect(() => {
-    if (!organizationId) return
+    if (!organizationId || !authorityReady) return
     const key = organizationFeatureQueryKey(organizationId)
     const refresh = () => { void client.invalidateQueries({ queryKey: key, exact: true }) }
     window.addEventListener('focus', refresh)
@@ -33,8 +33,8 @@ export function useOrganizationFeatures(organizationId?: string): FeatureAvailab
       window.removeEventListener('focus', refresh)
       void client.cancelQueries({ queryKey: key, exact: true })
     }
-  }, [client, organizationId])
+  }, [client, organizationId, authorityReady])
 
-  const status = !organizationId || query.isFetching ? 'loading' : query.isError ? 'error' : query.isSuccess ? 'success' : 'loading'
+  const status = !organizationId || !authorityReady || query.isFetching ? 'loading' : query.isError ? 'error' : query.isSuccess ? 'success' : 'loading'
   return { organizationId, snapshot: query.data, status }
 }

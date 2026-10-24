@@ -26,8 +26,8 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function Probe({ organizationId }: { organizationId?: string }) {
-  const state = useOrganizationFeatures(organizationId)
+function Probe({ organizationId, authorityReady = true }: { organizationId?: string; authorityReady?: boolean }) {
+  const state = useOrganizationFeatures(organizationId, authorityReady)
   return <output>{`${state.organizationId ?? 'none'}:${state.status}:${isModuleFeatureEnabled(catalog, state, 'probe.reads')}`}</output>
 }
 
@@ -52,6 +52,22 @@ it('does not request or enable features without a resolved organization', async 
   mount()
   expect(screen.getByText('none:loading:false')).toBeInTheDocument()
   expect(featuresCurrent).not.toHaveBeenCalled()
+})
+
+it('retains organization identity but suspends policy decisions and requests while authority is refreshing', async () => {
+  vi.mocked(featuresCurrent).mockResolvedValue(snapshot('org-a'))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  clients.push(client)
+  const view = (ready: boolean) => <QueryClientProvider client={client}><Probe organizationId="org-a" authorityReady={ready} /></QueryClientProvider>
+  const rendered = render(view(true))
+  expect(await screen.findByText('org-a:success:true')).toBeInTheDocument()
+  rendered.rerender(view(false))
+  expect(screen.getByText('org-a:loading:false')).toBeInTheDocument()
+  act(() => window.dispatchEvent(new Event('focus')))
+  expect(featuresCurrent).toHaveBeenCalledTimes(1)
+  rendered.rerender(view(true))
+  expect(await screen.findByText('org-a:success:true')).toBeInTheDocument()
+  expect(featuresCurrent).toHaveBeenCalledTimes(2)
 })
 
 it('cancels the previous workspace request and cannot accept its late response', async () => {

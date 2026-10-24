@@ -108,9 +108,12 @@ export function AppShell() {
     : undefined
   const hasSession = Boolean(session.data)
   useWorkspaceRealtimeLifecycle({ realtimeContext, hasSession })
-  const hasCurrentAccess = access.isSuccess && !access.isFetching && currentWorkspace.isSuccess
-    && !currentWorkspace.isFetching && access.data.organizationId === currentWorkspace.data.organizationId
-  const featureState = useOrganizationFeatures(session.isSuccess && hasCurrentAccess ? currentWorkspace.data!.organizationId : undefined)
+  const hasCurrentAccess = access.isSuccess && access.fetchStatus === 'idle' && currentWorkspace.isSuccess
+    && currentWorkspace.fetchStatus === 'idle' && access.data.organizationId === currentWorkspace.data.organizationId
+  const accessDenied = [access.error, currentWorkspace.error].some((error) => [401, 403].includes((error as RequestError | null)?.status ?? 0))
+  const knownOrganizationId = session.isSuccess && !accessDenied && access.data?.organizationId === currentWorkspace.data?.organizationId
+    ? currentWorkspace.data?.organizationId : undefined
+  const featureState = useOrganizationFeatures(knownOrganizationId, hasCurrentAccess)
   const isFeatureEnabled = (key: string) => isModuleFeatureEnabled(workspaceModules, featureState, key)
 
   const logout = useMutation({

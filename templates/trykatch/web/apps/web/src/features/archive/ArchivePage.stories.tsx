@@ -35,6 +35,24 @@ function DisableWritesWhileDeleting() {
   </ModuleFeatureProvider>
 }
 
+function FeatureCheckWhileDeleting() {
+  const [status, setStatus] = useState<'loading' | 'success'>('success')
+  useEffect(() => {
+    const startCheck = () => setStatus('loading')
+    const finishCheck = () => setStatus('success')
+    window.addEventListener('storybook:start-archive-feature-check', startCheck)
+    window.addEventListener('storybook:finish-archive-feature-check', finishCheck)
+    return () => {
+      window.removeEventListener('storybook:start-archive-feature-check', startCheck)
+      window.removeEventListener('storybook:finish-archive-feature-check', finishCheck)
+    }
+  }, [])
+  const state: FeatureAvailabilityState = status === 'loading'
+    ? { organizationId, status }
+    : featureState(true, true)
+  return <ModuleFeatureProvider catalog={workspaceModules} state={state}><ArchivePage /></ModuleFeatureProvider>
+}
+
 const permissions = ['projects.read', 'projects.manage']
 const api = [
   http.get('*/api/v1/projects', () => HttpResponse.json({ items: records, page: 1, pageSize: 100, totalCount: records.length })),
@@ -49,6 +67,7 @@ const meta = {
   parameters: { msw: { handlers: {
     auth: [
       http.get('*/api/v1/access', () => HttpResponse.json({ organizationId, membershipId: 'storybook-membership', permissions })),
+      http.get('*/api/v1/workspace/current', () => HttpResponse.json({ organizationId, membershipId: 'storybook-membership', permissions })),
       http.get('*/api/v1/auth/antiforgery', () => HttpResponse.json({ token: 'storybook-only' })),
     ],
     api,
@@ -89,9 +108,10 @@ export const WritesDisabled: Story = {
 }
 
 export const ReadOnlyPermission: Story = {
-  parameters: { msw: { handlers: { auth: [http.get('*/api/v1/access', () => HttpResponse.json({
-    organizationId, membershipId: 'storybook-reader', permissions: ['projects.read'],
-  }))] } } },
+  parameters: { msw: { handlers: { auth: [
+    http.get('*/api/v1/access', () => HttpResponse.json({ organizationId, membershipId: 'storybook-reader', permissions: ['projects.read'] })),
+    http.get('*/api/v1/workspace/current', () => HttpResponse.json({ organizationId, membershipId: 'storybook-reader', permissions: ['projects.read'] })),
+  ] } } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(await canvas.findByText('Atlas')).toBeVisible()
@@ -114,6 +134,35 @@ export const WritesDisabledWhileDeletionIsOpen: Story = {
     // Model a refreshed policy from an operator in another browser while this modal is open.
     canvasElement.ownerDocument.defaultView!.dispatchEvent(new Event('storybook:disable-project-writes'))
     await waitFor(() => expect(within(canvasElement.ownerDocument.body).queryByRole('dialog')).not.toBeInTheDocument())
+    await expect(deletionAttempts).toBe(0)
+  },
+}
+
+export const DeleteDraftSurvivesFeatureCheck: Story = {
+  render: () => <FeatureCheckWhileDeleting />,
+  play: async ({ canvasElement }) => {
+    deletionAttempts = 0
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Atlas' }))
+    await userEvent.click(canvas.getByRole('menuitem', { name: 'Delete' }))
+    const dialog = within(canvasElement.ownerDocument.body).getByRole('dialog')
+    const reason = 'No longer required by this team'
+    const reasonField = within(dialog).getByRole('textbox', { name: 'Reason for deletion' })
+    await userEvent.type(reasonField, reason)
+    const staleSubmit = within(dialog).getByRole('button', { name: 'Request deletion' })
+
+    canvasElement.ownerDocument.defaultView!.dispatchEvent(new Event('storybook:start-archive-feature-check'))
+    await waitFor(() => {
+      expect(within(canvasElement.ownerDocument.body).queryByRole('dialog')).not.toBeInTheDocument()
+      expect(canvas.queryByText('Atlas')).not.toBeInTheDocument()
+    })
+    staleSubmit.click()
+    await expect(deletionAttempts).toBe(0)
+
+    canvasElement.ownerDocument.defaultView!.dispatchEvent(new Event('storybook:finish-archive-feature-check'))
+    await expect(await within(canvasElement.ownerDocument.body).findByRole('dialog')).toBeVisible()
+    await expect(within(canvasElement.ownerDocument.body).getByRole('textbox', { name: 'Reason for deletion' })).toHaveValue(reason)
+    await expect(await canvas.findByText('Atlas')).toBeVisible()
     await expect(deletionAttempts).toBe(0)
   },
 }

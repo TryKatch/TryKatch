@@ -1,16 +1,24 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { customFetch, type DocumentDto } from '@trykatch/api-client'
+import { customFetch, getWorkspaceCurrentQueryKey, workspaceCurrent, type DocumentDto } from '@trykatch/api-client'
 import { defineWebModule, ModuleProvider, WebModuleCatalog } from '@trykatch/module-sdk'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DocumentsPage, documentsModule } from './index'
 
-vi.mock('@trykatch/api-client', () => ({ customFetch: vi.fn() }))
+vi.mock('@trykatch/api-client', async (original) => ({
+  ...await original<typeof import('@trykatch/api-client')>(),
+  customFetch: vi.fn(),
+  workspaceCurrent: vi.fn(),
+}))
 
 const mockedFetch = vi.mocked(customFetch)
+const organizationId = 'organization-a'
+const accessResponse = (permissions: string[]) => ({ organizationId, userId: 'user-1', membershipId: 'membership-a', permissions })
+const workspaceResponse = { organizationId, membershipId: 'membership-a', permissions: ['documents.read', 'documents.manage'] }
+const mockedWorkspaceCurrent = vi.mocked(workspaceCurrent)
 const document: DocumentDto = {
   id: '0199ca9e-3870-7000-8000-000000000001',
   title: 'Runbook',
@@ -55,15 +63,18 @@ function ShellAccessProbe() {
 }
 
 describe('DocumentsPage', () => {
-  beforeEach(() => mockedFetch.mockReset())
+  beforeEach(() => {
+    mockedFetch.mockReset()
+    mockedWorkspaceCurrent.mockReset().mockResolvedValue(workspaceResponse as never)
+  })
   afterEach(cleanup)
 
   it('opens document upload in a focused dialog instead of an inline table form', async () => {
     mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
-      ? { permissions: ['documents.read', 'documents.manage'] } as never
+      ? accessResponse(['documents.read', 'documents.manage']) as never
       : [] as never)
 
-    renderDocuments()
+    const { client } = renderDocuments()
 
     const [create] = await screen.findAllByRole('button', { name: 'Upload document' })
     expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
@@ -73,11 +84,13 @@ describe('DocumentsPage', () => {
     expect(screen.getByRole('dialog', { name: 'Upload document' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Document title' })).toBeInTheDocument()
     expect(screen.getByLabelText('File')).toHaveAttribute('type', 'file')
+    expect(mockedWorkspaceCurrent).toHaveBeenCalled()
+    expect(client.getQueryData(getWorkspaceCurrentQueryKey())).toMatchObject({ organizationId })
   })
 
   it('hides every mutation control from read-only members', async () => {
     mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
-      ? { permissions: ['documents.read'] }
+      ? accessResponse(['documents.read'])
       : [document] as never)
 
     renderDocuments()
@@ -95,7 +108,7 @@ describe('DocumentsPage', () => {
     let completeUpload: ((value: DocumentDto) => void) | undefined
     const pendingUpload = new Promise<DocumentDto>((resolve) => { completeUpload = resolve })
     mockedFetch.mockImplementation(async (url, options) => {
-      if (url === '/api/v1/access') return { permissions: ['documents.read', 'documents.manage'] } as never
+      if (url === '/api/v1/access') return accessResponse(['documents.read', 'documents.manage']) as never
       if (options?.method === 'POST') return await pendingUpload as never
       return [] as never
     })
@@ -129,7 +142,7 @@ describe('DocumentsPage', () => {
 
   it('rejects empty, oversized and unsupported files before sending any request', async () => {
     mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
-      ? { permissions: ['documents.read', 'documents.manage'] } as never : [] as never)
+      ? accessResponse(['documents.read', 'documents.manage']) as never : [] as never)
     renderDocuments()
     fireEvent.click((await screen.findAllByRole('button', { name: 'Upload document' }))[0])
     const dialog = screen.getByRole('dialog')
@@ -149,7 +162,7 @@ describe('DocumentsPage', () => {
 
   it('shows an accessible metadata error without uploading and preserves the selected file', async () => {
     mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
-      ? { permissions: ['documents.read', 'documents.manage'] } as never : [] as never)
+      ? accessResponse(['documents.read', 'documents.manage']) as never : [] as never)
     renderDocuments()
     fireEvent.click((await screen.findAllByRole('button', { name: 'Upload document' }))[0])
     const dialog = within(screen.getByRole('dialog'))
@@ -167,7 +180,7 @@ describe('DocumentsPage', () => {
 
   it('shows the saved business type and updates it without uploading another file', async () => {
     mockedFetch.mockImplementation(async (url, options) => {
-      if (url === '/api/v1/access') return { permissions: ['documents.read', 'documents.manage'] } as never
+      if (url === '/api/v1/access') return accessResponse(['documents.read', 'documents.manage']) as never
       if (options?.method === 'PUT') return { ...document, documentType: 'contract' } as never
       return [document] as never
     })
@@ -186,7 +199,7 @@ describe('DocumentsPage', () => {
 
   it('distinguishes a failed read from an empty collection', async () => {
     mockedFetch.mockImplementation(async (url) => {
-      if (url === '/api/v1/access') return { permissions: ['documents.read'] } as never
+      if (url === '/api/v1/access') return accessResponse(['documents.read']) as never
       if (url === '/api/v1/documents/?lifecycle=active') throw new Error('document query failed')
       return [] as never
     })
@@ -200,7 +213,7 @@ describe('DocumentsPage', () => {
 
   it('surfaces save and archive failures', async () => {
     mockedFetch.mockImplementation(async (url, options) => {
-      if (url === '/api/v1/access') return { permissions: ['documents.read', 'documents.manage'] } as never
+      if (url === '/api/v1/access') return accessResponse(['documents.read', 'documents.manage']) as never
       if (options?.method === 'POST' && url === '/api/v1/documents/') throw new Error('save failed')
       if (options?.method === 'POST' && String(url).endsWith('/archive')) throw new Error('archive failed')
       return [document] as never
@@ -237,7 +250,7 @@ describe('DocumentsPage', () => {
     const archiveKey = ['archive', ['documents.read', 'documents.manage']]
     client.setQueryData(archiveKey, [])
     mockedFetch.mockImplementation(async (url, options) => {
-      if (url === '/api/v1/access') return { permissions: ['documents.read', 'documents.manage'] } as never
+      if (url === '/api/v1/access') return accessResponse(['documents.read', 'documents.manage']) as never
       if (options?.method === 'POST' && String(url).endsWith('/archive')) return undefined as never
       return [document] as never
     })
@@ -253,28 +266,28 @@ describe('DocumentsPage', () => {
 
   it('consumes a shell-populated access cache without changing its shape', async () => {
     const client = createClient()
-    client.setQueryData(['access'], { permissions: ['documents.read', 'documents.manage'] })
-    mockedFetch.mockImplementation(async (url) => url === '/api/v1/documents/?lifecycle=active' ? [] as never : { permissions: [] } as never)
+    client.setQueryData(['access'], accessResponse(['documents.read', 'documents.manage']))
+    mockedFetch.mockImplementation(async (url) => url === '/api/v1/documents/?lifecycle=active' ? [] as never : accessResponse([]) as never)
 
     render(workspace(client, <><DocumentsPage /><ShellAccessProbe /></>))
 
     expect((await screen.findAllByRole('button', { name: 'Upload document' })).length).toBeGreaterThan(0)
     expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
     expect(screen.getByText('Shell permissions: documents.read,documents.manage')).toBeInTheDocument()
-    expect(client.getQueryData(['access'])).toEqual({ permissions: ['documents.read', 'documents.manage'] })
+    expect(client.getQueryData(['access'])).toEqual(accessResponse(['documents.read', 'documents.manage']))
     expect(mockedFetch).not.toHaveBeenCalledWith('/api/v1/access', expect.anything())
   })
 
   it('leaves raw access data for the shell when Documents fetches first', async () => {
     const client = createClient()
     mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
-      ? { permissions: ['documents.read', 'documents.manage'] } as never
+      ? accessResponse(['documents.read', 'documents.manage']) as never
       : [] as never)
     const { view } = renderDocuments(client)
 
     expect((await screen.findAllByRole('button', { name: 'Upload document' })).length).toBeGreaterThan(0)
     expect(screen.queryByRole('textbox', { name: 'Document title' })).not.toBeInTheDocument()
-    expect(client.getQueryData(['access'])).toEqual({ permissions: ['documents.read', 'documents.manage'] })
+    expect(client.getQueryData(['access'])).toEqual(accessResponse(['documents.read', 'documents.manage']))
 
     view.rerender(workspace(client, <><DocumentsPage /><ShellAccessProbe /></>))
     expect(await screen.findByText('Shell permissions: documents.read,documents.manage')).toBeInTheDocument()
