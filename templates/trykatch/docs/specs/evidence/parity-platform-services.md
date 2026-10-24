@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 planning has started; S4–S6 runtime acceptance remains outstanding. This is not a release claim.
+Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 declaration/composition checks are implemented and locally verified; S4–S6 runtime acceptance remains outstanding. This is not a release claim.
 
 ## S1 — Scoped organization cache
 
@@ -55,7 +55,7 @@ The approved platform-services roadmap remains the source for later scope. This 
 | --- | --- | --- |
 | S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Verified and merged in PR #135 as `b919234`; qualification below. |
 | S3 | Transaction-aware mutation idempotency | Verified and merged in PR #136 as `a3f19df`; qualification below. |
-| S4 | Installed-feature availability and runtime policy evaluation | Refined plan adopted; implementation and qualification remain outstanding. |
+| S4 | Installed-feature availability and runtime policy evaluation | Declaration/catalog/CLI/SDK composition checkpoint verified; runtime persistence, enforcement, UI and final qualification remain outstanding. |
 | S5 | Entitlement projection, quota reservation, and organization throttling | Planned; no S5 implementation evidence here. |
 | S6 | Permission reconciliation for existing organizations | Planned; no S6 implementation evidence here. |
 
@@ -305,3 +305,13 @@ Fresh actual CLI/template output in `trykatch-generated-application.frYwfP` pass
 ### S3 acceptance
 
 [Final template CI](https://github.com/TryKatch/TryKatch/actions/runs/40105161282) succeeds on `486baee`: 18 jobs pass and only deployment/observability are intentionally scope-skipped. All 839 host unit, 27 architecture, 39 module unit and 619 integration cases pass with zero skips. All five actual generated realtime browser checks pass through NGINX, Vite and module removal. Dependency review and both preview contexts pass. The lead verifies the current PR head/base and clean worktree, squash-merges [PR #136](https://github.com/TryKatch/TryKatch/pull/136) with the head guard at15:25:53UTC, and confirms fetched merge `a3f19df` has exactly the tested tree. S3 is complete. Earlier failed runs above remain historical evidence; no release or production HA claim is added.
+
+## S4 declaration and composition checkpoint
+
+The optional manifest v1 `features` list defaults empty for legacy modules and signed packages. Each declaration requires an owned stable key, name, description and explicit Boolean default. CLI doctor, the backend catalog and SDK validate bounds, duplicates and ownership. Generated API/migrator registries and the Web catalog compare exact manifest expectations with explicit module descriptors, independent of order. Unknown fields remain rejected; no new capability or runtime assembly scan is introduced.
+
+Projects 1.4.0 declares `projects.reads` and `projects.writes`, both defaulting true. These keys remain distinct from its unchanged read/manage permissions. Normal module generation updates all three registries and the manifest digest; actual CLI facts report the matching declarations. API OpenAPI generation and normal client/assistant generation change only the Projects module version in the generated documents, with no endpoint-client drift.
+
+Test-first evidence and exact filters are recorded in the [refined S4 plan](../../../../../docs/superpowers/plans/2026-10-24-parity-s4-feature-availability.md). Local validation passes 141 targeted host unit cases, two Projects metadata cases, 37 SDK catalog cases and five existing host extension/catalog cases, with zero skips. SDK, Projects and host typechecks pass; API and migrator Debug builds pass with zero warnings/errors. The API build executes the generated composition guard, and the host tests import the actual generated Web registry. Legacy signed-install and renamed/empty expectations are covered by the targeted cases. No dependency versions change.
+
+This checkpoint does not implement policy persistence, evaluation, API/use-case enforcement or operator controls. The five real SQL-role tests, packaged React/backend qualification, whole-S4 review and CI remain required before S4 completion.

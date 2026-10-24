@@ -33,6 +33,13 @@ public sealed partial class ModuleWorkspace
                     module.Manifest.Capabilities, module.Manifest.DataOwnership,
                     module.Manifest.Contributions,
                     execution = module.Manifest.Execution,
+                    features = module.Manifest.Features?.Select(feature => new
+                    {
+                        feature!.Key,
+                        feature.Name,
+                        feature.Description,
+                        feature.DefaultEnabled
+                    }).ToArray() ?? [],
                     assistantExecution = "Descriptors are metadata, not executable configuration or authorization grants. Adapter execution is outside this discovery command."
                 }),
             guides = FactGuides
