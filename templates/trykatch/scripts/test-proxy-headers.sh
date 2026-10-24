@@ -304,6 +304,17 @@ printf 'API DNS peers: %s\n' "${dns_records//$'\n'/; }"
 printf 'Stale probe endpoint: %s\nReplacement endpoint: %s\n' "$stale_network" "$replacement_network"
 sleep 5.5
 
+affinity_peer=''
+for _ in $(seq 1 12); do
+  observed_peer=$(curl --connect-timeout 2 --max-time 5 --fail --silent \
+    "http://127.0.0.1:$published_port/api/proxy-affinity-contract")
+  [[ $observed_peer == 172.31.251.20 || $observed_peer == 172.31.251.21 ]] || \
+    fail "the affinity probe did not reach one of the two actual API peers: $observed_peer"
+  if [[ -z $affinity_peer ]]; then affinity_peer=$observed_peer; fi
+  [[ $observed_peer == "$affinity_peer" ]] || \
+    fail 'one client changed API peers between requests; SignalR negotiation and upgrade require affinity'
+done
+
 post_path_sentinel='reset-path-secret-7284'
 post_query_sentinel='query-secret-3159'
 post_body_sentinel='token-body-secret-8461'

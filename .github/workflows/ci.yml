@@ -320,7 +320,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        email: ['false', 'true']
+        include:
+          - email: 'false'
+            realtime: 'false'
+          - email: 'true'
+            realtime: 'false'
+          - email: 'false'
+            realtime: 'true'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
@@ -341,10 +347,11 @@ jobs:
         run: bash scripts/test-generated-application.sh
         env:
           TRYKATCH_ACCEPTANCE_EMAIL: ${{ matrix.email }}
+          TRYKATCH_ACCEPTANCE_REALTIME: ${{ matrix.realtime }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: generated-application-acceptance-email-${{ matrix.email }}
+          name: generated-application-acceptance-email-${{ matrix.email }}-realtime-${{ matrix.realtime }}
           path: artifacts/generated-application
           if-no-files-found: error
           retention-days: 14
