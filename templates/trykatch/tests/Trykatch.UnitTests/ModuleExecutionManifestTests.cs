@@ -6,7 +6,7 @@ using Shouldly;
 namespace Trykatch.UnitTests;
 
 [TestClass]
-public sealed class ModuleExecutionManifestTests
+public sealed partial class ModuleExecutionManifestTests
 {
     [TestMethod]
     public void SchemaVersionOneManifestWithoutExecutionRemainsValidAndFactsExposeEmptyMetadata()

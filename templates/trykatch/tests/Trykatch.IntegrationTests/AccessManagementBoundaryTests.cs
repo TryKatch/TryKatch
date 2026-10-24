@@ -14,6 +14,7 @@ using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Trykatch.Application.Identity;
+using Trykatch.Application.Mailing;
 using Trykatch.Application.Organizations;
 using Trykatch.Domain.Organizations;
 using Trykatch.Identity;
@@ -28,7 +29,7 @@ namespace Trykatch.IntegrationTests;
 [TestClass]
 [TestCategory("Integration")]
 [DoNotParallelize]
-public sealed class AccessManagementBoundaryTests
+public sealed partial class AccessManagementBoundaryTests
 {
     private static readonly string[] OrdinaryOrganizationPermissions = ["projects.read"];
     private static readonly string[] LimitedOrganizationManagementPermissions = ["members.manage", "members.read", "roles.read", "roles.manage"];
@@ -41,15 +42,31 @@ public sealed class AccessManagementBoundaryTests
     public async Task SelectedInvitationRoleIsAssignedOnAcceptance(string roleName)
     {
         RecordingInvitationNotifier notifier = new();
-        await using AccessHost host = await AccessHost.StartAsync(notifier);
+        await using AccessHost host = await AccessHost.StartAsync(notifier, queuedEmail: true);
         using HttpClient administrator = await host.SignInAsync(AccessHost.AdministratorEmail);
         using HttpClient owner = await host.CreateOrganizationOwnerAsync(administrator);
         JsonElement role = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/roles")).EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == roleName);
         Guid roleId = role.GetProperty("id").GetGuid();
-        using HttpClient invitee = await host.InviteAndActivateAsync(owner, "selected-role@trykatch.test", roleId);
-        notifier.RoleName.ShouldBe(roleName);
-        notifier.Recipient.ShouldBe("selected-role@trykatch.test");
+        JsonElement created = await AccessHost.SuccessAsync(owner, HttpMethod.Post, "/api/v1/invitations", new { email = "selected-role@trykatch.test", roleId, expiresInDays = 7 });
+        created.GetProperty("emailDelivered").GetBoolean().ShouldBeFalse();
+        notifier.Recipient.ShouldBeNull();
+#if TRYKATCH_EMAIL
+        created.GetProperty("emailQueued").GetBoolean().ShouldBeTrue();
+        using (IServiceScope scope = host.Services.CreateScope())
+        {
+            IEmailDeliverySource source = scope.ServiceProvider.GetServices<IEmailDeliverySource>().Single(candidate => candidate.Boundary == EmailDeliveryBoundary.Organization);
+            EmailDeliveryLease lease = (await source.ClaimAsync(1, CancellationToken.None)).Single();
+            EmailDeliveryPreparation prepared = await source.PrepareAsync(lease, CancellationToken.None);
+            prepared.Disposition.ShouldBe(EmailPreparationDisposition.Ready);
+            prepared.Message!.Recipient.ShouldBe("selected-role@trykatch.test");
+            prepared.Message.TextBody.ShouldContain($"Workspace role: {roleName}");
+            await source.CompleteAsync(lease, new(EmailAttemptDisposition.Suppressed, EmailFailureCode.SourceDenied), CancellationToken.None);
+        }
+#else
+        created.GetProperty("emailQueued").GetBoolean().ShouldBeFalse();
+#endif
+        using HttpClient invitee = await host.ActivateOrganizationInvitationAsync(new Uri(created.GetProperty("invitationUrl").GetString()!).Segments.Last());
         JsonElement member = await AccessHost.OrganizationMemberAsync(owner, "selected-role@trykatch.test");
         member.GetProperty("roles").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()).ShouldBe([roleId]);
         JsonElement access = await invitee.GetFromJsonAsync<JsonElement>("/api/v1/access");
@@ -764,6 +781,7 @@ public sealed class AccessManagementBoundaryTests
         public const string AdministratorEmail = "authority-admin@trykatch.test";
         private const string Password = "Local-only!Authority-Password-42";
         public IServiceProvider Services => factory.Services;
+        public string OwnerConnection => ownerConnection;
 
         public async Task RejectAiAuditInsertsAsync()
         {
@@ -790,7 +808,7 @@ public sealed class AccessManagementBoundaryTests
             return await database.AuditIntents.CountAsync(intent => intent.Operation == "organization.ai.updated");
         }
 
-        public static async Task<AccessHost> StartAsync(IInvitationNotifier? invitationNotifier = null)
+        public static async Task<AccessHost> StartAsync(IInvitationNotifier? invitationNotifier = null, bool queuedEmail = false, Action<IServiceCollection>? configureServices = null)
         {
             string? configuredPostgres = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
             PostgreSqlContainer? postgres = string.IsNullOrWhiteSpace(configuredPostgres)
@@ -810,7 +828,7 @@ public sealed class AccessManagementBoundaryTests
             }
             try
             {
-                return new(postgres, await CreateFactoryAsync(ownerConnection, invitationNotifier), ownerConnection, configuredPostgres, databaseName);
+                return new(postgres, await CreateFactoryAsync(ownerConnection, invitationNotifier, queuedEmail, configureServices), ownerConnection, configuredPostgres, databaseName);
             }
             catch
             {
@@ -820,7 +838,7 @@ public sealed class AccessManagementBoundaryTests
             }
         }
 
-        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(string ownerConnection, IInvitationNotifier? invitationNotifier)
+        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(string ownerConnection, IInvitationNotifier? invitationNotifier, bool queuedEmail, Action<IServiceCollection>? configureServices)
         {
             var connections = await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(ownerConnection);
             await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ownerConnection).Options);
@@ -865,6 +883,7 @@ public sealed class AccessManagementBoundaryTests
                 ["Bootstrap:PlatformAdminPassword"] = Password,
                 ["DevelopmentDemo:Enabled"] = "false"
             };
+            if (queuedEmail) settings["Application:PublicUrl"] = "https://app.trykatch.test";
             WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>().WithWebHostBuilder(webHost =>
             {
                 webHost.UseEnvironment("Development");
@@ -872,6 +891,16 @@ public sealed class AccessManagementBoundaryTests
                 webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
                 if (invitationNotifier is not null)
                     webHost.ConfigureTestServices(services => services.AddSingleton(invitationNotifier));
+                if (queuedEmail)
+                    webHost.ConfigureTestServices(services =>
+                    {
+                        // Admission/source tests drive the dispatcher explicitly, without racing the hosted poller.
+                        foreach (ServiceDescriptor descriptor in services.Where(descriptor =>
+                            descriptor.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
+                            && descriptor.ImplementationType?.Name == "QueuedEmailDeliveryWorker").ToArray())
+                            services.Remove(descriptor);
+                    });
+                if (configureServices is not null) webHost.ConfigureTestServices(configureServices);
             });
             return factory;
         }
@@ -1016,7 +1045,7 @@ public sealed class AccessManagementBoundaryTests
             return role.Id;
         }
 
-        private async Task<HttpClient> ActivateOrganizationInvitationAsync(string token)
+        public async Task<HttpClient> ActivateOrganizationInvitationAsync(string token)
         {
             HttpClient client = CreateClient();
             await SuccessAsync(client, HttpMethod.Post, "/api/v1/invitations/activate", new

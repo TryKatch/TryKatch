@@ -50,6 +50,10 @@ import type {
   DeleteRecordCommand,
   DocumentDto,
   DocumentsListParams,
+  EmailDeliveryListParams,
+  EmailTemplatePreview,
+  EmailTemplatesListParams,
+  EmailTemplatesPreviewParams,
   ForgotPasswordRequest,
   ForgotPasswordResponse,
   GrantPlatformAccessRequest,
@@ -81,6 +85,8 @@ import type {
   OutboxReplayOutcome,
   OutboxReplayPending,
   OutboxReplayRequestBody,
+  PagedResultOfEmailDeliveryView,
+  PagedResultOfEmailTemplateView,
   PagedResultOfModuleEventDeliveryView,
   PagedResultOfModuleWorkView,
   PagedResultOfOrganizationDto,
@@ -3208,6 +3214,330 @@ export const useAuthenticationResetPassword = <TError = unknown,
       > => {
       return useMutation(getAuthenticationResetPasswordMutationOptions(options), queryClient);
     }
+
+export const getEmailDeliveryListUrl = (params?: EmailDeliveryListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/platform/email-deliveries?${stringifiedParams}` : `/api/v1/platform/email-deliveries`
+}
+
+/**
+ * @summary List email delivery
+ */
+export const emailDeliveryList = async (params?: EmailDeliveryListParams, options?: Parameters<typeof customFetch>[1]): Promise<PagedResultOfEmailDeliveryView> => {
+
+  return customFetch<PagedResultOfEmailDeliveryView>(getEmailDeliveryListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getEmailDeliveryListQueryKey = (params?: EmailDeliveryListParams,) => {
+    return [
+    `/api/v1/platform/email-deliveries`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getEmailDeliveryListQueryOptions = <TData = Awaited<ReturnType<typeof emailDeliveryList>>, TError = unknown>(params?: EmailDeliveryListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailDeliveryList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getEmailDeliveryListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof emailDeliveryList>>> = ({ signal }) => emailDeliveryList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof emailDeliveryList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type EmailDeliveryListQueryResult = NonNullable<Awaited<ReturnType<typeof emailDeliveryList>>>
+export type EmailDeliveryListQueryError = unknown
+
+
+export function useEmailDeliveryList<TData = Awaited<ReturnType<typeof emailDeliveryList>>, TError = unknown>(
+ params: undefined |  EmailDeliveryListParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailDeliveryList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof emailDeliveryList>>,
+          TError,
+          Awaited<ReturnType<typeof emailDeliveryList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useEmailDeliveryList<TData = Awaited<ReturnType<typeof emailDeliveryList>>, TError = unknown>(
+ params?: EmailDeliveryListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailDeliveryList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof emailDeliveryList>>,
+          TError,
+          Awaited<ReturnType<typeof emailDeliveryList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useEmailDeliveryList<TData = Awaited<ReturnType<typeof emailDeliveryList>>, TError = unknown>(
+ params?: EmailDeliveryListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailDeliveryList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List email delivery
+ */
+
+export function useEmailDeliveryList<TData = Awaited<ReturnType<typeof emailDeliveryList>>, TError = unknown>(
+ params?: EmailDeliveryListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailDeliveryList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getEmailDeliveryListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getEmailTemplatesListUrl = (params?: EmailTemplatesListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/platform/email-deliveries/templates?${stringifiedParams}` : `/api/v1/platform/email-deliveries/templates`
+}
+
+/**
+ * @summary List email templates
+ */
+export const emailTemplatesList = async (params?: EmailTemplatesListParams, options?: Parameters<typeof customFetch>[1]): Promise<PagedResultOfEmailTemplateView> => {
+
+  return customFetch<PagedResultOfEmailTemplateView>(getEmailTemplatesListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getEmailTemplatesListQueryKey = (params?: EmailTemplatesListParams,) => {
+    return [
+    `/api/v1/platform/email-deliveries/templates`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getEmailTemplatesListQueryOptions = <TData = Awaited<ReturnType<typeof emailTemplatesList>>, TError = unknown>(params?: EmailTemplatesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getEmailTemplatesListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof emailTemplatesList>>> = ({ signal }) => emailTemplatesList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type EmailTemplatesListQueryResult = NonNullable<Awaited<ReturnType<typeof emailTemplatesList>>>
+export type EmailTemplatesListQueryError = unknown
+
+
+export function useEmailTemplatesList<TData = Awaited<ReturnType<typeof emailTemplatesList>>, TError = unknown>(
+ params: undefined |  EmailTemplatesListParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof emailTemplatesList>>,
+          TError,
+          Awaited<ReturnType<typeof emailTemplatesList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useEmailTemplatesList<TData = Awaited<ReturnType<typeof emailTemplatesList>>, TError = unknown>(
+ params?: EmailTemplatesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof emailTemplatesList>>,
+          TError,
+          Awaited<ReturnType<typeof emailTemplatesList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useEmailTemplatesList<TData = Awaited<ReturnType<typeof emailTemplatesList>>, TError = unknown>(
+ params?: EmailTemplatesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List email templates
+ */
+
+export function useEmailTemplatesList<TData = Awaited<ReturnType<typeof emailTemplatesList>>, TError = unknown>(
+ params?: EmailTemplatesListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesList>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getEmailTemplatesListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getEmailTemplatesPreviewUrl = (params?: EmailTemplatesPreviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/platform/email-deliveries/templates/preview?${stringifiedParams}` : `/api/v1/platform/email-deliveries/templates/preview`
+}
+
+/**
+ * @summary Preview email templates
+ */
+export const emailTemplatesPreview = async (params?: EmailTemplatesPreviewParams, options?: Parameters<typeof customFetch>[1]): Promise<EmailTemplatePreview> => {
+
+  return customFetch<EmailTemplatePreview>(getEmailTemplatesPreviewUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getEmailTemplatesPreviewQueryKey = (params?: EmailTemplatesPreviewParams,) => {
+    return [
+    `/api/v1/platform/email-deliveries/templates/preview`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getEmailTemplatesPreviewQueryOptions = <TData = Awaited<ReturnType<typeof emailTemplatesPreview>>, TError = unknown>(params?: EmailTemplatesPreviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesPreview>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getEmailTemplatesPreviewQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof emailTemplatesPreview>>> = ({ signal }) => emailTemplatesPreview(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesPreview>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type EmailTemplatesPreviewQueryResult = NonNullable<Awaited<ReturnType<typeof emailTemplatesPreview>>>
+export type EmailTemplatesPreviewQueryError = unknown
+
+
+export function useEmailTemplatesPreview<TData = Awaited<ReturnType<typeof emailTemplatesPreview>>, TError = unknown>(
+ params: undefined |  EmailTemplatesPreviewParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesPreview>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof emailTemplatesPreview>>,
+          TError,
+          Awaited<ReturnType<typeof emailTemplatesPreview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useEmailTemplatesPreview<TData = Awaited<ReturnType<typeof emailTemplatesPreview>>, TError = unknown>(
+ params?: EmailTemplatesPreviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesPreview>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof emailTemplatesPreview>>,
+          TError,
+          Awaited<ReturnType<typeof emailTemplatesPreview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useEmailTemplatesPreview<TData = Awaited<ReturnType<typeof emailTemplatesPreview>>, TError = unknown>(
+ params?: EmailTemplatesPreviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesPreview>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Preview email templates
+ */
+
+export function useEmailTemplatesPreview<TData = Awaited<ReturnType<typeof emailTemplatesPreview>>, TError = unknown>(
+ params?: EmailTemplatesPreviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof emailTemplatesPreview>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getEmailTemplatesPreviewQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getInvitationsPreviewUrl = (token: string,) => {
 

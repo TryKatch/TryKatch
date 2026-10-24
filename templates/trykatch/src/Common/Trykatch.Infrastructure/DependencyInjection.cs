@@ -15,6 +15,8 @@ using Trykatch.Infrastructure.Identity;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Infrastructure.Overview;
 using Trykatch.Infrastructure.Storage;
+using Trykatch.Infrastructure.Mailing;
+using Trykatch.Application.Mailing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -119,6 +121,8 @@ public static class DependencyInjection
         services.AddSingleton<IInvitationNotifier, NoOpInvitationNotifier>();
 #endif
         services.AddStorageModule(configuration);
+        services.TryAddSingleton<IModuleEmailQueue, UnavailableModuleEmailQueue>();
+        services.TryAddSingleton<IOrganizationInvitationEmailSubmission, UnavailableOrganizationInvitationEmailSubmission>();
         return services;
     }
 }

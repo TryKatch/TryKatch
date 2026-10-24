@@ -301,6 +301,7 @@ public sealed partial class ModuleWorkspace
         }
 
         ModuleExecutionManifestRules.Validate(modules, errors);
+        ModuleEmailManifestRules.Validate(modules, errors);
         ValidateEnabledGraph(modules, errors);
         ValidateGlobalContributions(modules.Where(module => module.Registration.Enabled), errors);
     }
@@ -1122,6 +1123,8 @@ public sealed class ModuleExecutionManifest
     public List<ModuleEventConsumerManifest> EventConsumers { get; init; } = [];
     public List<ModuleJobManifest> Jobs { get; init; } = [];
     public List<ModuleRecurringScheduleManifest> RecurringSchedules { get; init; } = [];
+    public List<ModuleEmailTemplateManifest> EmailTemplates { get; init; } = [];
+    public List<ModuleEmailDisclosurePolicyManifest> EmailDisclosurePolicies { get; init; } = [];
 }
 
 public sealed class ModuleOperationManifest
@@ -1144,6 +1147,51 @@ public sealed class ModuleSystemGrantManifest
     public Guid AuditActorId { get; init; }
     public List<string> AllowedOperationKeys { get; init; } = [];
     public List<string> AllowedResourceKeys { get; init; } = [];
+    public List<ModuleEmailDisclosurePolicyRefManifest> AllowedEmailDisclosurePolicies { get; init; } = [];
+}
+
+public sealed class ModuleEmailTemplateManifest
+{
+    public string TemplateKey { get; init; } = string.Empty;
+    public int TemplateVersion { get; init; }
+    public int MaximumTemplateDataBytes { get; init; }
+}
+
+public sealed class ModuleEmailDisclosurePolicyManifest
+{
+    public string PolicyKey { get; init; } = string.Empty;
+    public int PolicyVersion { get; init; }
+    public List<string> AllowedSourceResourceKeys { get; init; } = [];
+    public List<string> RequiredUserPermissionKeys { get; init; } = [];
+    public List<ModuleEmailTemplateRefManifest> AllowedTemplates { get; init; } = [];
+    public List<ModuleEmailSystemProducerBindingManifest> AllowedSystemProducers { get; init; } = [];
+}
+
+public sealed class ModuleEmailTemplateRefManifest
+{
+    public string OwnerModuleId { get; init; } = string.Empty;
+    public string TemplateKey { get; init; } = string.Empty;
+    public int TemplateVersion { get; init; }
+}
+
+public sealed class ModuleEmailDisclosurePolicyRefManifest
+{
+    public string OwnerModuleId { get; init; } = string.Empty;
+    public string PolicyKey { get; init; } = string.Empty;
+    public int PolicyVersion { get; init; }
+}
+
+public sealed class ModuleEmailSystemProducerBindingManifest
+{
+    public ModuleEmailProducerRefManifest Producer { get; init; } = new();
+    public ModuleEmailTemplateRefManifest Template { get; init; } = new();
+}
+
+public sealed class ModuleEmailProducerRefManifest
+{
+    public string ModuleId { get; init; } = string.Empty;
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
 }
 
 public sealed class ModuleIntegrationEventManifest

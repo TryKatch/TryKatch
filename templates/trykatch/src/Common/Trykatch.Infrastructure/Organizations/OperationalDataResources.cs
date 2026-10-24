@@ -1,5 +1,6 @@
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Jobs;
+using Trykatch.Infrastructure.Mailing;
 using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Organizations;
@@ -9,6 +10,10 @@ internal static class OperationalDataResources
 {
     public static IReadOnlyList<DataResourceDescriptor> All { get; } =
     [
+        new("organization-email-deliveries", "infrastructure", "email_deliveries", ModuleDataOwnership.Infrastructure,
+            typeof(OrganizationEmailDeliveryRecord).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
+        new("identity-email-deliveries", "identity", "email_deliveries", ModuleDataOwnership.Platform,
+            AccessRule: ModuleDataAccessRule.IdentityOnly),
         new("module-work-items", "infrastructure", "module_work_items", ModuleDataOwnership.Infrastructure,
             typeof(ModuleWorkItem).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
         new("module-event-deliveries", "infrastructure", "module_event_deliveries", ModuleDataOwnership.Infrastructure,

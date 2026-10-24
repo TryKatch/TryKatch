@@ -26,7 +26,7 @@ namespace Trykatch.IntegrationTests;
 
 [TestClass]
 [TestCategory("Integration")]
-public sealed class AuthenticationSecurityTests
+public sealed partial class AuthenticationSecurityTests
 {
     private const string AdministratorEmail = "admin@trykatch.test";
     private const string AdministratorPassword = "Local-only!Administrator-Password-42";

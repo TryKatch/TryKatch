@@ -1,9 +1,11 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenTelemetry.Trace;
 using Shouldly;
+using Trykatch.ServiceDefaults.Observability;
 
 namespace Trykatch.IntegrationTests;
 
@@ -11,6 +13,22 @@ namespace Trykatch.IntegrationTests;
 [DoNotParallelize]
 public sealed class ObservabilityContractTests
 {
+    private static readonly string[] EmailMetricDimensions = ["boundary", "outcome"];
+    [TestMethod]
+    public void EmailDeliveryTelemetryIsSubscribedWithClosedMetricDimensions()
+    {
+        using IHost host = BuildHost(new Dictionary<string, string?>(), Environments.Development);
+        host.Services.GetRequiredService<TracerProvider>();
+        using ActivitySource source = new("Trykatch.EmailDelivery");
+        using Activity? attempt = source.StartActivity("email delivery", ActivityKind.Producer);
+        attempt.ShouldNotBeNull();
+        using Meter meter = new("Trykatch.EmailDelivery");
+        ObservabilityPolicy.MetricView(meter.CreateCounter<long>("trykatch.email.delivery.attempts"))
+            .TagKeys.ShouldBe(EmailMetricDimensions);
+        ObservabilityPolicy.MetricView(meter.CreateCounter<long>("unregistered"))
+            .TagKeys.ShouldBeEmpty();
+    }
+
     [TestMethod]
     public void EndpointFreeDevelopmentHostStartsWithoutAnExporter()
     {

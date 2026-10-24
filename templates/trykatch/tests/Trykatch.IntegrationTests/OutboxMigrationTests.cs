@@ -25,9 +25,11 @@ public sealed partial class OutboxMigrationTests
         const string unavailable = "Host=127.0.0.1;Port=1;Database=never-open;Username=none;Password=none";
         using ApplicationDbContext application = CreateContext(unavailable);
         using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(unavailable).Options);
+        using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(unavailable).Options);
 
         application.Database.HasPendingModelChanges().ShouldBeFalse();
         platform.Database.HasPendingModelChanges().ShouldBeFalse();
+        identity.Database.HasPendingModelChanges().ShouldBeFalse();
     }
 
     [TestMethod]

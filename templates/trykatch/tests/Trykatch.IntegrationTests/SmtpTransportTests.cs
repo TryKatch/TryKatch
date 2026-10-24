@@ -46,12 +46,116 @@ public sealed class SmtpTransportTests
         using IHost host = CreateHost(server, "StartTls", wrongPassword: failure == "wrong-password", trustFixture: failure != "untrusted-certificate");
         await host.StartAsync();
         using IServiceScope scope = host.Services.CreateScope();
-        EmailDeliveryException exception = await Should.ThrowAsync<EmailDeliveryException>(() =>
-            scope.ServiceProvider.GetRequiredService<IEmailSender>().SendAsync(new("recipient@example.test", "private subject", "private recovery link")));
-        exception.Message.ShouldBe("Email delivery failed.");
-        exception.InnerException.ShouldBeNull();
+        if (failure == "missing-starttls")
+        {
+            EmailTransportResult result = await scope.ServiceProvider.GetRequiredService<IEmailTransport>().SendAsync(
+                new("recipient@example.test", "private subject", "private recovery link"));
+            result.Disposition.ShouldBe(EmailTransportDisposition.PermanentFailure);
+            result.Stage.ShouldBe(EmailTransportStage.Connect);
+            result.FailureCode.ShouldBe(EmailTransportFailureCode.ProtocolFailure);
+        }
+        else
+        {
+            EmailDeliveryException exception = await Should.ThrowAsync<EmailDeliveryException>(() =>
+                scope.ServiceProvider.GetRequiredService<IEmailSender>().SendAsync(new("recipient@example.test", "private subject", "private recovery link")));
+            exception.Message.ShouldBe("Email delivery failed.");
+            exception.InnerException.ShouldBeNull();
+        }
         server.ReceivedMessage.ShouldBeFalse();
         if (failure != "wrong-password") server.Authenticated.ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task AcceptedMessageRemainsAcknowledgedWhenConnectionResetsDuringCleanup()
+    {
+        await using LoopbackSmtpServer server = new(resetAfterDataAcknowledgement: true);
+        using IHost host = CreateHost(server, "None", development: true);
+        await host.StartAsync();
+        using IServiceScope scope = host.Services.CreateScope();
+
+        EmailTransportResult result = await scope.ServiceProvider.GetRequiredService<IEmailTransport>().SendAsync(
+            new("recipient@example.test", "private subject", "private body"));
+        result.Disposition.ShouldBe(EmailTransportDisposition.Acknowledged);
+        result.Stage.ShouldBe(EmailTransportStage.None);
+        result.FailureCode.ShouldBe(EmailTransportFailureCode.None);
+        server.ReceivedMessage.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task CancellationDuringQuitCleanupReturnsAcknowledgedWithinAttemptBudget()
+    {
+        await using LoopbackSmtpServer server = new(holdQuitResponse: true);
+        using IHost host = CreateHost(server, "None", development: true);
+        await host.StartAsync();
+        using IServiceScope scope = host.Services.CreateScope();
+        using CancellationTokenSource cancellation = new();
+
+        Task<EmailTransportResult> sending = scope.ServiceProvider.GetRequiredService<IEmailTransport>().SendAsync(
+            new("recipient@example.test", "private subject", "private body"), cancellation.Token);
+        await server.QuitReceived.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+
+        EmailTransportResult result = await sending.WaitAsync(TimeSpan.FromSeconds(1));
+        result.Disposition.ShouldBe(EmailTransportDisposition.Acknowledged);
+        server.ReceivedMessage.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    [DataRow(450, true)]
+    [DataRow(550, false)]
+    public async Task RecipientRejectionMapsSmtpStatusToBoundedOutcome(int status, bool retryable)
+    {
+        await using LoopbackSmtpServer server = new(recipientStatusCode: status);
+        using IHost host = CreateHost(server, "None", development: true);
+        await host.StartAsync();
+        using IServiceScope scope = host.Services.CreateScope();
+
+        EmailTransportResult result = await scope.ServiceProvider.GetRequiredService<IEmailTransport>().SendAsync(
+            new("recipient@example.test", "private subject", "private body"));
+
+        result.Disposition.ShouldBe(retryable ? EmailTransportDisposition.RetryableFailure : EmailTransportDisposition.PermanentFailure);
+        result.Stage.ShouldBe(EmailTransportStage.Recipient);
+        result.SmtpStatusCode.ShouldBe(status);
+        result.FailureCode.ShouldBe(EmailTransportFailureCode.SmtpRejected);
+        result.ToString().ShouldNotContain("recipient@example.test");
+        result.ToString().ShouldNotContain("private body");
+        server.ReceivedMessage.ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task AcceptedDataWithoutFinalAcknowledgementIsUncertain()
+    {
+        await using LoopbackSmtpServer server = new(dropFinalAcknowledgement: true);
+        using IHost host = CreateHost(server, "None", development: true);
+        await host.StartAsync();
+        using IServiceScope scope = host.Services.CreateScope();
+
+        EmailTransportResult result = await scope.ServiceProvider.GetRequiredService<IEmailTransport>().SendAsync(
+            new("recipient@example.test", "private subject", "private body"));
+
+        result.Disposition.ShouldBe(EmailTransportDisposition.Uncertain);
+        result.Stage.ShouldBe(EmailTransportStage.Send);
+        result.FailureCode.ShouldBe(EmailTransportFailureCode.ProtocolFailure);
+        result.SmtpStatusCode.ShouldBeNull();
+        result.ToString().ShouldNotContain("recipient@example.test");
+        result.ToString().ShouldNotContain("private body");
+        server.ReceivedMessage.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task CancellationBeforeSendPropagatesWithoutConnecting()
+    {
+        await using LoopbackSmtpServer server = new();
+        using IHost host = CreateHost(server, "None", development: true);
+        await host.StartAsync();
+        using IServiceScope scope = host.Services.CreateScope();
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+
+        await Should.ThrowAsync<OperationCanceledException>(() =>
+            scope.ServiceProvider.GetRequiredService<IEmailTransport>().SendAsync(
+                new("recipient@example.test", "private subject", "private body"), cancellation.Token));
+        server.ReceivedMessage.ShouldBeFalse();
     }
 
     [TestMethod]

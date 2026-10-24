@@ -45,5 +45,6 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.Property(value => value.Outcome).HasMaxLength(64);
             entity.HasIndex(value => new { value.UserId, value.OccurredAt });
         });
+        IdentityEmailDeliveryMapping.Configure(builder);
     }
 }

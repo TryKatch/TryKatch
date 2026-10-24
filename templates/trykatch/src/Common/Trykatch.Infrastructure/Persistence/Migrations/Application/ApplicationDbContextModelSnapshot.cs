@@ -458,6 +458,99 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         });
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Mailing.OrganizationEmailDeliveryRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdmissionIdentityKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LastCompletedLeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LastFailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LastOutcome")
+                        .HasMaxLength(48)
+                        .HasColumnType("character varying(48)");
+
+                    b.Property<int?>("LastSmtpStatusCode")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProtectedIntent")
+                        .IsRequired()
+                        .HasMaxLength(262144)
+                        .HasColumnType("character varying(262144)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TemplateKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int>("TemplateVersion")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId", "CreatedAtUtc");
+
+                    b.HasIndex("State", "LeaseUntilUtc");
+
+                    b.HasIndex("State", "NextAttemptAtUtc");
+
+                    b.HasIndex("OrganizationId", "AdmissionIdentityKey", "TemplateKey", "TemplateVersion", "MessageId")
+                        .IsUnique();
+
+                    b.ToTable("email_deliveries", "infrastructure", t =>
+                        {
+                            t.HasCheckConstraint("CK_organization_email_deliveries_attempts", "\"Attempts\" BETWEEN 0 AND 5");
+
+                            t.HasCheckConstraint("CK_organization_email_deliveries_lease", "\"State\" <> 'leased' OR (\"LeaseId\" IS NOT NULL AND \"LeaseUntilUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_organization_email_deliveries_state", "\"State\" IN ('queued', 'leased', 'delivered', 'suppressed', 'terminal')");
+
+                            t.HasCheckConstraint("CK_organization_email_deliveries_template_version", "\"TemplateVersion\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")

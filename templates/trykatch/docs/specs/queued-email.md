@@ -1,0 +1,79 @@
+# Durable approved email delivery
+
+Status: E5 implementation, targeted local qualification and integrated review complete. Remote PR gates, the separate Phase 1 installed-event/operation exit and later release work remain required.
+
+## Outcome and scope
+
+An enabled email adapter accepts approved template intents durably, commits organization email with the originating business transaction, and sends only while the recipient may still receive the source information. Identity recovery uses an Identity-owned durable boundary. Operators can inspect safe delivery state and synthetic template previews. Existing SMTP transport and notifier interfaces remain available during migration.
+
+The approved E5 task is in the repository's `docs/superpowers/plans/2026-10-23-parity-01-execution.md`. The [contract ledger](feature-parity-contracts.md#9-attachments-and-email--f1e5), [execution architecture](../adr/0015-bounded-background-execution.md) and [operational access profiles](../adr/0017-operational-data-access-profiles.md) remain authoritative. No business module, general scheduler requirement, external mail service, permanent purge, arbitrary HTML submission or automatic replay is added by this slice.
+
+## Ownership and decisions
+
+The existing SMTP adapter is `src/Common/Trykatch.Infrastructure/Optional/Email/EmailModule.cs`; Identity owns `IdentityDbContext`, users and reset-token validation. Infrastructure references Application and Modules.Abstractions, and must not acquire a reference to Identity. The API composes both implementations.
+
+Use two owned stores and one bounded dispatcher. Organization delivery records live in `infrastructure.email_deliveries`; enqueue joins the existing organization transaction. Identity security records live in `identity.email_deliveries`, mapped and migrated through Identity. A dedicated internal Identity queue context uses its fixed Identity connection without automatic EF retries; the normal Identity context retains its existing retry configuration. This prevents an automatically replayed `SKIP LOCKED` claim from silently leasing a different message.
+
+Application owns the shared delivery-source, lease, preparation, completion and protection seams. Identity implements its source and security-email enqueue use case. Infrastructure owns the organization source, dispatcher, compiled template registry, protector and SMTP transport. Registrations are explicit; module ownership comes from the enabled catalog and registered descriptors. Core recovery/invitation templates are host registrations, not fabricated business modules.
+
+The module-facing records and explicit adapter seams are defined under `Modules.Abstractions/Mailing`. Source-policy ownership, producer-operation ownership and template ownership may differ. A system grant must name the exact policy version, and that policy must consent to the exact producer-operation/template-version pair. Existing E2 operation/resource authority remains separately required. Reciprocal source allowlists do not introduce reverse module dependency edges. A source policy constructs canonical recipient/render data from current authorized state; a renderer receives that data and cannot choose a recipient. Empty declared user permissions means system-only, rather than permission-free user submission.
+
+## Submission and protection rules
+
+- Preserve `IModuleEmailQueue.EnqueueAsync(ModuleEmailMessage, CancellationToken)` returning `Task<ModuleWorkReceipt>`. The message contains caller message/dedup identity, approved template/version, recipient intent, registered disclosure policy and source reference, safe template data and correlation. Caller data never supplies organization authority, actor/grant overrides or an SMTP endpoint.
+- Derive organization and execution authority from the active host scope. For committed-event and scheduled-system producers, reuse the host-only `ModuleWorkExecutionContext` established by E2 and revalidate the finite installed grant; never require a fabricated membership or trust an origin user as execution authority. Validate the installed owner, template/version, current submission permissions, source and intended recipient before receipt reuse or insertion. A duplicate with identical immutable intent reuses its opaque host delivery ID; differing intent conflicts. Enqueue and required business/audit writes commit or roll back together.
+- Generate stable delivery and lease identities once. An uncertain enqueue commit is resolved against that exact delivery identity and immutable intent. An unconfirmed claim commit must not produce a sendable lease; recover that same lease or wait for its expiry, rather than replaying a generic claim.
+- Caller `MessageId` and `LogicalDedupId` are separate stable identities. Admission binds logical deduplication to the organization, current authority scope and template/version; changing a caller message ID under the same dedup ID conflicts. The organization store's existing internal `MessageId` column holds the logical dedup ID; the protected packet must also retain the caller message ID. Correlation is bounded diagnostic provenance rather than authority or private-content equality.
+- Protect recipient addresses, tokens/links and private template parameters at rest with the configured host Data Protection key ring. Purposes bind format version, boundary (including the organization or Identity owner), host delivery ID and template/version. Protect the complete immutable intent, including source/policy and execution provenance, and reject mismatches with indexed metadata before disclosure. Do not persist an unkeyed recipient/token fingerprint as dedup metadata. Decrypt only within trusted preparation/rendering; operator DTOs and logs never contain protected or decrypted content.
+- Only registered compiled templates may render. Encode user text, validate branding and construct links through the existing approved application-origin mechanism. No arbitrary caller HTML, remote template, endpoint selection or untrusted request-derived origin is accepted.
+
+## Dispatch lifecycle
+
+| From / trigger | Guard and resulting behavior |
+| --- | --- |
+| Queued or retry due | Atomically claim a bounded batch with short leases and exact role access. Only a confirmed committed lease may proceed. |
+| Claimed, before every attempt | Recheck installed owner/template/policy and current source/recipient disclosure. Missing/disabled code, revoked access, consumed/expired token or changed recipient suppresses with a safe code and no SMTP call. |
+| Preparation unavailable transiently | Keep a bounded retry outcome; do not manufacture authorization or delivery success. |
+| SMTP explicit transient rejection | Retry with bounded backoff and attempt budget. |
+| SMTP permanent rejection, invalid configuration, authentication or certificate failure | Terminal safe outcome; never blind-retry a security/configuration defect. |
+| Transport loss during an in-flight send before acknowledgement | Record uncertainty and apply bounded retry policy; duplicates are possible. |
+| SMTP acknowledgement received | Mark delivered through a conditional delivery/lease update. Subsequent disconnect cleanup failure does not undo acknowledgement. |
+| Lease expiry or uncertain completion | Compare the exact lease and retained finalized outcome. Do not repeat a recorded delivery; an acknowledged message whose completion was never recorded may be sent again after recovery. |
+
+The SMTP attempt has a total cancellation deadline shorter than its lease, reserving five seconds for completion; a lease without that headroom cannot start preparation or SMTP. Database transactions close before SMTP. After acknowledgement, use a separate bounded completion budget even when shutdown/request cancellation arrives; do not immediately release a possibly delivered item. Attempts, lease recovery, retries and processing batches are bounded. Unexpected adapter defects stop the worker with sanitized diagnostics rather than passing private exception details to host logging. Email dispatch does not depend on `Jobs:Enabled`, which defaults off.
+
+SMTP and PostgreSQL cannot commit atomically. Delivery is at-least-once, and an uncertain acknowledgement/completion can produce a duplicate. A disclosure revocation racing with transmission cannot recall an email already sent. Rechecking immediately before each attempt limits this window without claiming cross-system atomicity.
+
+## Identity and invitation compatibility
+
+Password recovery keeps the existing generic `ForgotPasswordResponse`, adapter-level configuration flag and Development-only copy link. No account-specific queue flag or delivery receipt is returned publicly. Persist the originally generated reset token and validate it with the configured token provider, current confirmed address and current user/security state before each send; never mint a fresh token during retry. Identity persistence never fabricates an organization ID or claims atomicity with an unrelated organization EF context.
+
+Invitation email intent joins the existing invitation/audit organization transaction and rechecks usable invitation, token binding, role/organization and current recipient before dispatch. Add an authorized `EmailQueued` result and corresponding English/French copy. `EmailDelivered` continues to mean actual acknowledged transmission; completing a queue-enqueue task cannot set it true. Existing synchronous `IEmailSender` and notifier contracts remain explicit compatibility paths.
+
+Core invitations use `core.organization-invitation` in the organization delivery store. The focused application use case saves invitation and audit changes, then submits intent before the same control-plane transaction commits; it never sends SMTP. Admission repeats current management authority, including role delegation, and deduplicates by organization/invitation identity. Returning an existing receipt still requires current authority. No business-module identity or separate Identity transaction is invented. Malformed/display-name mailbox values fail application validation before persistence. Missing named work configuration or an approved `Application:PublicUrl` preserves copy-link creation with `EmailQueued=false`; a configured queue persistence failure rolls back the invitation and required audit.
+
+Only the protected packet contains the token, recipient and complete link. Dispatch resolves the current usable invitation, matching original token, role and recipient under the organization runtime role; it also requires the current organization and role to remain active and the link to match the operator-configured origin/path. Current organization/role names supply rendering data. A pending invitation remains its own access grant when its inviter leaves, matching existing acceptance behavior; suspending the inviter alone does not revoke the invitation. Operators must revoke the invitation when that pending grant should end. Preparation introduces no synthetic membership and ends its read transaction before SMTP. Link configuration never comes from request host/origin headers. The API reports queued intent separately from actual delivery, and the UI retains secure copy-link guidance in all result states.
+
+## Access and operational surface
+
+Reserve both relations in the ownership catalog before generic schema grants. Organization runtime has enqueue INSERT only under transaction-local organization/actor RLS; the work coordinator has only the narrow organization delivery access needed for claims/completion and no business-table access. Identity has SELECT/INSERT/UPDATE on its own relation; other runtime roles have no access. Migrator ownership, policies, grants and schema inspection change together. No DELETE grant, cascading retention or physical purge is introduced.
+
+Safe listing and synthetic previews require a dedicated platform email-read permission, granted to no role automatically. Check current platform authority before reading either store. Listing uses closed metadata DTOs and bounded pagination/filtering; it exposes no address, token, payload, storage ciphertext or arbitrary exception text. Previews render synthetic fixture data, never a real queued message. This slice does not expose replay, purge or arbitrary sends.
+
+Email-disabled products return explicit unavailability, preserve existing copy-link recovery and compile without MailKit or an active mail worker. Backend-only products remain supported. OpenAPI generation starts no dispatcher or SMTP connection. Retained schema/history is not deleted when optional code is absent.
+
+## Acceptance and evidence
+
+| Case | Required evidence / planned owner |
+| --- | --- |
+| Acknowledged send followed by failed disconnect stays delivered | Real loopback SMTP regression in `SmtpTransportTests`; existing TLS/authentication/configuration cases remain green. |
+| Transient rejection recovers; permanent recipient/configuration rejection stops; lost acknowledgement is uncertain | Focused SMTP transport and `QueuedEmailTests`/`QueuedEmailIntegrationTests`, with bounded attempts and no secret-bearing diagnostics. |
+| Business, required audit and email insertion roll back together; duplicates and conflicting intents behave correctly | Real PostgreSQL organization-role transactions and current-authority receipt checks. |
+| Concurrent workers, restart and uncertain enqueue/claim/completion preserve logical identity and lease safety | Real PostgreSQL queue integration; recorded completion is never resent. Document unrecorded-ack duplicate limit. |
+| Source/recipient revoked after enqueue or between retries is suppressed | `RevokedSourceAccessSuppressesQueuedEmail` and `SourcePolicyRecheckedBeforeSmtpRetry` with a registered fixture resource policy and real organization data; no early Chat module. |
+| Recovery/invitation token expires, is consumed or no longer matches recipient | Actual configured Identity token provider and invitation source checks; no refresh during retry and no SMTP disclosure. |
+| Protected storage and safe operators | Inspect persisted rows, purpose mismatch/key continuity and captured diagnostics; denied listing/preview, bounded metadata and synthetic preview checks. |
+| Public recovery and invitation responses remain truthful | Production HTTP composition plus focused page/Storybook cases and English/French copy; no account-specific recovery flag. |
+| Optional generation and deployment contract | Packed renamed React/backend-only email-on/off outputs, strict build/OpenAPI/client checks and no worker/probe during generation. |
+
+The fresh merged baseline passed strict locked integration restore and 17 SMTP transport cases. The implemented transport/protection, owned stores and schemas, explicit registration, current organization/Identity admission and preparation, runtime composition, truthful public recovery/invitation behavior, read-only operators, synthetic previews and safe telemetry have focused evidence. Four packed renamed React/backend-only email-on/off products build cleanly with selected unit/integration checks; the common architecture and module-doctor exit passes. The final automatic production browser profile survives a real API process restart with two replicas, preserves the original invitation/reset intents, rejects reset replay, checks delivered safe metadata and synthetic previews, and passes its API diagnostic privacy check. The integrated review's retained-lease test-deadline finding is fixed, with no additional concrete findings in its follow-up. See [E5 evidence](evidence/parity-execution-e5.md) for exact counts, failed experiments, corrections and limits. The separate Phase 1 real installed-module event/synthetic-operation exits, remote PR gates and later parity/release tasks remain open.

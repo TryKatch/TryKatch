@@ -41,6 +41,11 @@ internal static class HostPostgresPolicyContracts
     {
         Dictionary<string, Policy[]> policies = new(StringComparer.Ordinal)
     {
+        ["infrastructure.email_deliveries"] =
+        [
+            new("email_deliveries_append", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
+            new("email_deliveries_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])
+        ],
         ["infrastructure.module_work_items"] =
         [
             new("module_work_items_append", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),

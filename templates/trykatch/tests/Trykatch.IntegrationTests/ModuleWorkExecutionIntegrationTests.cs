@@ -375,6 +375,9 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
             services.AddModules(runtimeConfiguration, modules);
             services.AddInfrastructure(runtimeConfiguration);
             services.AddSingleton(new ProbeExecutionBehavior());
+#if TRYKATCH_EMAIL
+            AddEmailProbeServices(services, runtimeConfiguration);
+#endif
             ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
             return new(postgres, owner, provider);
         }
@@ -825,9 +828,25 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
             ],
             SystemGrants =
             [
-                new(Grant, 1, "probe", AuditActorId, ["probe.effect"], [Resource]),
-                new("probe.scheduled-grant", 1, "probe", AuditActorId, ["probe.scheduled"], [Resource])
+                new ModuleSystemGrantDescriptor(Grant, 1, "probe", AuditActorId, ["probe.effect"], [Resource])
+                {
+#if TRYKATCH_EMAIL
+                    AllowedEmailDisclosurePolicies = [ProbeEmailPolicy]
+#endif
+                },
+                new ModuleSystemGrantDescriptor("probe.scheduled-grant", 1, "probe", AuditActorId, ["probe.scheduled"], [Resource])
+                {
+#if TRYKATCH_EMAIL
+                    AllowedEmailDisclosurePolicies = [ProbeEmailPolicy]
+#endif
+                }
             ],
+#if TRYKATCH_EMAIL
+            EmailTemplates = [new("probe", "probe.notice", 1, 4096)],
+            EmailDisclosurePolicies = [new("probe", "probe.disclose", 1, [Resource], ["probe.write"],
+                [ProbeEmailTemplate], [new(new("probe", "probe.effect", 1), ProbeEmailTemplate),
+                    new(new("probe", "probe.scheduled", 1), ProbeEmailTemplate)])],
+#endif
             IntegrationEvents =
             [
                 new("probe.committed", 1, "probe", typeof(JsonElement), element => element, 4096),

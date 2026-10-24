@@ -28,7 +28,11 @@ public sealed record ModuleSystemGrantDescriptor(
     string OwnerModuleId,
     Guid AuditActorId,
     IReadOnlyList<string> AllowedOperationKeys,
-    IReadOnlyList<string> AllowedResourceKeys);
+    IReadOnlyList<string> AllowedResourceKeys)
+{
+    /// <summary>Email-specific source-policy authority; this does not widen business-resource grants.</summary>
+    public IReadOnlyList<ModuleEmailDisclosurePolicyRef> AllowedEmailDisclosurePolicies { get; init; } = [];
+}
 
 /// <summary>Persisted execution provenance; it is data, not an authorization token.</summary>
 public sealed record ModuleExecutionIdentity(

@@ -11,4 +11,5 @@ export interface CreateInvitationResponse {
   invitation: InvitationDto;
   invitationUrl: string;
   emailDelivered: boolean;
+  emailQueued: boolean;
 }

@@ -8,6 +8,9 @@ generated_root="$test_root/generated"
 template_hive="$test_root/template-hive"
 environment_file="$test_root/acceptance.env"
 compose_override="$test_root/compose.acceptance.yml"
+compose_email_override="$test_root/compose.email.yml"
+email_enabled=${TRYKATCH_ACCEPTANCE_EMAIL:-false}
+email_state_file="$test_root/email-state.json"
 artifact_parent=${TRYKATCH_ACCEPTANCE_ARTIFACTS:-$repository_root/artifacts/generated-application}
 artifact_root=
 generated_name=${TRYKATCH_ACCEPTANCE_PROJECT_NAME:-Acme.Acceptance-Portal}
@@ -21,14 +24,18 @@ platform_admin_email=${TRYKATCH_ACCEPTANCE_ADMIN_EMAIL:-platform.admin@example.t
 platform_admin_password=${TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD:-}
 platform_manager_password=${TRYKATCH_ACCEPTANCE_PLATFORM_MANAGER_PASSWORD:-}
 organization_admin_password=${TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD:-}
+email_operator_password=${TRYKATCH_ACCEPTANCE_EMAIL_OPERATOR_PASSWORD:-}
 compose_started=false
 
 compose() {
+  local files=(--file "$generated_root/compose.yml" --file "$compose_override")
+  if [[ $email_enabled == true ]]; then
+    files+=(--file "$compose_email_override")
+  fi
   docker compose \
     --project-name "$compose_project" \
     --env-file "$environment_file" \
-    --file "$generated_root/compose.yml" \
-    --file "$compose_override" \
+    "${files[@]}" \
     "$@"
 }
 
@@ -100,6 +107,17 @@ wait_for_web() {
   return 1
 }
 
+wait_for_api() {
+  for ((attempt = 1; attempt <= 60; attempt++)); do
+    if curl --fail --insecure --silent "$web_url/api/v1/auth/antiforgery" >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  printf 'The generated API did not become reachable through the web proxy.\n' >&2
+  return 1
+}
+
 create_certificate() {
   local name=$1
   local password=$2
@@ -143,15 +161,80 @@ create_ingress_certificate() {
   chmod 0644 "$test_root/ingress.key" "$test_root/ingress.crt"
 }
 
-for command in curl docker dotnet openssl pnpm; do
+create_smtp_certificate() {
+  mkdir -p "$test_root/smtp"
+  openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 2 \
+    -subj "/CN=Acceptance SMTP Root" \
+    -addext "basicConstraints=critical,CA:TRUE" \
+    -addext "keyUsage=critical,keyCertSign,cRLSign" \
+    -keyout "$test_root/smtp/root.key" -out "$test_root/smtp/root.crt" >/dev/null 2>&1
+  openssl req -newkey rsa:3072 -sha256 -nodes -subj "/CN=mailpit" \
+    -keyout "$test_root/smtp/server.key" -out "$test_root/smtp/server.csr" >/dev/null 2>&1
+  cat >"$test_root/smtp/server.ext" <<'EOF'
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth
+subjectAltName=DNS:mailpit
+crlDistributionPoints=URI:http://web:8080/acceptance-smtp.crl
+EOF
+  openssl x509 -req -sha256 -days 2 -in "$test_root/smtp/server.csr" \
+    -CA "$test_root/smtp/root.crt" -CAkey "$test_root/smtp/root.key" -CAcreateserial \
+    -extfile "$test_root/smtp/server.ext" -out "$test_root/smtp/server.crt" >/dev/null 2>&1
+  # MailKit's normal validation checks revocation. Publish an empty, signed CRL
+  # for this private test CA rather than disabling that production check.
+  touch "$test_root/smtp/index.txt"
+  printf '01\n' >"$test_root/smtp/crlnumber"
+  cat >"$test_root/smtp/ca.cnf" <<EOF
+[ca]
+default_ca=acceptance_ca
+[acceptance_ca]
+database=$test_root/smtp/index.txt
+private_key=$test_root/smtp/root.key
+certificate=$test_root/smtp/root.crt
+crlnumber=$test_root/smtp/crlnumber
+default_md=sha256
+default_crl_days=2
+[crl_extensions]
+authorityKeyIdentifier=keyid:always
+EOF
+  openssl ca -gencrl -config "$test_root/smtp/ca.cnf" -crlexts crl_extensions \
+    -out "$test_root/smtp/crl.pem" >/dev/null 2>&1
+  openssl crl -in "$test_root/smtp/crl.pem" -outform DER -out "$test_root/smtp/smtp.crl"
+  # Temporary assets in the private acceptance workspace must be readable by
+  # the unprivileged containers. The API receives only the public fixture root.
+  chmod 0644 "$test_root/smtp/root.crt" "$test_root/smtp/server.crt" "$test_root/smtp/server.key" "$test_root/smtp/smtp.crl"
+}
+
+run_email_browser_stage() {
+  local stage=$1
+  TRYKATCH_ACCEPTANCE_BASE_URL="$web_url" \
+  TRYKATCH_ACCEPTANCE_ADMIN_EMAIL="$platform_admin_email" \
+  TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD="$platform_admin_password" \
+  TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD="$organization_admin_password" \
+  TRYKATCH_ACCEPTANCE_EMAIL=true \
+  TRYKATCH_ACCEPTANCE_EMAIL_STAGE="$stage" \
+  TRYKATCH_ACCEPTANCE_EMAIL_STATE="$email_state_file" \
+  TRYKATCH_ACCEPTANCE_EMAIL_OPERATOR_PASSWORD="$email_operator_password" \
+  TRYKATCH_ACCEPTANCE_INBOX_URL="${inbox_url:-}" \
+  TRYKATCH_PLAYWRIGHT_OUTPUT_DIR="$generated_root/web/apps/web/test-results/$stage" \
+  pnpm --dir "$generated_root/web/apps/web" exec playwright test \
+    e2e/generated-email-production.spec.ts --reporter=line
+}
+
+for command in curl docker dotnet openssl pnpm node; do
   require_command "$command"
 done
+case "$email_enabled" in
+  true|false) ;;
+  *) printf 'TRYKATCH_ACCEPTANCE_EMAIL must be true or false.\n' >&2; exit 2 ;;
+esac
 
 network_prefix=$(select_free_network_prefix)
 
 platform_admin_password=${platform_admin_password:-"A1!$(openssl rand -hex 24)"}
 platform_manager_password=${platform_manager_password:-"A1!$(openssl rand -hex 24)"}
 organization_admin_password=${organization_admin_password:-"A1!$(openssl rand -hex 24)"}
+email_operator_password=${email_operator_password:-"A1!$(openssl rand -hex 24)"}
 postgres_admin_password="$(openssl rand -hex 24)"
 migrator_password="$(openssl rand -hex 24)"
 runtime_password="$(openssl rand -hex 24)"
@@ -186,6 +269,7 @@ dotnet new \
   trykatch \
   --name "$generated_name" \
   --output "$generated_root" \
+  --email "$email_enabled" \
   --allow-scripts yes
 
 test -f "$generated_root/$generated_namespace.slnx"
@@ -297,12 +381,74 @@ GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 24)
 EOF
 chmod 600 "$environment_file"
 
+if [[ $email_enabled == true ]]; then
+  create_smtp_certificate
+  cat >"$compose_email_override" <<EOF
+services:
+  web:
+    volumes:
+      - "$test_root/smtp/smtp.crl:/usr/share/nginx/html/acceptance-smtp.crl:ro"
+  api:
+    environment:
+      Email__Host: mailpit
+      Email__Port: "1025"
+      Email__From: "Acceptance <noreply@example.invalid>"
+      Email__Security: StartTls
+      Jobs__Enabled: "false"
+      SSL_CERT_FILE: /run/acceptance-smtp/root.crt
+    volumes:
+      - "$test_root/smtp/root.crt:/run/acceptance-smtp/root.crt:ro"
+  mailpit:
+    image: docker.io/axllent/mailpit:v1.30.4@sha256:5a49a77c5bdbe7c5474450b4f46348d09949df3695257729c93a30369382d4f6
+    environment:
+      MP_SMTP_TLS_CERT: /run/acceptance-smtp/server.crt
+      MP_SMTP_TLS_KEY: /run/acceptance-smtp/server.key
+      MP_SMTP_REQUIRE_STARTTLS: "true"
+    volumes:
+      - "$test_root/smtp/server.crt:/run/acceptance-smtp/server.crt:ro"
+      - "$test_root/smtp/server.key:/run/acceptance-smtp/server.key:ro"
+    ports:
+      - "127.0.0.1::8025"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+EOF
+fi
+
 compose config --quiet
 compose_started=true
 compose up --detach --build postgres migrator api web
 wait_for_web
 
 pnpm --dir "$generated_root/web" install --frozen-lockfile
+if [[ $email_enabled == true ]]; then
+  # Deliberately leave the SMTP service stopped while durable intent is admitted.
+  run_email_browser_stage prepare
+  test -s "$email_state_file"
+  compose stop api
+  compose up --detach mailpit
+  inbox_url="http://$(compose port mailpit 8025)"
+  inbox_ready=false
+  for ((attempt = 1; attempt <= 30; attempt++)); do
+    if curl --fail --silent "$inbox_url/api/v1/messages" >/dev/null; then
+      inbox_ready=true
+      break
+    fi
+    sleep 1
+  done
+  if [[ $inbox_ready != true ]]; then
+    printf 'The isolated SMTP inbox did not become ready.\n' >&2
+    exit 1
+  fi
+  compose up --detach --wait --wait-timeout 120 --scale api=2 api
+  test "$(compose ps --status running -q api | wc -l | tr -d ' ')" = 2
+  wait_for_web
+  wait_for_api
+  run_email_browser_stage resume
+  compose logs --no-color api >"$artifact_root/api-email.log"
+  node "$repository_root/scripts/assert-email-log-privacy.mjs" "$email_state_file" "$artifact_root/api-email.log"
+  printf 'Generated email application restart/competing-worker acceptance passed for %s.\n' "$generated_name"
+  exit 0
+fi
 TRYKATCH_ACCEPTANCE_BASE_URL="$web_url" \
 TRYKATCH_ACCEPTANCE_ADMIN_EMAIL="$platform_admin_email" \
 TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD="$platform_admin_password" \

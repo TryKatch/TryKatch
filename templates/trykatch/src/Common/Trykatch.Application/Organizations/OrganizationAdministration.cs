@@ -6,6 +6,8 @@ using Trykatch.Application.Auditing;
 using Trykatch.Application.Authorization;
 using Trykatch.Application.Common;
 using Trykatch.Application.Identity;
+using Trykatch.Application.Mailing;
+using Trykatch.Modules;
 using Trykatch.Domain.Organizations;
 using FluentValidation;
 using Trykatch.Domain.Common;
@@ -44,7 +46,10 @@ public sealed record AuditPageDto(
     AuditFilterOptionsDto Filters);
 public sealed record CreateInvitationCommand(string Email, int ExpiresInDays = 7, Guid? RoleId = null);
 public sealed record UpdateInvitationCommand(int ExpiresInDays);
-public sealed record CreateInvitationResult(InvitationDto Invitation, string OrganizationName, string Token, string RoleName);
+public sealed record CreateInvitationResult(InvitationDto Invitation, string OrganizationName, string Token, string RoleName, bool EmailQueued = false)
+{
+    public override string ToString() => $"Created invitation {Invitation.Id:N}";
+}
 public sealed record InvitationPreviewDto(string Email, string OrganizationName, DateTimeOffset ExpiresAt);
 public sealed record SaveRoleCommand(Guid? Id, string Name, string Description, IReadOnlyList<string> Permissions);
 public sealed record UpdateMembershipCommand(Guid MembershipId, IReadOnlyList<Guid> RoleIds, bool IsActive);
@@ -92,6 +97,7 @@ public sealed class OrganizationAdministration(
     OrganizationManagementAuthorization managementAuthorization,
     IPermissionCatalog permissionCatalog,
     IAuditIntentWriter auditWriter,
+    IOrganizationInvitationEmailSubmission invitationEmail,
     IValidator<SaveRoleCommand> roleValidator)
 {
     public async Task<Result<IReadOnlyList<RoleDto>>> ListRolesAsync(RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
@@ -280,7 +286,8 @@ public sealed class OrganizationAdministration(
         Result<OrganizationManagementAuthority> authorization = await managementAuthorization.BeginAsync(Permissions.MembersManage, cancellationToken);
         if (!authorization.IsSuccess) return Result.Failure<CreateInvitationResult>(authorization.ErrorCode!, authorization.ErrorMessage!);
         string email = command.Email.Trim().ToLowerInvariant();
-        if (!email.Contains('@', StringComparison.Ordinal) || email.Length > 320 || command.ExpiresInDays is < 1 or > 30)
+        if (email.Length > 254 || !System.Net.Mail.MailAddress.TryCreate(email, out System.Net.Mail.MailAddress? mailbox)
+            || !string.Equals(mailbox.Address, email, StringComparison.OrdinalIgnoreCase) || command.ExpiresInDays is < 1 or > 30)
             return Result.Failure<CreateInvitationResult>("validation", "Provide a valid email and an expiry between 1 and 30 days.");
         Guid? userId = await users.FindUserIdByEmailAsync(email, cancellationToken);
         if (userId is Guid existingUser && await store.MembershipExistsAsync(context.OrganizationId, existingUser, cancellationToken))
@@ -304,7 +311,15 @@ public sealed class OrganizationAdministration(
         await store.AddInvitationAsync(invitation, cancellationToken);
         auditWriter.Record(AuditActions.InvitationCreated, new AuditTarget("Invitation", invitation.Id.ToString(), invitation.Email));
         await store.SaveChangesAsync(cancellationToken);
-        return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), organization.Name, token, invitedRole.Name));
+        bool emailQueued = false;
+        if (invitationEmail.IsConfigured)
+        {
+            ModuleWorkReceipt receipt = await invitationEmail.EnqueueAsync(new(invitation.Id, token), cancellationToken);
+            if (receipt.State is not (ModuleWorkState.Accepted or ModuleWorkState.AlreadyAccepted))
+                throw new InvalidOperationException("Invitation email could not be queued.");
+            emailQueued = true;
+        }
+        return Result.Success(new CreateInvitationResult(ToInvitationDto(invitation), organization.Name, token, invitedRole.Name, emailQueued));
     }
 
     public async Task<Result<InvitationDto>> UpdateInvitationAsync(Guid invitationId, UpdateInvitationCommand command, CancellationToken cancellationToken)

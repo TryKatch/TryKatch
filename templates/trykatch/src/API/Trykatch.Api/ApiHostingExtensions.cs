@@ -20,6 +20,9 @@ using Trykatch.Modules.AspNetCore.Assistant;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.AspNetCore.RateLimiting;
+#if TRYKATCH_EMAIL
+using Trykatch.Infrastructure.Modules.Email;
+#endif
 
 namespace Trykatch.Api;
 
@@ -55,6 +58,9 @@ internal static class ApiHostingExtensions
             builder.Configuration,
             builder.Environment.IsDevelopment(),
             isOpenApiGeneration);
+#if TRYKATCH_EMAIL
+        builder.Services.AddQueuedEmailDelivery(isOpenApiGeneration);
+#endif
         builder.Services.AddProblemDetails();
         builder.Services.AddOptions<AtomicMutationResponseOptions>()
             .BindConfiguration(AtomicMutationResponseOptions.SectionName)

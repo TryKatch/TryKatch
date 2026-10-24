@@ -1,4 +1,6 @@
 using Shouldly;
+using Microsoft.EntityFrameworkCore;
+using Trykatch.Infrastructure.Persistence;
 using Trykatch.Infrastructure.Organizations;
 using Trykatch.Modules;
 
@@ -8,6 +10,51 @@ namespace Trykatch.UnitTests;
 public sealed class OperationalAccessProfileTests
 {
     private static readonly string[] InboxPermissions = ["INSERT", "SELECT"];
+    private static readonly string[] EmailAdmissionIndex = ["OrganizationId", "AdmissionIdentityKey", "TemplateKey", "TemplateVersion", "MessageId"];
+
+    [TestMethod]
+    public void OrganizationEmailSchemaIsPresentWithoutInstalledBusinessModules()
+    {
+        using ApplicationDbContext context = new(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql("Host=127.0.0.1;Port=1;Database=never-open;Username=none;Password=none").Options);
+        var delivery = context.Model.GetEntityTypes().SingleOrDefault(entity =>
+            entity.GetSchema() == "infrastructure" && entity.GetTableName() == "email_deliveries");
+        delivery.ShouldNotBeNull();
+        delivery.GetForeignKeys().ShouldBeEmpty();
+        delivery.GetIndexes().ShouldContain(index => index.IsUnique && index.Properties.Select(property => property.Name)
+            .SequenceEqual(EmailAdmissionIndex));
+    }
+
+    [TestMethod]
+    public void EmailStoresHaveOnlyTheirExactOwnerAndCoordinatorGrants()
+    {
+        Dictionary<string, DataResourceDescriptor> resources = OperationalDataResources.All
+            .ToDictionary(resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
+        foreach (string relation in new[] { "identity.email_deliveries", "infrastructure.email_deliveries" })
+        {
+            RuntimeDatabaseAccessProfiles.HostOwnedRelations.ShouldContain(relation);
+            resources.ShouldContainKey(relation);
+            ModuleDataResourceRules.Validate(resources[relation], hostOwned: true);
+            foreach (RuntimeDatabaseRoleKind kind in Enum.GetValues<RuntimeDatabaseRoleKind>())
+            {
+                string[] expected = (relation, kind) switch
+                {
+                    ("identity.email_deliveries", RuntimeDatabaseRoleKind.Identity) => ["INSERT", "SELECT", "UPDATE"],
+                    ("infrastructure.email_deliveries", RuntimeDatabaseRoleKind.Organization) => ["INSERT"],
+                    ("infrastructure.email_deliveries", RuntimeDatabaseRoleKind.WorkCoordinator) => ["SELECT", "UPDATE"],
+                    _ => []
+                };
+                RuntimeDatabaseAccessProfiles.PermissionsFor(kind, relation, resources).Order().ShouldBe(expected);
+                RuntimeDatabaseAccessProfiles.PermissionsFor(kind, relation,
+                    new Dictionary<string, DataResourceDescriptor>()).ShouldBeEmpty();
+                RuntimeDatabaseAccessProfiles.PermissionsFor(kind, relation,
+                    new Dictionary<string, DataResourceDescriptor>
+                    {
+                        [relation] = resources[relation] with { AccessRule = ModuleDataAccessRule.PlatformOnly }
+                    }).ShouldBeEmpty();
+            }
+        }
+    }
     [TestMethod]
     public void OperationalOwnershipHasNoImplicitGrants()
     {

@@ -138,6 +138,7 @@ public static class DependencyInjection
         services.AddScoped<IPlatformAuthorityReader, PlatformAuthorityReader>();
         services.AddScoped<PlatformManagementAuthorization>();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddIdentityEmailDelivery(configuration, isDevelopment, isOpenApiGeneration);
         services.AddScoped<IAccountSecurity, AccountSecurityService>();
         return services;
     }

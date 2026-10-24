@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Trykatch.Application.Organizations;
 using Trykatch.Infrastructure.Execution;
+using Trykatch.Infrastructure.Mailing;
 using Trykatch.Domain.Organizations;
 using Trykatch.Modules;
 
@@ -103,6 +104,7 @@ public sealed class ApplicationDbContext(
 
         ModuleWorkPersistence.Configure(modelBuilder);
         ModuleWorkCompletion.Configure(modelBuilder);
+        OrganizationEmailDeliveryMapping.Configure(modelBuilder);
         ApplyOrganizationIsolation(modelBuilder);
         ApplicationModelIsolationValidator.Validate(modelBuilder.Model, moduleCatalog?.Descriptors ?? []);
     }

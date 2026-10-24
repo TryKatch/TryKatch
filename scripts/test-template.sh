@@ -98,6 +98,20 @@ generate_and_build() {
   grep -Fq 'Application generation completed in ' "$test_root/$namespace_name.creation.log" ||
     fail 'application creation does not report completion and elapsed time'
   test -d "$output/.git" || fail "generated application '$name' was not initialized as a Git repository"
+  local identity_email_tests="$output/tests/$namespace_name.IntegrationTests/IdentityEmailHostingTests.cs"
+  if [[ -d "$output/src/Common/$namespace_name.Infrastructure/Optional/Email" ]]; then
+    if grep -Fq 'EmailDisabledBuildRegistersUnavailableSubmissionWithoutQueueServices' "$identity_email_tests"; then
+      fail "generated email application '$name' contains the disabled-only Identity hosting test"
+    fi
+    grep -Fq 'ActiveRegistrationUsesOnlyNamedIdentityConnectionAndNoRetryQueueOptions' "$identity_email_tests" ||
+      fail "generated email application '$name' omits its active Identity hosting test"
+  else
+    grep -Fq 'EmailDisabledBuildRegistersUnavailableSubmissionWithoutQueueServices' "$identity_email_tests" ||
+      fail "generated no-email application '$name' omits its unavailable Identity hosting test"
+    if grep -Fq 'ActiveRegistrationUsesOnlyNamedIdentityConnectionAndNoRetryQueueOptions' "$identity_email_tests"; then
+      fail "generated no-email application '$name' contains the enabled-only Identity hosting test"
+    fi
+  fi
   test "$(git -C "$output" branch --show-current)" = main ||
     fail "generated application '$name' did not use main as its initial Git branch"
   grep -Fq '<FrameworkReference Include="Microsoft.AspNetCore.App" />' \
