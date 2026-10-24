@@ -41,6 +41,12 @@ internal static class ApplicationHostingExtensions
             outboxPassword,
             workCoordinatorPassword);
 
+        string? publicUrl = builder.Configuration["Application:PublicUrl"];
+        if (publicUrl is not null)
+        {
+            api.WithEnvironment("Application__PublicUrl", publicUrl);
+        }
+
         string? cacheMode = builder.Configuration["Cache:Mode"];
         if (!string.IsNullOrWhiteSpace(cacheMode))
         {
@@ -51,9 +57,24 @@ internal static class ApplicationHostingExtensions
         AddOptionalCacheSetting(builder, api, "Cache:TtlSeconds:short", "Cache__TtlSeconds__short");
         AddOptionalCacheSetting(builder, api, "Cache:TtlSeconds:standard", "Cache__TtlSeconds__standard");
 
+        string? realtimeMode = builder.Configuration["Realtime:Mode"];
+        AddOptionalCacheSetting(builder, api, "Realtime:Mode", "Realtime__Mode");
+        AddOptionalCacheSetting(builder, api, "Realtime:ApplicationNamespace", "Realtime__ApplicationNamespace");
+        AddOptionalCacheSetting(builder, api, "Realtime:MaximumConnections", "Realtime__MaximumConnections");
+        AddOptionalCacheSetting(builder, api, "Realtime:MaximumSubscriptions", "Realtime__MaximumSubscriptions");
+        AddOptionalCacheSetting(builder, api, "Realtime:MaximumConcurrentSends", "Realtime__MaximumConcurrentSends");
+        AddOptionalCacheSetting(builder, api, "Realtime:PollInterval", "Realtime__PollInterval");
+        AddOptionalCacheSetting(builder, api, "Realtime:SendTimeout", "Realtime__SendTimeout");
+        AddOptionalCacheSetting(builder, api, "Realtime:AuthorityTimeout", "Realtime__AuthorityTimeout");
+
         if (string.Equals(cacheMode, "Distributed", StringComparison.OrdinalIgnoreCase))
         {
             builder.AddDistributedCache(api);
+        }
+
+        if (string.Equals(realtimeMode, "Distributed", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.AddDistributedRealtime(api);
         }
 
         builder.AddDevelopmentEmail(api);
@@ -61,11 +82,15 @@ internal static class ApplicationHostingExtensions
         builder.AddObservabilityStack();
 
 #if HAS_REACT_UI
-        builder.AddViteApp("web", "../../../web/apps/web")
+        IResourceBuilder<ExecutableResource> web = builder.AddViteApp("web", "../../../web/apps/web")
             .WithPnpm()
             .WithReference(api)
             .WaitFor(api)
             .WithExternalHttpEndpoints();
+        if (builder.ExecutionContext.IsRunMode && publicUrl is null)
+        {
+            api.WithEnvironment("Application__PublicUrl", web.GetEndpoint("http"));
+        }
 #endif
 
         return builder;
@@ -115,6 +140,40 @@ internal static class ApplicationHostingExtensions
 
         api.WithEnvironment("ConnectionStrings__cache", cacheConnection)
             .WaitFor(cache);
+    }
+
+    private static void AddDistributedRealtime(
+        this IDistributedApplicationBuilder builder,
+        IResourceBuilder<ProjectResource> api)
+    {
+        IResourceBuilder<ParameterResource> realtimePassword = builder.AddParameter("realtime-password", secret: true);
+        IResourceBuilder<ContainerResource> realtime = builder
+            .AddContainer(
+                "realtime",
+                "valkey/valkey",
+                "9.1.2-alpine3.24@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11")
+            .WithArgs(
+                "--requirepass",
+                realtimePassword,
+                "--maxmemory",
+                "64mb",
+                "--maxmemory-policy",
+                "noeviction",
+                "--save",
+                "",
+                "--appendonly",
+                "no",
+                "--dir",
+                "/tmp")
+            .WithContainerRuntimeArgs("--user", "999:1000")
+            .WithEndpoint(targetPort: 6379, name: "redis");
+
+        ReferenceExpression realtimeConnection = ReferenceExpression.Create(
+            $"{realtime.GetEndpoint("redis").Property(EndpointProperty.Host)}:"
+            + $"{realtime.GetEndpoint("redis").Property(EndpointProperty.Port)},password={realtimePassword}");
+
+        api.WithEnvironment("ConnectionStrings__realtime", realtimeConnection)
+            .WaitFor(realtime);
     }
 
     private static IResourceBuilder<PostgresDatabaseResource> AddApplicationDatabase(
