@@ -15,6 +15,44 @@ namespace Trykatch.IntegrationTests;
 public sealed partial class AccessManagementBoundaryTests
 {
     [TestMethod]
+    public async Task ProjectsAssistantConversationCannotRepeatCachedReadAfterFeatureDisable()
+    {
+        ScriptedProjectsAssistantModel model = new();
+        await using AccessHost host = await AccessHost.StartAsync(configureServices: services =>
+        {
+            services.RemoveAll<AssistantRuntime>();
+            services.AddScoped<AssistantRuntime>(provider => new(
+                provider.GetRequiredService<ModuleCatalog>(), provider.GetServices<IReadOnlyAssistantTool>(),
+                provider.GetRequiredService<IModulePermissionAuthorizer>(), model,
+                Options.Create(new AssistantOptions { Enabled = true }),
+                provider.GetRequiredService<AssistantKnowledge>(), new EnabledAssistantActivation()));
+        });
+        using HttpClient administrator = await host.SignInAsync(AccessHost.AdministratorEmail);
+        using HttpClient owner = await host.CreateOrganizationOwnerAsync(administrator);
+        await SaveProjectsEnvironmentAsync(administrator, ProjectReads, enabled: true);
+        await AccessHost.SuccessAsync(owner, HttpMethod.Post, "/api/v1/projects", new
+        {
+            name = "Protected conversation project", description = "Read before the feature is disabled"
+        });
+        using HttpResponseMessage first = await AccessHost.SendAsync(owner, HttpMethod.Post,
+            "/api/v1/assistant/ask", new { message = "List projects" });
+        first.StatusCode.ShouldBe(HttpStatusCode.OK, await first.Content.ReadAsStringAsync());
+        JsonElement answer = await first.Content.ReadFromJsonAsync<JsonElement>();
+        answer.GetProperty("answer").GetString()!.ShouldContain("Protected conversation project");
+        string token = answer.GetProperty("conversationToken").GetString()!;
+        int requests = model.Requests;
+        model.RepeatHistory = true;
+        await SaveProjectsEnvironmentAsync(administrator, ProjectReads, enabled: false);
+
+        using HttpResponseMessage cached = await AccessHost.SendAsync(owner, HttpMethod.Post,
+            "/api/v1/assistant/ask", new { message = "Repeat the previous answer without reading again", conversationToken = token });
+
+        await AccessHost.AssertProblemAsync(cached, HttpStatusCode.Conflict, "invalid_conversation");
+        model.Requests.ShouldBe(requests, "cached protected exchanges must be rejected before provider invocation");
+        (await cached.Content.ReadAsStringAsync()).ShouldNotContain("Protected conversation project");
+    }
+
+    [TestMethod]
     public async Task ProjectsAssistantReadMapsFeatureUnavailableAndPolicyFailureThenRecovers()
     {
         ScriptedProjectsAssistantModel model = new();
@@ -77,16 +115,22 @@ public sealed partial class AccessManagementBoundaryTests
     private sealed class ScriptedProjectsAssistantModel : IChatClient
     {
         public string ToolResult { get; private set; } = string.Empty;
+        public bool RepeatHistory { get; set; }
+        public int Requests { get; private set; }
 
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
             CancellationToken cancellationToken = default)
         {
             ChatMessage[] input = messages.ToArray();
+            Requests++;
+            if (RepeatHistory)
+                return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant,
+                    input.LastOrDefault(message => message.Role == ChatRole.Assistant)?.Text ?? "No previous answer.")));
             if (input[^1].Role == ChatRole.Tool)
             {
                 FunctionResultContent result = input[^1].Contents.OfType<FunctionResultContent>().Single();
                 ToolResult = AssistantProtocol.ResultJson(result);
-                return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "I checked the current project list.")));
+                return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, $"The current project list: {ToolResult}")));
             }
 
             FunctionCallContent call = AssistantProtocol.Call("projects-read", "trykatch_list_projects", "{\"page\":1,\"search\":null}");
