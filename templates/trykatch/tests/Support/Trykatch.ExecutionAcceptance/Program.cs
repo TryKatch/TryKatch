@@ -22,6 +22,9 @@ internal static partial class Program
 
     public static async Task<int> Main(string[] args)
     {
+        if (args is ["realtime-host"])
+            return await RealtimeHost.RunAsync();
+
         if (args.Length != 1 || args[0] is not ("producer" or "worker" or "cache-reader"))
         {
             Console.Error.WriteLine("Expected process mode: producer, worker, or cache-reader.");

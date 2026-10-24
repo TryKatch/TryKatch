@@ -1315,7 +1315,7 @@
           "Trykatch.Modules.AspNetCore": "[1.0.0, )",
           "Trykatch.Modules.Documents": "[1.0.0, )",
           "Trykatch.Modules.Federation": "[1.0.0, )",
-          "Trykatch.Modules.Projects": "[1.0.0, )",
+          "Trykatch.Modules.Projects": "[1.2.0, )",
           "Trykatch.ServiceDefaults": "[1.0.0, )"
         }
       },
@@ -1336,10 +1336,11 @@
       "trykatch.executionacceptance": {
         "type": "Project",
         "dependencies": {
+          "Trykatch.Api": "[1.0.0, )",
           "Trykatch.Application": "[1.0.0, )",
           "Trykatch.Infrastructure": "[1.0.0, )",
           "Trykatch.Modules.Documents": "[1.0.0, )",
-          "Trykatch.Modules.Projects": "[1.0.0, )",
+          "Trykatch.Modules.Projects": "[1.2.0, )",
           "Trykatch.Modules.Projects.Application": "[1.0.0, )"
         }
       },
