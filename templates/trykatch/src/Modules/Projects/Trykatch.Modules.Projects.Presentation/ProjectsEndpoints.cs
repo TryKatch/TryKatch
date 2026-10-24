@@ -20,6 +20,7 @@ public sealed class ProjectsEndpoints : IOrganizationEndpointContributor
         group.MapGet("/", ListAsync).RequireAuthorization("permission:projects.read")
             .WithName("Projects_List").WithTags("Projects").Produces<PagedResult<ProjectDto>>();
         group.MapGet("/{id:guid}", GetAsync).RequireAuthorization("permission:projects.read")
+            .WithMetadata(new ModuleReadOnlyTransactionMetadata())
             .WithName("Projects_Get").WithTags("Projects").Produces<ProjectDto>();
         group.MapPost("/", CreateAsync).RequireAuthorization("permission:projects.manage")
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true)).WithName("Projects_Create").WithTags("Projects")
