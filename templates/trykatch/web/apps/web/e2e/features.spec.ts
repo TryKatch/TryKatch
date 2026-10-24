@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type APIResponse, type Locator, type Page, type Request, type Response, type Route } from '@playwright/test'
+import { Buffer } from 'node:buffer'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 
@@ -89,6 +90,55 @@ test.describe('packaged application feature policy acceptance', () => {
         await expect(history.getByRole('table', { name: 'Feature history' })).toBeVisible()
         await expect(history.locator('tbody tr').first()).toBeVisible()
         await adminPage.keyboard.press('Escape')
+      })
+
+      await test.step('a Documents upload survives a held real workspace refresh without submitting stale authority', async () => {
+        await ownerPage.goto('/documents')
+        await ownerPage.getByRole('button', { name: 'Upload document', exact: true }).first().click()
+        const dialog = ownerPage.getByRole('dialog', { name: 'Upload document' })
+        const title = `Retained upload draft ${runId}`
+        const description = 'Typed before the real workspace response is held.'
+        const bytes = Buffer.from('Document bytes retained across a workspace authority refresh.')
+        await dialog.getByLabel('File', { exact: true }).setInputFiles({ name: 'refresh-notes.txt', mimeType: 'text/plain', buffer: bytes })
+        await dialog.getByRole('textbox', { name: 'Document title' }).fill(title)
+        await dialog.getByRole('textbox', { name: 'Description' }).fill(description)
+        const staleForm = await dialog.locator('form').elementHandle()
+        expect(staleForm).toBeTruthy()
+        const uploads: Request[] = []
+        const observeUpload = (request: Request) => {
+          if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/documents/') uploads.push(request)
+        }
+        ownerPage.on('request', observeUpload)
+        const held = await holdFirstOrganizationResponse<CurrentWorkspaceResponse>(ownerPage, '/api/v1/workspace/current', alphaId)
+        try {
+          const refresh = refreshCurrentWorkspace(ownerPage, alphaId)
+          expect((await held.ready).organizationId).toBe(alphaId)
+          await expect(dialog).toHaveCount(0)
+          await staleForm!.evaluate((form) => (form as HTMLFormElement).requestSubmit())
+          expect(uploads).toHaveLength(0)
+          held.release()
+          await held.fulfilled
+          await refresh
+          await expect(dialog).toBeVisible()
+          await expect(dialog.getByRole('textbox', { name: 'Document title' })).toHaveValue(title)
+          await expect(dialog.getByRole('textbox', { name: 'Description' })).toHaveValue(description)
+          await expect(dialog.getByText('refresh-notes.txt', { exact: true })).toBeVisible()
+          const uploaded = ownerPage.waitForResponse((response) => response.request().method() === 'POST'
+            && new URL(response.url()).pathname === '/api/v1/documents/')
+          await dialog.getByRole('button', { name: 'Upload document', exact: true }).click()
+          const response = await uploaded
+          expect(response.status()).toBe(201)
+          const document = await response.json() as { id: string; title: string; description: string }
+          expect(document).toMatchObject({ title, description })
+          const content = await requestWithRateLimit(() => ownerContext.request.get(`/api/v1/documents/${encodeURIComponent(document.id)}/content`))
+          expect(content.status()).toBe(200)
+          expect(await content.body()).toEqual(bytes)
+          expect(uploads).toHaveLength(1)
+        } finally {
+          held.release()
+          await held.dispose()
+          ownerPage.off('request', observeUpload)
+        }
       })
 
       await test.step('the owner creates and retains an active project under the initial enabled read policy', async () => {
@@ -447,16 +497,20 @@ async function refreshCurrentWorkspace(page: Page, organizationId: string) {
 }
 
 async function holdFirstFeatureResponse(page: Page, organizationId: string) {
-  let resolveReady!: (snapshot: OrganizationFeatureSnapshot) => void
+  return holdFirstOrganizationResponse<OrganizationFeatureSnapshot>(page, '/api/v1/features', organizationId)
+}
+
+async function holdFirstOrganizationResponse<T extends { organizationId: string }>(page: Page, path: string, organizationId: string) {
+  let resolveReady!: (snapshot: T) => void
   let releaseResponse!: () => void
   let resolveFulfilled!: () => void
   let hasHeldResponse = false
-  const ready = new Promise<OrganizationFeatureSnapshot>((resolve) => { resolveReady = resolve })
+  const ready = new Promise<T>((resolve) => { resolveReady = resolve })
   const releaseGate = new Promise<void>((resolve) => { releaseResponse = resolve })
   const fulfilled = new Promise<void>((resolve) => { resolveFulfilled = resolve })
   const handler = async (route: Route) => {
     const response = await route.fetch()
-    const snapshot = await response.json() as OrganizationFeatureSnapshot
+    const snapshot = await response.json() as T
     if (!hasHeldResponse && snapshot.organizationId === organizationId && response.status() === 200) {
       hasHeldResponse = true
       resolveReady(snapshot)
@@ -467,12 +521,12 @@ async function holdFirstFeatureResponse(page: Page, organizationId: string) {
     }
     await route.fulfill({ response })
   }
-  await page.route('**/api/v1/features', handler)
+  await page.route(`**${path}`, handler)
   return {
     ready,
     fulfilled,
     release: releaseResponse,
-    dispose: () => page.unroute('**/api/v1/features', handler),
+    dispose: () => page.unroute(`**${path}`, handler),
   }
 }
 
