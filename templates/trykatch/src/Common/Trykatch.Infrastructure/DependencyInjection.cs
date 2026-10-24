@@ -2,6 +2,7 @@ using Trykatch.Application.Execution;
 using Trykatch.Application.Eventing;
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Caching;
+using Trykatch.Infrastructure.Realtime;
 using Trykatch.Infrastructure.Jobs;
 using Trykatch.Application.Jobs;
 using Trykatch.Infrastructure.Eventing;
@@ -40,6 +41,9 @@ public static class DependencyInjection
         string outboxConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Outbox);
 
         services.AddLogging();
+        services.AddScoped<IModuleRealtimePublisher, ModuleRealtimePublisher>();
+        services.AddScoped<RealtimeHistoryStore>();
+        services.AddScoped<RealtimeAudienceRegistry>();
         services.AddScoped<CacheInvalidationCommitState>();
         services.AddScoped<CacheGenerationStore>();
         services.AddOrganizationCache(configuration, isOpenApiGeneration);
