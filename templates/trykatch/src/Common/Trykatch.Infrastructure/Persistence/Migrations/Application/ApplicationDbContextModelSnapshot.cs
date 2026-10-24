@@ -719,6 +719,95 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         });
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Realtime.RealtimeHistoryRecord", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("AudienceKind")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EventKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("ModuleId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("PolicyKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("PolicyOwnerModuleId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("PolicyVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ResourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResourceKey")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SourceMessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("OrganizationId", "Sequence");
+
+                    b.HasIndex("OrganizationId", "CreatedAtUtc");
+
+                    b.HasIndex("OrganizationId", "ModuleId", "EventId")
+                        .IsUnique();
+
+                    b.ToTable("realtime_history", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_realtime_history_audience", "((\"AudienceKind\" = 0 AND \"UserId\" IS NULL)\n  OR (\"AudienceKind\" = 1 AND \"UserId\" IS NOT NULL AND \"UserId\" <> '00000000-0000-0000-0000-000000000000'::uuid)\n  OR (\"AudienceKind\" = 2 AND \"UserId\" IS NULL AND \"ResourceId\" IS NOT NULL))\nAND ((\"ResourceKey\" IS NULL AND \"ResourceId\" IS NULL)\n  OR (\"ResourceKey\" IS NOT NULL AND \"ResourceId\" IS NOT NULL AND \"ResourceId\" <> '00000000-0000-0000-0000-000000000000'::uuid))");
+
+                            t.HasCheckConstraint("CK_realtime_history_identity", "\"EventId\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND \"SourceMessageId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_realtime_history_versions", "\"Sequence\" > 0 AND \"SchemaVersion\" > 0 AND \"PolicyVersion\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Realtime.RealtimeStream", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("OrganizationId");
+
+                    b.ToTable("realtime_streams", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_realtime_streams_sequence", "\"Sequence\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Modules.Documents.Domain.DocumentRecord", b =>
                 {
                     b.Property<Guid>("Id")

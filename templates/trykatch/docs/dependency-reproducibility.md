@@ -1,6 +1,6 @@
 # Dependency reproducibility
 
-Run commands from the generated application root. `global.json` requires the tested .NET 10.0.3xx SDK feature band, starting at 10.0.301, and permits patch roll-forward only. Install that band explicitly even if another .NET SDK is already installed. Upgrade the policy and generated workflow SDK selection together after qualification.
+Run commands from the generated application root. `global.json` requires the tested .NET 10.0.4xx SDK feature band, starting at 10.0.402, and permits patch roll-forward only. Install that band explicitly even if another .NET SDK is already installed. Upgrade the policy and generated workflow SDK selection together after qualification.
 
 The generated workflows pin third-party actions by commit. React output also pins pnpm through its root and web manifests; use Corepack. Backend-only output intentionally has no frontend manifest or commands.
 

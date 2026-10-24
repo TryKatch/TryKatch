@@ -117,7 +117,12 @@ public static class ApplicationModelIsolationValidator
         if (entity.FindDeclaredQueryFilter(OrganizationIsolationFilter) is null)
             throw new InvalidOperationException(
                 $"Organization resource '{resource.Name}' is missing the named '{OrganizationIsolationFilter}' query filter.");
-        if (!entity.GetIndexes().Any(index =>
+        // PostgreSQL also creates an index for a primary key. A per-organization
+        // singleton does not need a duplicate secondary index over that key.
+        IReadOnlyKey? primaryKey = entity.FindPrimaryKey();
+        bool organizationPrimaryKey = primaryKey is { Properties.Count: > 0 }
+            && primaryKey.Properties[0].Name == nameof(IOrganizationOwned.OrganizationId);
+        if (!organizationPrimaryKey && !entity.GetIndexes().Any(index =>
                 index.Properties.Count > 0
                 && string.Equals(index.Properties[0].Name, nameof(IOrganizationOwned.OrganizationId), StringComparison.Ordinal)))
             throw new InvalidOperationException(

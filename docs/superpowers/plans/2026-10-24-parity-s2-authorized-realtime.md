@@ -37,8 +37,8 @@ The approved optional Microsoft Redis backplane remains available in Distributed
 - [x] Verify official SDK 10.0.402 checksum and actual .NET/ASP.NET Core 10.0.13 runtimes. The former local wrapper's 10.0.9 runtime cannot qualify the new SignalR feature.
 - [x] Isolated combined graph: SignalR Redis/client 10.0.13, HybridCache 10.11.0, Redis cache 10.0.13 and MessagePack 2.5.303; normal/locked restore, build with zero warnings/errors, 11 permitted MIT package licenses, transitive audit without findings.
 - [x] Live isolated pinned authenticated Valkey: actual nonlocal delivery, application-prefix isolation, failed outage send/no receipt, unchanged endpoint restart, existing and new client recovery. Earlier random-port restart failures are fixture diagnostics, not passing evidence or established adapter defects.
-- [ ] Update root/template `global.json` to 10.0.402, all applicable root/template CI/release selectors to 10.0.4xx, API/Migrator SDK/runtime image tags and verified digests, and current prerequisite/reproducibility docs. Preserve historical evidence versions.
-- [ ] Add the server backplane dependency only to the API host, client dependency only to affected test/support projects, and `@microsoft/signalr` 10.0.11 only to the web host. Restore the actual graph normally and locked; audit its resolved licenses/advisories. No vendor dependency enters module abstractions or the web SDK.
+- [x] Update root/template `global.json` to 10.0.402, all applicable root/template CI/release selectors to 10.0.4xx, API/Migrator SDK/runtime image tags and verified digests, and current prerequisite/reproducibility docs. Preserve historical evidence versions.
+- [x] Add the server backplane dependency only to the API host, client dependency only to affected test/support projects, and `@microsoft/signalr` 10.0.11 only to the web host. Restore the actual graph normally and locked; audit its resolved licenses/advisories. No vendor dependency enters module abstractions or the web SDK.
 
 **Expected:** Real builds/tests execute on the fixed runtime; no graph conflict, unreviewed dependency or generation-time Redis connection. Isolated vendor checks do not qualify application authority, OS replicas or browsers.
 
@@ -63,9 +63,9 @@ Freeze these fields before adapters consume them:
 | `IModuleRealtimeAudiencePolicy` | `Task<bool> AuthorizeAsync(ModuleRealtimeAudienceContext context, ModuleRealtimeAudience audience, CancellationToken cancellationToken)` |
 | `ModuleRealtimeAudiencePolicyBinding` | Exact policy ref and explicitly registered scoped adapter |
 
-- [ ] RED: malformed/unknown/wildcard/duplicate policy, event, user and resource selectors; wrong ownership/version; absent module/permission/resource; excessive arrays; missing/duplicate bindings; producer/grant mismatch. Descriptions must not leak user/resource IDs.
-- [ ] GREEN: validate bounded stable keys and exact installed declarations; add `RealtimeAudiencePolicies` and reciprocal `AllowedRealtimePolicies` grant metadata. Committed-event producers require explicit owner consent and a finite installed grant. Empty recipient permissions are permitted only for explicit self-service user/resource policies with a current adapter, never an unrestricted organization broadcast.
-- [ ] Verify focused unit tests and directly affected catalog/operation registration cases. Expected: every negative case fails closed; no runtime assembly scanning or arbitrary group names.
+- [x] RED: malformed/unknown/wildcard/duplicate policy, event, user and resource selectors; wrong ownership/version; absent module/permission/resource; excessive arrays; missing/duplicate bindings; producer/grant mismatch. Descriptions must not leak user/resource IDs.
+- [x] GREEN: validate bounded stable keys and exact installed declarations; add `RealtimeAudiencePolicies` and reciprocal `AllowedRealtimePolicies` grant metadata. Committed-event producers require explicit owner consent and a finite installed grant. Empty recipient permissions are permitted only for explicit self-service user/resource policies with a current adapter, never an unrestricted organization broadcast.
+- [x] Verify focused unit tests and directly affected catalog/operation registration cases. Expected: every negative case fails closed; no runtime assembly scanning or arbitrary group names.
 
 ## Task 2: Add authoritative history, publication and opaque cursors
 
@@ -129,3 +129,15 @@ Freeze these fields before adapters consume them:
 3. Current recipient authority must precede each send, including retained history, private resources and backend failures.
 4. Slow transport/module callbacks must not leak or abandon scoped EF work or accumulate unchecked payloads.
 5. Vendor, in-process, OS-replica, generated-product and real-browser evidence must remain distinct; a successful Redis publish is not receipt or authorization.
+
+## Execution evidence
+
+S1 merged as `6140050` after exact-head `e7703d6` CI [40069411903](https://github.com/TryKatch/TryKatch/actions/runs/40069411903) passed all selected gates. This branch was cleanly rebased before S2 product edits.
+
+The actual SDK is 10.0.402 with both shared runtimes at 10.0.13. Root/template pins, image digests and selectors are updated; the four existing reproducibility assertions pass. Actual application NuGet normal/locked restores and the 36-project transitive audit pass; all 14 newly resolved package/version pairs declare MIT. Web normal/locked restores use pnpm 10.17.1; all 18 new package/version pairs declare permitted MIT, BSD or Unlicense licenses. The existing fast-uri 3.1.8 override triggered four advisories; updating it to 3.1.9 yields zero audit findings. These are dependency checks, not application authority, transport or browser acceptance.
+
+The contract stub run reproduced 36 failures out of 38 cases, with zero skips. The first implementation run exposed one malformed-null exception mismatch; it also reproduced four expected history-schema failures for missing model/grants. The final focused group passes 85 cases with zero skips, including contract registration, host schema, existing catalog, execution, email and model composition checks. Primary keys beginning with OrganizationId now satisfy the existing indexed-organization invariant without requiring a redundant secondary index. Real PostgreSQL migration and publisher/history behavior remain pending.
+
+The forward `20261024064323_AddOrganizationRealtimeHistory` migration was scaffolded by the actual EF tool. A real migrator case first failed on pending model changes; after applying the forward migration and exact policies, all 35 selected PostgreSQL cases pass with zero skips (two new migration/RLS cases and all 33 directly affected inspection cases). The hand-built inspection fixture now applies this migration and exact grants. Existing OpenAPI/client/assistant generation succeeds with no generated drift after the fast-uri patch. This qualifies the schema, not publication, session authority or live delivery.
+
+The two new migration cases pass again with zero skips after adding direct history-only foreign/missing-actor attempts. Module doctor is healthy and all 14 directly affected CLI development cases pass.

@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.3xx
+          dotnet-version: 10.0.4xx
       # Renamed lockfiles are created on first restore; do not enable a cache
       # that requires them before that first generated CI run.
       - run: dotnet tool restore

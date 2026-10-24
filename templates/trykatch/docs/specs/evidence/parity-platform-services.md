@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 scoped-cache implementation and local qualification are in progress. The evidence below records completed local checks only; it does not claim that S1 is accepted, reviewed, merged, or released. Local packaged-product checks have passed. The integrated independent review approved the implementation through `6bb457c` with zero findings. PR, exact-head CI, and merge are still pending.
+Status: S1 scoped organization caching is implemented, reviewed and merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134), develop commit `6140050`. Final exact-head CI on `e7703d6` passed. S2 implementation is starting; later slices remain planned. This is not a release claim.
 
 ## S1 — Scoped organization cache
 
@@ -43,17 +43,17 @@ The `organization-cache` health check is part of readiness. Disabled and LocalOn
 
 Operational bounds are fixed or validated: default `short` and `standard` TTLs are 30 and 120 seconds; configured TTLs are 1–600 seconds; factory timeout defaults to 5 seconds and is bounded to 1–30 seconds. Factory cancellation is cooperative and scoped work is awaited to completion rather than abandoned. Serialized cache entries are limited to 65,536 bytes. See [cache operations](../../operations/cache.md) for configuration and troubleshooting guidance.
 
-### Remaining S1 work
+### S1 acceptance
 
-S1 remains incomplete pending PR, required exact-head CI, and merge; integrated independent review returned zero findings. The full solution/AppHost compile and API/web contract generation are qualified above; they do not replace packaged-product or remote PR gates. Do not use this evidence as a release or S1-complete claim. Additional qualifications must be added here with their exact test layer and results after they run.
+[Final template CI 40069411903](https://github.com/TryKatch/TryKatch/actions/runs/40069411903) passed on `e7703d6`: 674 host unit, 27 architecture, 24 module unit and all 451 integration cases passed with zero skips. Web, both generated-app profiles, first-feature and blueprint profiles, image, migration, operations and documentation gates passed. Dependency review and both Vercel contexts succeeded. Package and release-transfer jobs were scope-skipped. PR #134 merged as `6140050`; S1 is complete. These checks supplement the local packaged-product evidence and do not claim a production deployment or release.
 
-## S2–S6 — Planned, not implemented by this evidence
+## S2–S6 — Roadmap status
 
 The approved platform-services roadmap remains the source for later scope. This page records status only; it does not claim these capabilities exist.
 
 | Slice | Planned capability | Status |
 | --- | --- | --- |
-| S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Planned; no S2 implementation evidence here. |
+| S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Implementation started after S1 merge; application acceptance remains pending. |
 | S3 | Transaction-aware mutation idempotency | Planned; no S3 implementation evidence here. |
 | S4 | Installed-feature availability and runtime policy evaluation | Planned; no S4 implementation evidence here. |
 | S5 | Entitlement projection, quota reservation, and organization throttling | Planned; no S5 implementation evidence here. |
@@ -73,4 +73,17 @@ The first PR run on `851e87d` failed one host unit case (673 passed, 1 failed, z
 
 Run [40067759379](https://github.com/TryKatch/TryKatch/actions/runs/40067759379) on `8467e5f` passed all 674 host unit checks and the selected architecture/module checks. Its integration run passed 442 cases and failed 9, with zero skips: the hand-built `PostgresIsolationInspectionTests` database did not apply the new cache migration. The real migration tests passed; the inspector correctly rejected the incomplete fixture. The fixture now applies the existing `AddOrganizationCacheInvalidations` migration and its exact organization-role grants, preserving all policy and privilege assertions.
 
-The unchanged clean-fixture case reproduced the failure locally, followed by all 33 isolation inspection cases passing with zero skips. Fresh packaged CLI outputs for renamed React/email-off and backend-only/email-on products each passed normal/locked restore and all 33 inspection cases with zero skips. This follow-up changes only the shared test fixture; the earlier cache behavior qualification remains applicable. Logs: `root-cache-inspection-fixture-red.log`, `root-cache-inspection-fixture-green.log`, and `root-cache-packed-inspection.log`. A successful exact-head CI run remains required before merge.
+The unchanged clean-fixture case reproduced the failure locally, followed by all 33 isolation inspection cases passing with zero skips. Fresh packaged CLI outputs for renamed React/email-off and backend-only/email-on products each passed normal/locked restore and all 33 inspection cases with zero skips. This follow-up changes only the shared test fixture; the earlier cache behavior qualification remains applicable. Logs: `root-cache-inspection-fixture-red.log`, `root-cache-inspection-fixture-green.log`, and `root-cache-packed-inspection.log`. The final exact-head CI and merge are recorded in S1 acceptance above.
+
+
+## S2 foundation qualification — implementation in progress
+
+The isolated adapter probe and the actual application dependency graph are distinct checks. The checksum-verified SDK 10.0.402 runs .NET and ASP.NET Core 10.0.13. The isolated authenticated Valkey probe verified nonlocal SignalR delivery, application-prefix isolation, outage failure without receipt, and actual existing/new connection recovery after restart on the same endpoint. It does not qualify application authorization, multiple OS replicas or browsers.
+
+Actual NuGet normal/locked solution restores and the 36-project transitive audit pass, with no findings. All 14 new package/version pairs declare MIT. SignalR Redis stays in the API host and its client package in integration tests; module contracts contain no vendor types. The web host alone adds @microsoft/signalr 10.0.11. Normal/locked pnpm 10.17.1 installs pass; the 18 new package/version pairs declare permitted licenses. The preexisting fast-uri override was patched from 3.1.8 to 3.1.9 after four [upstream advisories](https://github.com/advisories/GHSA-w74x-v6f9-j3xg) were reported. The resulting audit has zero findings. Existing OpenAPI, client and assistant generation pass without generated drift.
+
+The final focused unit selection passes 85 cases with zero skips, covering finite realtime contracts, exact reciprocal producer consent, current policy ownership, explicit bindings, diagnostic redaction, new host schema and directly affected catalog/execution/email/model checks. Four reproducibility assertions and 14 existing CLI development cases pass; module doctor is healthy. The new per-organization singleton model uses its primary key's PostgreSQL index to meet the existing organization-index invariant.
+
+The real migrator test first failed because the application model had pending changes. Forward migration `20261024064323_AddOrganizationRealtimeHistory` adds forced-RLS organization-owned counter/history tables with exact grants. All 35 selected PostgreSQL cases pass with zero skips: two new migration/RLS cases and all 33 isolation inspection cases. The two new cases pass again after strengthening direct history-only foreign-organization and missing-actor checks. Runtime roles can append history but cannot update/delete it; the counter alone permits organization-scoped updates. The hand-built inspection fixture applies the real migration and exact grants.
+
+These checks qualify dependencies, contracts and schema. Committed-event publication, cursor handling, persistent session authority, hub/relay, browser reconciliation, generated products and final review/PR/CI remain incomplete. They do not establish S2 acceptance or a release.
