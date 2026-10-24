@@ -1,6 +1,6 @@
 # Feature parity acceptance and permission matrix
 
-**Status:** Phase 0 contract baseline with E1–E4 implementation evidence linked below. Later parity behavior remains planned or explicitly deferred. E4 still awaits PR merge gates; this matrix does not establish release readiness.
+**Status:** Phase 0 contract baseline with E1–E4 implementation evidence linked below. Later parity behavior remains planned or explicitly deferred. E4 merged in PR #131 after its selected CI gates passed; E5 is in progress. This matrix does not establish release readiness.
 **Source baseline:** `origin/develop` at `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, inspected 2026-10-23.
 **Contract ledger:** [Feature parity contracts](feature-parity-contracts.md) (created in P0.1).
 

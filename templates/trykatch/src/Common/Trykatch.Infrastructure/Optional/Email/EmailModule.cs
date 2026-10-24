@@ -1,10 +1,8 @@
 using MailKit.Net.Smtp;
-using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using MimeKit;
 using Trykatch.Application.Identity;
 
 namespace Trykatch.Infrastructure.Modules.Email;
@@ -29,40 +27,13 @@ internal sealed class SmtpClientFactory : ISmtpClientFactory
 
 public sealed class EmailDeliveryException() : Exception("Email delivery failed.");
 
-internal sealed class SmtpEmailSender(IOptions<SmtpOptions> options, ISmtpClientFactory clients) : IEmailSender
+internal sealed class SmtpEmailSender(IEmailTransport transport) : IEmailSender
 {
     public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
-        SmtpOptions settings = options.Value;
-        using MimeMessage mail = new();
-        mail.From.Add(MailboxAddress.Parse(settings.From));
-        mail.To.Add(MailboxAddress.Parse(message.Recipient));
-        mail.Subject = message.Subject;
-        mail.Body = new BodyBuilder { TextBody = message.TextBody, HtmlBody = message.HtmlBody }.ToMessageBody();
-
-        using SmtpClient client = clients.CreateClient();
-        try
-        {
-            SecureSocketOptions security = settings.Security switch
-            {
-                SmtpTransportSecurity.StartTls => SecureSocketOptions.StartTls,
-                SmtpTransportSecurity.SslOnConnect => SecureSocketOptions.SslOnConnect,
-                SmtpTransportSecurity.None => SecureSocketOptions.None,
-                _ => throw new InvalidOperationException("Invalid email transport security.")
-            };
-            await client.ConnectAsync(settings.Host, settings.Port, security, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(settings.Username))
-                await client.AuthenticateAsync(settings.Username, settings.Password!, cancellationToken);
-            await client.SendAsync(mail, cancellationToken);
-            await client.DisconnectAsync(true, cancellationToken);
-        }
-        catch (Exception failure) when (failure is IOException or System.Net.Sockets.SocketException or MailKit.CommandException or MailKit.ProtocolException or
-            MailKit.Security.AuthenticationException or System.Security.Authentication.AuthenticationException or SslHandshakeException or NotSupportedException)
-        {
-            // SMTP replies and MIME bodies can contain credentials or recovery links.
-            // Do not propagate the remote reply/inner exception to application logging.
+        EmailTransportResult result = await transport.SendAsync(message, cancellationToken);
+        if (result.Disposition != EmailTransportDisposition.Acknowledged)
             throw new EmailDeliveryException();
-        }
     }
 }
 
@@ -132,6 +103,7 @@ public static class EmailModule
             options.Password = configured.Password;
         }).ValidateOnStart();
         services.TryAddSingleton<ISmtpClientFactory, SmtpClientFactory>();
+        services.AddScoped<IEmailTransport, SmtpEmailTransport>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IAccountRecoveryNotifier, SmtpAccountRecoveryNotifier>();
         services.AddScoped<IInvitationNotifier, SmtpInvitationNotifier>();

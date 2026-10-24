@@ -24,9 +24,21 @@ internal sealed class LoopbackSmtpServer : IAsyncDisposable
     public string? MessageData { get; private set; }
     public bool Authenticated { get; private set; }
     public bool UsedTls { get; private set; }
+    private readonly int? recipientStatusCode;
+    private readonly bool dropFinalAcknowledgement;
+    private readonly bool resetAfterDataAcknowledgement;
+    private readonly bool holdQuitResponse;
+    private readonly TaskCompletionSource quitReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task QuitReceived => quitReceived.Task;
 
-    public LoopbackSmtpServer(bool implicitTls = false, bool advertiseStartTls = true, bool wrongName = false, bool expired = false)
+    public LoopbackSmtpServer(bool implicitTls = false, bool advertiseStartTls = true, bool wrongName = false, bool expired = false,
+        int? recipientStatusCode = null, bool dropFinalAcknowledgement = false, bool resetAfterDataAcknowledgement = false,
+        bool holdQuitResponse = false)
     {
+        this.recipientStatusCode = recipientStatusCode;
+        this.dropFinalAcknowledgement = dropFinalAcknowledgement;
+        this.resetAfterDataAcknowledgement = resetAfterDataAcknowledgement;
+        this.holdQuitResponse = holdQuitResponse;
         using RSA rootKey = RSA.Create(2048);
         CertificateRequest ca = new("CN=Trykatch fixture-only root", rootKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         ca.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
@@ -105,8 +117,10 @@ internal sealed class LoopbackSmtpServer : IAsyncDisposable
                         Authenticated = credentials.EndsWith("\0fixture-user\0fixture-password", StringComparison.Ordinal);
                         await writer.WriteLineAsync(Authenticated ? "235 authenticated" : "535 fixture authentication denied");
                     }
-                    else if (command.StartsWith("MAIL FROM:", StringComparison.Ordinal) || command.StartsWith("RCPT TO:", StringComparison.Ordinal))
+                    else if (command.StartsWith("MAIL FROM:", StringComparison.Ordinal))
                         await writer.WriteLineAsync("250 accepted");
+                    else if (command.StartsWith("RCPT TO:", StringComparison.Ordinal))
+                        await writer.WriteLineAsync($"{recipientStatusCode ?? 250} {(recipientStatusCode is null ? "accepted" : "fixture rejection")}");
                     else if (command == "DATA")
                     {
                         await writer.WriteLineAsync("354 send message");
@@ -114,9 +128,21 @@ internal sealed class LoopbackSmtpServer : IAsyncDisposable
                         while (await reader.ReadLineAsync(stop.Token) is { } line && line != ".") content.AppendLine(line);
                         MessageData = content.ToString();
                         ReceivedMessage = true;
+                        if (dropFinalAcknowledgement) break;
                         await writer.WriteLineAsync("250 queued");
                     }
-                    else if (command == "QUIT") { await writer.WriteLineAsync("221 goodbye"); break; }
+                    else if (command == "QUIT")
+                    {
+                        quitReceived.TrySetResult();
+                        if (resetAfterDataAcknowledgement)
+                        {
+                            connection.Client.LingerState = new LingerOption(true, 0);
+                            break;
+                        }
+                        if (holdQuitResponse) await Task.Delay(Timeout.InfiniteTimeSpan, stop.Token);
+                        await writer.WriteLineAsync("221 goodbye");
+                        break;
+                    }
                     else await writer.WriteLineAsync("250 accepted");
                 }
             }
