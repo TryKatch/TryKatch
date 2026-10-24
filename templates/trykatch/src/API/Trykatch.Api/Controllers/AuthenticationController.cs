@@ -1,7 +1,9 @@
 using System.Text;
 using Trykatch.Api.Security;
 using Trykatch.Application.Identity;
+using Trykatch.Application.Mailing;
 using Trykatch.Identity;
+using Trykatch.Modules;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -19,16 +21,16 @@ public sealed class AuthenticationController(
     SignInManager<ApplicationUser> signIn,
     IWorkspaceContextCookie workspaceCookie,
     IPlatformAccessDirectory platformAccess,
-    IAccountRecoveryNotifier recoveryNotifier,
+    IIdentitySecurityEmailSubmission recoverySubmission,
     IApplicationUrlResolver applicationUrls,
     IWebHostEnvironment environment,
     ILogger<AuthenticationController> logger) : ControllerBase
 {
-    private static readonly Action<ILogger, Guid, Exception?> LogPasswordResetDeliveryFailure =
-        LoggerMessage.Define<Guid>(
+    private static readonly Action<ILogger, Exception?> LogPasswordResetDeliveryFailure =
+        LoggerMessage.Define(
             LogLevel.Error,
             new EventId(1001, nameof(ForgotPassword)),
-            "Password reset delivery failed for account {UserId}");
+            "Password reset email could not be queued.");
 
     [AllowAnonymous]
     [HttpGet("antiforgery", Name = "Authentication_Antiforgery")]
@@ -138,21 +140,23 @@ public sealed class AuthenticationController(
 
             try
             {
-                await recoveryNotifier.SendPasswordResetAsync(
-                    user.Email ?? email,
-                    user.DisplayName,
-                    resetUrl,
+                ModuleWorkReceipt receipt = await recoverySubmission.EnqueuePasswordResetAsync(
+                    new PasswordResetEmailIntent(Guid.CreateVersion7(), user.Id, user.Email ?? email,
+                        user.DisplayName, token, resetUrl),
                     cancellationToken);
+                if (receipt.State is not (ModuleWorkState.Accepted or ModuleWorkState.AlreadyAccepted))
+                    LogPasswordResetDeliveryFailure(logger, null);
             }
-            catch (Exception exception)
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
-                LogPasswordResetDeliveryFailure(logger, user.Id, exception);
+                // Submission failures may contain tokens, addresses or links; never forward them to logging.
+                LogPasswordResetDeliveryFailure(logger, null);
             }
         }
 
         return Accepted(new ForgotPasswordResponse(
             "If an eligible account exists, password reset instructions are on the way.",
-            recoveryNotifier.IsConfigured,
+            recoverySubmission.IsConfigured,
             developmentResetUrl));
     }
 

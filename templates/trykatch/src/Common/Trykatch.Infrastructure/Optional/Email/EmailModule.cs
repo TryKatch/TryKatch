@@ -1,10 +1,12 @@
 using MailKit.Net.Smtp;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Trykatch.Application.Mailing;
 using Trykatch.Application.Identity;
+using Trykatch.Infrastructure.Mailing;
 
 namespace Trykatch.Infrastructure.Modules.Email;
 
@@ -105,6 +107,20 @@ public static class EmailModule
         services.AddScoped<IPasswordResetEmailRenderer, PasswordResetEmailRenderer>();
         services.AddScoped<IAccountRecoveryNotifier, SmtpAccountRecoveryNotifier>();
         services.AddScoped<IInvitationNotifier, SmtpInvitationNotifier>();
+
+        string? workConnection = configuration.GetConnectionString("trykatch-work");
+        if (!isOpenApiGeneration && !string.IsNullOrWhiteSpace(workConnection))
+        {
+            services.TryAddSingleton<DbContextOptions<OrganizationEmailDeliveryDbContext>>(_ =>
+                new DbContextOptionsBuilder<OrganizationEmailDeliveryDbContext>().UseNpgsql(workConnection).Options);
+            services.TryAddSingleton<OrganizationEmailDeliveryStore>();
+            services.TryAddScoped<EmailTemplateRegistry>();
+            services.TryAddScoped<OrganizationModuleEmailPolicy>();
+            services.TryAddScoped<Trykatch.Modules.IModuleEmailQueue, OrganizationModuleEmailQueue>();
+            services.AddSingleton<OrganizationEmailDeliverySource>();
+            services.AddSingleton<Trykatch.Application.Mailing.IEmailDeliverySource>(provider =>
+                provider.GetRequiredService<OrganizationEmailDeliverySource>());
+        }
         return services;
     }
 }
