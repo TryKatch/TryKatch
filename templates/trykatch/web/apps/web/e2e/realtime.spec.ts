@@ -13,6 +13,40 @@ const realtimeStatePath = process.env.TRYKATCH_ACCEPTANCE_REALTIME_STATE
 
 let moduleAbsenceFixture: { ownerEmail: string; organizationId: string } | undefined
 
+test('workspace refresh ignores a response from the document being reloaded', async ({ page }) => {
+  let requestCount = 0
+  let releaseStaleResponse!: () => void
+  let signalStaleRequest!: () => void
+  const staleRequestStarted = new Promise<void>((resolve) => { signalStaleRequest = resolve })
+  const staleResponseGate = new Promise<void>((resolve) => { releaseStaleResponse = resolve })
+
+  await page.route('**/workspace-refresh-fixture', (route) => route.fulfill({
+    contentType: 'text/html',
+    body: '<!doctype html><script>const refresh = () => fetch("/api/v1/workspace/current"); addEventListener("visibilitychange", refresh); addEventListener("load", refresh);</script>',
+  }))
+  await page.route('**/api/v1/workspace/current', async (route) => {
+    requestCount += 1
+    if (requestCount === 1) {
+      signalStaleRequest()
+      await staleResponseGate
+      await route.fulfill({ json: { organizationId: 'stale-organization' } })
+      return
+    }
+    await route.fulfill({ json: { organizationId: requestCount === 2 || requestCount === 4 ? 'other-organization' : 'current-organization' } })
+  })
+
+  await page.goto('/workspace-refresh-fixture')
+  await staleRequestStarted
+  page.once('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) releaseStaleResponse()
+  })
+
+  await refreshCurrentWorkspace(page, 'current-organization', true)
+  expect(requestCount).toBe(3)
+  await expect(refreshCurrentWorkspace(page, 'current-organization')).rejects.toThrow('the refreshed workspace must match the selected organization')
+  expect(requestCount).toBe(4)
+})
+
 test.describe('packaged application realtime acceptance', () => {
   test.skip(!realtimeAcceptanceEnabled, 'Set TRYKATCH_ACCEPTANCE_REALTIME=true to run against the packaged application.')
 
@@ -245,13 +279,20 @@ async function afterRateLimit(operation: () => Promise<APIResponse>) {
 }
 
 async function refreshCurrentWorkspace(page: Page, organizationId: string, reload = false) {
-  const workspaceResponse = page.waitForResponse(async (response) => {
-    if (new URL(response.url()).pathname !== '/api/v1/workspace/current' || !response.ok()) return false
-    return (await response.json() as CurrentWorkspaceResponse).organizationId === organizationId
-  }, { timeout: 30_000 })
   if (reload) await page.reload()
-  else await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
-  await workspaceResponse
+
+  // Register after reload so responses from the departing document can never match.
+  // Trigger the mounted lifecycle explicitly to observe a request from this document.
+  const workspaceRequest = page.waitForRequest((request) =>
+    new URL(request.url()).pathname === '/api/v1/workspace/current' && request.method() === 'GET',
+  { timeout: 30_000 })
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+
+  const response = await (await workspaceRequest).response()
+  expect(response, 'the current workspace request should receive a response').toBeTruthy()
+  expect(response!.ok(), 'the current workspace request should succeed').toBe(true)
+  expect((await response!.json() as CurrentWorkspaceResponse).organizationId,
+    'the refreshed workspace must match the selected organization').toBe(organizationId)
 }
 
 async function createProject(request: APIRequestContext, name: string) {
