@@ -54,6 +54,8 @@ Logout/revocation, security-stamp changes, captured ticket expiry, inactive memb
 
 `GET /api/v1/realtime/state` returns live-enabled status, current workspace generation and an opaque head cursor. `GET /api/v1/realtime/history` starts at zero without a cursor, or resumes with `?cursor=...`. Pages scan at most 100 rows and advance past filtered rows. Cursors bind organization, actor, device-session hash and workspace generation. A malformed, oversized, future, foreign or obsolete continuation returns HTTP 409 with `realtime_reset_required`; discard it, obtain current state and refetch the owned domain queries. Never parse, construct, log or transfer a cursor across sessions/workspaces.
 
+A missing workspace can instead return middleware HTTP 409 `Workspace context required` before the realtime reader runs. The browser treats that precise outcome, or HTTP 401/403, as loss of the old organization context and resets mounted organization results while preserving the account session. Unrelated conflicts do not revoke the context. Failed owned-query refetches propagate to reconciliation, so neither bootstrap nor a history page adopts its cursor until those refetches succeed.
+
 ## Bounds and diagnostics
 
 | Setting | Default | Accepted range |
@@ -71,6 +73,6 @@ Readiness includes the sanitized `realtime` check. Disabled/LocalOnly do not pro
 
 ## Module removal and retained data
 
-Module registration is immutable for a running host. Disable/remove the module through the existing CLI, regenerate registries, deploy that composition, and drain/stop **every old API and worker** before declaring removal complete. A restarted host cannot authorize an absent policy/producer. Retain committed schema/history and paused durable work according to the existing module lifecycle; do not delete it merely to disable live push. There is no fleet-wide hot toggle, automatic history cleanup, session-retention job or new retention policy in this slice.
+Module registration is immutable for a running host. Disable dependent modules first through the existing CLI, then disable/remove the target, regenerate registries, deploy that composition, and drain/stop **every old API and worker** before declaring removal complete. For the supplied reference graph, Documents depends on Projects. A restarted host cannot authorize an absent policy/producer. Retain committed schema/history and paused durable work according to the existing module lifecycle; do not delete it merely to disable live push. There is no fleet-wide hot toggle, automatic history cleanup, session-retention job or new retention policy in this slice.
 
 See [ADR 0018](../adr/0018-scheduler-cache-and-realtime-adapters.md), [frozen contracts](../specs/feature-parity-contracts.md#7-cache-and-realtime--s1s2) and [qualification evidence](../specs/evidence/parity-platform-services.md) for the distinction between dependency, application, process, proxy, browser and packaged-product checks.

@@ -54,6 +54,8 @@ Révocation, nouvelle empreinte de sécurité, expiration du ticket capturé, or
 
 `GET /api/v1/realtime/state` renvoie l’activation du push, la génération et un curseur opaque de tête. `GET /api/v1/realtime/history` commence à zéro sans curseur, ou reprend avec `?cursor=...`. Une page examine au maximum 100 lignes et avance aussi au-delà des lignes filtrées. Le curseur lie organisation, acteur, hash de session et génération. Un curseur malformé, trop long, futur, étranger ou périmé donne HTTP 409 `realtime_reset_required` : abandonnez-le, relisez l’état et rechargez les requêtes métier. Ne construisez, journalisez ou transférez jamais ces curseurs entre sessions/espaces.
 
+Un espace absent peut produire le HTTP 409 précis `Workspace context required` dans le middleware avant la lecture temps réel. Le navigateur traite ce résultat, ou HTTP 401/403, comme une perte du contexte organisation et réinitialise les résultats montés tout en conservant la session du compte. Un autre conflit ne révoque pas ce contexte. Un rechargement métier en échec remonte à la réconciliation : ni le démarrage ni une page d’historique ne valident leur curseur avant le succès de ces rechargements.
+
 ## Limites et diagnostics
 
 | Paramètre sous `Realtime` | Défaut | Plage |
@@ -71,6 +73,6 @@ Le contrôle de disponibilité `realtime` n’interroge aucun backend en Disable
 
 ## Retrait d’un module
 
-Le registre est immuable pendant l’exécution. Désactivez/retirez le module avec la CLI, régénérez les registres, déployez cette composition et arrêtez/drainer **toutes les anciennes API et tous les anciens workers** avant de déclarer le retrait effectif. Un nouvel hôte ne peut pas autoriser une politique/producteur absent. Conservez schéma, historique et travail durable suspendu conformément au cycle de vie existant. Aucun basculement global à chaud, nettoyage automatique d’historique, tâche de conservation des sessions ou nouvelle politique de rétention n’est ajouté.
+Le registre est immuable pendant l’exécution. Désactivez d’abord les modules dépendants avec la CLI, puis désactivez/retirez le module cible, régénérez les registres, déployez cette composition et arrêtez **toutes les anciennes API et tous les anciens workers** avant de déclarer le retrait effectif. Dans le graphe fourni, Documents dépend de Projects. Un nouvel hôte ne peut pas autoriser une politique/producteur absent. Conservez schéma, historique et travail durable suspendu conformément au cycle de vie existant. Aucun basculement global à chaud, nettoyage automatique d’historique, tâche de conservation des sessions ou nouvelle politique de rétention n’est ajouté.
 
 Voir [ADR 0018](../adr/0018-scheduler-cache-and-realtime-adapters.md), les [contrats](../specs/feature-parity-contracts.md#7-cache-and-realtime--s1s2) et les [preuves](../specs/evidence/parity-platform-services.md). Les vérifications des dépendances, de l’application, des processus, des proxys, du navigateur et des produits générés sont distinctes.

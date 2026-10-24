@@ -170,4 +170,126 @@ describe('workspace realtime lifecycle', () => {
       client.clear()
     }
   })
+
+  it.each([
+    ['membership revoked', 403, 'Workspace access denied'],
+    ['workspace cookie cleared', 409, 'Workspace context required'],
+  ])('clears mounted organization results when %s while the account session remains valid', async (_case, status, title) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const keys = [['projects', 'active'], ['access'], getWorkspaceCurrentQueryKey()]
+    const denied = Object.assign(new Error(title), { status, problem: { title } })
+    let revoked = false
+    const observers = keys.map((queryKey) => {
+      client.setQueryData(queryKey, ['previous-workspace'])
+      return new QueryObserver(client, {
+        queryKey, staleTime: Infinity,
+        queryFn: async () => { if (revoked) throw denied; return ['previous-workspace'] },
+      })
+    })
+    const unsubscribe = observers.map((observer) => observer.subscribe(() => undefined))
+    client.setQueryData(['me', 'session'], { userId: 'still-signed-in' })
+    const lifecycle = createWorkspaceRealtimeLifecycle(client)
+    try {
+      await lifecycle.start()
+      await vi.waitFor(() => expect(signalr.connection.invoke).toHaveBeenCalled())
+      await lifecycle.wake()
+      revoked = true
+      vi.mocked(realtimeGetHistory).mockRejectedValue(denied)
+      const push = signalr.connection.on.mock.calls.find(([name]) => name === 'invalidate')![1] as (item: unknown) => void
+      push({ eventId: 'wake' })
+
+      await vi.waitFor(() => expect(signalr.connection.stop).toHaveBeenCalled())
+      await vi.waitFor(() => expect(observers.map((observer) => observer.getCurrentResult().data)).toEqual([undefined, undefined, undefined]))
+      expect(client.getQueryData(['me', 'session'])).toEqual({ userId: 'still-signed-in' })
+    } finally {
+      lifecycle.stop()
+      unsubscribe.forEach((stop) => stop())
+      client.clear()
+    }
+  })
+
+  it('retains a failed invalidation continuation and retries the real domain query after recovery', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    let fail = false
+    let domainValue = 'before'
+    const observer = new QueryObserver(client, {
+      queryKey: ['projects', 'active'], staleTime: Infinity,
+      queryFn: async () => { if (fail) throw Object.assign(new Error('unavailable'), { status: 500 }); return [domainValue] },
+    })
+    const unsubscribe = observer.subscribe(() => undefined)
+    const lifecycle = createWorkspaceRealtimeLifecycle(client)
+    try {
+      await lifecycle.start()
+      await vi.waitFor(() => expect(signalr.connection.invoke).toHaveBeenCalled())
+      await lifecycle.wake()
+      const event = {
+        moduleId: 'projects', eventKey: 'projects.created', schemaVersion: 1, eventId: 'event-id',
+        audience: { kind: 0, policy: { ownerModuleId: 'projects', policyKey: 'projects.read', policyVersion: 1 } },
+      }
+      vi.mocked(realtimeGetHistory).mockClear().mockResolvedValue({
+        items: [event], generation: 'server-generation', cursor: 'after-event', hasMore: false,
+      })
+      fail = true
+      await expect(lifecycle.wake()).rejects.toMatchObject({ status: 500 })
+      expect(observer.getCurrentResult().data).toEqual(['before'])
+
+      fail = false
+      domainValue = 'recovered'
+      await lifecycle.wake()
+      expect(vi.mocked(realtimeGetHistory).mock.calls.slice(0, 2).map(([params]) => params?.cursor)).toEqual(['next', 'next'])
+      expect(observer.getCurrentResult().data).toEqual(['recovered'])
+      await lifecycle.wake()
+      expect(vi.mocked(realtimeGetHistory).mock.calls[2][0]?.cursor).toBe('after-event')
+    } finally {
+      lifecycle.stop()
+      unsubscribe()
+      client.clear()
+    }
+  })
+
+  it('retries bootstrap before adopting its head when an owned query refetch fails', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    let fail = true
+    const observer = new QueryObserver(client, {
+      queryKey: ['projects', 'active'], staleTime: Infinity,
+      queryFn: async () => { if (fail) throw Object.assign(new Error('unavailable'), { status: 500 }); return ['recovered'] },
+    })
+    client.setQueryData(['projects', 'active'], ['before'])
+    const unsubscribe = observer.subscribe(() => undefined)
+    const lifecycle = createWorkspaceRealtimeLifecycle(client)
+    try {
+      await expect(lifecycle.start()).rejects.toMatchObject({ status: 500 })
+      expect(signalr.connection.start).not.toHaveBeenCalled()
+      fail = false
+      await lifecycle.wake()
+      expect(realtimeGetState).toHaveBeenCalledTimes(2)
+      expect(observer.getCurrentResult().data).toEqual(['recovered'])
+    } finally {
+      lifecycle.stop()
+      unsubscribe()
+      client.clear()
+    }
+  })
+
+  it('does not interpret an unrelated conflict as lost workspace authority', async () => {
+    const client = new QueryClient()
+    const lifecycle = createWorkspaceRealtimeLifecycle(client)
+    try {
+      await lifecycle.start()
+      await vi.waitFor(() => expect(signalr.connection.invoke).toHaveBeenCalled())
+      await lifecycle.wake()
+      client.setQueryData(['projects', 'active'], ['still-current'])
+      vi.mocked(realtimeGetHistory).mockRejectedValue(Object.assign(new Error('conflict'), {
+        status: 409, problem: { title: 'Unrelated conflict' },
+      }))
+      const push = signalr.connection.on.mock.calls.find(([name]) => name === 'invalidate')![1] as (item: unknown) => void
+      push({ eventId: 'wake' })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(signalr.connection.stop).not.toHaveBeenCalled()
+      expect(client.getQueryData(['projects', 'active'])).toEqual(['still-current'])
+    } finally {
+      lifecycle.stop()
+      client.clear()
+    }
+  })
 })

@@ -505,6 +505,9 @@ EOF
   history_before=$(compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only \
     --command 'SELECT count(*) FROM app.realtime_history WHERE "ModuleId" = $module$projects$module$;' | tr -d '[:space:]')
   [[ $history_before =~ ^[0-9]+$ && $history_before -gt 0 ]] || { printf 'Realtime module-removal fixture has no committed history.\n' >&2; exit 1; }
+  # Documents declares a Projects dependency and contributes to its extension point.
+  # Remove dependents first through the normal validated lifecycle.
+  "$test_root/tools/trykatch" module disable documents --root "$generated_root"
   "$test_root/tools/trykatch" module disable projects --root "$generated_root"
   compose up --detach --build --wait --wait-timeout 120 --scale api=2 api web
   wait_for_api

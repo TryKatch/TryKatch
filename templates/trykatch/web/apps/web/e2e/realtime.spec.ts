@@ -55,6 +55,7 @@ test.describe('packaged application realtime acceptance', () => {
       ownerActivationContext = undefined
 
       const ownerPage = await ownerContext.newPage()
+      const ownerTransport = observeWebSockets(ownerPage)
       await signIn(ownerPage, ownerEmail, organizationAdminPassword!)
       expect((await mutate(ownerContext.request, 'POST', '/api/v1/invitations/accept', { token: beta.invitationToken })).status()).toBe(200)
       await selectWorkspace(ownerContext.request, alpha.organization.id)
@@ -136,6 +137,8 @@ test.describe('packaged application realtime acceptance', () => {
       const closedBeforeRevocation = memberTransport.closed
       expect((await mutate(ownerContext.request, 'POST', `/api/v1/members/${member!.id}/archive`)).status()).toBe(204)
       await expect.poll(() => memberTransport.closed, { timeout: 30_000 }).toBeGreaterThan(closedBeforeRevocation)
+      await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.live) })).toHaveCount(0, { timeout: 30_000 })
+      await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toHaveCount(0)
 
       const revokedProject = await createProject(ownerContext.request, projectNames.revoked)
       expect(revokedProject.id).toBeTruthy()
@@ -158,6 +161,16 @@ test.describe('packaged application realtime acceptance', () => {
       await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toBeVisible()
       await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.beta) })).toHaveCount(0)
       moduleAbsenceFixture = { ownerEmail, organizationId: alpha.organization.id }
+
+      const closedBeforeClear = ownerTransport.closed
+      expect((await mutate(ownerContext.request, 'DELETE', '/api/v1/workspace/current')).status()).toBe(204)
+      const missingWorkspace = await ownerContext.request.get('/api/v1/realtime/history')
+      expect(missingWorkspace.status()).toBe(409)
+      expect((await missingWorkspace.json() as { title: string }).title).toBe('Workspace context required')
+      expect((await ownerContext.request.get('/api/v1/auth/session')).status()).toBe(200)
+      await expect.poll(() => ownerTransport.closed, { timeout: 30_000 }).toBeGreaterThan(closedBeforeClear)
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toHaveCount(0, { timeout: 30_000 })
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toHaveCount(0)
     } finally {
       await Promise.all([
         ownerActivationContext?.close(),

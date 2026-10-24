@@ -205,3 +205,15 @@ The initial support-mode scaffold produced two expected absent-host RED failures
 
 
 Task 4 Ruling: use nginx's standard client-address affinity for the supplied negotiated SignalR deployment — negotiation state belongs to one API process even with the Redis backplane, while preserving CSRF negotiation is part of the accepted browser contract. A real two-peer proxy regression first reproduces one client alternating destinations. Cost if wrong: clients sharing an address can concentrate load, and peer/address changes can require reconnect/HTTP repair. Other ingress deployments must supply equivalent affinity. Primary guidance: https://learn.microsoft.com/en-us/aspnet/core/signalr/scale?view=aspnetcore-10.0#sticky-sessions and https://nginx.org/en/docs/http/ngx_http_upstream_module.html#ip_hash . Actual GREEN and browser qualification remain pending at this ruling.
+
+Final independent review: `6140050..4c3f8ad`, one Sol reviewer using the existing review workflow and supplemental ECC checklist. Three Important findings, no Critical/Minor findings. Root reproduces four failed assertions (mounted authority-loss results, precise missing-workspace409, domain-refetch failure during history and bootstrap); one bounded fix pass yields all 13 host lifecycle/hook cases GREEN, host typecheck and Projects Storybook11 GREEN. See platform-services evidence and realtime-review-regressions-red/green.log. Fresh strengthened packaged proxy/module-removal qualification is still running.
+
+Reviewer declined-to-judge rulings (no new deferrals):
+- Ruling: keep the accepted in-flight boundary — revocation is checked before a bounded send; already-sent bytes cannot be retracted — cost: an in-flight receipt may follow revocation commit.
+- Ruling: retain cooperative callback cancellation and await disposal — forcibly abandoning module work would leak its scoped transaction — cost: a noncooperative callback occupies its bounded attempt until it returns.
+- Ruling: retain immutable composition with fleet drain/restart — no hot module registry is introduced — cost: operators must stop all old hosts before claiming removal.
+- Ruling: make no production HA/load claim from local qualification — deployment topology/capacity remains separately qualified — cost: operators still need that qualification.
+- Ruling: keep session administration/password policy/retention outside S2 and retain RustFS — A1/D3 and explicit storage scope remain authoritative — cost: those later capabilities/policies are not delivered by this slice.
+- Ruling: keep the documented standard local-send bypass of Redis — durable HTTP repair remains authoritative — cost: optional-backplane liveness does not establish cluster delivery or availability.
+
+Removal-fixture correction: Documents declares Projects as a dependency and contributes to its extension point. Actual CLI correctly rejects removing Projects first. Qualification disables Documents before Projects through the existing validated lifecycle, retains both schemas/history and drains every old API before restart; no composition validator is relaxed.

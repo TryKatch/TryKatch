@@ -16,7 +16,8 @@ export async function clearOrganizationQueryState(queryClient: QueryClient, isCu
   if (!isCurrent()) return
   await queryClient.cancelQueries({ predicate })
   if (!isCurrent()) return
-  queryClient.removeQueries({ predicate })
+  // Reset notifies mounted observers; deleting their cache entries leaves stale results attached.
+  await queryClient.resetQueries({ predicate })
 }
 
 export async function clearOrganizationDataForReset(queryClient: QueryClient, isCurrent: () => boolean = () => true, refreshWorkspace = true) {
@@ -92,14 +93,17 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
   }
 
   function handleError(error: unknown) {
-    if (errorStatus(error) === 401 || errorStatus(error) === 403) void loseAuthority()
+    const status = errorStatus(error)
+    const problem = error && typeof error === 'object' ? (error as { problem?: { title?: unknown } }).problem : undefined
+    // Organization middleware can reject a cleared workspace before the realtime reader runs.
+    if (status === 401 || status === 403 || status === 409 && problem?.title === 'Workspace context required') void loseAuthority()
   }
 
   async function invalidateKeys(keys: readonly (readonly unknown[])[], guard: () => boolean) {
     const unique = new Map(keys.map((key) => [JSON.stringify(key), key]))
     for (const key of unique.values()) {
       if (!guard()) return
-      await queryClient.invalidateQueries({ queryKey: [...key], refetchType: 'all' })
+      await queryClient.invalidateQueries({ queryKey: [...key], refetchType: 'all' }, { throwOnError: true })
     }
   }
 
