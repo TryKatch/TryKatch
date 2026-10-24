@@ -2,11 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Trykatch.Application;
 using Trykatch.Application.Organizations;
+using Trykatch.Application.Realtime;
 using Trykatch.Infrastructure;
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Organizations;
@@ -61,6 +63,65 @@ public sealed class RealtimePublicationIntegrationTests
         delivered.EventId.ShouldBe(eventId);
         delivered.Audience.Kind.ShouldBe(ModuleRealtimeAudienceKind.Organization);
         delivered.Audience.Policy.ShouldBe(PolicyReference);
+    }
+
+    [TestMethod]
+    public async Task RecipientHistoryAdvancesPastFullyFilteredPagesAndRechecksCurrentResourceVisibility()
+    {
+        await using RealtimeFixture fixture = await RealtimeFixture.StartAsync(resourceVisibilityPolicy: true);
+        Guid organizationId = Guid.NewGuid();
+        Guid visibleProject = Guid.NewGuid();
+        Guid visibleEvent = Guid.NewGuid();
+        await using (PublicationScope publish = await fixture.BeginPublicationScopeAsync(organizationId))
+        {
+            InitializeExecution(publish, Guid.NewGuid());
+            await InsertProjectAsync(publish, organizationId, "visible-realtime-project", visibleProject);
+            IModuleRealtimePublisher publisher = publish.Services.GetRequiredService<IModuleRealtimePublisher>();
+            for (int index = 0; index < 101; index++)
+            {
+                Guid project = index == 100 ? visibleProject : Guid.NewGuid();
+                ModuleRealtimeNotification notification = Notification(index == 100 ? visibleEvent : Guid.NewGuid()) with
+                {
+                    Audience = new(PolicyReference, ModuleRealtimeAudienceKind.Resource, Resource: new("projects", project))
+                };
+                await publisher.PublishAsync(notification);
+            }
+            await publish.Transaction.CommitAsync(CancellationToken.None);
+        }
+        await using (PublicationScope read = await fixture.BeginReadScopeAsync(organizationId))
+        {
+            IRealtimeHistoryReader history = read.Services.GetRequiredService<IRealtimeHistoryReader>();
+            (await history.ReadHeadAsync()).ShouldBe(101L);
+            RealtimeHistoryBatch first = await history.ReadPageAsync(0);
+            first.Items.ShouldBeEmpty();
+            first.Position.ShouldBe(100L);
+            first.HasMore.ShouldBeTrue();
+        }
+        await using (PublicationScope read = await fixture.BeginReadScopeAsync(organizationId))
+        {
+            RealtimeHistoryBatch last = await read.Services.GetRequiredService<IRealtimeHistoryReader>().ReadPageAsync(100);
+            last.Position.ShouldBe(101L);
+            last.HasMore.ShouldBeFalse();
+            last.Items.Count.ShouldBe(1);
+            last.Items.Single().Position.ShouldBe(101L);
+            last.Items.Single().Notification.EventId.ShouldBe(visibleEvent);
+            last.Items.Single().Notification.Audience.Resource!.ResourceId.ShouldBe(visibleProject);
+        }
+        await using (PublicationScope change = await fixture.BeginPublicationScopeAsync(organizationId))
+        {
+            await change.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlInterpolatedAsync(
+                $"DELETE FROM app.projects WHERE \"Id\" = {visibleProject}");
+            await change.Transaction.CommitAsync(CancellationToken.None);
+        }
+        await using (PublicationScope read = await fixture.BeginReadScopeAsync(organizationId))
+        {
+            IRealtimeHistoryReader history = read.Services.GetRequiredService<IRealtimeHistoryReader>();
+            RealtimeHistoryBatch nowPrivate = await history.ReadPageAsync(100);
+            nowPrivate.Items.ShouldBeEmpty();
+            nowPrivate.Position.ShouldBe(101L);
+            nowPrivate.HasMore.ShouldBeFalse();
+            await Should.ThrowAsync<InvalidOperationException>(() => history.ReadPageAsync(102));
+        }
     }
 
     [TestMethod]
@@ -236,12 +297,14 @@ public sealed class RealtimePublicationIntegrationTests
         {
             RealtimeHistoryStore history = writable.Services.GetRequiredService<RealtimeHistoryStore>();
             await Should.ThrowAsync<InvalidOperationException>(() => history.ReadPageAsync(0));
+            await Should.ThrowAsync<InvalidOperationException>(() => writable.Services.GetRequiredService<IRealtimeHistoryReader>().ReadPageAsync(0));
         }
 
         await using (PublicationScope unshared = await fixture.BeginPublicationScopeAsync(organizationId, enlist: false))
         {
             RealtimeHistoryStore history = unshared.Services.GetRequiredService<RealtimeHistoryStore>();
             await Should.ThrowAsync<InvalidOperationException>(() => history.ReadHeadAsync());
+            await Should.ThrowAsync<InvalidOperationException>(() => unshared.Services.GetRequiredService<IRealtimeHistoryReader>().ReadHeadAsync());
         }
 
         await using (PublicationScope read = await fixture.BeginReadScopeAsync(organizationId))
@@ -249,11 +312,15 @@ public sealed class RealtimePublicationIntegrationTests
             RealtimeHistoryStore history = read.Services.GetRequiredService<RealtimeHistoryStore>();
             await Should.ThrowAsync<InvalidOperationException>(() => history.ReadPageAsync(-1));
             await Should.ThrowAsync<InvalidOperationException>(() => history.ReadPageAsync(long.MaxValue));
+            IRealtimeHistoryReader recipient = read.Services.GetRequiredService<IRealtimeHistoryReader>();
+            await Should.ThrowAsync<InvalidOperationException>(() => recipient.ReadPageAsync(-1));
+            await Should.ThrowAsync<InvalidOperationException>(() => recipient.ReadPageAsync(long.MaxValue));
 
             string wrongActor = Guid.NewGuid().ToString();
             await read.Services.GetRequiredService<OrganizationControlPlaneDbContext>().Database
                 .ExecuteSqlInterpolatedAsync($"SELECT set_config('app.actor_id', {wrongActor}, true)");
             await Should.ThrowAsync<InvalidOperationException>(() => history.ReadPageAsync(0));
+            await Should.ThrowAsync<InvalidOperationException>(() => recipient.ReadPageAsync(0));
         }
     }
 
@@ -349,11 +416,11 @@ public sealed class RealtimePublicationIntegrationTests
             publish.Services.GetRequiredService<IModuleRealtimePublisher>().PublishAsync(notification));
     }
 
-    private static async Task InsertProjectAsync(PublicationScope scope, Guid organizationId, string name)
+    private static async Task InsertProjectAsync(PublicationScope scope, Guid organizationId, string name, Guid? projectId = null)
     {
         await scope.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO app.projects ("Id", "OrganizationId", "Name", "Description", "CreatedBy", "CreatedAt")
-            VALUES ({Guid.NewGuid()}, {organizationId}, {name}, 'Realtime transaction fixture', {SystemActorId}, CURRENT_TIMESTAMP)
+            VALUES ({projectId ?? Guid.NewGuid()}, {organizationId}, {name}, 'Realtime transaction fixture', {SystemActorId}, CURRENT_TIMESTAMP)
             """);
     }
 
@@ -419,6 +486,14 @@ public sealed class RealtimePublicationIntegrationTests
             CancellationToken cancellationToken) => Task.FromResult(true);
     }
 
+    private sealed class ResourceExistsAudiencePolicy(ApplicationDbContext database) : IModuleRealtimeAudiencePolicy
+    {
+        public Task<bool> AuthorizeAsync(ModuleRealtimeAudienceContext context, ModuleRealtimeAudience audience, CancellationToken cancellationToken) =>
+            audience.Resource is { } resource
+                ? database.Set<Project>().AsNoTracking().AnyAsync(project => project.Id == resource.ResourceId, cancellationToken)
+                : Task.FromResult(false);
+    }
+
     private sealed class PublicationScope(
         AsyncServiceScope scope,
         IOrganizationDataScope transaction,
@@ -445,7 +520,7 @@ public sealed class RealtimePublicationIntegrationTests
         private readonly string owner = ownerConnection;
         private readonly ServiceProvider provider = services;
 
-        public static async Task<RealtimeFixture> StartAsync()
+        public static async Task<RealtimeFixture> StartAsync(bool resourceVisibilityPolicy = false)
         {
             PostgreSqlContainer postgres = new PostgreSqlBuilder(PostgresImage).Build();
             await postgres.StartAsync();
@@ -474,6 +549,12 @@ public sealed class RealtimePublicationIntegrationTests
                 services.AddApplication();
                 services.AddModules(configuration, [new RealtimeTestModule()]);
                 services.AddInfrastructure(configuration, isDevelopment: true, isOpenApiGeneration: true);
+                if (resourceVisibilityPolicy)
+                {
+                    services.RemoveAll<ModuleRealtimeAudiencePolicyBinding>();
+                    services.AddScoped<ModuleRealtimeAudiencePolicyBinding>(provider => new(PolicyReference,
+                        new ResourceExistsAudiencePolicy(provider.GetRequiredService<ApplicationDbContext>())));
+                }
                 ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
                 return new(postgres, owner, provider);
             }

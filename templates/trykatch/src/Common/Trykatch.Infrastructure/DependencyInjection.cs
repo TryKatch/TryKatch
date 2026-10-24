@@ -1,4 +1,5 @@
 using Trykatch.Application.Execution;
+using Trykatch.Application.Realtime;
 using Trykatch.Application.Eventing;
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Caching;
@@ -44,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<IModuleRealtimePublisher, ModuleRealtimePublisher>();
         services.AddScoped<RealtimeHistoryStore>();
         services.AddScoped<RealtimeAudienceRegistry>();
+        services.AddScoped<IRealtimeAudienceAuthorization, RealtimeAudienceAuthorization>();
+        services.AddScoped<IRealtimeHistoryReader, RealtimeHistoryReader>();
         services.AddScoped<CacheInvalidationCommitState>();
         services.AddScoped<CacheGenerationStore>();
         services.AddOrganizationCache(configuration, isOpenApiGeneration);
