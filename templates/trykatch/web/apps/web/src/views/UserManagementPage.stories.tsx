@@ -68,6 +68,7 @@ export const SelectWorkspaceRole: Story = {
 
 function invitationResult(emailDelivered: boolean, emailQueued: boolean) {
   return http.post('*/api/v1/invitations', async ({ request }) => {
+    await delay(100)
     await expect(await request.json()).toEqual({ email: 'new@example.test', expiresInDays: 7 })
     return HttpResponse.json({
       invitation: { id: 'preview-invitation', roleId: 'member', email: 'new@example.test' },
@@ -112,7 +113,7 @@ export const EmailQueuedFrenchDark: Story = {
   parameters: { viewport: { defaultViewport: 'tablet' }, msw: { handlers: { api: [...readers, invitationResult(false, true)] } } },
   play: async ({ canvasElement }) => {
     const dialog = await createDefaultInvitation(canvasElement, 'fr')
-    await expect(dialog.getByRole('heading', { name: 'Invitation prête' })).toBeVisible()
+    await expect(await dialog.findByRole('heading', { name: 'Invitation prête' })).toBeVisible()
     await expect(await dialog.findByText('L’invitation est en attente d’envoi par e-mail. L’envoi n’est pas encore confirmé. Vous pouvez aussi copier le lien ci-dessous.')).toBeVisible()
     await expect(dialog.getByRole('button', { name: 'Copier le lien d’invitation' })).toBeVisible()
   },
@@ -123,7 +124,7 @@ export const EmailDeliveryUnavailableFrench: Story = {
   parameters: { viewport: { defaultViewport: 'desktop' }, msw: { handlers: { api: [...readers, invitationResult(false, false)] } } },
   play: async ({ canvasElement }) => {
     const dialog = await createDefaultInvitation(canvasElement, 'fr')
-    await expect(dialog.getByRole('heading', { name: 'Invitation prête' })).toBeVisible()
+    await expect(await dialog.findByRole('heading', { name: 'Invitation prête' })).toBeVisible()
     await expect(await dialog.findByText('L’envoi par e-mail est indisponible. Copiez ce lien et partagez-le avec la personne invitée par un canal sécurisé.')).toBeVisible()
     await expect(dialog.getByRole('button', { name: 'Copier le lien d’invitation' })).toBeVisible()
   },
