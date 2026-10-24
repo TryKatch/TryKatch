@@ -76,6 +76,11 @@
         "enum": ["api", "web", "data", "background-work", "assistant"]
       }
     },
+    "features": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/moduleFeature" }
+    },
     "dataOwnership": {
       "oneOf": [
         { "type": "null" },
@@ -243,6 +248,17 @@
     }
   ],
   "$defs": {
+    "moduleFeature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "description", "defaultEnabled"],
+      "properties": {
+        "key": { "$ref": "#/$defs/stableKey" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "defaultEnabled": { "type": "boolean" }
+      }
+    },
     "stableKey": { "type": "string", "maxLength": 120, "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
     "realtimeStableKey": { "type": "string", "maxLength": 160, "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
     "realtimePolicyKey": { "type": "string", "maxLength": 158, "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },

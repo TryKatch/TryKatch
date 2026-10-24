@@ -6,6 +6,7 @@ export { defineTableExtensionPoint, defineTableContribution, type TableColumn, t
 
 export { ModuleExtensionSlot, ModuleProvider, useTableContributions } from './extensions'
 export { ModuleI18nProvider, useModuleI18n, type ModuleI18n, type ModuleMessageValues } from './i18n'
+export { isModuleFeatureEnabled, ModuleFeatureProvider, useModuleFeature, useModuleFeatures, type FeatureAvailabilityState, type OrganizationFeatureSnapshot } from './features'
 
 export interface ModuleIconProps {
   size?: string | number
@@ -15,6 +16,8 @@ export interface WebRoute {
   id: string
   path: `/${string}`
   surface?: 'workspace' | 'platform'
+  requiredPermission?: string
+  requiredFeature?: string
   component: ComponentType | LazyExoticComponent<ComponentType>
 }
 
@@ -27,6 +30,7 @@ export interface NavigationContribution {
   labels?: Readonly<{ en: string; fr: string }>
   icon: ComponentType<ModuleIconProps>
   requiredPermission?: string
+  requiredFeature?: string
   exact?: boolean
   surface?: 'workspace' | 'platform'
 }
@@ -73,9 +77,23 @@ export interface ArchiveResourceContribution {
   typeLabel: string
   readPermission: string
   managePermission: string
+  readFeature?: string
+  manageFeature?: string
   load(): Promise<readonly ArchiveItem[]>
   restore(id: string, expectedVersion?: string): Promise<unknown>
   requestDeletion?(id: string, reason: string, expectedVersion?: string): Promise<unknown>
+}
+
+export interface ModuleFeatureDescriptor {
+  key: string
+  name: string
+  description: string
+  defaultEnabled: boolean
+}
+
+export interface InstalledModuleFeature {
+  moduleId: string
+  feature: ModuleFeatureDescriptor
 }
 
 export interface WebModule {
@@ -92,6 +110,7 @@ export interface WebModule {
   archiveResources?: readonly ArchiveResourceContribution[]
   tableContributions?: readonly WebTableContribution[]
   realtimeInvalidations?: readonly WebRealtimeInvalidationContribution[]
+  features?: readonly ModuleFeatureDescriptor[]
 }
 
 export interface WebOverrides {
@@ -119,10 +138,17 @@ export class WebModuleCatalog {
   readonly tableContributions: readonly WebTableContribution[]
   readonly realtimeInvalidations: readonly WebRealtimeInvalidationContribution[]
   readonly realtimeSubscriptions: readonly RealtimeAudience[]
+  readonly features: readonly ModuleFeatureDescriptor[]
 
-  constructor(modules: readonly WebModule[], overrides: WebOverrides = {}) {
+  constructor(
+    modules: readonly WebModule[],
+    overrides: WebOverrides = {},
+    expectedFeatures?: readonly InstalledModuleFeature[],
+  ) {
     validateModules(modules)
     this.modules = orderByDependencies(modules)
+    this.features = this.modules.flatMap((module) => module.features ?? [])
+    if (expectedFeatures !== undefined) validateExpectedFeatures(modules, expectedFeatures)
     this.extensionPoints = this.modules.flatMap((module) => module.extensionPoints)
     this.tableContributions = applyOverrides(this.modules.flatMap(module => module.tableContributions ?? []), overrides.tableContributions, 'table contribution')
       .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
@@ -161,6 +187,7 @@ export class WebModuleCatalog {
       .map((item) => item.subscription)
       .filter((subscription, index, all) => all.findIndex((candidate) => sameRealtimeAudience(candidate, subscription)) === index)
     validateEffectiveContracts(this.routes, this.navigation, this.extensionPoints, this.extensions)
+    validateFeatureBindings(this.routes, this.navigation, this.archiveResources, this.features)
   }
 
   extensionsFor(point: string) {
@@ -217,6 +244,7 @@ function validateModules(modules: readonly WebModule[]) {
     for (const dependency of module.requires) {
       if (!installed.has(dependency)) throw new Error(`Trykatch web module '${module.id}' requires missing module '${dependency}'.`)
     }
+    validateModuleFeatures(module)
   }
 
   validateEffectiveContracts(
@@ -225,6 +253,89 @@ function validateModules(modules: readonly WebModule[]) {
     modules.flatMap((module) => module.extensionPoints),
     modules.flatMap((module) => module.extensions),
   )
+  validateFeatureBindings(
+    modules.flatMap((module) => module.routes),
+    modules.flatMap((module) => module.navigation),
+    modules.flatMap((module) => module.archiveResources ?? []),
+    modules.flatMap((module) => module.features ?? []),
+  )
+}
+
+function validateModuleFeatures(module: WebModule) {
+  const features: unknown = module.features
+  if (features === undefined) return
+  if (!Array.isArray(features) || features.length > 100) {
+    throw new Error(`Trykatch web module '${module.id}' must declare at most 100 features in an array.`)
+  }
+
+  for (const feature of features) validateFeatureDescriptor(module.id, feature)
+  ensureUnique(features.map((feature: ModuleFeatureDescriptor) => feature.key), `feature key in '${module.id}'`)
+}
+
+function validateFeatureDescriptor(moduleId: string, value: unknown): asserts value is ModuleFeatureDescriptor {
+  const subject = `Trykatch feature in module '${moduleId}'`
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${subject} must be an object.`)
+
+  const descriptor = value as Record<string, unknown>
+  const allowedProperties = new Set(['key', 'name', 'description', 'defaultEnabled'])
+  if (Object.keys(descriptor).some((property) => !allowedProperties.has(property))) {
+    throw new Error(`${subject} has an unknown property.`)
+  }
+  if (typeof descriptor.key !== 'string' || descriptor.key.length > 120
+    || !stableContractId.test(descriptor.key) || !descriptor.key.startsWith(`${moduleId}.`)) {
+    throw new Error(`${subject} has an invalid or foreign key.`)
+  }
+  if (typeof descriptor.name !== 'string' || !descriptor.name.trim() || descriptor.name.length > 160) {
+    throw new Error(`${subject} has an invalid name.`)
+  }
+  if (typeof descriptor.description !== 'string' || !descriptor.description.trim() || descriptor.description.length > 1000) {
+    throw new Error(`${subject} has an invalid description.`)
+  }
+  if (typeof descriptor.defaultEnabled !== 'boolean') throw new Error(`${subject} requires an explicit boolean default.`)
+}
+
+function validateExpectedFeatures(modules: readonly WebModule[], expectedFeatures: readonly InstalledModuleFeature[]) {
+  if (!Array.isArray(expectedFeatures)) throw new Error('Expected Trykatch features must be an array.')
+
+  const moduleIds = new Set(modules.map((module) => module.id))
+  const expectedByKey = new Map<string, ModuleFeatureDescriptor>()
+  const expectedCounts = new Map<string, number>()
+  for (const value of expectedFeatures as readonly unknown[]) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('Expected Trykatch feature entry must be an object.')
+    }
+    const installedFeature = value as Record<string, unknown>
+    if (Object.keys(installedFeature).some((property) => property !== 'moduleId' && property !== 'feature')) {
+      throw new Error('Expected Trykatch feature entry has an unknown property.')
+    }
+    if (typeof installedFeature.moduleId !== 'string' || !moduleIds.has(installedFeature.moduleId)) {
+      throw new Error(`Expected Trykatch feature references unknown module '${String(installedFeature.moduleId)}'.`)
+    }
+
+    const moduleId = installedFeature.moduleId
+    const count = (expectedCounts.get(moduleId) ?? 0) + 1
+    if (count > 100) throw new Error(`Expected Trykatch module '${moduleId}' declares more than 100 features.`)
+    expectedCounts.set(moduleId, count)
+
+    validateFeatureDescriptor(moduleId, installedFeature.feature)
+    const feature = installedFeature.feature
+    if (expectedByKey.has(feature.key)) throw new Error(`Duplicate expected Trykatch feature '${feature.key}'.`)
+    expectedByKey.set(feature.key, feature)
+  }
+
+  const actualByKey = new Map<string, ModuleFeatureDescriptor>()
+  for (const module of modules) {
+    for (const feature of module.features ?? []) actualByKey.set(feature.key, feature)
+  }
+  if (actualByKey.size !== expectedByKey.size) throw new Error('Trykatch feature declarations do not match the expected manifest.')
+
+  for (const [key, actual] of actualByKey) {
+    const expected = expectedByKey.get(key)
+    if (!expected || actual.name !== expected.name || actual.description !== expected.description
+      || actual.defaultEnabled !== expected.defaultEnabled) {
+      throw new Error(`Trykatch feature '${key}' does not match the expected manifest.`)
+    }
+  }
 }
 
 function validateEffectiveContracts(
@@ -246,6 +357,40 @@ function validateEffectiveContracts(
   for (const extension of extensions) {
     if (!stableContractId.test(extension.id)) throw new Error(`Invalid Trykatch extension id '${extension.id}'.`)
     if (!declaredPoints.has(extension.point)) throw new Error(`Trykatch extension '${extension.id}' targets unknown point '${extension.point}'.`)
+  }
+}
+
+function validateFeatureBindings(
+  routes: readonly WebRoute[],
+  navigation: readonly NavigationContribution[],
+  archiveResources: readonly ArchiveResourceContribution[],
+  installedFeatures: readonly ModuleFeatureDescriptor[],
+) {
+  const featureKeys = new Set(installedFeatures.map((feature) => feature.key))
+  const validateFeature = (featureKey: string | undefined, subject: string) => {
+    if (featureKey !== undefined && (typeof featureKey !== 'string' || !featureKeys.has(featureKey))) {
+      throw new Error(`${subject} references an unknown installed Trykatch feature '${String(featureKey)}'.`)
+    }
+  }
+
+  for (const route of routes) {
+    if (route.requiredPermission !== undefined && !stableContractId.test(route.requiredPermission)) {
+      throw new Error(`Trykatch route '${route.id}' has an invalid required permission.`)
+    }
+    validateFeature(route.requiredFeature, `Trykatch route '${route.id}'`)
+    if ((route.surface ?? 'workspace') === 'platform' && route.requiredFeature !== undefined) {
+      throw new Error(`Trykatch platform route '${route.id}' cannot require an organization feature.`)
+    }
+  }
+  for (const item of navigation) {
+    validateFeature(item.requiredFeature, `Trykatch navigation contribution '${item.id}'`)
+    if ((item.surface ?? 'workspace') === 'platform' && item.requiredFeature !== undefined) {
+      throw new Error(`Trykatch platform navigation contribution '${item.id}' cannot require an organization feature.`)
+    }
+  }
+  for (const resource of archiveResources) {
+    validateFeature(resource.readFeature, `Trykatch archive resource '${resource.kind}' read access`)
+    validateFeature(resource.manageFeature, `Trykatch archive resource '${resource.kind}' manage access`)
   }
 }
 

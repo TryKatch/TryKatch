@@ -1,6 +1,6 @@
 # ADR 0020: Transaction-aware organization mutation idempotency
 
-Status: Accepted architecture choice; local implementation qualified. Integrated S3 review, exact-head CI and merge remain pending.
+Status: Accepted and implemented. S3 review, focused corrections and required exact-head CI are complete; [PR #136](https://github.com/TryKatch/TryKatch/pull/136) merged as `a3f19df`.
 Date: 2026-10-24.
 
 ## Context

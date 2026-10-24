@@ -44,7 +44,8 @@ internal sealed class ProjectCreatedRealtimeConsumer(IModuleRealtimePublisher pu
 }
 
 internal sealed class ProjectsReadAudiencePolicy(
-    IProjectStore store, IOrganizationContext organization, IPermissionAuthorizer permissions) : IModuleRealtimeAudiencePolicy
+    IProjectStore store, IOrganizationContext organization, IPermissionAuthorizer permissions,
+    Trykatch.Modules.IOrganizationFeatureEvaluator featureEvaluator) : IModuleRealtimeAudiencePolicy
 {
     public async Task<bool> AuthorizeAsync(ModuleRealtimeAudienceContext context, ModuleRealtimeAudience audience,
         CancellationToken cancellationToken)
@@ -54,6 +55,7 @@ internal sealed class ProjectsReadAudiencePolicy(
             || audience.Policy != ProjectsRealtime.ReadPolicy || !Enum.IsDefined(audience.Kind)
             || (audience.Kind == ModuleRealtimeAudienceKind.User ? audience.UserId != context.ActorId : audience.UserId is not null)
             || !await permissions.HasPermissionAsync(Permissions.ProjectsRead, cancellationToken)) return false;
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Reads, cancellationToken)) return false;
         if (audience.Resource is null) return audience.Kind != ModuleRealtimeAudienceKind.Resource;
         // Use the same current store visibility as GetAsync, including readable lifecycle metadata.
         return audience.Resource.ResourceKey == "projects" && audience.Resource.ResourceId != Guid.Empty

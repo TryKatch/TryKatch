@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { customFetch } from '@trykatch/api-client'
+import { customFetch, getWorkspaceCurrentQueryKey, workspaceCurrent } from '@trykatch/api-client'
 import { Badge, Button, DataTable, DeleteConfirmationDialog, EmptyState, PageHeader, RowActions, Skeleton, Surface, type DataTableColumn } from '@trykatch/ui'
 import { ArchiveRestore, FolderKanban, Mail, RefreshCw, ShieldCheck, UserRound } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useModuleFeatures } from '@trykatch/module-sdk'
 import { formatRecordDate, LifecycleBadge, RecordDetailsDialog } from '../../components/RecordLifecycle'
 import {
   allArchiveResourceDefinitions,
@@ -14,12 +15,13 @@ import {
   restoreArchiveItem,
   type ArchiveItem,
   type ArchiveResourceKind,
+  type ArchiveResourceDefinition,
 } from './archiveResources'
 import { useDataTableLabels } from '../../i18n/useDataTableLabels'
 import { useDeleteConfirmationLabels } from '../../i18n/useDeleteConfirmationLabels'
 import { useI18n } from '../../i18n/I18nProvider'
 
-interface OrganizationAccess { membershipId: string; permissions: string[] }
+interface OrganizationAccess { organizationId: string; membershipId: string; permissions: string[] }
 type StateFilter = 'all' | 'Archived' | 'Deleted'
 
 const resourceIcons = {
@@ -38,25 +40,64 @@ function collectionQueryKey(kind: ArchiveResourceKind) {
 }
 
 export function ArchivePage() {
+  const { organizationId } = useModuleFeatures()
+  return <ArchivePageForOrganization key={organizationId ?? 'unavailable'} organizationId={organizationId} />
+}
+
+function ArchivePageForOrganization({ organizationId }: { organizationId?: string }) {
   const { t } = useI18n()
+  const features = useModuleFeatures()
   const dataTableLabels = useDataTableLabels()
   const deleteConfirmationLabels = useDeleteConfirmationLabels()
   const queryClient = useQueryClient()
+  const isFeatureEnabledRef = useRef(features.isEnabled)
+  isFeatureEnabledRef.current = features.isEnabled
+  const permissionsRef = useRef<readonly string[]>([])
   const [resourceKind, setResourceKind] = useState<'all' | ArchiveResourceKind>('all')
   const [recordState, setRecordState] = useState<StateFilter>('all')
   const [viewing, setViewing] = useState<ArchiveItem>()
   const [deleting, setDeleting] = useState<ArchiveItem>()
+  const [deletionReason, setDeletionReason] = useState('')
   const access = useQuery({
     queryKey: ['access'],
-    queryFn: () => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET' }),
+    queryFn: ({ signal }) => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET', signal }),
+    enabled: Boolean(organizationId),
   })
+  const workspace = useQuery({
+    queryKey: getWorkspaceCurrentQueryKey(),
+    queryFn: ({ signal }) => workspaceCurrent({ signal }),
+    enabled: Boolean(organizationId),
+    retry: false,
+  })
+  const accessData = access.data
+  const currentAccess = Boolean(organizationId) && access.isSuccess && access.fetchStatus === 'idle'
+    && workspace.isSuccess && workspace.fetchStatus === 'idle'
+    && accessData?.organizationId === organizationId && workspace.data.organizationId === organizationId
+  const permissions = currentAccess && accessData
+    ? accessData.permissions.filter((permission) => workspace.data!.permissions.includes(permission)) : []
+  permissionsRef.current = permissions
+  const canUseFeature = (key: string) => isFeatureEnabledRef.current(key)
+  const isReadable = (definition: ArchiveResourceDefinition) => permissions.includes(definition.readPermission)
+    && (definition.readFeature === undefined || canUseFeature(definition.readFeature))
+  const canReadItem = (item: ArchiveItem) => {
+    const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
+    return definition !== undefined && isReadable(definition)
+  }
+  const readableResources = currentAccess ? allArchiveResourceDefinitions.filter(isReadable) : []
+  const readableSignature = readableResources.map(({ kind }) => kind).toSorted().join(',')
+  const permissionSignature = [...permissions].toSorted().join(',')
   const archive = useQuery({
-    queryKey: ['archive', access.data?.permissions],
-    queryFn: () => loadArchiveItems(access.data?.permissions ?? []),
-    enabled: access.isSuccess,
+    queryKey: ['archive', organizationId ?? null, permissionSignature, readableSignature],
+    queryFn: ({ signal }) => loadArchiveItems(permissions, canUseFeature, signal),
+    enabled: currentAccess && readableResources.length > 0,
   })
   const restore = useMutation({
-    mutationFn: (item: ArchiveItem) => restoreArchiveItem(item),
+    mutationFn: (item: ArchiveItem) => {
+      const currentPermissions = permissionsRef.current
+      const currentFeatureCheck = isFeatureEnabledRef.current
+      if (!canRestoreArchiveItem(item, currentPermissions, currentFeatureCheck)) throw new Error('Feature or permission unavailable.')
+      return restoreArchiveItem(item, currentFeatureCheck)
+    },
     onSuccess: async (_, item) => {
       setViewing(undefined)
       await Promise.all([
@@ -66,9 +107,15 @@ export function ArchivePage() {
     },
   })
   const requestDeletion = useMutation({
-    mutationFn: ({ item, reason }: { item: ArchiveItem; reason: string }) => requestArchiveItemDeletion(item, reason),
+    mutationFn: ({ item, reason }: { item: ArchiveItem; reason: string }) => {
+      const currentPermissions = permissionsRef.current
+      const currentFeatureCheck = isFeatureEnabledRef.current
+      if (!canRequestArchiveItemDeletion(item, currentPermissions, currentFeatureCheck)) throw new Error('Feature or permission unavailable.')
+      return requestArchiveItemDeletion(item, reason, currentFeatureCheck)
+    },
     onSuccess: async (_, { item }) => {
       setDeleting(undefined)
+      setDeletionReason('')
       setViewing(undefined)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['archive'] }),
@@ -77,13 +124,33 @@ export function ArchivePage() {
     },
   })
 
-  const permissions = access.data?.permissions ?? []
-  const visibleResourceTypes = allArchiveResourceDefinitions.filter((definition) => permissions.includes(definition.readPermission))
-  const items = (archive.data ?? []).filter((item) =>
+  useEffect(() => {
+    const accessDenied = [access.error, workspace.error].some((error) => [401, 403].includes((error as { status?: number } | null)?.status ?? 0))
+      || access.isSuccess && accessData?.organizationId !== organizationId
+      || workspace.isSuccess && workspace.data.organizationId !== organizationId
+    const confirmedDenial = (item: ArchiveItem, forDeletion: boolean) => {
+      if (accessDenied) return true
+      if (!currentAccess) return false
+      const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
+      if (!definition || !permissions.includes(definition.readPermission)) return true
+      if (forDeletion && !canRequestArchiveItemDeletion(item, permissions, () => true)) return true
+      return features.status === 'success' && (!canReadItem(item)
+        || forDeletion && !canRequestArchiveItemDeletion(item, permissions, canUseFeature))
+    }
+    if (viewing && confirmedDenial(viewing, false)) setViewing(undefined)
+    if (deleting && confirmedDenial(deleting, true)) {
+      setDeleting(undefined)
+      setDeletionReason('')
+    }
+  }, [deleting, viewing, readableSignature, permissionSignature, features.isEnabled, features.status, access.error, access.isSuccess, accessData?.organizationId, workspace.error, workspace.isSuccess, workspace.data?.organizationId, organizationId, currentAccess])
+
+  const visibleResourceTypes = readableResources
+  const readableItems = currentAccess ? (archive.data ?? []).filter(canReadItem) : []
+  const items = readableItems.filter((item) =>
     (resourceKind === 'all' || item.kind === resourceKind) &&
     (recordState === 'all' || item.lifecycle.status === recordState))
-  const archivedCount = archive.data?.filter((item) => item.lifecycle.status === 'Archived').length ?? 0
-  const pendingDeletionCount = archive.data?.filter((item) => item.lifecycle.status === 'Deleted').length ?? 0
+  const archivedCount = readableItems.filter((item) => item.lifecycle.status === 'Archived').length
+  const pendingDeletionCount = readableItems.filter((item) => item.lifecycle.status === 'Deleted').length
 
   const columns: DataTableColumn<ArchiveItem>[] = [
     {
@@ -102,16 +169,23 @@ export function ArchivePage() {
     { id: 'removed', header: t('Removed'), cell: (item) => formatRecordDate(item.lifecycle.deletedAt ?? item.lifecycle.archivedAt), sortValue: archiveTimestamp },
     { id: 'reason', header: t('Reason'), defaultVisible: false, cell: (item) => item.lifecycle.deletionReason ?? t('Archived without a deletion reason'), searchValue: (item) => item.lifecycle.deletionReason ?? '' },
     {
-      id: 'actions', header: '', hideable: false, align: 'right', width: 54,
+      id: 'actions', header: t('Actions'), hideable: false, align: 'right', width: 54,
       cell: (item) => <RowActions label={t('Actions for {name}', { name: item.title })} actions={[
         { label: t('View'), icon: 'view', onSelect: () => setViewing(item) },
-        ...(canRestoreArchiveItem(item, permissions) ? [{ label: t('Restore'), icon: 'restore' as const, onSelect: () => restore.mutate(item), disabled: restore.isPending }] : []),
-        ...(canRequestArchiveItemDeletion(item, permissions) ? [{ label: t('Delete'), icon: 'delete' as const, danger: true, onSelect: () => setDeleting(item), disabled: requestDeletion.isPending }] : []),
+        ...(canRestoreArchiveItem(item, permissions, canUseFeature) ? [{ label: t('Restore'), icon: 'restore' as const, onSelect: () => restore.mutate(item), disabled: restore.isPending }] : []),
+        ...(canRequestArchiveItemDeletion(item, permissions, canUseFeature) ? [{ label: t('Delete'), icon: 'delete' as const, danger: true, onSelect: () => setDeleting(item), disabled: requestDeletion.isPending }] : []),
       ]} />,
     },
   ]
 
-  const loadError = access.error ?? archive.error
+  const loadError = access.error ?? workspace.error ?? archive.error
+  const accessUnavailable = !organizationId || access.isSuccess && workspace.isSuccess && !currentAccess
+  const isLoading = Boolean(organizationId) && (access.isPending || access.fetchStatus !== 'idle'
+    || workspace.isPending || workspace.fetchStatus !== 'idle'
+    || currentAccess && readableResources.length > 0 && archive.isLoading)
+  const visibleViewing = viewing && canReadItem(viewing) ? viewing : undefined
+  const visibleDeleting = deleting && canReadItem(deleting)
+    && canRequestArchiveItemDeletion(deleting, permissions, canUseFeature) ? deleting : undefined
   return <>
     <PageHeader eyebrow={t('Recovery')} title={t('Archive')} description={t('Review and restore records removed from active work.')} actions={<Button variant="secondary" onClick={() => archive.refetch()} disabled={archive.isFetching}><RefreshCw size={14} /> {t(archive.isFetching ? 'Refreshing…' : 'Refresh')}</Button>} />
     <Surface className="archive-intro">
@@ -119,13 +193,13 @@ export function ArchivePage() {
       <div><strong>{t('A safe place for recoverable records')}</strong><p>{t('Archived records are intentionally retained but inactive. Pending-deletion records include an accountability reason and remain restorable until an approved retention policy permits permanent removal.')}</p></div>
     </Surface>
     <div className="archive-summary-grid" aria-label={t('Archive summary')}>
-      <Surface><span>{t('Recoverable')}</span><strong>{archive.data?.length ?? 0}</strong><small>{t('All removed records')}</small></Surface>
+      <Surface><span>{t('Recoverable')}</span><strong>{readableItems.length}</strong><small>{t('All removed records')}</small></Surface>
       <Surface><span>{t('Archived')}</span><strong>{archivedCount}</strong><small>{t('Intentionally retired')}</small></Surface>
       <Surface><span>{t('Pending deletion')}</span><strong>{pendingDeletionCount}</strong><small>{t('Awaiting retention policy')}</small></Surface>
     </div>
     <Surface className="collection">
-      {archive.isLoading || access.isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div>
-        : loadError ? <EmptyState title={t('Archive could not be loaded')} description={loadError.message} action={<Button onClick={() => archive.refetch()}>{t('Try again')}</Button>} />
+      {isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div>
+        : loadError || accessUnavailable ? <EmptyState title={t('Archive could not be loaded')} description={loadError?.message ?? t('Access unavailable')} action={<Button onClick={() => archive.refetch()}>{t('Try again')}</Button>} />
           : <DataTable
             labels={dataTableLabels}
             ariaLabel={t('Recoverable records')}
@@ -139,23 +213,23 @@ export function ArchivePage() {
             empty={<EmptyState title={t('Nothing in the archive')} description={t('Records that are archived or recoverably deleted will appear here.')} />}
           />}
     </Surface>
-    {(restore.error || requestDeletion.error) && <div className="page-alert" role="alert">{(restore.error ?? requestDeletion.error)?.message}</div>}
+    {(restore.error || requestDeletion.error) && <div className="page-alert" role="alert">{t((restore.error ?? requestDeletion.error)!.message)}</div>}
     <RecordDetailsDialog
-      open={viewing !== undefined}
+      open={visibleViewing !== undefined}
       onOpenChange={(open) => !open && setViewing(undefined)}
-      title={viewing?.title ?? t('Archived record')}
+      title={visibleViewing?.title ?? t('Archived record')}
       description={t('Recovery details and removal context.')}
-      recordType={viewing ? t(viewing.typeLabel) : undefined}
-      status={viewing ? <LifecycleBadge lifecycle={viewing.lifecycle} /> : undefined}
-      details={viewing ? [
-        { label: t('Resource type'), value: t(viewing.typeLabel) },
-        { label: t('Current state'), value: <LifecycleBadge lifecycle={viewing.lifecycle} /> },
-        { label: t('Removed'), value: formatRecordDate(viewing.lifecycle.deletedAt ?? viewing.lifecycle.archivedAt) },
-        { label: t('Reason'), value: viewing.lifecycle.deletionReason ?? t('Archived without a deletion reason') },
-        { label: t('Record identifier'), value: viewing.id },
+      recordType={visibleViewing ? t(visibleViewing.typeLabel) : undefined}
+      status={visibleViewing ? <LifecycleBadge lifecycle={visibleViewing.lifecycle} /> : undefined}
+      details={visibleViewing ? [
+        { label: t('Resource type'), value: t(visibleViewing.typeLabel) },
+        { label: t('Current state'), value: <LifecycleBadge lifecycle={visibleViewing.lifecycle} /> },
+        { label: t('Removed'), value: formatRecordDate(visibleViewing.lifecycle.deletedAt ?? visibleViewing.lifecycle.archivedAt) },
+        { label: t('Reason'), value: visibleViewing.lifecycle.deletionReason ?? t('Archived without a deletion reason') },
+        { label: t('Record identifier'), value: visibleViewing.id },
       ] : []}
-      actions={viewing && canRestoreArchiveItem(viewing, permissions) ? <><Button variant="primary" disabled={restore.isPending} onClick={() => restore.mutate(viewing)}><ArchiveRestore size={14} /> {t(restore.isPending ? 'Restoring…' : 'Restore record')}</Button>{canRequestArchiveItemDeletion(viewing, permissions) && <Button variant="danger" onClick={() => setDeleting(viewing)}>{t('Delete')}</Button>}</> : undefined}
+      actions={visibleViewing && canRestoreArchiveItem(visibleViewing, permissions, canUseFeature) ? <><Button variant="primary" disabled={restore.isPending} onClick={() => restore.mutate(visibleViewing)}><ArchiveRestore size={14} /> {t(restore.isPending ? 'Restoring…' : 'Restore record')}</Button>{canRequestArchiveItemDeletion(visibleViewing, permissions, canUseFeature) && <Button variant="danger" onClick={() => setDeleting(visibleViewing)}>{t('Delete')}</Button>}</> : undefined}
     />
-    <DeleteConfirmationDialog open={deleting !== undefined} onOpenChange={(open) => !open && setDeleting(undefined)} recordType={t(deleting?.typeLabel.toLowerCase() ?? 'record')} recordName={deleting?.title ?? ''} isDeleting={requestDeletion.isPending} error={requestDeletion.error?.message} labels={deleteConfirmationLabels} onConfirm={(reason) => deleting && requestDeletion.mutate({ item: deleting, reason })} />
+    <DeleteConfirmationDialog open={visibleDeleting !== undefined} onOpenChange={(open) => { if (!open) { setDeleting(undefined); setDeletionReason('') } }} reason={deletionReason} onReasonChange={setDeletionReason} recordType={t(visibleDeleting?.typeLabel.toLowerCase() ?? 'record')} recordName={visibleDeleting?.title ?? ''} isDeleting={requestDeletion.isPending} error={requestDeletion.error?.message} labels={deleteConfirmationLabels} onConfirm={(reason) => visibleDeleting && requestDeletion.mutate({ item: visibleDeleting, reason })} />
   </>
 }

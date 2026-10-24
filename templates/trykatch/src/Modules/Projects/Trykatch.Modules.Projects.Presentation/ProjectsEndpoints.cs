@@ -20,28 +20,28 @@ public sealed class ProjectsEndpoints : IOrganizationEndpointContributor
     public void MapEndpoints(RouteGroupBuilder organizationApi)
     {
         RouteGroupBuilder group = organizationApi.MapGroup("/projects");
-        group.MapGet("/", ListAsync).RequireAuthorization("permission:projects.read")
+        group.MapGet("/", ListAsync).RequireModuleFeature(ProjectFeatures.Reads).RequireAuthorization("permission:projects.read")
             .WithName("Projects_List").WithTags("Projects").Produces<PagedResult<ProjectDto>>();
-        group.MapGet("/{id:guid}", GetAsync).RequireAuthorization("permission:projects.read")
+        group.MapGet("/{id:guid}", GetAsync).RequireModuleFeature(ProjectFeatures.Reads).RequireAuthorization("permission:projects.read")
             .WithMetadata(new ModuleReadOnlyTransactionMetadata())
             .WithName("Projects_Get").WithTags("Projects").Produces<ProjectDto>();
-        group.MapPost("/", CreateAsync).RequireAuthorization("permission:projects.manage")
+        group.MapPost("/", CreateAsync).RequireModuleFeature(ProjectFeatures.Writes).RequireAuthorization("permission:projects.manage")
             .WithMutationIdempotency(ModuleMutationPolicy.Default, AuthorizeMutationRequestAsync, AuthorizeMutationReplayAsync)
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true)).WithName("Projects_Create").WithTags("Projects")
             .Produces<ProjectDto>(StatusCodes.Status201Created).ProducesValidationProblem();
-        group.MapPut("/{id:guid}", UpdateAsync).RequireAuthorization("permission:projects.manage")
+        group.MapPut("/{id:guid}", UpdateAsync).RequireModuleFeature(ProjectFeatures.Writes).RequireAuthorization("permission:projects.manage")
             .WithMutationIdempotency(ModuleMutationPolicy.Default, AuthorizeMutationRequestAsync, AuthorizeMutationReplayAsync)
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true)).WithName("Projects_Update").WithTags("Projects")
             .Produces<ProjectDto>().ProducesValidationProblem();
-        group.MapPost("/{id:guid}/archive", ArchiveAsync).RequireAuthorization("permission:projects.manage")
+        group.MapPost("/{id:guid}/archive", ArchiveAsync).RequireModuleFeature(ProjectFeatures.Writes).RequireAuthorization("permission:projects.manage")
             .WithMutationIdempotency(ModuleMutationPolicy.Default, AuthorizeMutationRequestAsync, AuthorizeMutationReplayAsync)
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true)).WithName("Projects_Archive").WithTags("Projects")
             .Produces(StatusCodes.Status204NoContent);
-        group.MapPost("/{id:guid}/restore", RestoreAsync).RequireAuthorization("permission:projects.manage")
+        group.MapPost("/{id:guid}/restore", RestoreAsync).RequireModuleFeature(ProjectFeatures.Writes).RequireAuthorization("permission:projects.manage")
             .WithMutationIdempotency(ModuleMutationPolicy.Default, AuthorizeMutationRequestAsync, AuthorizeMutationReplayAsync)
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true)).WithName("Projects_Restore").WithTags("Projects")
             .Produces(StatusCodes.Status204NoContent);
-        group.MapDelete("/{id:guid}", DeleteAsync).RequireAuthorization("permission:projects.manage")
+        group.MapDelete("/{id:guid}", DeleteAsync).RequireModuleFeature(ProjectFeatures.Writes).RequireAuthorization("permission:projects.manage")
             .WithMutationIdempotency(ModuleMutationPolicy.Default, AuthorizeMutationRequestAsync, AuthorizeMutationReplayAsync)
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true)).WithName("Projects_Delete").WithTags("Projects")
             .Produces(StatusCodes.Status204NoContent).ProducesValidationProblem();
@@ -135,7 +135,7 @@ public sealed class ProjectsEndpoints : IOrganizationEndpointContributor
         result.IsSuccess && result.Value is not null ? Results.Ok(result.Value) : Problem(result.ErrorCode, result.ErrorMessage);
 
     private static IResult Problem(string? code, string? detail) => Results.Problem(
-        statusCode: code switch { "forbidden" => 403, "not_found" => 404, "conflict" or "slug_conflict" => 409, _ => 400 },
+        statusCode: code switch { "forbidden" => 403, "not_found" => 404, "conflict" or "slug_conflict" or "feature_unavailable" => 409, _ => 400 },
         title: code,
         detail: detail);
 }

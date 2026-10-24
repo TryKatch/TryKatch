@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Trykatch.Application.Authorization;
+using Trykatch.Application.Common;
 using Trykatch.Application.Organizations;
 using Trykatch.Modules;
 using Trykatch.Modules.Projects.Application;
@@ -55,6 +56,24 @@ public sealed partial class ProjectsCreationExecutionTests
         notification.Audience.Kind.ShouldBe(ModuleRealtimeAudienceKind.Organization);
         notification.Audience.UserId.ShouldBeNull();
         notification.Audience.Resource.ShouldBe(new ModuleRealtimeResourceRef("projects", project));
+    }
+
+    [TestMethod]
+    public async Task CommittedSourceStillPublishesWhenOrganizationReadsAndWritesAreDisabled()
+    {
+        RecordingRealtimePublisher publisher = new();
+        RealtimeFeatureEvaluator features = new(enabled: false);
+        using ServiceProvider services = RealtimeServices(new TestProjectStore(), publisher, ActorId, true, features: features);
+        ModuleEventConsumerBinding binding = services.GetServices<ModuleEventConsumerBinding>().ShouldHaveSingleItem();
+        Guid message = Guid.NewGuid(), project = Guid.NewGuid();
+        Guid systemActor = new ProjectsModule().Descriptor.SystemGrants.Single().AuditActorId;
+
+        await binding.Consumer.HandleAsync(new(message, OrganizationId, systemActor, ActorId,
+            "projects.created", 1, DateTimeOffset.UtcNow, null),
+            JsonSerializer.SerializeToElement(new ProjectCreated(OrganizationId, project, ActorId), PayloadJson), CancellationToken.None);
+
+        publisher.Messages.ShouldHaveSingleItem().Audience.Resource.ShouldBe(new ModuleRealtimeResourceRef("projects", project));
+        features.QueriedKeys.ShouldBeEmpty();
     }
 
     [TestMethod]
@@ -127,16 +146,95 @@ public sealed partial class ProjectsCreationExecutionTests
         (await deniedBinding.Adapter.AuthorizeAsync(context, audience with { Resource = null }, CancellationToken.None)).ShouldBeFalse();
     }
 
-    private static ServiceProvider RealtimeServices(TestProjectStore store, RecordingRealtimePublisher publisher, Guid actor, bool canRead)
+    [TestMethod]
+    public async Task RecipientReadPolicyRechecksTheCurrentReadsFeatureBeforeLookingUpAnyProject()
+    {
+        CountingProjectStore store = new();
+        Project project = Project.Create(OrganizationId, "Visible project", "Private description", ActorId);
+        store.Added.Add(project);
+        RealtimeFeatureEvaluator features = new(enabled: true);
+        using ServiceProvider services = RealtimeServices(store, new RecordingRealtimePublisher(), ActorId, true, features: features);
+        ModuleRealtimeAudiencePolicyBinding binding = services.GetServices<ModuleRealtimeAudiencePolicyBinding>().Single();
+        ModuleRealtimeAudience resourceAudience = new(binding.Policy, ModuleRealtimeAudienceKind.Resource,
+            Resource: new("projects", project.Id));
+        ModuleRealtimeAudience organizationAudience = new(binding.Policy, ModuleRealtimeAudienceKind.Organization);
+        ModuleRealtimeAudienceContext context = new(OrganizationId, ActorId);
+
+        (await binding.Adapter.AuthorizeAsync(context, resourceAudience, CancellationToken.None)).ShouldBeTrue();
+        store.FindCalls.ShouldBe(1);
+        features.QueriedKeys.ShouldBe([ProjectFeatures.Reads]);
+
+        features.Enabled = false;
+        (await binding.Adapter.AuthorizeAsync(context, resourceAudience, CancellationToken.None)).ShouldBeFalse();
+        (await binding.Adapter.AuthorizeAsync(context, organizationAudience, CancellationToken.None)).ShouldBeFalse();
+        store.FindCalls.ShouldBe(1);
+        features.QueriedKeys.ShouldBe([ProjectFeatures.Reads, ProjectFeatures.Reads, ProjectFeatures.Reads]);
+    }
+
+    [TestMethod]
+    public async Task RecipientReadPolicyRejectsPermissionAndActorMismatchesBeforeCheckingFeaturesOrStore()
+    {
+        CountingProjectStore store = new();
+        RealtimeFeatureEvaluator features = new(enabled: true);
+        ModuleRealtimeAudience audience = new(new("projects", "projects.read", 1), ModuleRealtimeAudienceKind.Organization,
+            Resource: new("projects", Guid.NewGuid()));
+        ModuleRealtimeAudienceContext context = new(OrganizationId, ActorId);
+
+        using ServiceProvider denied = RealtimeServices(store, new RecordingRealtimePublisher(), ActorId, false, features: features);
+        ModuleRealtimeAudiencePolicyBinding deniedBinding = denied.GetServices<ModuleRealtimeAudiencePolicyBinding>().Single();
+        (await deniedBinding.Adapter.AuthorizeAsync(context, audience, CancellationToken.None)).ShouldBeFalse();
+
+        using ServiceProvider allowed = RealtimeServices(store, new RecordingRealtimePublisher(), ActorId, true, features: features);
+        ModuleRealtimeAudiencePolicyBinding allowedBinding = allowed.GetServices<ModuleRealtimeAudiencePolicyBinding>().Single();
+        (await allowedBinding.Adapter.AuthorizeAsync(context with { ActorId = Guid.NewGuid() }, audience, CancellationToken.None)).ShouldBeFalse();
+
+        features.QueriedKeys.ShouldBeEmpty();
+        store.FindCalls.ShouldBe(0);
+    }
+
+    private static ServiceProvider RealtimeServices(IProjectStore store, RecordingRealtimePublisher publisher, Guid actor, bool canRead,
+        RealtimeFeatureEvaluator? features = null)
     {
         ServiceCollection services = new();
         new ProjectsModule().Register(services, new ConfigurationBuilder().Build());
         services.AddSingleton<IProjectStore>(store);
         services.AddSingleton<IModuleRealtimePublisher>(publisher);
+        services.AddSingleton<Trykatch.Modules.IOrganizationFeatureEvaluator>(features ?? new RealtimeFeatureEvaluator(enabled: true));
         services.AddSingleton<IOrganizationContext>(new TestOrganizationContext(OrganizationId, actor, MembershipId,
             new HashSet<string>(canRead ? ["projects.read"] : [], StringComparer.Ordinal)));
         services.AddSingleton<IPermissionAuthorizer>(new TestPermissionAuthorizer(canRead));
         return services.BuildServiceProvider();
+    }
+
+    private sealed class RealtimeFeatureEvaluator(bool enabled) : Trykatch.Modules.IOrganizationFeatureEvaluator
+    {
+        public bool Enabled { get; set; } = enabled;
+        public List<string> QueriedKeys { get; } = [];
+
+        public Task<bool> IsEnabledAsync(string featureKey, CancellationToken ct)
+        {
+            QueriedKeys.Add(featureKey);
+            return Task.FromResult(Enabled);
+        }
+    }
+
+    private sealed class CountingProjectStore : IProjectStore
+    {
+        public List<Project> Added { get; } = [];
+        public int FindCalls { get; private set; }
+
+        public Task<PagedResult<Project>> ListAsync(Guid organizationId, int page, int pageSize, string? search,
+            RecordLifecycleFilter lifecycle, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<Project?> FindAsync(Guid organizationId, Guid projectId, CancellationToken cancellationToken)
+        {
+            FindCalls++;
+            return Task.FromResult(Added.SingleOrDefault(project => project.OrganizationId == organizationId && project.Id == projectId));
+        }
+
+        public Task AddAsync(Project project, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class RecordingRealtimePublisher : IModuleRealtimePublisher

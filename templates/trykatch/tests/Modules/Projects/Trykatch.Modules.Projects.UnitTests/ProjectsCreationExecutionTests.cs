@@ -32,7 +32,7 @@ public sealed partial class ProjectsCreationExecutionTests
     {
         ProjectsModule module = new();
 
-        module.Descriptor.Version.ShouldBe("1.3.0");
+        module.Descriptor.Version.ShouldBe("1.4.0");
         module.Descriptor.Operations.ShouldContain(operation =>
             operation.ModuleId == "projects"
             && operation.OperationKey == "projects.create"
@@ -79,6 +79,25 @@ public sealed partial class ProjectsCreationExecutionTests
     }
 
     [TestMethod]
+    public async Task RegisteredCreateHandlerCannotBypassDisabledWritesFeature()
+    {
+        var context = new TestOrganizationContext(OrganizationId, ActorId, MembershipId, new HashSet<string>(ManagePermission, StringComparer.Ordinal));
+        var store = new TestProjectStore();
+        var features = new TestOrganizationFeatureEvaluator { WritesEnabled = false };
+        using ServiceProvider services = CreateServices(context, store, new RecordingOutboxWriter(), new RecordingAuditWriter(),
+            permission: true, features: features);
+        IModuleOperationHandler handler = services.GetServices<IModuleOperationHandler>().ShouldHaveSingleItem();
+
+        await Should.ThrowAsync<InvalidOperationException>(() => handler.HandleAsync(
+            new(Guid.NewGuid(), OrganizationId, ActorId, ActorId, ModuleExecutionKind.UserCommand, "projects.create", 1),
+            JsonSerializer.SerializeToElement(new CreateProjectCommand("Launch", "Roadmap"), PayloadJson),
+            CancellationToken.None));
+
+        features.Calls.ShouldBe([ProjectFeatures.Writes]);
+        store.Added.ShouldBeEmpty();
+    }
+
+    [TestMethod]
     public async Task CreateResourcePolicyRejectsMalformedOrMismatchedCurrentContext()
     {
         var context = new TestOrganizationContext(OrganizationId, ActorId, MembershipId, new HashSet<string>(ManagePermission, StringComparer.Ordinal));
@@ -113,7 +132,8 @@ public sealed partial class ProjectsCreationExecutionTests
         TestProjectStore store,
         RecordingOutboxWriter outbox,
         RecordingAuditWriter audit,
-        bool permission)
+        bool permission,
+        TestOrganizationFeatureEvaluator? features = null)
     {
         ServiceCollection services = new();
         new ProjectsModule().Register(services, new ConfigurationBuilder().Build());
@@ -123,7 +143,20 @@ public sealed partial class ProjectsCreationExecutionTests
         services.Replace(ServiceDescriptor.Singleton<IAuditWriter>(audit));
         services.Replace(ServiceDescriptor.Singleton<IPermissionAuthorizer>(new TestPermissionAuthorizer(permission)));
         services.Replace(ServiceDescriptor.Singleton<IOrganizationCache>(new PassThroughOrganizationCache()));
+        services.Replace(ServiceDescriptor.Singleton<IOrganizationFeatureEvaluator>(features ?? new TestOrganizationFeatureEvaluator()));
         return services.BuildServiceProvider();
+    }
+
+    private sealed class TestOrganizationFeatureEvaluator : IOrganizationFeatureEvaluator
+    {
+        public bool ReadsEnabled { get; set; } = true;
+        public bool WritesEnabled { get; set; } = true;
+        public List<string> Calls { get; } = [];
+        public Task<bool> IsEnabledAsync(string featureKey, CancellationToken ct)
+        {
+            Calls.Add(featureKey);
+            return Task.FromResult(featureKey == ProjectFeatures.Reads ? ReadsEnabled : WritesEnabled);
+        }
     }
 
     private sealed class TestOrganizationContext(Guid organizationId, Guid actorId, Guid membershipId, IReadOnlySet<string> permissions) : IOrganizationContext

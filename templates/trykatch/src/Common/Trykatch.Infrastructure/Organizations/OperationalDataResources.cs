@@ -13,6 +13,12 @@ internal static class OperationalDataResources
 {
     public static IReadOnlyList<DataResourceDescriptor> All { get; } =
     [
+        new("feature-environment-controls", "platform", "feature_environment_controls", ModuleDataOwnership.Platform,
+            AccessRule: ModuleDataAccessRule.PlatformOnly),
+        new("organization-feature-overrides", "platform", "organization_feature_overrides", ModuleDataOwnership.Organization,
+            IsolationPolicy: "organization_feature_overrides_read", AccessRule: ModuleDataAccessRule.HostOnly),
+        new("feature-control-history", "platform", "feature_control_history", ModuleDataOwnership.Platform,
+            AccessRule: ModuleDataAccessRule.PlatformOnly),
         new("mutation-receipts", "app", "mutation_receipts", ModuleDataOwnership.Organization,
             typeof(MutationReceiptRecord).FullName, "mutation_receipts_read", ModuleDataAccessRule.HostOnly),
         new("realtime-streams", "app", "realtime_streams", ModuleDataOwnership.Organization,

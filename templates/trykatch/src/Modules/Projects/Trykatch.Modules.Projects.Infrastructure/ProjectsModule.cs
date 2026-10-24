@@ -23,7 +23,7 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
     public ModuleDescriptor Descriptor { get; } = new(
         Id: "projects",
         Name: "Projects",
-        Version: "1.3.0",
+        Version: "1.4.0",
         Description: "Organization-scoped project management and lifecycle reference feature.",
         Requires: [],
         OptionalDependencies: [],
@@ -41,6 +41,11 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
                 ModuleCapabilities.Web)
         ])
     {
+        Features =
+        [
+            new("projects.reads", "Project reads", "View projects and their details.", true),
+            new("projects.writes", "Project writes", "Create, change, archive, restore, and request deletion of projects.", true)
+        ],
         DefaultDataOwnership = ModuleDataOwnership.Organization,
         DataResources =
         [

@@ -1,10 +1,13 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Trykatch.Modules;
+using Trykatch.Modules.Projects.Application;
 using Trykatch.Modules.Projects.Domain;
 
 namespace Trykatch.Modules.Projects.Infrastructure;
 
-internal sealed class ListProjectsAssistantTool(IOrganizationModuleData data, IModulePermissionAuthorizer authorizer) : IReadOnlyAssistantTool
+internal sealed class ListProjectsAssistantTool(IOrganizationModuleData data, IModulePermissionAuthorizer authorizer,
+    IOrganizationFeatureEvaluator featureEvaluator) : IReadOnlyAssistantTool
 {
     public string OperationId => "Projects_List";
     public string RequiredPermission => "projects.read";
@@ -16,6 +19,8 @@ internal sealed class ListProjectsAssistantTool(IOrganizationModuleData data, IM
     {
         if (!await authorizer.HasPermissionAsync(RequiredPermission, cancellationToken))
             throw new UnauthorizedAccessException();
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Reads, cancellationToken))
+            throw new OrganizationFeatureUnavailableException();
         int page = arguments.GetProperty("page").GetInt32();
         string? search = arguments.GetProperty("search").GetString();
         var query = data.Query<Project>().AsNoTracking().Where(project => search == null || project.Name.Contains(search));
@@ -26,7 +31,8 @@ internal sealed class ListProjectsAssistantTool(IOrganizationModuleData data, IM
     }
 }
 
-internal sealed class GetProjectAssistantTool(IOrganizationModuleData data, IModulePermissionAuthorizer authorizer) : IReadOnlyAssistantTool
+internal sealed class GetProjectAssistantTool(IOrganizationModuleData data, IModulePermissionAuthorizer authorizer,
+    IOrganizationFeatureEvaluator featureEvaluator) : IReadOnlyAssistantTool
 {
     public string OperationId => "Projects_Get";
     public string RequiredPermission => "projects.read";
@@ -38,6 +44,8 @@ internal sealed class GetProjectAssistantTool(IOrganizationModuleData data, IMod
     {
         if (!await authorizer.HasPermissionAsync(RequiredPermission, cancellationToken))
             throw new UnauthorizedAccessException();
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Reads, cancellationToken))
+            throw new OrganizationFeatureUnavailableException();
         Guid id = arguments.GetProperty("id").GetGuid();
         var project = await data.Query<Project>().AsNoTracking().Where(project => project.Id == id)
             .Select(project => new { project.Id, project.Name, description = project.Description.Substring(0, Math.Min(project.Description.Length, 400)) })

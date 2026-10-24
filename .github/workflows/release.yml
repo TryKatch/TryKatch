@@ -85,6 +85,8 @@ jobs:
           pnpm --dir templates/trykatch/web --filter @trykatch/web exec playwright install --with-deps chromium
       - name: Qualify the candidate template in generated production containers
         run: bash scripts/test-generated-application.sh
+        env:
+          TRYKATCH_ACCEPTANCE_FEATURES: 'true'
       - name: Qualify queued email after process restart with competing API workers
         run: bash scripts/test-generated-application.sh
         env:

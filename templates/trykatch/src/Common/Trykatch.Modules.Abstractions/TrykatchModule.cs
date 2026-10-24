@@ -174,6 +174,7 @@ public sealed record ModuleDescriptor(
     ModuleCapabilities Capabilities,
     IReadOnlyList<ExtensionPointDescriptor> ExtensionPoints)
 {
+    public IReadOnlyList<ModuleFeatureDescriptor> Features { get; init; } = [];
     public IReadOnlyList<AssistantToolDescriptor> AssistantTools { get; init; } = [];
     public ModuleDataOwnership? DefaultDataOwnership { get; init; }
     public IReadOnlyList<DataResourceDescriptor> DataResources { get; init; } = [];
@@ -239,6 +240,7 @@ public sealed class ModuleCatalog
             module => module.Descriptor.Id,
             StringComparer.Ordinal);
         ValidateDependencies(byId);
+        ModuleFeatureRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
         ModuleWorkRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
         ModuleEmailRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
         ModuleRealtimeRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());

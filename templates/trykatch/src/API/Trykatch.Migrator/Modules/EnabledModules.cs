@@ -13,6 +13,14 @@ public static class EnabledModules
         new ProjectsModule(),
         new DocumentsModule(),
     ];
+    static EnabledModules()
+    {
+        ModuleFeatureRegistrationRules.ValidateManifest(All,
+        [
+            new("projects", new("projects.reads", "Project reads", "View projects and their details.", true)),
+            new("projects", new("projects.writes", "Project writes", "Create, change, archive, restore, and request deletion of projects.", true)),
+        ]);
+    }
     public static IReadOnlyList<InstalledDataResource> InstalledDataResources { get; } =
     [
         new("documents", new("documents", "app", "documents", ModuleDataOwnership.Organization, "Trykatch.Modules.Documents.Domain.DocumentRecord", "documents_organization_isolation", null)),

@@ -8,15 +8,20 @@ const ProjectsPage = lazy(() => import('./ProjectsPage').then((module) => ({ def
 export const projectsModule = defineWebModule({
   id: 'projects',
   name: 'Projects',
-  version: '1.3.0',
+  version: '1.4.0',
   description: 'Organization-scoped project management and lifecycle reference feature.',
   requires: [],
   optionalDependencies: [],
+  features: [
+    { key: 'projects.reads', name: 'Project reads', description: 'View projects and their details.', defaultEnabled: true },
+    { key: 'projects.writes', name: 'Project writes', description: 'Create, change, archive, restore, and request deletion of projects.', defaultEnabled: true },
+  ],
   routes: [
-    { id: 'projects.list', path: '/projects', component: ProjectsPage },
+    { id: 'projects.list', path: '/projects', component: ProjectsPage, requiredPermission: 'projects.read', requiredFeature: 'projects.reads' },
   ],
   navigation: [
-    { id: 'projects.navigation', section: 'Workspace', order: 20, to: '/projects', label: 'Projects', icon: FolderKanban },
+    { id: 'projects.navigation', section: 'Workspace', order: 20, to: '/projects', label: 'Projects', icon: FolderKanban,
+      requiredPermission: 'projects.read', requiredFeature: 'projects.reads' },
   ],
   extensionPoints: [
     {

@@ -110,6 +110,18 @@ Decimal values are validated against `numeric(18,2)`, and decimal plus 64-bit in
 
 Platform-managed fields such as `Id`, `OrganizationId`, audit timestamps, archive metadata and deletion metadata are reserved. They are derived from the authenticated organization and actor context and are never accepted from generated HTTP requests.
 
+## Declare and enforce feature availability
+
+Use a module feature declaration for a reversible availability control, not for authorization or module installation. Each declaration has a stable key prefixed by its owning module, a nonblank name and description, and an explicit Boolean default. Keep the manifest, runtime descriptor, and Web descriptor in parity; the generated registries and module doctor validate that contract. Features absent from an installed module's declaration are unavailable even if old configuration or control rows remain.
+
+For example, Projects declares the independent keys `projects.reads` and `projects.writes`. These are different from the `projects.read` and `projects.manage` permissions. The actor must pass the ordinary permission and organization checks as well as the feature check. Availability never grants membership, permission, entitlement, or access to another module's data.
+
+Check availability inside application use cases through `IOrganizationFeatureEvaluator`; an HTTP endpoint feature annotation is an additional early boundary and does not replace the use-case check. In particular, evaluate the feature before returning protected data from a cache. Apply read and write keys independently to every relevant operation, including direct application entry points, assistant reads, queued work, and mutation replay. Do not cache an enabled server decision or treat a feature as a substitute for current authorization.
+
+The Web SDK exposes the current organization's feature state through `useModuleFeature(key)` and `useModuleFeatures()`. Use these hooks to hide gated routes, navigation, actions, and content until a successful snapshot matches the selected organization and declares the key enabled. Loading, failed, unknown, or mismatched snapshots are unavailable. Combine the feature check with the route or action's normal permission requirement; a hidden browser control is not a security boundary. The host refreshes the current snapshot on window focus and every 30 seconds, while the server remains authoritative for each request. See [feature availability operations](operations/features.md) for operator precedence, configuration, and recovery.
+
+Bind workspace route and navigation contributions with `requiredFeature` alongside `requiredPermission`. Archive contributions use independent `readFeature` and `manageFeature` keys. The catalog validates references against installed declarations and rejects organization-feature bindings on platform surfaces. On the server, `RequireModuleFeature` belongs to an endpoint inside its owning module's secured organization group; it does not replace permission checks or the evaluator inside the use case.
+
 ## Lifecycle commands
 
 Run these commands from the generated solution root. The packaged tool command is `trykatch`; `dotnet run` works before installing it globally.

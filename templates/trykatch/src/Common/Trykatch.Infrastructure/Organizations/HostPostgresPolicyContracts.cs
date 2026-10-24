@@ -20,6 +20,7 @@ internal static class HostPostgresPolicyContracts
     private const string Organization = "(\"OrganizationId\" = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)";
     private const string Actor = "(\"ActorId\" = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)";
     private const string CacheActor = "((NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid <> '00000000-0000-0000-0000-000000000000'::uuid)";
+    private const string CurrentOrganization = "((NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid <> '00000000-0000-0000-0000-000000000000'::uuid)";
     private const string OutboxWorker = "(CURRENT_USER = 'trykatch_outbox_worker'::name)";
     private const string PlatformRuntime = "(CURRENT_USER = 'trykatch_platform_runtime'::name)";
     private const string Coordinator = "(CURRENT_USER = 'trykatch_work_coordinator'::name)";
@@ -42,6 +43,25 @@ internal static class HostPostgresPolicyContracts
     {
         Dictionary<string, Policy[]> policies = new(StringComparer.Ordinal)
     {
+        ["platform.feature_environment_controls"] =
+        [
+            new("feature_environment_controls_read", "r", $"({CacheActor} AND {CurrentOrganization})", Roles: ["trykatch_org_runtime"]),
+            new("feature_environment_controls_platform_read", "r", $"({PlatformRuntime} AND {CacheActor})", Roles: ["trykatch_platform_runtime"]),
+            new("feature_environment_controls_insert", "a", "", $"({PlatformRuntime} AND {CacheActor})", ["trykatch_platform_runtime"]),
+            new("feature_environment_controls_update", "w", $"({PlatformRuntime} AND {CacheActor})", $"({PlatformRuntime} AND {CacheActor})", ["trykatch_platform_runtime"])
+        ],
+        ["platform.organization_feature_overrides"] =
+        [
+            new("organization_feature_overrides_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),
+            new("organization_feature_overrides_platform_read", "r", $"({PlatformRuntime} AND {CacheActor})", Roles: ["trykatch_platform_runtime"]),
+            new("organization_feature_overrides_insert", "a", "", $"({PlatformRuntime} AND {CacheActor})", ["trykatch_platform_runtime"]),
+            new("organization_feature_overrides_update", "w", $"({PlatformRuntime} AND {CacheActor})", $"({PlatformRuntime} AND {CacheActor})", ["trykatch_platform_runtime"])
+        ],
+        ["platform.feature_control_history"] =
+        [
+            new("feature_control_history_read", "r", $"({PlatformRuntime} AND {CacheActor})", Roles: ["trykatch_platform_runtime"]),
+            new("feature_control_history_insert", "a", "", $"({PlatformRuntime} AND {CacheActor} AND {Actor})", ["trykatch_platform_runtime"])
+        ],
         ["app.mutation_receipts"] =
         [
             new("mutation_receipts_read", "r", $"({Organization} AND {Actor})", Roles: ["trykatch_org_runtime"]),

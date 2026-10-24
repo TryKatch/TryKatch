@@ -7,7 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Trykatch.Api.Security;
+using Trykatch.Application.Features;
 using Trykatch.Application.Organizations;
+using Trykatch.Modules;
 using Trykatch.Modules.AspNetCore.Assistant;
 
 namespace Trykatch.Api.Controllers;
@@ -17,7 +19,7 @@ namespace Trykatch.Api.Controllers;
 [OrganizationScoped]
 [Route("api/v1/assistant")]
 public sealed class AssistantController(AssistantRuntime runtime, AssistantConversationTokens conversations, AssistantKnowledge knowledge, IOrganizationContext organization,
-    IOptions<AssistantOptions> options, ILogger<AssistantController> logger) : ControllerBase
+    IOptions<AssistantOptions> options, ILogger<AssistantController> logger, IOrganizationFeatureSnapshotReader features) : ControllerBase
 {
     [HttpGet("status", Name = "Assistant_Status")]
     public async Task<ActionResult<AssistantStatus>> Status(CancellationToken cancellationToken)
@@ -42,9 +44,11 @@ public sealed class AssistantController(AssistantRuntime runtime, AssistantConve
     {
         try
         {
+            OrganizationFeatureSnapshot availability = await features.ReadAsync(cancellationToken);
             string fingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
             {
                 permissions = organization.Permissions.Order(StringComparer.Ordinal).ToArray(),
+                features = availability.Values.OrderBy(item => item.Key, StringComparer.Ordinal).ToArray(),
                 tools = (await runtime.AvailableToolsAsync(cancellationToken)).OrderBy(tool => tool.Name, StringComparer.Ordinal).ToArray(),
                 options.Value.Provider, options.Value.Model, options.Value.Endpoint, options.Value.ReasoningEffort, runtime.KnowledgeRevision,
                 activationVersion = await runtime.ActivationVersionAsync(cancellationToken)
@@ -78,6 +82,7 @@ public sealed class AssistantController(AssistantRuntime runtime, AssistantConve
             return Problem(statusCode: 403, title: "tool_forbidden", detail: "The requested information is not available to this membership.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception failure) when (failure is OrganizationFeatureUnavailableException or OrganizationFeaturePolicyUnavailableException) { throw; }
         catch (Exception)
         {
             // Never log prompts, arguments, retrieved records, provider bodies or API keys.

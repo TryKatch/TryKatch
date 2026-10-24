@@ -72,6 +72,7 @@ internal static class ApiHostingExtensions
             .ValidateOnStart();
         builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
         builder.Services.AddExceptionHandler<RequestBindingExceptionHandler>();
+        builder.Services.AddExceptionHandler<OrganizationFeatureExceptionHandler>();
         builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
         builder.Services.AddScoped<WorkspaceSessionBinding>();
         builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();

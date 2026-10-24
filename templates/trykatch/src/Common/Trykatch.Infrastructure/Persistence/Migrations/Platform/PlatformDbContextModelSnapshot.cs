@@ -426,6 +426,146 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                     b.ToTable("role_permissions", "platform");
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Features.FeatureControlHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ChangedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<bool?>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("FeatureKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<bool?>("ForceDisabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool?>("PreviousEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("PreviousForceDisabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("PreviousVersion")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("Environment", "FeatureKey", "OrganizationId", "ChangedAtUtc", "Id");
+
+                    b.ToTable("feature_control_history", "platform", t =>
+                        {
+                            t.HasCheckConstraint("CK_feature_control_history_identity", "\"Environment\" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'\nAND \"FeatureKey\" ~ '^[a-z][a-z0-9]*([.-][a-z0-9]+)*$'\nAND strpos(\"FeatureKey\", '.') > 0");
+
+                            t.HasCheckConstraint("CK_feature_control_history_principals", "\"Id\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND \"ActorId\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND (\"OrganizationId\" IS NULL OR \"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid)");
+
+                            t.HasCheckConstraint("CK_feature_control_history_shape", "(\"PreviousVersion\" IS NOT NULL OR \"PreviousEnabled\" IS NULL)\nAND ((\"OrganizationId\" IS NULL AND \"ForceDisabled\" IS NOT NULL\n    AND ((\"PreviousVersion\" IS NULL AND \"PreviousForceDisabled\" IS NULL)\n        OR (\"PreviousVersion\" IS NOT NULL AND \"PreviousForceDisabled\" IS NOT NULL)))\n    OR (\"OrganizationId\" IS NOT NULL AND \"ForceDisabled\" IS NULL AND \"PreviousForceDisabled\" IS NULL))");
+
+                            t.HasCheckConstraint("CK_feature_control_history_time", "isfinite(\"ChangedAtUtc\")");
+
+                            t.HasCheckConstraint("CK_feature_control_history_versions", "\"Version\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND (\"PreviousVersion\" IS NULL OR\n    (\"PreviousVersion\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"PreviousVersion\" <> \"Version\"))");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Features.FeatureEnvironmentControl", b =>
+                {
+                    b.Property<string>("Environment")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("FeatureKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<bool?>("DefaultEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ForceDisabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Environment", "FeatureKey");
+
+                    b.ToTable("feature_environment_controls", "platform", t =>
+                        {
+                            t.HasCheckConstraint("CK_feature_environment_controls_identity", "\"Environment\" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'\nAND \"FeatureKey\" ~ '^[a-z][a-z0-9]*([.-][a-z0-9]+)*$'\nAND strpos(\"FeatureKey\", '.') > 0");
+
+                            t.HasCheckConstraint("CK_feature_environment_controls_time", "isfinite(\"UpdatedAtUtc\")");
+
+                            t.HasCheckConstraint("CK_feature_environment_controls_version", "\"Version\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Features.OrganizationFeatureOverride", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Environment")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("FeatureKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<bool?>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("OrganizationId", "Environment", "FeatureKey");
+
+                    b.ToTable("organization_feature_overrides", "platform", t =>
+                        {
+                            t.HasCheckConstraint("CK_organization_feature_overrides_identity", "\"Environment\" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'\nAND \"FeatureKey\" ~ '^[a-z][a-z0-9]*([.-][a-z0-9]+)*$'\nAND strpos(\"FeatureKey\", '.') > 0");
+
+                            t.HasCheckConstraint("CK_organization_feature_overrides_organization", "\"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_organization_feature_overrides_time", "isfinite(\"UpdatedAtUtc\")");
+
+                            t.HasCheckConstraint("CK_organization_feature_overrides_version", "\"Version\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Infrastructure.Persistence.OutboxRecoveryEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -555,6 +695,23 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                         .WithMany("Permissions")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Features.FeatureControlHistory", b =>
+                {
+                    b.HasOne("Trykatch.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Features.OrganizationFeatureOverride", b =>
+                {
+                    b.HasOne("Trykatch.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

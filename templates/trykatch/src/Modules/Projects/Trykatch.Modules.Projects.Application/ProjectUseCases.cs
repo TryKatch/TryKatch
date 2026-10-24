@@ -49,7 +49,8 @@ public sealed class ProjectUseCases(
     IOutboxWriter outbox,
     IValidator<CreateProjectCommand> createValidator,
     IValidator<UpdateProjectCommand> updateValidator,
-    IOrganizationCache cache)
+    IOrganizationCache cache,
+    IOrganizationFeatureEvaluator featureEvaluator)
 {
     public async Task<Result<PagedResult<ProjectDto>>> ListAsync(int page, int pageSize, string? search, RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
     {
@@ -57,6 +58,8 @@ public sealed class ProjectUseCases(
         {
             return Result.Failure<PagedResult<ProjectDto>>("forbidden", "Projects cannot be viewed by this membership.");
         }
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Reads, cancellationToken))
+            return Result.Failure<PagedResult<ProjectDto>>("feature_unavailable", "Projects are unavailable in this organization.");
 
         PagedResult<Project> projects = await store.ListAsync(context.OrganizationId, page, pageSize, search, lifecycle, cancellationToken);
         return Result.Success(new PagedResult<ProjectDto>(
@@ -70,6 +73,8 @@ public sealed class ProjectUseCases(
     {
         if (!await authorizer.HasPermissionAsync(Permissions.ProjectsRead, cancellationToken))
             return Result.Failure<ProjectDto>("forbidden", "Projects cannot be viewed by this membership.");
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Reads, cancellationToken))
+            return Result.Failure<ProjectDto>("feature_unavailable", "Projects are unavailable in this organization.");
 
         ProjectDto? project = await cache.GetOrCreateAsync(DetailKey(projectId), async factoryCancellationToken =>
         {
@@ -87,6 +92,8 @@ public sealed class ProjectUseCases(
         {
             return Result.Failure<ProjectDto>("forbidden", "Projects cannot be changed by this membership.");
         }
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<ProjectDto>("feature_unavailable", "Projects are unavailable in this organization.");
 
         var validation = await createValidator.ValidateAsync(command, cancellationToken);
         if (!validation.IsValid)
@@ -110,6 +117,8 @@ public sealed class ProjectUseCases(
         {
             return Result.Failure<ProjectDto>("forbidden", "Projects cannot be changed by this membership.");
         }
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<ProjectDto>("feature_unavailable", "Projects are unavailable in this organization.");
 
         var validation = await updateValidator.ValidateAsync(command, cancellationToken);
         if (!validation.IsValid)
@@ -138,6 +147,8 @@ public sealed class ProjectUseCases(
         {
             return Result.Failure<bool>("forbidden", "Projects cannot be changed by this membership.");
         }
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<bool>("feature_unavailable", "Projects are unavailable in this organization.");
 
         Project? project = await store.FindAsync(context.OrganizationId, projectId, cancellationToken);
         if (project is null)
@@ -158,6 +169,8 @@ public sealed class ProjectUseCases(
     {
         if (!await authorizer.HasPermissionAsync(Permissions.ProjectsManage, cancellationToken))
             return Result.Failure<bool>("forbidden", "Projects cannot be changed by this membership.");
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<bool>("feature_unavailable", "Projects are unavailable in this organization.");
         Project? project = await store.FindAsync(context.OrganizationId, projectId, cancellationToken);
         if (project is null) return Result.Failure<bool>("not_found", "Project was not found.");
         if (!project.Restore()) return Result.Success(true);
@@ -172,6 +185,8 @@ public sealed class ProjectUseCases(
     {
         if (!await authorizer.HasPermissionAsync(Permissions.ProjectsManage, cancellationToken))
             return Result.Failure<bool>("forbidden", "Projects cannot be changed by this membership.");
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<bool>("feature_unavailable", "Projects are unavailable in this organization.");
         Project? project = await store.FindAsync(context.OrganizationId, projectId, cancellationToken);
         if (project is null) return Result.Failure<bool>("not_found", "Project was not found.");
         if (project.LifecycleState != global::Trykatch.Domain.Common.RecordLifecycleState.Archived)

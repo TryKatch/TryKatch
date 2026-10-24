@@ -8,6 +8,7 @@ import { ResetPasswordPage } from './views/ResetPasswordPage'
 import { workspaceModules } from './modules'
 import { ModuleProvider } from './module-system/ModuleExtensionSlot'
 import { AccountSecurityCompletionBoundary } from './components/AccountSecurityCompletion'
+import { ModuleRouteBoundary } from './features/availability/ModuleRouteBoundary'
 
 const pages = () => import('./views/Pages')
 const DashboardPage = lazy(() => pages().then((module) => ({ default: module.DashboardPage })))
@@ -19,6 +20,7 @@ const PlatformOrganizationsPage = lazy(() => pages().then((module) => ({ default
 const PlatformUsersPage = lazy(() => pages().then((module) => ({ default: module.PlatformUsersPage })))
 const PlatformAuthenticationPage = lazy(() => pages().then((module) => ({ default: module.PlatformAuthenticationPage })))
 const ModuleWorkPage = lazy(() => import('./views/ModuleWorkPage').then((module) => ({ default: module.ModuleWorkPage })))
+const PlatformFeaturesPage = lazy(() => import('./views/PlatformFeaturesPage').then((module) => ({ default: module.PlatformFeaturesPage })))
 const EmailDeliveryPage = lazy(() => import('./views/EmailDeliveryPage').then((module) => ({ default: module.EmailDeliveryPage })))
 const AcceptInvitationPage = lazy(() => pages().then((module) => ({ default: module.AcceptInvitationPage })))
 const PlatformAccessActivationPage = lazy(() => pages().then((module) => ({ default: module.PlatformAccessActivationPage })))
@@ -42,11 +44,14 @@ export function createApplicationRouter(IndexPage: RouteComponent) {
   const workspaceRoute = createRoute({ getParentRoute: () => rootRoute, id: '_workspace', component: AppShell })
   const platformRoute = createRoute({ getParentRoute: () => rootRoute, path: '/dashboard', component: PlatformShell })
   const overviewRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/overview', component: withSuspense(DashboardPage) })
-  const workspaceModuleRoutes = workspaceModules.routesFor('workspace').map((route) => createRoute({
-    getParentRoute: () => workspaceRoute,
-    path: route.path,
-    component: withSuspense(route.component),
-  }))
+  const workspaceModuleRoutes = workspaceModules.routesFor('workspace').map((route) => {
+    const Page = withSuspense(route.component)
+    return createRoute({
+      getParentRoute: () => workspaceRoute,
+      path: route.path,
+      component: () => <ModuleRouteBoundary route={route}><Page /></ModuleRouteBoundary>,
+    })
+  })
   const platformModuleRoutes = workspaceModules.routesFor('platform').map((route) => createRoute({
     getParentRoute: () => platformRoute,
     path: route.path.slice(1),
@@ -66,6 +71,19 @@ export function createApplicationRouter(IndexPage: RouteComponent) {
   const platformInvitationsRoute = createRoute({ getParentRoute: () => platformRoute, path: 'invitations', beforeLoad: () => { throw redirect({ to: '/dashboard/users', replace: true }) } })
   const platformAuthenticationRoute = createRoute({ getParentRoute: () => platformRoute, path: 'authentication', component: withSuspense(PlatformAuthenticationPage) })
   const moduleWorkRoute = createRoute({ getParentRoute: () => platformRoute, path: 'module-work', component: withSuspense(ModuleWorkPage) })
+  const featureControlsRoute = createRoute({
+    getParentRoute: () => platformRoute, path: 'features',
+    validateSearch: (search: Record<string, unknown>): { organizationId?: string } => {
+      if (search.organizationId === undefined) return {}
+      if (typeof search.organizationId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search.organizationId))
+        throw new Error('Invalid organization target.')
+      return { organizationId: search.organizationId }
+    },
+    component: () => {
+      const { organizationId } = featureControlsRoute.useSearch()
+      return <Suspense fallback={<div className="module-loading" role="status">Loading…</div>}><PlatformFeaturesPage key={organizationId ?? 'environment'} organizationId={organizationId} /></Suspense>
+    },
+  })
   const emailDeliveryRoute = createRoute({ getParentRoute: () => platformRoute, path: 'email-delivery', component: withSuspense(EmailDeliveryPage) })
   const platformProfileRoute = createRoute({ getParentRoute: () => platformRoute, path: 'profile', component: withSuspense(ProfilePage) })
   const invitationRoute = createRoute({ getParentRoute: () => rootRoute, path: '/invite/$token', component: withSuspense(AcceptInvitationPage) })
@@ -76,7 +94,7 @@ export function createApplicationRouter(IndexPage: RouteComponent) {
     loginRoute,
     forgotPasswordRoute,
     resetPasswordRoute,
-    platformRoute.addChildren([platformOverviewRoute, tenantDirectoryRoute, platformUsersRoute, platformInvitationsRoute, platformAuthenticationRoute, moduleWorkRoute, emailDeliveryRoute, platformProfileRoute, ...platformModuleRoutes]),
+    platformRoute.addChildren([platformOverviewRoute, tenantDirectoryRoute, platformUsersRoute, platformInvitationsRoute, platformAuthenticationRoute, moduleWorkRoute, featureControlsRoute, emailDeliveryRoute, platformProfileRoute, ...platformModuleRoutes]),
     legacyTeamRoute,
     invitationRoute,
     platformActivationRoute,

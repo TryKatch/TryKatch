@@ -53,7 +53,9 @@ public static class ModuleEndpointExtensions
             .MapGroup("/api/v1")
             .RequireAuthorization()
             .AddEndpointFilter<ModuleAntiforgeryFilter>()
-            .WithMetadata(new OrganizationScopedMetadata());
+            .AddEndpointFilter<ModuleFeatureFilter>()
+            .WithMetadata(new OrganizationScopedMetadata(), new ModuleFeatureBoundaryMetadata());
+        ((IEndpointConventionBuilder)organizationApi).Finally(ModuleFeatureExtensions.Validate);
 
         IEnumerable<IOrganizationEndpointContributor> contributors = endpoints
             .ServiceProvider
@@ -90,6 +92,7 @@ public static class ModuleEndpointExtensions
                 .RequireAuthorization($"platform-permission:{contributor.RequiredPlatformPermission}")
                 .AddEndpointFilter<ModuleAntiforgeryFilter>()
                 .WithMetadata(new ModuleEndpointMetadata(contributor.ModuleId));
+            ((IEndpointConventionBuilder)moduleApi).Finally(ModuleFeatureExtensions.Validate);
             contributor.MapEndpoints(moduleApi);
         }
         return endpoints;

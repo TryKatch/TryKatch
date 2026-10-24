@@ -7,6 +7,20 @@ namespace Trykatch.UnitTests;
 public sealed class PlatformAccessTests
 {
     [TestMethod]
+    public void FeaturePermissionsAreCataloguedAndDefaultOnlyToAdministrator()
+    {
+        PlatformPermissions.All.ShouldContain(PlatformPermissions.FeaturesRead);
+        PlatformPermissions.All.ShouldContain(PlatformPermissions.FeaturesManage);
+        PlatformRoles.Find(PlatformRoles.Administrator)!.Permissions.ShouldContain(PlatformPermissions.FeaturesRead);
+        PlatformRoles.Find(PlatformRoles.Administrator)!.Permissions.ShouldContain(PlatformPermissions.FeaturesManage);
+        foreach (string role in new[] { PlatformRoles.Operator, PlatformRoles.Auditor })
+        {
+            PlatformRoles.Find(role)!.Permissions.ShouldNotContain(PlatformPermissions.FeaturesRead);
+            PlatformRoles.Find(role)!.Permissions.ShouldNotContain(PlatformPermissions.FeaturesManage);
+        }
+    }
+
+    [TestMethod]
     public void EveryPlatformRoleUsesKnownPermissions()
     {
         PlatformRoles.All.Select(role => role.Key).Distinct(StringComparer.Ordinal).Count().ShouldBe(PlatformRoles.All.Count);

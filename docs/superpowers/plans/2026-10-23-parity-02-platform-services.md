@@ -7,7 +7,7 @@
 **Tech Stack:** Existing stack; SignalR and reviewed distributed cache/backplane adapters selected in P0.1, with no vendor types in module contracts.
 **Spec:** [Design](../specs/2026-10-23-feature-parity-design.md); [roadmap](2026-10-23-feature-parity-plan.md).
 
-**Status:** S1 merged in PR #134 after exact-head CI and dependency review. S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234` after all 20 exact-head CI jobs, dependency review and both Vercel checks passed; the [refined S2 plan](2026-10-24-parity-s2-authorized-realtime.md) records targeted, browser/proxy, packaged-product, retained-module restart and review qualification. S3 identity, staged response capture, authoritative receipt store, Projects HTTP opt-in, Production process crash recovery and fresh renamed packed products are locally qualified under the [refined S3 plan](2026-10-24-parity-s3-mutation-idempotency.md). Operations/contract documentation, one integrated review, exact-head CI and merge remain in progress. S4–S6 remain planned.
+**Status:** S1 merged in PR #134 after exact-head CI and dependency review. S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234` after all 20 exact-head CI jobs, dependency review and both Vercel checks passed; the [refined S2 plan](2026-10-24-parity-s2-authorized-realtime.md) records targeted, browser/proxy, packaged-product, retained-module restart and review qualification. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections, all required exact-head CI, dependency and preview checks. Its [refined plan](2026-10-24-parity-s3-mutation-idempotency.md) records transaction/HTTP replay, certified Production crash and packaged qualification. S4 is implemented and locally qualified, with the integrated review finding corrected; exact-head CI/merge remains pending under the [refined feature-availability plan](2026-10-24-parity-s4-feature-availability.md); S5–S6 remain planned.
 
 ## Global Constraints
 
@@ -50,10 +50,10 @@ Apply all roadmap constraints. Paths are relative to `templates/trykatch/`; new 
 
 **Interfaces:** Endpoint opt-in metadata declares policy and bounded replay lifetime/response size. Durable identity is `(OrganizationId, ActorId, OperationId, Key)` plus a canonical request hash, completion status, response and expiry; host auth precedes lookup/replay.
 
-- [ ] Test `ConcurrentIdenticalRequestsCommitOnce`, `SameKeyDifferentPayloadReturnsConflict`, actor/organization/operation separation, current authorization before replay, expiry and missing-key behavior. Assert `businessRows == 1`, `auditEffects == 1`, preserved `201/Location` and equivalent response body.
-- [ ] Reserve and finalize under the same database transaction as the mutation. Stage the response with the existing atomic-response contract; never replay a success before commit. Define bounded in-progress response, rolled-back reservation recovery and a maximum key/hash/body policy in the ledger.
-- [ ] Test commit failure, process crash, cancellation, response overflow, transient handler failure and stream/file endpoints. Streaming/file endpoints stay outside generic mutation replay; expired signed URLs, if later introduced, cannot outlive their own authorization lifetime.
-- [ ] Verify: `ModuleIdempotencyTests`, `ModuleIdempotencyIntegrationTests`, `AtomicMutationResponseIntegrationTests` and affected `OrganizationCreationIntentTests`; common exit. Preserve organization creation's existing retry identity while adapting it deliberately, not by replacing it blindly.
+- [x] Test `ConcurrentIdenticalRequestsCommitOnce`, `SameKeyDifferentPayloadReturnsConflict`, actor/organization/operation separation, current authorization before replay, expiry and missing-key behavior. Assert `businessRows == 1`, `auditEffects == 1`, preserved `201/Location` and equivalent response body.
+- [x] Reserve and finalize under the same database transaction as the mutation. Stage the response with the existing atomic-response contract; never replay a success before commit. Define bounded in-progress response, rolled-back reservation recovery and a maximum key/hash/body policy in the ledger.
+- [x] Test commit failure, process crash, cancellation, response overflow, transient handler failure and stream/file endpoints. Streaming/file endpoints stay outside generic mutation replay; expired signed URLs, if later introduced, cannot outlive their own authorization lifetime.
+- [x] Verify: `ModuleIdempotencyTests`, `ModuleIdempotencyIntegrationTests`, `AtomicMutationResponseIntegrationTests` and affected `OrganizationCreationIntentTests`; common exit. Preserve organization creation's existing retry identity while adapting it deliberately, not by replacing it blindly.
 
 ## S4: Add installed-feature availability and runtime policy evaluation
 
@@ -61,9 +61,9 @@ Apply all roadmap constraints. Paths are relative to `templates/trykatch/`; new 
 
 **Interfaces:** Implement `IOrganizationFeatureEvaluator.IsEnabledAsync(string featureKey, CancellationToken ct)`; authoritative result combines installed/enabled module state with environment/organization rollout settings. A separate permission and entitlement decision is still required.
 
-- [ ] Test absent/disabled modules, unknown feature keys, organization overrides, change invalidation, direct API calls and read/write kill switches. Assert enabling a flag does not add a permission or load a module.
-- [ ] Add explicit operator-managed settings/audit and safe configured defaults. Expose only the current organization's evaluated availability to the browser; match navigation and backend policy.
-- [ ] Test a flag changing between page render and submit, cache outage and module disablement with retained settings. A disabled flag does not delete data or retrospectively undo a committed transaction.
+- [x] Test absent/disabled modules, unknown feature keys, organization overrides, change invalidation, direct API calls and read/write kill switches. Assert enabling a flag does not add a permission or load a module.
+- [x] Add explicit operator-managed settings/audit and safe configured defaults. Expose only the current organization's evaluated availability to the browser; match navigation and backend policy.
+- [x] Test a flag changing between page render and submit, cache outage and module disablement with retained settings. A disabled flag does not delete data or retrospectively undo a committed transaction.
 - [ ] Verify: `OrganizationFeatureTests`, `OrganizationFeatureIntegrationTests`, focused settings/SDK tests, generation and common exit.
 
 ## S5: Add entitlement projection, quota reservation and organization throttling

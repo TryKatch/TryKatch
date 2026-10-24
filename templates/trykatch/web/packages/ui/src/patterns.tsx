@@ -69,6 +69,8 @@ export function DeleteConfirmationDialog({
   isDeleting = false,
   error,
   labels,
+  reason: controlledReason,
+  onReasonChange,
   onOpenChange,
   onConfirm,
 }: {
@@ -78,11 +80,14 @@ export function DeleteConfirmationDialog({
   isDeleting?: boolean
   error?: string
   labels?: Partial<DeleteConfirmationLabels>
+  reason?: string
+  onReasonChange?(reason: string): void
   onOpenChange(open: boolean): void
   onConfirm(reason: string): void
 }) {
   const copy = { ...defaultDeleteConfirmationLabels, ...labels }
-  const [reason, setReason] = useState('')
+  const [localReason, setReason] = useState('')
+  const reason = controlledReason ?? localReason
   useEffect(() => { if (!open) setReason('') }, [open])
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -91,7 +96,7 @@ export function DeleteConfirmationDialog({
   return <Dialog open={open} onOpenChange={onOpenChange} title={copy.title(recordType)} description={copy.description}>
     <form className="dialog-form delete-confirmation" onSubmit={submit}>
       <div className="delete-record-summary"><span>{recordType}</span><strong>{recordName}</strong></div>
-      <FloatingTextarea label={copy.reasonLabel} value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} rows={4} required autoFocus description={`${copy.reasonPlaceholder} · ${copy.characterCount(reason.trim().length)}`} />
+      <FloatingTextarea label={copy.reasonLabel} value={reason} onChange={(event) => { setReason(event.target.value); onReasonChange?.(event.target.value) }} minLength={10} maxLength={500} rows={4} required autoFocus description={`${copy.reasonPlaceholder} · ${copy.characterCount(reason.trim().length)}`} />
       <p className="delete-accountability">{copy.accountability}</p>
       {error && <div className="form-error" role="alert">{error}</div>}
       <div className="dialog-actions"><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{copy.cancel}</Button><Button type="submit" variant="danger" disabled={isDeleting || reason.trim().length < 10}>{isDeleting ? copy.requesting : copy.requestDeletion}</Button></div>
@@ -330,7 +335,7 @@ export function DataTable<T>({
         </div>
       </div>
     </div>
-    <div className="table-wrap"><table aria-label={ariaLabel}><thead><tr>{renderExpandedRow && <th className="data-table-disclosure-heading"><span className="sr-only">{labels.details}</span></th>}{displayedColumns.map((column) => <th key={column.id} style={{ width: column.width }} className={column.align === 'right' ? 'is-right' : undefined} aria-sort={sort?.id === column.id ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}>{column.sortValue ? <button type="button" onClick={() => changeSort(column)}>{column.header}<span aria-hidden="true">{sort?.id === column.id ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button> : column.header}</th>)}</tr></thead><tbody>{visibleRows.map((row) => {
+    <div className="table-wrap" role="group" aria-label={ariaLabel} tabIndex={0}><table aria-label={ariaLabel}><thead><tr>{renderExpandedRow && <th className="data-table-disclosure-heading"><span className="sr-only">{labels.details}</span></th>}{displayedColumns.map((column) => <th key={column.id} style={{ width: column.width }} className={column.align === 'right' ? 'is-right' : undefined} aria-sort={sort?.id === column.id ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}>{column.sortValue ? <button type="button" onClick={() => changeSort(column)}>{column.header}<span aria-hidden="true">{sort?.id === column.id ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button> : column.header}</th>)}</tr></thead><tbody>{visibleRows.map((row) => {
       const rowId = getRowId(row)
       const isExpanded = expandedRowId === rowId
       const expansionId = `${searchId}-${rowId}-details`

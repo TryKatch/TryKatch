@@ -8,6 +8,11 @@ test_root=$(cd "$test_root" && pwd -P)
 trap 'rm -rf "$test_root"' EXIT
 template_hive="$test_root/template-hive"
 template_manifest="$repository_root/templates/trykatch/.template.config/template.json"
+template_profile=${TRYKATCH_TEMPLATE_PROFILE:-full}
+case "$template_profile" in
+  full|features) ;;
+  *) printf 'TRYKATCH_TEMPLATE_PROFILE must be full or features.\n' >&2; exit 2 ;;
+esac
 
 fail() {
   printf 'Template contract failed: %s\n' "$1" >&2
@@ -91,6 +96,10 @@ generate_and_build() {
   shift
   local namespace_name=${name//-/.}
   local output="$test_root/$namespace_name"
+  local configuration=Debug
+  if [[ $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ]]; then
+    configuration=Release
+  fi
   "$test_root/tools/trykatch" new "$name" --output "$output" "$@" --debug:custom-hive "$template_hive" | tee "$test_root/$namespace_name.creation.log"
   node "$repository_root/scripts/test-development-skills.mjs" "$output" "$namespace_name"
   grep -Fq 'Running application template and packaged Git setup' "$test_root/$namespace_name.creation.log" ||
@@ -121,10 +130,13 @@ generate_and_build() {
     "$output/tests/Modules/Documents/$namespace_name.Modules.Documents.UnitTests/$namespace_name.Modules.Documents.UnitTests.csproj" ||
     fail "generated Documents unit tests omit their directly consumed module contract"
   dotnet test \
-    "$output/tests/Modules/Documents/$namespace_name.Modules.Documents.UnitTests/$namespace_name.Modules.Documents.UnitTests.csproj"
+    "$output/tests/Modules/Documents/$namespace_name.Modules.Documents.UnitTests/$namespace_name.Modules.Documents.UnitTests.csproj" -c "$configuration"
   dotnet restore "$output/$namespace_name.slnx"
-  dotnet build "$output/$namespace_name.slnx" --no-restore
-  dotnet run --project "$output/tools/$namespace_name.ModuleTool" --no-build -- module doctor --root "$output"
+  if [[ $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ]]; then
+    dotnet restore "$output/$namespace_name.slnx" --locked-mode
+  fi
+  dotnet build "$output/$namespace_name.slnx" -c "$configuration" --no-restore
+  dotnet run --project "$output/tools/$namespace_name.ModuleTool" -c "$configuration" --no-build -- module doctor --root "$output"
   TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file "$output/.env.example" -f "$output/compose.yml" config --quiet
   test -f "$output/deploy/observability/otel-collector.tls.yml"
   test -f "$output/compose.observability-tls.yml"
@@ -143,7 +155,7 @@ generate_and_build() {
       fail "generated email application '$name' omits its SMTP tests"
     grep -Fq 'Email__Security:' "$output/compose.yml" ||
       fail "generated email application '$name' omits production SMTP configuration"
-    dotnet test "$output/tests/$namespace_name.IntegrationTests" --no-build --filter FullyQualifiedName~SmtpTransportTests
+    dotnet test "$output/tests/$namespace_name.IntegrationTests" -c "$configuration" --no-build --filter FullyQualifiedName~SmtpTransportTests
   else
     if grep -Fq 'services.AddEmailModule(' "$output/src/Common/$namespace_name.Infrastructure/DependencyInjection.cs" ||
       grep -Fq 'RealSmtpDeliveryUsesConfiguredTransport' "$output/tests/$namespace_name.IntegrationTests/SmtpTransportTests.cs" ||
@@ -172,16 +184,34 @@ generate_and_build() {
     )
   fi
   if [[ $namespace_name == Horizon || $namespace_name == Trykatch ]]; then
-    dotnet test "$output/tests/$namespace_name.UnitTests/$namespace_name.UnitTests.csproj" --no-build \
+    dotnet test "$output/tests/$namespace_name.UnitTests/$namespace_name.UnitTests.csproj" -c "$configuration" --no-build \
       --filter 'GeneratedApplicationsKeepTheirPreviewNineEventName|MovedIntegrationEventsKeepTheirExistingWireContractNames'
-    dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" --no-build \
+    dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" -c "$configuration" --no-build \
       --filter PreviewNine
+  fi
+  if [[ $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ]]; then
+    local feature_facts="$test_root/$namespace_name.feature-facts.json"
+    local feature_results="$test_root/$namespace_name.feature-results"
+    # Several real HTTP cases share a partial test class; select their method names too.
+    local feature_filter='FullyQualifiedName~OrganizationFeature|FullyQualifiedName~FeatureControlStoreIntegrationTests|FullyQualifiedName~PlatformFeature|FullyQualifiedName~ModuleFeatureHttpTests|FullyQualifiedName~ProjectsFeature|FullyQualifiedName~FeatureAdministrationRejects|FullyQualifiedName~FeatureBusyLock|FullyQualifiedName~FeatureSnapshotSurvives|FullyQualifiedName~ProjectsAssistant|FullyQualifiedName~PersistedProjectsCreateWorkCanRetryAfterWritesFeatureIsEnabled|FullyQualifiedName~ProjectsReadFeature'
+    "$test_root/tools/trykatch" module facts projects --root "$output" >"$feature_facts"
+    dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" \
+      -c "$configuration" --no-build --no-restore \
+      --filter "$feature_filter" --logger 'trx;LogFileName=feature-policy.trx' --results-directory "$feature_results"
+    node "$repository_root/scripts/assert-feature-policy-output.mjs" "$output" "$namespace_name" "$feature_facts" "$feature_results/feature-policy.trx"
   fi
   # Each generated solution can produce several gigabytes of runtime assets.
   # Retain the generated source for assertions, but release build intermediates
   # before exercising the next template permutation on constrained CI runners.
   find "$output" -path '*/node_modules' -prune -o -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
 }
+
+if [[ $template_profile == features ]]; then
+  generate_and_build Horizon
+  generate_and_build Acme.Tools-Portal --ui none
+  printf 'Renamed React and backend-only feature policy qualification passed.\n'
+  exit 0
+fi
 
 generate_and_build Horizon
 grep -Fq 'rustfs/rustfs' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||

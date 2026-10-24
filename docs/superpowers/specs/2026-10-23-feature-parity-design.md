@@ -45,7 +45,7 @@ Older plans can describe desired features that are not shipped. Current source a
 
 ## 3. Architecture constraints
 
-1. Preserve .NET 10, PostgreSQL, React/TanStack, Aspire and OpenTelemetry. The current SDK is `10.0.301` with `latestPatch`; retain the `10.0.3xx` feature band. Node.js is `24+`; pnpm is `10.17.1`. Do not bundle unrelated dependency upgrades.
+1. Preserve .NET 10, PostgreSQL, React/TanStack, Aspire and OpenTelemetry. The current SDK is `10.0.402` with `latestPatch` after the E4 security update; retain the `10.0.4xx` feature band. Node.js is `24+`; pnpm is `10.17.1`. Do not bundle unrelated dependency upgrades.
 2. Identity/session issuance, organization resolution, authorization, forced RLS, antiforgery, audit, outbox and module validation remain host-owned security controls.
 3. Every organization-owned row implements `IOrganizationOwned`; every relation has declared ownership, tenant-first indexing, validated migrations and the correct live PostgreSQL policy. Sensitive relationships include organization identity so cross-organization links cannot be forged.
 4. Each business module retains Domain, Application, IntegrationEvents, Presentation and Infrastructure projects. Infrastructure is its host composition entry. Web is optional.

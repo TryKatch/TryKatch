@@ -12,8 +12,11 @@ compose_email_override="$test_root/compose.email.yml"
 compose_realtime_origin_override="$test_root/compose.realtime-origin.yml"
 email_enabled=${TRYKATCH_ACCEPTANCE_EMAIL:-false}
 realtime_enabled=${TRYKATCH_ACCEPTANCE_REALTIME:-false}
+features_enabled=${TRYKATCH_ACCEPTANCE_FEATURES:-false}
 email_state_file="$test_root/email-state.json"
 realtime_state_file="$test_root/realtime-state.json"
+feature_state_file="$test_root/feature-state.json"
+feature_control_dir="$test_root/feature-control"
 artifact_parent=${TRYKATCH_ACCEPTANCE_ARTIFACTS:-$repository_root/artifacts/generated-application}
 artifact_root=
 generated_name=${TRYKATCH_ACCEPTANCE_PROJECT_NAME:-Acme.Acceptance-Portal}
@@ -30,6 +33,7 @@ organization_admin_password=${TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD:-}
 email_operator_password=${TRYKATCH_ACCEPTANCE_EMAIL_OPERATOR_PASSWORD:-}
 compose_started=false
 vite_pid=
+feature_browser_pid=
 
 compose() {
   local files=(--file "$generated_root/compose.yml")
@@ -83,6 +87,10 @@ collect_artifacts() {
 
 cleanup() {
   local exit_code=$?
+  if [[ -n $feature_browser_pid ]]; then
+    kill "$feature_browser_pid" >/dev/null 2>&1 || true
+    wait "$feature_browser_pid" >/dev/null 2>&1 || true
+  fi
   if [[ -n $vite_pid ]]; then
     kill "$vite_pid" >/dev/null 2>&1 || true
     wait "$vite_pid" >/dev/null 2>&1 || true
@@ -148,6 +156,93 @@ wait_for_api() {
   done
   printf 'The generated API did not become reachable through the web proxy.\n' >&2
   return 1
+}
+
+run_feature_browser_stage() {
+  local stage=$1 selection
+  case "$stage" in
+    controls) selection='controls, live UI enforcement' ;;
+    absent) selection='an absent module' ;;
+    restored) selection='restored modules retain' ;;
+    *) printf 'Unknown feature browser stage: %s.\n' "$stage" >&2; return 2 ;;
+  esac
+  TRYKATCH_ACCEPTANCE_BASE_URL="$web_url" \
+  TRYKATCH_ACCEPTANCE_ADMIN_EMAIL="$platform_admin_email" \
+  TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD="$platform_admin_password" \
+  TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD="$organization_admin_password" \
+  TRYKATCH_ACCEPTANCE_FEATURES=true \
+  TRYKATCH_ACCEPTANCE_FEATURE_STAGE="$stage" \
+  TRYKATCH_ACCEPTANCE_FEATURE_STATE="$feature_state_file" \
+  TRYKATCH_ACCEPTANCE_FEATURE_CONTROL_DIR="$feature_control_dir" \
+  TRYKATCH_PLAYWRIGHT_OUTPUT_DIR="$generated_root/web/apps/web/test-results/features-$stage" \
+  pnpm --dir "$generated_root/web/apps/web" exec playwright test e2e/features.spec.ts --grep "$selection" --reporter=line
+}
+
+wait_for_feature_marker() {
+  local marker=$1 attempts=${2:-120} attempt
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    [[ -f $feature_control_dir/$marker ]] && return 0
+    kill -0 "$feature_browser_pid" 2>/dev/null || {
+      printf 'Feature browser exited before marker %s; see feature-controls.log.\n' "$marker" >&2
+      return 1
+    }
+    sleep 1
+  done
+  printf 'Feature browser did not reach marker %s.\n' "$marker" >&2
+  return 1
+}
+
+wait_for_project_effects() {
+  local pending attempt
+  for ((attempt = 1; attempt <= 60; attempt++)); do
+    pending=$(compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only --set ON_ERROR_STOP=1 <<'SQL'
+SELECT
+  (SELECT count(*) FROM platform.outbox_messages
+   WHERE ("Type" LIKE '%.ProjectChanged' OR "Type" = 'projects.created') AND "ProcessedAt" IS NULL)
+  + (SELECT count(*) FROM infrastructure.module_event_deliveries
+     WHERE "EventKey" LIKE 'projects.%' AND "State" <> 'completed')
+  + (SELECT count(*) FROM platform.audit_intents i
+     WHERE i."Operation" LIKE 'project.%' AND NOT EXISTS (SELECT 1 FROM platform.audit_entries a WHERE a."Id" = i."Id"));
+SQL
+)
+    [[ $pending == 0 ]] && return 0
+    sleep 1
+  done
+  printf 'Projects effects did not settle before the retention boundary.\n' >&2
+  return 1
+}
+
+feature_business_counts() {
+  compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only --set ON_ERROR_STOP=1 <<'SQL'
+SELECT jsonb_build_object(
+  'projects', (SELECT count(*) FROM app.projects),
+  'audit_entries', (SELECT count(*) FROM platform.audit_entries WHERE "Action" LIKE 'project.%'),
+  'audit_intents', (SELECT count(*) FROM platform.audit_intents WHERE "Operation" LIKE 'project.%'),
+  'outbox', (SELECT count(*) FROM platform.outbox_messages),
+  'receipts', (SELECT count(*) FROM app.mutation_receipts));
+SQL
+}
+
+feature_retention_snapshot() {
+  # API containers are stopped at each snapshot, so worker activity cannot race the comparison.
+  # Hash full control/history rows as well as counting them: equal counts alone do not prove retention.
+  compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only --set ON_ERROR_STOP=1 <<'SQL'
+SELECT jsonb_build_object(
+  'projects', (SELECT count(*) FROM app.projects),
+  'project_data', (SELECT md5(COALESCE(string_agg(to_jsonb(p)::text, '' ORDER BY "Id"), '')) FROM app.projects p),
+  'audit_entries', (SELECT count(*) FROM platform.audit_entries WHERE "Action" LIKE 'project.%'),
+  'audit_data', (SELECT md5(COALESCE(string_agg(to_jsonb(a)::text, '' ORDER BY "Id"), '')) FROM platform.audit_entries a WHERE "Action" LIKE 'project.%'),
+  'audit_intents', (SELECT count(*) FROM platform.audit_intents WHERE "Operation" LIKE 'project.%'),
+  'outbox', (SELECT count(*) FROM platform.outbox_messages),
+  'receipts', (SELECT count(*) FROM app.mutation_receipts),
+  'realtime_history', (SELECT count(*) FROM app.realtime_history WHERE "ModuleId" = 'projects'),
+  'environment_controls', (SELECT count(*) FROM platform.feature_environment_controls),
+  'organization_controls', (SELECT count(*) FROM platform.organization_feature_overrides),
+  'feature_history', (SELECT count(*) FROM platform.feature_control_history),
+  'environment_data', (SELECT md5(COALESCE(string_agg(to_jsonb(e)::text, '' ORDER BY "Environment", "FeatureKey"), '')) FROM platform.feature_environment_controls e),
+  'organization_data', (SELECT md5(COALESCE(string_agg(to_jsonb(o)::text, '' ORDER BY "OrganizationId", "Environment", "FeatureKey"), '')) FROM platform.organization_feature_overrides o),
+  'history_data', (SELECT md5(COALESCE(string_agg(to_jsonb(h)::text, '' ORDER BY "Id"), '')) FROM platform.feature_control_history h));
+SQL
 }
 
 create_certificate() {
@@ -264,8 +359,13 @@ case "$realtime_enabled" in
   true|false) ;;
   *) printf 'TRYKATCH_ACCEPTANCE_REALTIME must be true or false.\n' >&2; exit 2 ;;
 esac
-if [[ $email_enabled == true && $realtime_enabled == true ]]; then
-  printf 'Select email or realtime acceptance separately.\n' >&2
+case "$features_enabled" in
+  true|false) ;;
+  *) printf 'TRYKATCH_ACCEPTANCE_FEATURES must be true or false.\n' >&2; exit 2 ;;
+esac
+if [[ $email_enabled == true && $realtime_enabled == true ]] \
+  || [[ $features_enabled == true && ( $email_enabled == true || $realtime_enabled == true ) ]]; then
+  printf 'Select email, realtime or feature acceptance separately.\n' >&2
   exit 2
 fi
 
@@ -591,5 +691,57 @@ TRYKATCH_PLAYWRIGHT_OUTPUT_DIR="$generated_root/web/apps/web/test-results" \
 pnpm --dir "$generated_root/web/apps/web" exec playwright test \
   e2e/generated-production.spec.ts \
   --reporter=line
+
+if [[ $features_enabled == true ]]; then
+  mkdir -p "$feature_control_dir"
+  run_feature_browser_stage controls >"$artifact_root/feature-controls.log" 2>&1 &
+  feature_browser_pid=$!
+  wait_for_feature_marker outage-ready 600
+  wait_for_project_effects
+  feature_business_counts >"$artifact_root/feature-outage-before.json"
+  # A real, isolated policy-store privilege outage keeps authentication and the
+  # platform operator available. No production test endpoint or fabricated 503 is used.
+  test "$(compose exec -T postgres psql --username postgres --dbname trykatch -Atc \
+    "SELECT has_table_privilege('trykatch_org_runtime', 'platform.feature_environment_controls', 'SELECT');")" = t
+  compose exec -T postgres psql --username postgres --dbname trykatch --set ON_ERROR_STOP=1 \
+    --command 'REVOKE SELECT ON platform.feature_environment_controls FROM trykatch_org_runtime;'
+  test "$(compose exec -T postgres psql --username postgres --dbname trykatch -Atc \
+    "SELECT has_table_privilege('trykatch_org_runtime', 'platform.feature_environment_controls', 'SELECT');")" = f
+  touch "$feature_control_dir/policy-blocked"
+  wait_for_feature_marker restore-requested
+  feature_business_counts >"$artifact_root/feature-outage-after.json"
+  cmp "$artifact_root/feature-outage-before.json" "$artifact_root/feature-outage-after.json"
+  compose exec -T postgres psql --username postgres --dbname trykatch --set ON_ERROR_STOP=1 \
+    --command 'GRANT SELECT ON platform.feature_environment_controls TO trykatch_org_runtime;'
+  test "$(compose exec -T postgres psql --username postgres --dbname trykatch -Atc \
+    "SELECT has_table_privilege('trykatch_org_runtime', 'platform.feature_environment_controls', 'SELECT');")" = t
+  touch "$feature_control_dir/policy-restored"
+  wait "$feature_browser_pid"
+  feature_browser_pid=
+  test -s "$feature_state_file"
+  wait_for_project_effects
+  compose stop api
+  test -z "$(compose ps --status running -q api)"
+  feature_retention_snapshot >"$artifact_root/feature-retention-before.json"
+  "$test_root/tools/trykatch" module disable documents --root "$generated_root"
+  "$test_root/tools/trykatch" module disable projects --root "$generated_root"
+  compose up --detach --build --force-recreate --wait --wait-timeout 120 api web migrator
+  assert_current_service_images api web migrator
+  wait_for_api
+  run_feature_browser_stage absent
+  compose stop api
+  feature_retention_snapshot >"$artifact_root/feature-retention-absent.json"
+  cmp "$artifact_root/feature-retention-before.json" "$artifact_root/feature-retention-absent.json"
+  "$test_root/tools/trykatch" module enable projects --root "$generated_root"
+  "$test_root/tools/trykatch" module enable documents --root "$generated_root"
+  compose up --detach --build --force-recreate --wait --wait-timeout 120 api web migrator
+  assert_current_service_images api web migrator
+  wait_for_api
+  run_feature_browser_stage restored
+  compose stop api
+  feature_retention_snapshot >"$artifact_root/feature-retention-restored.json"
+  cmp "$artifact_root/feature-retention-before.json" "$artifact_root/feature-retention-restored.json"
+  printf 'Generated feature controls, real policy outage/recovery and retained module lifecycle acceptance passed for %s.\n' "$generated_name"
+fi
 
 printf 'Generated production application acceptance passed for %s.\n' "$generated_name"
