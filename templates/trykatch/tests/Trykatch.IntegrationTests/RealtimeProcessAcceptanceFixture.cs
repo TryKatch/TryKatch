@@ -106,10 +106,12 @@ internal sealed class RealtimeProcessAcceptanceFixture : IAsyncDisposable
     }
 
     public async Task<RealtimeAcceptanceApiProcess> StartApiReplicaAsync(string instance,
-        string applicationNamespace = "s2-acceptance", string? applicationPublicUrl = null)
+        string applicationNamespace = "s2-acceptance", string? applicationPublicUrl = null, string? mutationCrashPhase = null)
     {
         if (!apiInstances.Contains(instance, StringComparer.Ordinal))
             throw new InvalidOperationException("Realtime acceptance instance name is not allowlisted.");
+        if (mutationCrashPhase is not (null or "before-commit" or "after-commit"))
+            throw new ArgumentOutOfRangeException(nameof(mutationCrashPhase));
         string ownerConnection = postgres.GetConnectionString();
         (string organization, string platform, string identity, string outbox) =
             await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(ownerConnection);
@@ -126,6 +128,7 @@ internal sealed class RealtimeProcessAcceptanceFixture : IAsyncDisposable
         AddConnection(settings, RuntimeDatabaseConnectionContract.WorkCoordinator, coordinator);
         settings["TRYKATCH_ACCEPTANCE_APPLICATION_ROOT"] = applicationRoot;
         settings["TRYKATCH_ACCEPTANCE_INSTANCE"] = instance;
+        settings["TRYKATCH_ACCEPTANCE_MUTATION_CRASH_PHASE"] = mutationCrashPhase;
         settings["TRYKATCH_ACCEPTANCE_TLS_CERTIFICATE_PATH"] = tlsCertificatePath;
         settings["TRYKATCH_ACCEPTANCE_TLS_CERTIFICATE_PASSWORD"] = IdentityCertificateFixture.Password;
         settings["Bootstrap__PlatformAdminEmail"] = PlatformAdminEmail;
@@ -251,6 +254,7 @@ internal sealed class RealtimeProcessAcceptanceFixture : IAsyncDisposable
 
     public string ValkeyEndpoint => $"127.0.0.1:{fixedValkeyPort}";
     internal string ApplicationRoot => applicationRoot;
+    internal string OwnerConnection => postgres.GetConnectionString();
     internal string CertificateRoot => certificates.DirectoryPath;
     internal string TlsCertificatePath => tlsCertificatePath;
     internal string TlsCertificateThumbprint => tlsThumbprint;
@@ -506,6 +510,7 @@ internal sealed class RealtimeAcceptanceApiProcess : IAsyncDisposable
     private readonly Task<string> standardError;
     private readonly SemaphoreSlim commandLock = new(1, 1);
     private bool disposed;
+    private bool killed;
 
     private RealtimeAcceptanceApiProcess(Process process, Task<string> standardError, RealtimeApiReady ready)
     {
@@ -607,17 +612,45 @@ internal sealed class RealtimeAcceptanceApiProcess : IAsyncDisposable
         finally { commandLock.Release(); }
     }
 
+    public async Task WaitForMutationCheckpointAsync(string phase, TimeSpan commandTimeout)
+    {
+        if (phase is not ("before-commit" or "after-commit")) throw new ArgumentOutOfRangeException(nameof(phase));
+        await commandLock.WaitAsync();
+        try
+        {
+            using CancellationTokenSource timeout = new(commandTimeout);
+            BoundedProcessLine line = await ReadBoundedLineAsync(process.StandardOutput, 4_096, timeout.Token);
+            if (line.EndOfStream || line.Oversized)
+                throw new InvalidOperationException("The mutation acceptance process returned no bounded checkpoint.");
+            using JsonDocument message = JsonDocument.Parse(line.Text);
+            if (message.RootElement.GetProperty("kind").GetString() != "mutation-checkpoint"
+                || message.RootElement.GetProperty("phase").GetString() != phase)
+                throw new InvalidOperationException("The mutation acceptance process returned an unexpected checkpoint.");
+        }
+        finally { commandLock.Release(); }
+    }
+
+    public async Task KillAsync()
+    {
+        if (disposed || killed) return;
+        killed = true;
+        if (!process.HasExited) process.Kill(entireProcessTree: true);
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
+        await process.WaitForExitAsync(timeout.Token);
+        _ = await standardError.WaitAsync(timeout.Token);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (disposed) return;
         disposed = true;
-        process.StandardInput.Close();
+        if (!process.HasExited) process.StandardInput.Close();
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
         try
         {
             await process.WaitForExitAsync(timeout.Token);
             _ = await standardError.WaitAsync(timeout.Token);
-            if (process.ExitCode != 0)
+            if (!killed && process.ExitCode != 0)
                 throw new InvalidOperationException($"Realtime acceptance API process exited with code {process.ExitCode}.");
         }
         catch (OperationCanceledException)
