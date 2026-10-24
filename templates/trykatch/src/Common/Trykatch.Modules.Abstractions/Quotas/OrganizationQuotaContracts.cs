@@ -75,11 +75,18 @@ public interface IOrganizationEntitlementReader
 /// <summary>
 /// Transactional quota holds in the current trusted organization scope. External uploads use
 /// durable upload admission so expiry cannot release capacity while an object write is live.
+/// These operations require the caller's enlisted ReadCommitted transaction and never commit it.
+/// A failed persistence attempt requires rollback. Reservation expiry is a reconciliation deadline,
+/// and does not itself release a hold. Owning use cases must separately authorize business actions.
 /// </summary>
 public interface IOrganizationQuota
 {
     Task<QuotaReservationResult> ReserveAsync(
         string resourceKey, long units, Guid operationId, CancellationToken cancellationToken = default);
+    /// <exception cref="OrganizationQuotaConflictException">The current actor does not own a compatible transaction-only hold.</exception>
+    /// <exception cref="OrganizationQuotaUnavailableException">Current authority or persistence could not be confirmed.</exception>
     Task CommitAsync(Guid reservationId, CancellationToken cancellationToken = default);
+    /// <exception cref="OrganizationQuotaConflictException">The hold cannot be released through the transaction-only API.</exception>
+    /// <exception cref="OrganizationQuotaUnavailableException">Current authority or persistence could not be confirmed.</exception>
     Task ReleaseAsync(Guid reservationId, CancellationToken cancellationToken = default);
 }

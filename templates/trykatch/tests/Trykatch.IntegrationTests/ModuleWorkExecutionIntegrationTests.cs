@@ -817,6 +817,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
             Permissions = [new PermissionDescriptor("probe.write", "Probe write", "Write probe records")],
             DataResources = [new DataResourceDescriptor(Resource, "app", "probe_records", ModuleDataOwnership.Organization,
                 typeof(ProbeRecord).FullName, "probe_records_organization")],
+            QuotaResources = [new("probe.units", "Probe units", "Logical quota test effects.", ModuleQuotaUnit.Count)],
             Operations =
             [
                 new("probe", "probe.command", 1, ModuleExecutionKind.UserCommand, "probe.command.payload", 1,
@@ -836,6 +837,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
                 },
                 new ModuleSystemGrantDescriptor("probe.scheduled-grant", 1, "probe", AuditActorId, ["probe.scheduled"], [Resource])
                 {
+                    AllowedQuotaResources = ["probe.units"],
 #if TRYKATCH_EMAIL
                     AllowedEmailDisclosurePolicies = [ProbeEmailPolicy]
 #endif

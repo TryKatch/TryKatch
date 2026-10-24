@@ -97,6 +97,20 @@ public sealed partial class OrganizationQuotaMigrationIntegrationTests
             await transaction.CommitAsync();
         }
 
+        foreach ((Guid? targetOrganization, Guid? targetActor) in new (Guid?, Guid?)[]
+        {
+            (organization, null), (null, actor)
+        })
+        {
+            await using NpgsqlConnection platform = QuotaRuntimeConnection(ownerConnection,
+                PostgresRuntimeRoleFixture.PlatformRole, PostgresRuntimeRoleFixture.PlatformPassword);
+            await platform.OpenAsync();
+            await using NpgsqlTransaction transaction = await platform.BeginTransactionAsync();
+            await SetQuotaScopeAsync(platform, transaction, targetOrganization, targetActor);
+            await using NpgsqlCommand read = new("SELECT count(*) FROM app.organization_entitlements", platform, transaction);
+            (await read.ExecuteScalarAsync()).ShouldBe(0L);
+        }
+
         await AssertQuotaRoleDeniedAsync(ownerConnection, PostgresRuntimeRoleFixture.OrganizationRole,
             PostgresRuntimeRoleFixture.OrganizationPassword, organization, actor, """
             UPDATE app.organization_entitlements SET "Unit" = 2
