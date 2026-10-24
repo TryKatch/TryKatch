@@ -162,6 +162,17 @@ public sealed class ModuleRequestFingerprintTests
     }
 
     [TestMethod]
+    [DataRow("{\"name\":\"First\",\"Name\":\"Second\"}")]
+    [DataRow("{\"items\":[{\"code\":1,\"Code\":2}]}")]
+    [DataRow("{\"name\":\"First\",\"\\u004eame\":\"Second\"}")]
+    public async Task CaseInsensitiveBindingAliasesAreRejectedBeforeFingerprinting(string body)
+    {
+        DefaultHttpContext context = JsonRequest("POST", "/projects", "", body);
+        AddKey(context.Request, Key);
+        await ExpectFailureAsync(context.Request, ModuleMutationPolicy.Default, StatusCodes.Status400BadRequest);
+    }
+
+    [TestMethod]
     public async Task DeclaredAndChunkedBodiesAreBoundedByThePolicy()
     {
         ModuleMutationPolicy policy = new(TimeSpan.FromHours(1), MaximumRequestBytes: 8);

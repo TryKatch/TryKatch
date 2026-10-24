@@ -28,6 +28,10 @@ Projects records the resource with `ModuleMutationIdempotency.BindResource` only
 
 Do not enroll file or stream responses, server-sent events, downloads, or operations that issue expiring or signed URLs. This is an endpoint-author enrollment rule; the host does not inspect arbitrary JSON to discover URL semantics. Only finite responses that are safe to return again as stored bytes are suitable.
 
+With an idempotency key, JSON object property names must be unique ignoring case, including inside nested objects and arrays. For example, a body containing both `name` and `Name` returns400 before binding or mutation. The same applies to escaped names: object reordering must not change which value the Web JSON binder uses while preserving the request fingerprint.
+
+Enrolled handlers and custom JSON converters must treat object property order as irrelevant to the mutation intent.
+
 ## Keys, request identity, and limits
 
 Provide exactly one ASCII key from 1 through 128 characters. The first character must be an ASCII letter or digit; later characters may also be `.`, `_`, `:`, or `-`. Duplicate header values, empty values, non-ASCII characters, and other punctuation are rejected. Choose one key for a logical user intent, retain it for retries, and use a new key for a genuinely new intent. Do not generate a replacement key just because a response was lost: that could authorize a second write.

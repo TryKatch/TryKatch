@@ -99,6 +99,28 @@ public sealed class ModuleIdempotencyIntegrationTests
     }
 
     [TestMethod]
+    public async Task CaseAliasedJsonPropertiesCannotExecuteOrPoisonTheRequestIdentity()
+    {
+        Guid organizationId = await CreateWorkspaceAsync();
+        const string key = "case-alias-01";
+        const string ambiguous = "{\"name\":\"First intent\",\"Name\":\"Second intent\",\"description\":\"ambiguous\"}";
+        using HttpResponseMessage rejected = await SendMutationAsync(HttpMethod.Post, "/api/v1/projects/", ambiguous, key);
+        rejected.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        rejected.Headers.Location.ShouldBeNull();
+        (await ReadProjectSnapshotAsync(organizationId)).ShouldBe(new ProjectSnapshot(0, 0, 0, 0));
+
+        const string valid = "{\"name\":\"Unambiguous intent\",\"description\":\"corrected\"}";
+        using HttpResponseMessage accepted = await SendMutationAsync(HttpMethod.Post, "/api/v1/projects/", valid, key);
+        accepted.StatusCode.ShouldBe(HttpStatusCode.Created);
+        byte[] original = await accepted.Content.ReadAsByteArrayAsync();
+        using HttpResponseMessage replay = await SendMutationAsync(HttpMethod.Post, "/api/v1/projects/", valid, key);
+        replay.StatusCode.ShouldBe(HttpStatusCode.Created);
+        replay.Headers.Location!.OriginalString.ShouldBe(accepted.Headers.Location!.OriginalString);
+        (await replay.Content.ReadAsByteArrayAsync()).ShouldBe(original);
+        (await ReadProjectSnapshotAsync(organizationId)).ShouldBe(new ProjectSnapshot(1, 1, 2, 1));
+    }
+
+    [TestMethod]
     public async Task ProjectsCreateReplaysCanonicalJsonWithTheExactReceiptAndSingleEffect()
     {
         Guid organizationId = await CreateWorkspaceAsync();

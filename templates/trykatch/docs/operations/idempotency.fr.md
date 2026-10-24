@@ -12,6 +12,10 @@ La table des accusés contient des octets de réponse privés et doit être prot
 
 Les callbacks applicatifs `OnStarting` se terminent avant la capture et la validation transactionnelle d’une nouvelle réponse. Leur échec ou un statut final hors 2xx annule cette exécution. Ils s’exécutent de nouveau lors d’une tentative pour produire des cookies et des en-têtes courants ; la relecture conserve toutefois le statut, le type de contenu, `Location` et le corps enregistrés. Ces métadonnées restent protégées jusqu’à la publication réseau.
 
+Avec une clé d’idempotence, les noms des propriétés JSON doivent être uniques sans tenir compte de la casse, y compris dans les objets et tableaux imbriqués. Un corps contenant à la fois `name` et `Name` reçoit400 avant liaison des données ou mutation. Cette règle couvre aussi les noms échappés : réordonner un objet ne doit pas changer la valeur liée tout en conservant la même empreinte.
+
+Les handlers inscrits et leurs convertisseurs JSON personnalisés doivent traiter l’ordre des propriétés d’un objet comme sans effet sur l’intention de mutation.
+
 ## Activation et compatibilité
 
 Un point de terminaison doit s’inscrire explicitement via `WithMutationIdempotency` et fournir des contrôles d’autorisation de requête et de rejeu appartenant au module. L’hôte vérifie qu’un point de terminaison inscrit est une mutation d’organisation nommée, sécurisée et munie de métadonnées de réponse bornées et non diffusée en continu. Un point de terminaison non inscrit n’utilise pas cette fonctionnalité. Pour un point de terminaison inscrit, l’en-tête `Idempotency-Key` est facultatif par défaut : sans cet en-tête, la requête suit le chemin normal et aucun accusé n’est réservé. `ModuleMutationPolicy.KeyRequired` rend l’en-tête obligatoire pour ce point de terminaison.

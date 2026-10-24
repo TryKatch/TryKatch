@@ -62,6 +62,8 @@ public static class ModuleRequestFingerprint
             try
             {
                 json = StrictUtf8.GetString(body);
+                using JsonDocument document = JsonDocument.Parse(json);
+                RejectCaseInsensitivePropertyAliases(document.RootElement);
                 canonicalBodyHash = ModuleCanonicalJson.ComputeHash(json);
             }
             catch (DecoderFallbackException)
@@ -78,6 +80,27 @@ public static class ModuleRequestFingerprint
         string requestHash = ComputeRequestHash(request, mediaType, canonicalBodyHash);
         request.Body = new MemoryStream(body, writable: false);
         return new ModulePreparedMutationRequest(keyHash, requestHash);
+    }
+
+    private static void RejectCaseInsensitivePropertyAliases(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
+            foreach (JsonProperty property in element.EnumerateObject())
+            {
+                // Web JSON binding can treat differently cased names as the same property.
+                // Sorting those aliases would otherwise hide order-dependent bound values.
+                if (!names.Add(property.Name))
+                    throw new InvalidOperationException("Ambiguous JSON property names cannot identify a mutation safely.");
+                RejectCaseInsensitivePropertyAliases(property.Value);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement item in element.EnumerateArray())
+                RejectCaseInsensitivePropertyAliases(item);
+        }
     }
 
     private static string? ReadKey(HttpRequest request, bool required)

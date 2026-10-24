@@ -35,6 +35,8 @@ Contention returns 409 `idempotency_in_progress` with `Retry-After: 1`; changed 
 
 ### Capture, commit and recovery
 
+Idempotent HTTP preparation rejects object property names that collide under case-insensitive Web JSON binding, including nested objects and escaped names. Otherwise sorting `name` and `Name` could produce the same canonical fingerprint for different order-dependent bound values. This validation is confined to enrolled keyed HTTP requests; the shared canonical hash and existing outbox digest protocol remain unchanged.
+
 Only newly reserved execution invokes the handler. The outer response feature serializes and flushes bounded staged bytes, captures them, inserts the completed receipt, and then commits. The application enlistment remains alive through this outer finalization; disposing it when the inner organization middleware returns would be too early.
 
 Application `OnStarting` callbacks, including those registered before the transaction middleware, are staged and awaited once in reverse registration order before capture and finalization. A callback that changes the final status to non2xx triggers rollback; a callback failure also precedes commit. Receipt metadata is frozen through native publication. On replay, callbacks can produce fresh cookies/general headers, but the stored status/content type/Location and exact body remain authoritative. Native hosting callbacks outside application staging still run at the postcommit network boundary; they cannot change frozen receipt metadata through the response feature.
