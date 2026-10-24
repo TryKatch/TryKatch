@@ -1,6 +1,6 @@
 # ADR 0022: Organization quotas and provisional upload fencing
 
-Status: Architecture decision for S5; production implementation and composed qualification pending. Reconcile against merged S4 before implementation.
+Status: Architecture decision for S5; reconciled against merged S4 `d1c54d0`. Production implementation and composed qualification remain pending.
 Date: 2026-10-24.
 
 ## Context

@@ -10,7 +10,7 @@
 
 **Spec:** [Platform S5](2026-10-23-parity-02-platform-services.md), [design](../specs/2026-10-23-feature-parity-design.md), template `docs/specs/feature-parity-contracts.md` section8 and ADR0015/0017. Paths below are relative to `templates/trykatch/` unless stated otherwise.
 
-**Status:** Six pinned storage primitive tests are qualified in local precursor commits61ced98/8611894. Production implementation has not started. S4 PR137 final84e7361 CI must pass and merge; fetch/rebase this clean unpublished branch before production edits. This plan is prepared during that verified wait, not a claim that S5 is implemented.
+**Status:** S4 [PR #137](https://github.com/TryKatch/TryKatch/pull/137) merged as `d1c54d0` after all20 final-head CI jobs, dependency review and previews passed. The clean unpublished S5 branch was fetched and rebased onto that merge without conflicts. Six pinned storage primitive cases pass, zero skips; ADR0022 fixes the architecture. Task1 declaration tests now start implementation; S5 remains incomplete.
 
 ## Global constraints and fixed decisions
 
@@ -39,8 +39,8 @@
 **Files:** Existing `tests/Trykatch.IntegrationTests/ObjectStorageConditionalWriteIntegrationTests.cs`; create `docs/adr/0022-organization-quotas-and-upload-fencing.md`; maintain `docs/specs/evidence/parity-storage-fencing.md`.
 
 - [x] Qualify actual pinned conditional creation/replacement, stale-token rejection, restart, real successful-response discard/recovery, HEAD identity/length/hash/fingerprint and version-retention counterexample. Six cases pass, zero skips; `storage-conditional-six.trx`.
-- [ ] After S4 merge, rebase cleanly, re-read changed host interfaces, and record these fixed decisions in ADR0022. Storage ETag is an opaque conditional token, not SHA-256. Local adapter/composed crash safety remain unqualified until Tasks4/5/8.
-- [ ] Commit the architecture checkpoint; do not mark the quota implementation complete from raw provider tests.
+- [x] After S4 merge, rebase cleanly, re-read changed host interfaces, and record these fixed decisions in ADR0022. Storage ETag is an opaque conditional token, not SHA-256. Local adapter/composed crash safety remain unqualified until Tasks4/5/8.
+- [x] Commit the architecture checkpoint; do not mark the quota implementation complete from raw provider tests.
 
 ## Task 1: Neutral contracts and installed resource declarations
 

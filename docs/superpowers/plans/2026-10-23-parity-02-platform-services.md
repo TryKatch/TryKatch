@@ -7,7 +7,7 @@
 **Tech Stack:** Existing stack; SignalR and reviewed distributed cache/backplane adapters selected in P0.1, with no vendor types in module contracts.
 **Spec:** [Design](../specs/2026-10-23-feature-parity-design.md); [roadmap](2026-10-23-feature-parity-plan.md).
 
-**Status:** S1 merged in PR #134 after exact-head CI and dependency review. S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234` after all 20 exact-head CI jobs, dependency review and both Vercel checks passed; the [refined S2 plan](2026-10-24-parity-s2-authorized-realtime.md) records targeted, browser/proxy, packaged-product, retained-module restart and review qualification. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections, all required exact-head CI, dependency and preview checks. Its [refined plan](2026-10-24-parity-s3-mutation-idempotency.md) records transaction/HTTP replay, certified Production crash and packaged qualification. S4 is implemented and locally qualified, with the integrated review finding corrected; exact-head CI/merge remains pending under the [refined feature-availability plan](2026-10-24-parity-s4-feature-availability.md); S5–S6 remain planned.
+**Status:** S1 merged in PR #134 as `6140050`, S2 in PR #135 as `b919234`, S3 in PR #136 as `a3f19df`, and S4 in [PR #137](https://github.com/TryKatch/TryKatch/pull/137) as `d1c54d0`. Their refined plans and platform-services evidence record final-head tests, review, dependency and preview checks. S4 final CI40128276580 passes all20 jobs. S5 is in progress under [the refined quota plan](2026-10-24-parity-s5-organization-quotas.md); S6 and phase exit remain open.
 
 ## Global Constraints
 
@@ -64,7 +64,7 @@ Apply all roadmap constraints. Paths are relative to `templates/trykatch/`; new 
 - [x] Test absent/disabled modules, unknown feature keys, organization overrides, change invalidation, direct API calls and read/write kill switches. Assert enabling a flag does not add a permission or load a module.
 - [x] Add explicit operator-managed settings/audit and safe configured defaults. Expose only the current organization's evaluated availability to the browser; match navigation and backend policy.
 - [x] Test a flag changing between page render and submit, cache outage and module disablement with retained settings. A disabled flag does not delete data or retrospectively undo a committed transaction.
-- [ ] Verify: `OrganizationFeatureTests`, `OrganizationFeatureIntegrationTests`, focused settings/SDK tests, generation and common exit.
+- [x] Verify: `OrganizationFeatureTests`, `OrganizationFeatureIntegrationTests`, focused settings/SDK tests, generation and common exit.
 
 ## S5: Add entitlement projection, quota reservation and organization throttling
 
