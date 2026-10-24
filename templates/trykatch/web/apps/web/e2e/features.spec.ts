@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type APIResponse, type Frame, type Locator, type Page, type Request, type Response, type Route } from '@playwright/test'
+import { expect, test, type APIRequestContext, type APIResponse, type Locator, type Page, type Request, type Response, type Route } from '@playwright/test'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 
@@ -83,7 +83,7 @@ test.describe('packaged application feature policy acceptance', () => {
         await setOrganizationControl(adminPage, betaId, 'Project reads', false)
 
         await adminPage.goto(`/dashboard/features?organizationId=${encodeURIComponent(alphaId)}`)
-        await expect(adminPage.getByRole('heading', { name: 'Feature controls' })).toBeVisible()
+        await expect(adminPage.getByRole('heading', { name: 'Feature controls', exact: true })).toBeVisible()
         await adminPage.getByRole('button', { name: 'View history for Project reads' }).click()
         const history = adminPage.getByRole('dialog', { name: 'Feature history: Project reads' })
         await expect(history.getByRole('table', { name: 'Feature history' })).toBeVisible()
@@ -266,7 +266,7 @@ test.describe('packaged application feature policy acceptance', () => {
       const adminPage = await admin.newPage()
       await signIn(adminPage, required(platformAdminEmail, 'TRYKATCH_ACCEPTANCE_ADMIN_EMAIL'), required(platformAdminPassword, 'TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD'))
       await adminPage.goto('/dashboard/features')
-      await expect(adminPage.getByRole('heading', { name: 'Feature controls' })).toBeVisible()
+      await expect(adminPage.getByRole('heading', { name: 'Feature controls', exact: true })).toBeVisible()
       await expect(adminPage.getByText('Project reads')).toHaveCount(0)
       await expect(adminPage.getByText('Project writes')).toHaveCount(0)
 
@@ -361,7 +361,7 @@ async function selectWorkspace(request: APIRequestContext, organizationId: strin
 
 async function setEnvironmentControl(page: Page, featureName: string, enabledValue: boolean | null, forceDisabled: boolean) {
   await page.goto('/dashboard/features')
-  await expect(page.getByRole('heading', { name: 'Feature controls' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Feature controls', exact: true })).toBeVisible()
   const row = featureRow(page, featureName)
   const field = row.getByRole('combobox', { name: `Environment control for ${featureName}` })
   const desired = enabledValue === null ? 'Inherit configured default' : enabledValue ? 'Enabled' : 'Disabled'
@@ -377,7 +377,7 @@ async function setEnvironmentControl(page: Page, featureName: string, enabledVal
 
 async function setOrganizationControl(page: Page, organizationId: string, featureName: string, enabledValue: boolean | null) {
   await page.goto(`/dashboard/features?organizationId=${encodeURIComponent(organizationId)}`)
-  await expect(page.getByRole('heading', { name: 'Feature controls' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Feature controls', exact: true })).toBeVisible()
   const row = featureRow(page, featureName)
   const field = row.getByRole('combobox', { name: `Organization override for ${featureName}` })
   const desired = enabledValue === null ? 'Inherit environment' : enabledValue ? 'Enabled' : 'Disabled'

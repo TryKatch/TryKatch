@@ -216,6 +216,7 @@ feature_business_counts() {
   compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only --set ON_ERROR_STOP=1 <<'SQL'
 SELECT jsonb_build_object(
   'projects', (SELECT count(*) FROM app.projects),
+  'audit_entries', (SELECT count(*) FROM platform.audit_entries WHERE "Action" LIKE 'project.%'),
   'audit_intents', (SELECT count(*) FROM platform.audit_intents WHERE "Operation" LIKE 'project.%'),
   'outbox', (SELECT count(*) FROM platform.outbox_messages),
   'receipts', (SELECT count(*) FROM app.mutation_receipts));
@@ -229,6 +230,8 @@ feature_retention_snapshot() {
 SELECT jsonb_build_object(
   'projects', (SELECT count(*) FROM app.projects),
   'project_data', (SELECT md5(COALESCE(string_agg(to_jsonb(p)::text, '' ORDER BY "Id"), '')) FROM app.projects p),
+  'audit_entries', (SELECT count(*) FROM platform.audit_entries WHERE "Action" LIKE 'project.%'),
+  'audit_data', (SELECT md5(COALESCE(string_agg(to_jsonb(a)::text, '' ORDER BY "Id"), '')) FROM platform.audit_entries a WHERE "Action" LIKE 'project.%'),
   'audit_intents', (SELECT count(*) FROM platform.audit_intents WHERE "Operation" LIKE 'project.%'),
   'outbox', (SELECT count(*) FROM platform.outbox_messages),
   'receipts', (SELECT count(*) FROM app.mutation_receipts),
