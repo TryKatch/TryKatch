@@ -7,12 +7,13 @@ const template = new URL('../../templates/trykatch/', import.meta.url);
 test('generated SDK policy pins the tested feature band with patch roll-forward', () => {
   const generated = JSON.parse(readFileSync(new URL('global.json', template), 'utf8'));
   const source = JSON.parse(readFileSync(new URL('../../global.json', import.meta.url), 'utf8'));
+  assert.equal(source.sdk.version, '10.0.402');
   assert.equal(generated.sdk.version, source.sdk.version);
   assert.equal(generated.sdk.rollForward, 'latestPatch');
   assert.equal(source.sdk.rollForward, 'latestPatch');
   for (const name of ['ci.yml', 'release.yml']) {
     const workflow = readFileSync(new URL(`../../.github/workflows/${name}`, import.meta.url), 'utf8');
-    for (const [, version] of workflow.matchAll(/dotnet-version:\s*(\S+)/g)) assert.equal(version, '10.0.3xx');
+    for (const [, version] of workflow.matchAll(/dotnet-version:\s*(\S+)/g)) assert.equal(version, '10.0.4xx');
   }
 });
 
@@ -32,7 +33,7 @@ test('first generated restore does not enable NuGet caching on excluded lockfile
     const workflow = readFileSync(new URL(`.github/workflows/${name}`, template), 'utf8');
     const sdk = workflow.split('uses: actions/setup-dotnet@')[1].split(/\n\s+- (?:uses|run|name):/)[0];
     assert.doesNotMatch(sdk, /cache: true|cache-dependency-path/);
-    assert.match(sdk, /dotnet-version: 10\.0\.3xx/);
+    assert.match(sdk, /dotnet-version: 10\.0\.4xx/);
   }
 });
 

@@ -65,18 +65,21 @@ public sealed partial class OutboxRecoveryIntegrationTests
         {
             string actorToken = await RecoveryHost.GetAntiforgeryAsync(formerAdministrator);
             Guid requestId = Guid.NewGuid();
-            async Task<HttpResponseMessage> PauseAsync()
+            async Task<HttpResponseMessage> PauseAsync(HttpClient client, string csrf)
             {
                 using HttpRequestMessage pause = new(HttpMethod.Post, $"/api/v1/platform/module-work/{work}/pause")
                 { Content = JsonContent.Create(new { requestId, expectedGeneration = 2 }) };
-                pause.Headers.Add("X-CSRF-TOKEN", actorToken);
-                return await formerAdministrator.SendAsync(pause);
+                pause.Headers.Add("X-CSRF-TOKEN", csrf);
+                return await client.SendAsync(pause);
             }
-            (await PauseAsync()).StatusCode.ShouldBe(HttpStatusCode.OK);
+            (await PauseAsync(formerAdministrator, actorToken)).StatusCode.ShouldBe(HttpStatusCode.OK);
             using HttpRequestMessage suspend = new(HttpMethod.Post, $"/api/v1/platform-users/{actor}/suspend") { Content = JsonContent.Create(new { }) };
             suspend.Headers.Add("X-CSRF-TOKEN", token);
             (await administrator.SendAsync(suspend)).StatusCode.ShouldBe(HttpStatusCode.OK);
-            (await PauseAsync()).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+            (await PauseAsync(formerAdministrator, actorToken)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+            using HttpClient suspendedAdministrator = await host.SignInAsync("work-admin@trykatch.test");
+            string suspendedToken = await RecoveryHost.GetAntiforgeryAsync(suspendedAdministrator);
+            (await PauseAsync(suspendedAdministrator, suspendedToken)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
             (await host.ReadWorkControlCountAsync(work)).ShouldBe(3);
         }
     }

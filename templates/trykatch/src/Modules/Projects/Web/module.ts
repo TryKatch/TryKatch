@@ -1,4 +1,5 @@
 import { defineWebModule } from '@trykatch/module-sdk'
+import { getProjectsListQueryKey } from '@trykatch/api-client'
 import { FolderKanban } from 'lucide-react'
 import { lazy } from 'react'
 
@@ -7,7 +8,7 @@ const ProjectsPage = lazy(() => import('./ProjectsPage').then((module) => ({ def
 export const projectsModule = defineWebModule({
   id: 'projects',
   name: 'Projects',
-  version: '1.0.0',
+  version: '1.2.0',
   description: 'Organization-scoped project management and lifecycle reference feature.',
   requires: [],
   optionalDependencies: [],
@@ -25,4 +26,16 @@ export const projectsModule = defineWebModule({
     },
   ],
   extensions: [],
+  realtimeInvalidations: [
+    {
+      id: 'projects.created',
+      subscription: {
+        policy: { ownerModuleId: 'projects', policyKey: 'projects.read', policyVersion: 1 },
+        kind: 0,
+      },
+      matches: (notification) => notification.moduleId === 'projects'
+        && notification.eventKey === 'projects.created' && notification.schemaVersion === 1,
+      queryKeys: [getProjectsListQueryKey({ page: 1, pageSize: 100, lifecycle: 'active' }), ['projects']],
+    },
+  ],
 })

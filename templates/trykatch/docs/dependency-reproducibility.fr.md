@@ -1,6 +1,6 @@
 # Reproductibilité des dépendances
 
-Exécutez les commandes depuis la racine de l’application générée. `global.json` impose la bande de fonctionnalités .NET 10.0.3xx testée, à partir de 10.0.301, et autorise uniquement les mises à jour correctives. Installez cette bande même si un autre SDK .NET est déjà présent. Qualifiez ensemble toute modification de cette politique et du SDK sélectionné dans les workflows.
+Exécutez les commandes depuis la racine de l’application générée. `global.json` impose la bande de fonctionnalités .NET 10.0.4xx testée, à partir de 10.0.402, et autorise uniquement les mises à jour correctives. Installez cette bande même si un autre SDK .NET est déjà présent. Qualifiez ensemble toute modification de cette politique et du SDK sélectionné dans les workflows.
 
 Les actions tierces des workflows sont épinglées par commit. La configuration React épingle aussi pnpm dans ses manifestes racine et web ; utilisez Corepack. La configuration backend seul ne contient volontairement ni manifeste ni commandes frontend.
 

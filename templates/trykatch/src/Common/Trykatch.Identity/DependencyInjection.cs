@@ -86,18 +86,10 @@ public static class DependencyInjection
             options.Cookie.SameSite = SameSiteMode.Strict;
             options.SlidingExpiration = true;
             options.ExpireTimeSpan = TimeSpan.FromHours(8);
-            // AddIdentity wires its security-stamp validator into this event instance.
-            // Mutate only the redirect handlers so role, password, and MFA changes
-            // continue to invalidate existing application cookies.
+            // Preserve the existing stamp validator and wrap every cookie lifecycle path.
             options.Events.OnRedirectToLogin = context => RejectRedirect(context, StatusCodes.Status401Unauthorized);
             options.Events.OnRedirectToAccessDenied = context => RejectRedirect(context, StatusCodes.Status403Forbidden);
-            options.Events.OnSigningIn = context =>
-            {
-                // Ticket properties survive sliding renewal; an independent sign-in
-                // receives a fresh ID. Legacy cookies must sign in again for step-up.
-                context.Properties.Items.TryAdd(AccountSecuritySession.PropertyName, Guid.NewGuid().ToString("N"));
-                return Task.CompletedTask;
-            };
+            IdentitySessionCookieEvents.Configure(options);
         });
         services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(5));
 
@@ -139,6 +131,10 @@ public static class DependencyInjection
         services.AddScoped<PlatformManagementAuthorization>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddIdentityEmailDelivery(configuration, isDevelopment, isOpenApiGeneration);
+        services.AddHttpContextAccessor();
+        services.AddScoped<IdentitySessionRegistry>(provider => new(connectionString, provider.GetRequiredService<TimeProvider>()));
+        services.AddScoped<IAccountSessions>(provider => provider.GetRequiredService<IdentitySessionRegistry>());
+        services.AddScoped<ICurrentAccountSession, CurrentAccountSession>();
         services.AddScoped<IAccountSecurity, AccountSecurityService>();
         return services;
     }

@@ -42,6 +42,17 @@ internal static class HostPostgresPolicyContracts
     {
         Dictionary<string, Policy[]> policies = new(StringComparer.Ordinal)
     {
+        ["app.realtime_streams"] =
+        [
+            new("realtime_streams_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("realtime_streams_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"]),
+            new("realtime_streams_update", "w", Organization, $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
+        ["app.realtime_history"] =
+        [
+            new("realtime_history_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("realtime_history_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
         ["app.cache_invalidations"] =
         [
             new("cache_invalidations_read", "r", Organization, Roles: ["trykatch_org_runtime"]),

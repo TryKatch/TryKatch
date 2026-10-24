@@ -32,6 +32,9 @@ public sealed record ModuleSystemGrantDescriptor(
 {
     /// <summary>Email-specific source-policy authority; this does not widen business-resource grants.</summary>
     public IReadOnlyList<ModuleEmailDisclosurePolicyRef> AllowedEmailDisclosurePolicies { get; init; } = [];
+
+    /// <summary>Realtime audience policies this producer grant may publish for.</summary>
+    public IReadOnlyList<ModuleRealtimePolicyRef> AllowedRealtimePolicies { get; init; } = [];
 }
 
 /// <summary>Persisted execution provenance; it is data, not an authorization token.</summary>

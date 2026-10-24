@@ -32,9 +32,9 @@
     },
     {
       "id": "projects",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "enabled": true,
-      "manifestSha256": "06fcf3adb2644b46dc7a02ea8e81f03a95c30ae4e4e380d25edb3c08f28d8d2c",
+      "manifestSha256": "bdfde8e611b52f944612cfb74b694afa9558518e6814a65321170bf0f27eb5b4",
       "manifestDigestMode": "template-normalized-sha256",
       "distribution": {
         "kind": "workspace",

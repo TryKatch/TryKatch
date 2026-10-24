@@ -47,7 +47,12 @@ public sealed class AuditIntentAtomicityTests
     {
         const string unavailableDatabase = "Host=127.0.0.1;Port=1;Database=unused;Username=unused;Password=unused;Timeout=1";
         await using AuditDatabase database = new(
-            null, unavailableDatabase, unavailableDatabase, unavailableDatabase, unavailableDatabase);
+            null, unavailableDatabase, unavailableDatabase, unavailableDatabase, unavailableDatabase,
+            new NpgsqlConnectionStringBuilder(unavailableDatabase)
+            {
+                Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+                Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+            }.ConnectionString);
         using IHost host = await database.StartAdministrationHostAsync(
             new(Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7()));
         await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
@@ -401,7 +406,8 @@ public sealed class AuditIntentAtomicityTests
         string ownerConnection,
         string organizationConnection,
         string platformConnection,
-        string outboxConnection) : IAsyncDisposable
+        string outboxConnection,
+        string workCoordinatorConnection) : IAsyncDisposable
     {
         private readonly ConcurrentDictionary<string, byte> reachedFailures = new(StringComparer.Ordinal);
         private readonly RecordingObjectStorage objectStorage = new();
@@ -433,6 +439,7 @@ public sealed class AuditIntentAtomicityTests
                 ["ConnectionStrings:trykatch-organization"] = organizationConnection,
                 ["ConnectionStrings:trykatch-platform"] = platformConnection,
                 ["ConnectionStrings:trykatch-outbox"] = outboxConnection,
+                ["ConnectionStrings:trykatch-work"] = workCoordinatorConnection,
                 ["Email:Host"] = "127.0.0.1",
                 ["Email:Port"] = "1",
                 ["Email:From"] = "atomicity@example.test",
@@ -644,7 +651,12 @@ public sealed class AuditIntentAtomicityTests
                 module.DataResources.Select(resource => new InstalledDataResource(module.Id, resource))));
             await PostgresRuntimeRoleFixture.GrantApplicationPrivilegesAsync(owner);
             (string organization, string platformRuntime, _, string outbox) = await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(owner);
-            return new(postgres, owner, organization, platformRuntime, outbox);
+            string workCoordinator = new NpgsqlConnectionStringBuilder(owner)
+            {
+                Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+                Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+            }.ConnectionString;
+            return new(postgres, owner, organization, platformRuntime, outbox, workCoordinator);
         }
 
         public ValueTask DisposeAsync() => postgres?.DisposeAsync() ?? ValueTask.CompletedTask;

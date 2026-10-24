@@ -104,6 +104,9 @@ import type {
   ProblemDetails,
   ProjectDto,
   ProjectsListParams,
+  RealtimeGetHistoryParams,
+  RealtimeHistoryResponse,
+  RealtimeStateResponse,
   ReauthenticationRequest,
   RecentAssuranceGrant,
   ResetPasswordRequest,
@@ -145,6 +148,215 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getRealtimeGetStateUrl = () => {
+
+
+
+
+  return `/api/v1/realtime/state`
+}
+
+/**
+ * @summary Get state realtime
+ */
+export const realtimeGetState = async ( options?: Parameters<typeof customFetch>[1]): Promise<RealtimeStateResponse> => {
+
+  return customFetch<RealtimeStateResponse>(getRealtimeGetStateUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRealtimeGetStateQueryKey = () => {
+    return [
+    `/api/v1/realtime/state`
+    ] as const;
+    }
+
+
+export const getRealtimeGetStateQueryOptions = <TData = Awaited<ReturnType<typeof realtimeGetState>>, TError = ProblemDetails>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetState>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRealtimeGetStateQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof realtimeGetState>>> = ({ signal }) => realtimeGetState({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof realtimeGetState>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type RealtimeGetStateQueryResult = NonNullable<Awaited<ReturnType<typeof realtimeGetState>>>
+export type RealtimeGetStateQueryError = ProblemDetails
+
+
+export function useRealtimeGetState<TData = Awaited<ReturnType<typeof realtimeGetState>>, TError = ProblemDetails>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetState>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof realtimeGetState>>,
+          TError,
+          Awaited<ReturnType<typeof realtimeGetState>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useRealtimeGetState<TData = Awaited<ReturnType<typeof realtimeGetState>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetState>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof realtimeGetState>>,
+          TError,
+          Awaited<ReturnType<typeof realtimeGetState>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useRealtimeGetState<TData = Awaited<ReturnType<typeof realtimeGetState>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetState>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get state realtime
+ */
+
+export function useRealtimeGetState<TData = Awaited<ReturnType<typeof realtimeGetState>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetState>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getRealtimeGetStateQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRealtimeGetHistoryUrl = (params?: RealtimeGetHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/realtime/history?${stringifiedParams}` : `/api/v1/realtime/history`
+}
+
+/**
+ * @summary Get history realtime
+ */
+export const realtimeGetHistory = async (params?: RealtimeGetHistoryParams, options?: Parameters<typeof customFetch>[1]): Promise<RealtimeHistoryResponse> => {
+
+  return customFetch<RealtimeHistoryResponse>(getRealtimeGetHistoryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRealtimeGetHistoryQueryKey = (params?: RealtimeGetHistoryParams,) => {
+    return [
+    `/api/v1/realtime/history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRealtimeGetHistoryQueryOptions = <TData = Awaited<ReturnType<typeof realtimeGetHistory>>, TError = ProblemDetails>(params?: RealtimeGetHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRealtimeGetHistoryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof realtimeGetHistory>>> = ({ signal }) => realtimeGetHistory(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof realtimeGetHistory>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type RealtimeGetHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof realtimeGetHistory>>>
+export type RealtimeGetHistoryQueryError = ProblemDetails
+
+
+export function useRealtimeGetHistory<TData = Awaited<ReturnType<typeof realtimeGetHistory>>, TError = ProblemDetails>(
+ params: undefined |  RealtimeGetHistoryParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetHistory>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof realtimeGetHistory>>,
+          TError,
+          Awaited<ReturnType<typeof realtimeGetHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useRealtimeGetHistory<TData = Awaited<ReturnType<typeof realtimeGetHistory>>, TError = ProblemDetails>(
+ params?: RealtimeGetHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetHistory>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof realtimeGetHistory>>,
+          TError,
+          Awaited<ReturnType<typeof realtimeGetHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useRealtimeGetHistory<TData = Awaited<ReturnType<typeof realtimeGetHistory>>, TError = ProblemDetails>(
+ params?: RealtimeGetHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get history realtime
+ */
+
+export function useRealtimeGetHistory<TData = Awaited<ReturnType<typeof realtimeGetHistory>>, TError = ProblemDetails>(
+ params?: RealtimeGetHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof realtimeGetHistory>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getRealtimeGetHistoryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getProjectsListUrl = (params?: ProjectsListParams,) => {
   const normalizedParams = new URLSearchParams();

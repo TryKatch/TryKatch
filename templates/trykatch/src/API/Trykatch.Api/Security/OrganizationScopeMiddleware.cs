@@ -11,6 +11,7 @@ public sealed class OrganizationScopeMiddleware(RequestDelegate next)
     public async Task InvokeAsync(
         HttpContext context,
         IWorkspaceContextCookie workspaceCookie,
+        WorkspaceSessionBinding workspaceSession,
         IOrganizationAccessResolver resolver,
         IOrganizationContextInitializer initializer,
         IOrganizationDataPlacement dataPlacement)
@@ -47,6 +48,7 @@ public sealed class OrganizationScopeMiddleware(RequestDelegate next)
         OrganizationAccess? access = await resolver.ResolveAsync(actorId, organizationId, context.RequestAborted);
         if (access is null)
         {
+            await workspaceSession.RotateAsync(context, null);
             workspaceCookie.Clear(context);
             await WriteProblemAsync(context, StatusCodes.Status403Forbidden, "Workspace access denied");
             return;

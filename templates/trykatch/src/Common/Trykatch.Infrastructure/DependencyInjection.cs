@@ -1,7 +1,9 @@
 using Trykatch.Application.Execution;
+using Trykatch.Application.Realtime;
 using Trykatch.Application.Eventing;
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Caching;
+using Trykatch.Infrastructure.Realtime;
 using Trykatch.Infrastructure.Jobs;
 using Trykatch.Application.Jobs;
 using Trykatch.Infrastructure.Eventing;
@@ -33,6 +35,13 @@ namespace Trykatch.Infrastructure;
 
 public static class DependencyInjection
 {
+    /// <summary>Opt-in for HTTP hosts that already configure the application Data Protection key ring.</summary>
+    public static IServiceCollection AddRealtimeHistoryCursors(this IServiceCollection services)
+    {
+        services.AddScoped<IRealtimeCursorProtector, RealtimeCursorProtector>();
+        return services;
+    }
+
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration, bool isDevelopment = false, bool isOpenApiGeneration = false)
     {
         string platformConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Platform);
@@ -40,6 +49,11 @@ public static class DependencyInjection
         string outboxConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Outbox);
 
         services.AddLogging();
+        services.AddScoped<IModuleRealtimePublisher, ModuleRealtimePublisher>();
+        services.AddScoped<RealtimeHistoryStore>();
+        services.AddScoped<RealtimeAudienceRegistry>();
+        services.AddScoped<IRealtimeAudienceAuthorization, RealtimeAudienceAuthorization>();
+        services.AddScoped<IRealtimeHistoryReader, RealtimeHistoryReader>();
         services.AddScoped<CacheInvalidationCommitState>();
         services.AddScoped<CacheGenerationStore>();
         services.AddOrganizationCache(configuration, isOpenApiGeneration);
@@ -108,7 +122,8 @@ public static class DependencyInjection
         services.AddSingleton<ModuleEventWorkerState>();
         services.AddHealthChecks().AddCheck<ModuleEventHealthCheck>("module-events", tags: ["ready"]);
         if (!isOpenApiGeneration) services.AddHostedService<ModuleEventDeliveryWorker>();
-        services.AddHostedService<ModuleWorkStartupValidator>();
+        services.AddHostedService(provider => new ModuleWorkStartupValidator(
+            provider.GetRequiredService<IServiceScopeFactory>(), configuration, isOpenApiGeneration));
         services.AddOptions<AuditProjectionOptions>()
             .BindConfiguration(AuditProjectionOptions.SectionName)
             .Validate(options => options.BatchSize is >= 1 and <= 500, "Audit projection batch size must be between 1 and 500.")

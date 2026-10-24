@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Trykatch.Api.Security;
+using Trykatch.Application.Identity;
+using Trykatch.Identity;
 using Trykatch.Application.Organizations;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure.Organizations;
@@ -25,7 +27,7 @@ public sealed class OrganizationScopeMiddlewareTests
         OrganizationScopeMiddleware middleware = new(_ => { nextWasCalled = true; return Task.CompletedTask; });
         DefaultHttpContext context = AuthenticatedContext(actorId, scoped: true);
 
-        await middleware.InvokeAsync(context, new StubWorkspaceCookie(organizationId), resolver, initializer, new StubDataPlacement(organizationId));
+        await middleware.InvokeAsync(context, new StubWorkspaceCookie(organizationId), BearerSessionBinding(), resolver, initializer, new StubDataPlacement(organizationId));
 
         nextWasCalled.ShouldBeTrue();
         resolver.ResolvedOrganizationId.ShouldBe(organizationId);
@@ -38,7 +40,7 @@ public sealed class OrganizationScopeMiddlewareTests
         OrganizationScopeMiddleware middleware = new(_ => Task.CompletedTask);
         DefaultHttpContext context = AuthenticatedContext(Guid.CreateVersion7(), scoped: true);
 
-        await middleware.InvokeAsync(context, new StubWorkspaceCookie(null), new RecordingResolver(null), new RecordingInitializer(), new StubDataPlacement(Guid.Empty));
+        await middleware.InvokeAsync(context, new StubWorkspaceCookie(null), BearerSessionBinding(), new RecordingResolver(null), new RecordingInitializer(), new StubDataPlacement(Guid.Empty));
 
         context.Response.StatusCode.ShouldBe(StatusCodes.Status409Conflict);
     }
@@ -50,7 +52,7 @@ public sealed class OrganizationScopeMiddlewareTests
         OrganizationScopeMiddleware middleware = new(_ => { nextWasCalled = true; return Task.CompletedTask; });
         DefaultHttpContext context = AuthenticatedContext(Guid.CreateVersion7(), scoped: false);
 
-        await middleware.InvokeAsync(context, new StubWorkspaceCookie(null), new RecordingResolver(null), new RecordingInitializer(), new StubDataPlacement(Guid.Empty));
+        await middleware.InvokeAsync(context, new StubWorkspaceCookie(null), BearerSessionBinding(), new RecordingResolver(null), new RecordingInitializer(), new StubDataPlacement(Guid.Empty));
 
         nextWasCalled.ShouldBeTrue();
     }
@@ -87,6 +89,7 @@ public sealed class OrganizationScopeMiddlewareTests
         await middleware.InvokeAsync(
             context,
             new StubWorkspaceCookie(organizationId),
+            BearerSessionBinding(),
             new RecordingResolver(access),
             new RecordingInitializer(),
             new StubDataPlacement(organizationId, OrganizationDataPlacementKind.Dedicated));
@@ -108,6 +111,15 @@ public sealed class OrganizationScopeMiddlewareTests
         context.Response.Body = new MemoryStream();
         context.SetEndpoint(new Endpoint(_ => Task.CompletedTask, scoped ? new EndpointMetadataCollection(new OrganizationScopedAttribute()) : new EndpointMetadataCollection(), "test"));
         return context;
+    }
+
+    private static WorkspaceSessionBinding BearerSessionBinding() => new(
+        new IdentitySessionRegistry("Host=127.0.0.1;Port=1;Database=never-open;Username=none;Password=none", TimeProvider.System),
+        new NoCookieSession());
+
+    private sealed class NoCookieSession : ICurrentAccountSession
+    {
+        public AccountSessionProof? Proof => null;
     }
 
     private sealed class StubWorkspaceCookie(Guid? organizationId) : IWorkspaceContextCookie

@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../src/API/Trykatch.Api/Trykatch.Api.csproj" />
     <ProjectReference Include="../../../src/Common/Trykatch.Application/Trykatch.Application.csproj" />
     <ProjectReference Include="../../../src/Common/Trykatch.Infrastructure/Trykatch.Infrastructure.csproj" />
     <ProjectReference Include="../../../src/Modules/Projects/Trykatch.Modules.Projects.Application/Trykatch.Modules.Projects.Application.csproj" />

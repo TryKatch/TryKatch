@@ -1,10 +1,10 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0.301@sha256:ea8bde36c11b6e7eec2656d0e59101d4462f6bd630730f2c8201ed0572b295d5 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.402@sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2 AS build
 WORKDIR /src
 COPY . .
 RUN dotnet restore src/API/Trykatch.Api/Trykatch.Api.csproj --locked-mode \
     && dotnet publish src/API/Trykatch.Api/Trykatch.Api.csproj -c Release -o /app --no-restore /p:OpenApiGenerateDocuments=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.11@sha256:011bb5f30180717b1c8b65822ff2c99bcb96bc65af0164589751b83c7b4949f7 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.13@sha256:8af87eba5e7cdafb1514d7388be287365da97c132509e84dfe252ffd552398ca AS final
 RUN apt-get update \
     && apt-get install --no-install-recommends -y curl=8.5.0-2ubuntu10.16 \
     && rm -rf /var/lib/apt/lists/*

@@ -31,6 +31,8 @@ public sealed class ExecutionProcessAcceptanceTests
         source.Context.ExecutionKind.ShouldBe(nameof(ModuleExecutionKind.UserCommand));
         source.Payload.OrganizationId.ShouldBe(projectWork.OrganizationId);
         source.Payload.ActorId.ShouldBe(projectWork.ActorId);
+        (await fixture.CountProjectsRealtimeHistoryAsync(projectWork.OrganizationId, source.MessageId)).ShouldBe(0,
+            "the realtime consumer must not append history before a worker handles the committed source event");
 
         await using NpgsqlConnection effectGate = await fixture.HoldEffectTableAsync();
         await using WorkerProcess workerA = await fixture.StartWorkerAsync("worker-a");
@@ -52,6 +54,21 @@ public sealed class ExecutionProcessAcceptanceTests
         (await fixture.CountEffectsAsync(projectWork.OrganizationId)).ShouldBe(2);
         (await fixture.CountEventInboxAsync(projectWork.OrganizationId, source.MessageId)).ShouldBe(1);
         (await fixture.CountEventDeliveriesAsync(source.MessageId)).ShouldBe(1);
+        (await fixture.CountProjectsRealtimeInboxAsync(projectWork.OrganizationId, source.MessageId)).ShouldBe(1);
+        (await fixture.CountProjectsRealtimeDeliveryAsync(source.MessageId)).ShouldBe(1);
+        ProjectRealtimeEvidence realtime = await fixture.ReadProjectsRealtimeHistoryAsync(projectWork.OrganizationId, source.MessageId);
+        realtime.EventId.ShouldBe(source.MessageId);
+        realtime.SourceMessageId.ShouldBe(source.MessageId);
+        realtime.ModuleId.ShouldBe("projects");
+        realtime.EventKey.ShouldBe("projects.created");
+        realtime.SchemaVersion.ShouldBe(1);
+        realtime.PolicyOwnerModuleId.ShouldBe("projects");
+        realtime.PolicyKey.ShouldBe("projects.read");
+        realtime.PolicyVersion.ShouldBe(1);
+        realtime.AudienceKind.ShouldBe((int)ModuleRealtimeAudienceKind.Organization);
+        realtime.UserId.ShouldBeNull();
+        realtime.ResourceKey.ShouldBe("projects");
+        realtime.ResourceId.ShouldBe(source.Payload.ProjectId);
         (await fixture.ReadEventEffectAsync(projectWork.OrganizationId, source.MessageId)).ShouldBe(
             new EventEffectEvidence(source.Payload.ProjectId, AcceptanceModule.AuditActorId, projectWork.ActorId));
         (await fixture.ReadJobEffectAsync(projectWork.OrganizationId, jobTarget)).ShouldBe(
@@ -84,10 +101,13 @@ public sealed class ExecutionProcessAcceptanceTests
         // fixture proves recovery through a fresh OS worker and existing inbox/completion rows.
         await fixture.SimulateLostAcknowledgementsAsync(source.MessageId, producer.JobWorkId);
         await using WorkerProcess restarted = await fixture.StartWorkerAsync("worker-after-restart");
-        await fixture.WaitForAcknowledgementRecoveryAsync(source.MessageId, producer.JobWorkId);
+        await fixture.WaitForAcknowledgementRecoveryAsync(projectWork.OrganizationId, source.MessageId, producer.JobWorkId);
         (await fixture.CountEffectsAsync(projectWork.OrganizationId)).ShouldBe(2);
         (await fixture.CountEventInboxAsync(projectWork.OrganizationId, source.MessageId)).ShouldBe(1);
         (await fixture.CountEventDeliveriesAsync(source.MessageId)).ShouldBe(1);
+        (await fixture.CountProjectsRealtimeInboxAsync(projectWork.OrganizationId, source.MessageId)).ShouldBe(1);
+        (await fixture.CountProjectsRealtimeDeliveryAsync(source.MessageId)).ShouldBe(1);
+        (await fixture.CountProjectsRealtimeHistoryAsync(projectWork.OrganizationId, source.MessageId)).ShouldBe(1);
         (await fixture.ReadJobEffectAsync(projectWork.OrganizationId, jobTarget))
             .ShouldBe(new JobEffectEvidence(projectWork.ActorId, projectWork.ActorId, true));
     }

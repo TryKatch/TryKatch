@@ -91,11 +91,14 @@ public sealed partial class AccessManagementBoundaryTests
 
         await AccessHost.SuccessAsync(administrator, HttpMethod.Put, $"/api/v1/platform-users/roles/{roleKey}",
             new { name = "Email reader", description = "Read access removed", permissions = Array.Empty<string>() });
-        (await reader.GetAsync("/api/v1/platform/email-deliveries?boundary=identity")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await reader.GetAsync("/api/v1/platform/email-deliveries?boundary=organization")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        string[] deniedPaths = ["?boundary=organization", "?boundary=identity", "/templates", "/templates/preview?templateKey=core.password-reset"];
         int beforeDenied = capture.Commands.Count;
-        (await reader.GetAsync("/api/v1/platform/email-deliveries/templates")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await reader.GetAsync("/api/v1/platform/email-deliveries/templates/preview?templateKey=core.password-reset")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        // The role update rotates the stamp: reject the old session before permission evaluation.
+        foreach (string path in deniedPaths)
+            (await reader.GetAsync("/api/v1/platform/email-deliveries" + path)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        using (HttpClient deniedReader = await host.SignInAsync("email-reader@trykatch.test"))
+            foreach (string path in deniedPaths)
+                (await deniedReader.GetAsync("/api/v1/platform/email-deliveries" + path)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         capture.Commands.Count.ShouldBe(beforeDenied);
 
         await AccessHost.SuccessAsync(administrator, HttpMethod.Put, $"/api/v1/platform-users/roles/{roleKey}",
@@ -106,8 +109,11 @@ public sealed partial class AccessManagementBoundaryTests
         Guid readerId = users.GetProperty("items")[0].GetProperty("id").GetGuid();
         await AccessHost.SuccessAsync(administrator, HttpMethod.Post, $"/api/v1/platform-users/{readerId}/suspend", new { });
         beforeDenied = capture.Commands.Count;
-        foreach (string path in new[] { "?boundary=organization", "?boundary=identity", "/templates", "/templates/preview?templateKey=core.password-reset" })
-            (await currentReader.GetAsync("/api/v1/platform/email-deliveries" + path)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        foreach (string path in deniedPaths)
+            (await currentReader.GetAsync("/api/v1/platform/email-deliveries" + path)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        using (HttpClient suspendedReader = await host.SignInAsync("email-reader@trykatch.test"))
+            foreach (string path in deniedPaths)
+                (await suspendedReader.GetAsync("/api/v1/platform/email-deliveries" + path)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         capture.Commands.Count.ShouldBe(beforeDenied);
     }
 

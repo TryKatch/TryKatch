@@ -9,8 +9,11 @@ template_hive="$test_root/template-hive"
 environment_file="$test_root/acceptance.env"
 compose_override="$test_root/compose.acceptance.yml"
 compose_email_override="$test_root/compose.email.yml"
+compose_realtime_origin_override="$test_root/compose.realtime-origin.yml"
 email_enabled=${TRYKATCH_ACCEPTANCE_EMAIL:-false}
+realtime_enabled=${TRYKATCH_ACCEPTANCE_REALTIME:-false}
 email_state_file="$test_root/email-state.json"
+realtime_state_file="$test_root/realtime-state.json"
 artifact_parent=${TRYKATCH_ACCEPTANCE_ARTIFACTS:-$repository_root/artifacts/generated-application}
 artifact_root=
 generated_name=${TRYKATCH_ACCEPTANCE_PROJECT_NAME:-Acme.Acceptance-Portal}
@@ -26,17 +29,42 @@ platform_manager_password=${TRYKATCH_ACCEPTANCE_PLATFORM_MANAGER_PASSWORD:-}
 organization_admin_password=${TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD:-}
 email_operator_password=${TRYKATCH_ACCEPTANCE_EMAIL_OPERATOR_PASSWORD:-}
 compose_started=false
+vite_pid=
 
 compose() {
-  local files=(--file "$generated_root/compose.yml" --file "$compose_override")
+  local files=(--file "$generated_root/compose.yml")
+  if [[ $realtime_enabled == true ]]; then
+    files+=(--file "$generated_root/compose.realtime.yml")
+  fi
+  files+=(--file "$compose_override")
   if [[ $email_enabled == true ]]; then
     files+=(--file "$compose_email_override")
+  fi
+  if [[ -f $compose_realtime_origin_override ]]; then
+    files+=(--file "$compose_realtime_origin_override")
   fi
   docker compose \
     --project-name "$compose_project" \
     --env-file "$environment_file" \
     "${files[@]}" \
     "$@"
+}
+
+assert_current_service_images() {
+  local service container_id image_reference actual_image expected_image containers
+  for service in "$@"; do
+    containers=$(compose ps --all --quiet "$service")
+    [[ -n $containers ]] || { printf 'No container exists for rebuilt service %s.\n' "$service" >&2; return 1; }
+    for container_id in $containers; do
+      image_reference=$(docker inspect --format '{{.Config.Image}}' "$container_id")
+      actual_image=$(docker inspect --format '{{.Image}}' "$container_id")
+      expected_image=$(docker image inspect --format '{{.Id}}' "$image_reference")
+      [[ $actual_image == "$expected_image" ]] || {
+        printf 'Service %s retained a container from an older image.\n' "$service" >&2
+        return 1
+      }
+    done
+  done
 }
 
 collect_artifacts() {
@@ -55,6 +83,10 @@ collect_artifacts() {
 
 cleanup() {
   local exit_code=$?
+  if [[ -n $vite_pid ]]; then
+    kill "$vite_pid" >/dev/null 2>&1 || true
+    wait "$vite_pid" >/dev/null 2>&1 || true
+  fi
   collect_artifacts
   if [[ $compose_started == true ]]; then
     compose down --volumes --remove-orphans >/dev/null 2>&1 || true
@@ -228,6 +260,14 @@ case "$email_enabled" in
   true|false) ;;
   *) printf 'TRYKATCH_ACCEPTANCE_EMAIL must be true or false.\n' >&2; exit 2 ;;
 esac
+case "$realtime_enabled" in
+  true|false) ;;
+  *) printf 'TRYKATCH_ACCEPTANCE_REALTIME must be true or false.\n' >&2; exit 2 ;;
+esac
+if [[ $email_enabled == true && $realtime_enabled == true ]]; then
+  printf 'Select email or realtime acceptance separately.\n' >&2
+  exit 2
+fi
 
 network_prefix=$(select_free_network_prefix)
 
@@ -243,34 +283,26 @@ encryption_certificate_password="$(openssl rand -hex 24)"
 data_protection_certificate_password="$(openssl rand -hex 24)"
 storage_access_key=acceptance-storage
 storage_secret_key="$(openssl rand -hex 24)"
+realtime_password="$(openssl rand -hex 24)"
 
 mkdir -p "$artifact_parent" "$test_root/package"
 artifact_root=$(mktemp -d "$artifact_parent/run.XXXXXX")
 printf 'project=%s\nbase_url=%s\n' "$generated_name" "$web_url" >"$artifact_root/run.txt"
 
-if [[ -n ${TRYKATCH_QUALIFICATION_PACKAGES:-} ]]; then
-  source "$repository_root/scripts/lib/qualification-packages.sh"
-  prepare_qualification_packages "$test_root/package"
-  package_path=$qualification_template_package
-else
-  dotnet pack "$repository_root/Trykatch.Templates.csproj" \
-    --configuration Release \
-    --output "$test_root/package"
-  package_path=$(find "$test_root/package" -name 'Trykatch.Templates.*.nupkg' -print -quit)
-fi
+source "$repository_root/scripts/lib/qualification-packages.sh"
+prepare_qualification_packages "$test_root/package"
+package_path=$qualification_template_package
 if [[ -z $package_path ]]; then
   printf 'The Trykatch template package was not produced.\n' >&2
   exit 1
 fi
 
 dotnet new --debug:custom-hive "$template_hive" install "$package_path" --force
-dotnet new \
+install_qualification_cli "$test_root"
+"$test_root/tools/trykatch" new "$generated_name" \
   --debug:custom-hive "$template_hive" \
-  trykatch \
-  --name "$generated_name" \
   --output "$generated_root" \
-  --email "$email_enabled" \
-  --allow-scripts yes
+  --email "$email_enabled"
 
 test -f "$generated_root/$generated_namespace.slnx"
 test -f "$generated_root/web/package.json"
@@ -298,7 +330,9 @@ server {
   location / {
     proxy_pass http://127.0.0.1:8080;
     proxy_http_version 1.1;
-    proxy_set_header Host $host;
+    proxy_set_header Host $http_host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $trykatch_connection_upgrade;
     proxy_set_header X-Forwarded-For $remote_addr;
     proxy_set_header X-Forwarded-Proto https;
   }
@@ -361,6 +395,8 @@ TRYKATCH_STORAGE_SECRET_KEY=$storage_secret_key
 TRYKATCH_STORAGE_BUCKET=trykatch-documents
 TRYKATCH_STORAGE_REGION=us-east-1
 TRYKATCH_PUBLIC_URL=$web_url
+TRYKATCH_REALTIME_NAMESPACE=generated-acceptance
+TRYKATCH_REALTIME_PASSWORD=$realtime_password
 TRYKATCH_NETWORK_SUBNET=$network_prefix.0/24
 TRYKATCH_NETWORK_DYNAMIC_RANGE=$network_prefix.128/25
 TRYKATCH_NETWORK_GATEWAY=$network_prefix.1
@@ -420,6 +456,103 @@ compose up --detach --build postgres migrator api web
 wait_for_web
 
 pnpm --dir "$generated_root/web" install --frozen-lockfile
+if [[ $realtime_enabled == true ]]; then
+  compose up --detach --wait --wait-timeout 120 --scale api=2 api
+  test "$(compose ps --status running -q api | wc -l | tr -d ' ')" = 2
+  wait_for_web
+  wait_for_api
+  TRYKATCH_ACCEPTANCE_BASE_URL="$web_url" \
+  TRYKATCH_ACCEPTANCE_ADMIN_EMAIL="$platform_admin_email" \
+  TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD="$platform_admin_password" \
+  TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD="$organization_admin_password" \
+  TRYKATCH_ACCEPTANCE_REALTIME=true \
+  TRYKATCH_ACCEPTANCE_REALTIME_STATE="$realtime_state_file" \
+  TRYKATCH_PLAYWRIGHT_OUTPUT_DIR="$generated_root/web/apps/web/test-results" \
+  pnpm --dir "$generated_root/web/apps/web" exec playwright test e2e/realtime.spec.ts --reporter=line
+  cat >"$generated_root/web/apps/web/realtime-proxy-acceptance.mjs" <<'EOF'
+import { createServer } from 'vite'
+import { readFileSync, writeFileSync } from 'node:fs'
+const server = await createServer({
+  server: {
+    host: '127.0.0.1', port: 0,
+    https: { key: readFileSync(process.env.ACCEPTANCE_TLS_KEY), cert: readFileSync(process.env.ACCEPTANCE_TLS_CERT) },
+  },
+})
+await server.listen()
+const address = server.httpServer.address()
+if (!address || typeof address === 'string') throw new Error('Vite acceptance endpoint unavailable.')
+writeFileSync(process.env.ACCEPTANCE_VITE_READY, `https://127.0.0.1:${address.port}`)
+process.on('SIGTERM', async () => { await server.close(); process.exit(0) })
+EOF
+  (
+    cd "$generated_root/web/apps/web"
+    ACCEPTANCE_TLS_KEY="$test_root/ingress.key" \
+    ACCEPTANCE_TLS_CERT="$test_root/ingress.crt" \
+    ACCEPTANCE_VITE_READY="$test_root/vite-ready" \
+    services__api__https__0="$web_url" \
+    node realtime-proxy-acceptance.mjs
+  ) >"$artifact_root/realtime-vite.log" 2>&1 &
+  vite_pid=$!
+  for ((attempt = 1; attempt <= 60; attempt++)); do
+    [[ -s $test_root/vite-ready ]] && break
+    kill -0 "$vite_pid" 2>/dev/null || { printf 'Vite acceptance process exited before readiness.\n' >&2; exit 1; }
+    sleep 1
+  done
+  [[ -s $test_root/vite-ready ]] || { printf 'Vite acceptance did not become ready.\n' >&2; exit 1; }
+  vite_url=$(cat "$test_root/vite-ready")
+  cat >"$compose_realtime_origin_override" <<EOF
+services:
+  api:
+    environment:
+      Application__PublicUrl: "$vite_url"
+EOF
+  compose up --detach --wait --wait-timeout 120 --scale api=2 api
+  wait_for_api
+  TRYKATCH_ACCEPTANCE_BASE_URL="$vite_url" \
+  TRYKATCH_ACCEPTANCE_ADMIN_EMAIL="$platform_admin_email" \
+  TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD="$platform_admin_password" \
+  TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD="$organization_admin_password" \
+  TRYKATCH_ACCEPTANCE_REALTIME=true \
+  TRYKATCH_ACCEPTANCE_REALTIME_STATE="$realtime_state_file" \
+  TRYKATCH_PLAYWRIGHT_OUTPUT_DIR="$generated_root/web/apps/web/test-results/realtime-vite" \
+  pnpm --dir "$generated_root/web/apps/web" exec playwright test e2e/realtime.spec.ts --reporter=line
+  test -s "$realtime_state_file"
+  old_realtime_api_containers=$(compose ps --all --quiet api)
+  [[ -n $old_realtime_api_containers ]]
+  compose stop api
+  test -z "$(compose ps --status running -q api)"
+  history_before=$(compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only \
+    --command 'SELECT count(*) FROM app.realtime_history WHERE "ModuleId" = $module$projects$module$;' | tr -d '[:space:]')
+  [[ $history_before =~ ^[0-9]+$ && $history_before -gt 0 ]] || { printf 'Realtime module-removal fixture has no committed history.\n' >&2; exit 1; }
+  # Documents declares a Projects dependency and contributes to its extension point.
+  # Remove dependents first through the normal validated lifecycle.
+  "$test_root/tools/trykatch" module disable documents --root "$generated_root"
+  "$test_root/tools/trykatch" module disable projects --root "$generated_root"
+  # Explicitly deploy new immutable hosts. Some Compose versions restart stopped
+  # API containers after a build without replacing their old image.
+  compose up --detach --build --force-recreate --wait --wait-timeout 120 --scale api=2 api web migrator
+  assert_current_service_images api web migrator
+  for container_id in $(compose ps --all --quiet api); do
+    for old_container_id in $old_realtime_api_containers; do
+      [[ $container_id != "$old_container_id" ]] || {
+        printf 'Module removal retained an old API container.\n' >&2
+        exit 1
+      }
+    done
+  done
+  wait_for_api
+  history_after=$(compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only \
+    --command 'SELECT count(*) FROM app.realtime_history WHERE "ModuleId" = $module$projects$module$;' | tr -d '[:space:]')
+  [[ $history_after == "$history_before" ]] || { printf 'Module removal changed committed realtime history.\n' >&2; exit 1; }
+  TRYKATCH_ACCEPTANCE_BASE_URL="$vite_url" \
+  TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD="$organization_admin_password" \
+  TRYKATCH_ACCEPTANCE_REALTIME=true \
+  TRYKATCH_ACCEPTANCE_REALTIME_STATE="$realtime_state_file" \
+  TRYKATCH_PLAYWRIGHT_OUTPUT_DIR="$generated_root/web/apps/web/test-results/realtime-module-absence" \
+  pnpm --dir "$generated_root/web/apps/web" exec playwright test e2e/realtime-module-absence.spec.ts --reporter=line
+  printf 'Generated realtime application acceptance passed for %s.\n' "$generated_name"
+  exit 0
+fi
 if [[ $email_enabled == true ]]; then
   # Deliberately leave the SMTP service stopped while durable intent is admitted.
   run_email_browser_stage prepare

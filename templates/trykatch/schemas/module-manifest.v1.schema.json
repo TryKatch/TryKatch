@@ -244,6 +244,8 @@
   ],
   "$defs": {
     "stableKey": { "type": "string", "maxLength": 120, "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
+    "realtimeStableKey": { "type": "string", "maxLength": 160, "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
+    "realtimePolicyKey": { "type": "string", "maxLength": 158, "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
     "positiveVersion": { "type": "integer", "minimum": 1 },
     "payloadBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
     "execution": {
@@ -254,7 +256,8 @@
         "integrationEvents": { "type": "array", "items": { "$ref": "#/$defs/integrationEvent" } },
         "eventConsumers": { "type": "array", "items": { "$ref": "#/$defs/eventConsumer" } },
         "jobs": { "type": "array", "items": { "$ref": "#/$defs/job" } },
-        "recurringSchedules": { "type": "array", "items": { "$ref": "#/$defs/recurringSchedule" } }
+        "recurringSchedules": { "type": "array", "items": { "$ref": "#/$defs/recurringSchedule" } },
+        "realtimeAudiencePolicies": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeAudiencePolicy" } }
       }
     },
     "operation": {
@@ -275,7 +278,47 @@
         "grantKey": { "$ref": "#/$defs/stableKey" }, "grantVersion": { "$ref": "#/$defs/positiveVersion" },
         "auditActorId": { "type": "string", "format": "uuid" },
         "allowedOperationKeys": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/stableKey" } },
-        "allowedResourceKeys": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/stableKey" } }
+        "allowedResourceKeys": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/stableKey" } },
+        "allowedRealtimePolicies": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimePolicyRef" } }
+      }
+    },
+    "realtimeAudiencePolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policyKey", "policyVersion", "allowedAudiences", "allowedResourceKeys", "requiredUserPermissionKeys", "allowedEvents", "allowedSystemProducers"],
+      "properties": {
+        "policyKey": { "$ref": "#/$defs/realtimePolicyKey" },
+        "policyVersion": { "$ref": "#/$defs/positiveVersion" },
+        "allowedAudiences": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "enum": ["organization", "user", "resource"] } },
+        "allowedResourceKeys": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeStableKey" } },
+        "requiredUserPermissionKeys": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeStableKey" } },
+        "allowedEvents": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeEventVersion" } },
+        "allowedSystemProducers": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeProducer" } }
+      }
+    },
+    "realtimePolicyRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ownerModuleId", "policyKey", "policyVersion"],
+      "properties": {
+        "ownerModuleId": { "$ref": "#/$defs/moduleId" },
+        "policyKey": { "$ref": "#/$defs/realtimePolicyKey" },
+        "policyVersion": { "$ref": "#/$defs/positiveVersion" }
+      }
+    },
+    "realtimeEventVersion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["eventKey", "schemaVersion"],
+      "properties": {
+        "eventKey": { "$ref": "#/$defs/realtimeStableKey" },
+        "schemaVersion": { "$ref": "#/$defs/positiveVersion" }
+      }
+    },
+    "realtimeProducer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["moduleId", "operationKey", "operationVersion"],
+      "properties": {
+        "moduleId": { "$ref": "#/$defs/moduleId" },
+        "operationKey": { "$ref": "#/$defs/realtimeStableKey" },
+        "operationVersion": { "$ref": "#/$defs/positiveVersion" }
       }
     },
     "integrationEvent": {

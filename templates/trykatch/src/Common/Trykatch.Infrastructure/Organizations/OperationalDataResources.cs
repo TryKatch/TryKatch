@@ -1,5 +1,6 @@
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Caching;
+using Trykatch.Infrastructure.Realtime;
 using Trykatch.Infrastructure.Jobs;
 using Trykatch.Infrastructure.Mailing;
 using Trykatch.Modules;
@@ -11,10 +12,16 @@ internal static class OperationalDataResources
 {
     public static IReadOnlyList<DataResourceDescriptor> All { get; } =
     [
+        new("realtime-streams", "app", "realtime_streams", ModuleDataOwnership.Organization,
+            typeof(RealtimeStream).FullName, "realtime_streams_read", ModuleDataAccessRule.HostOnly),
+        new("realtime-history", "app", "realtime_history", ModuleDataOwnership.Organization,
+            typeof(RealtimeHistoryRecord).FullName, "realtime_history_read", ModuleDataAccessRule.HostOnly),
         new("cache-invalidations", "app", "cache_invalidations", ModuleDataOwnership.Organization,
             typeof(CacheInvalidation).FullName, "cache_invalidations_read", ModuleDataAccessRule.HostOnly),
         new("organization-email-deliveries", "infrastructure", "email_deliveries", ModuleDataOwnership.Infrastructure,
             typeof(OrganizationEmailDeliveryRecord).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
+        new("identity-account-sessions", "identity", "account_sessions", ModuleDataOwnership.Platform,
+            AccessRule: ModuleDataAccessRule.IdentityOnly),
         new("identity-email-deliveries", "identity", "email_deliveries", ModuleDataOwnership.Platform,
             AccessRule: ModuleDataAccessRule.IdentityOnly),
         new("module-work-items", "infrastructure", "module_work_items", ModuleDataOwnership.Infrastructure,

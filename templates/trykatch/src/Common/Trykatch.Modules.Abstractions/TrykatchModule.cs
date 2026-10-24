@@ -187,6 +187,7 @@ public sealed record ModuleDescriptor(
     public IReadOnlyList<ModuleRecurringScheduleDescriptor> RecurringSchedules { get; init; } = [];
     public IReadOnlyList<ModuleEmailTemplateDescriptor> EmailTemplates { get; init; } = [];
     public IReadOnlyList<ModuleEmailDisclosurePolicyDescriptor> EmailDisclosurePolicies { get; init; } = [];
+    public IReadOnlyList<ModuleRealtimeAudiencePolicyDescriptor> RealtimeAudiencePolicies { get; init; } = [];
 }
 
 /// <summary>
@@ -240,6 +241,7 @@ public sealed class ModuleCatalog
         ValidateDependencies(byId);
         ModuleWorkRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
         ModuleEmailRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
+        ModuleRealtimeRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
 
         Modules = OrderByDependencies(byId);
         Descriptors = Modules.Select(module => module.Descriptor).ToArray();

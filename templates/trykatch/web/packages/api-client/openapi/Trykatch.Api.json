@@ -6,6 +6,111 @@
     "version": "v1"
   },
   "paths": {
+    "/api/v1/realtime/state": {
+      "get": {
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Get state realtime",
+        "operationId": "Realtime_GetState",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeStateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/realtime/state', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/realtime/history": {
+      "get": {
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Get history realtime",
+        "operationId": "Realtime_GetHistory",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeHistoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/realtime/history', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/projects": {
       "get": {
         "tags": [
@@ -6605,6 +6710,114 @@
           }
         }
       },
+      "ModuleRealtimeAudience": {
+        "required": [
+          "policy",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/ModuleRealtimePolicyRef"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ModuleRealtimeAudienceKind"
+          },
+          "userId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "resource": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ModuleRealtimeResourceRef"
+              }
+            ]
+          }
+        }
+      },
+      "ModuleRealtimeAudienceKind": {
+        "type": "integer"
+      },
+      "ModuleRealtimeNotification": {
+        "required": [
+          "moduleId",
+          "eventKey",
+          "schemaVersion",
+          "eventId",
+          "audience"
+        ],
+        "type": "object",
+        "properties": {
+          "moduleId": {
+            "type": "string"
+          },
+          "eventKey": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "audience": {
+            "$ref": "#/components/schemas/ModuleRealtimeAudience"
+          }
+        }
+      },
+      "ModuleRealtimePolicyRef": {
+        "required": [
+          "ownerModuleId",
+          "policyKey",
+          "policyVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "ownerModuleId": {
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ModuleRealtimeResourceRef": {
+        "required": [
+          "resourceKey",
+          "resourceId"
+        ],
+        "type": "object",
+        "properties": {
+          "resourceKey": {
+            "type": "string"
+          },
+          "resourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "ModuleWorkActionReceipt": {
         "required": [
           "workId",
@@ -7680,6 +7893,53 @@
           }
         }
       },
+      "RealtimeHistoryResponse": {
+        "required": [
+          "items",
+          "generation",
+          "cursor",
+          "hasMore"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleRealtimeNotification"
+            }
+          },
+          "generation": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RealtimeStateResponse": {
+        "required": [
+          "enabled",
+          "generation",
+          "cursor"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "generation": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
       "ReauthenticationRequest": {
         "required": [
           "purpose",
@@ -8234,6 +8494,9 @@
   },
   "tags": [
     {
+      "name": "Realtime"
+    },
+    {
       "name": "Projects"
     },
     {
@@ -8295,7 +8558,7 @@
     {
       "id": "projects",
       "name": "Projects",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "capabilities": [
         "Api",
         "Web",
