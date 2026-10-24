@@ -59,6 +59,8 @@ Follow ADR0015's active-organization/shared-placement eligibility. Inactive/miss
 
 Forward migrations, ownership declarations and live inspector expectations change together. All organization relations use forced RLS and tenant-first uniqueness. Quota usage and publication history are append-only; no runtime DELETE or blanket host-table CRUD is implied.
 
+The `app` quota relations and reference-only infrastructure queue belong to the existing `ApplicationDbContext` migration/model path. Publication history belongs to `PlatformDbContext`. The platform publisher uses parameterized SQL on its own platform-profile transaction for the application-owned projection; granting that exact relation does not move its EF ownership or enlist application business writes through platform credentials. Its validated target frame sets the existing transaction-local `app.organization_id` and `app.actor_id`; projection SELECT/INSERT/UPDATE policies require the row's OrganizationId to match that target and a nonempty actor. No new target GUC or runtime profile is introduced. Publication must finish before the parent acquires any quota resource lock.
+
 | Relation | Exact runtime access |
 | --- | --- |
 | `app.organization_entitlements` | Organization SELECT; validated host publisher through platform SELECT/INSERT/UPDATE in target scope. |

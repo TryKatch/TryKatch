@@ -10,7 +10,7 @@
 
 **Spec:** [Platform S5](2026-10-23-parity-02-platform-services.md), [design](../specs/2026-10-23-feature-parity-design.md), template `docs/specs/feature-parity-contracts.md` section8 and ADR0015/0017. Paths below are relative to `templates/trykatch/` unless stated otherwise.
 
-**Status:** S4 [PR #137](https://github.com/TryKatch/TryKatch/pull/137) merged as `d1c54d0` after all20 final-head CI jobs, dependency review and previews passed. The clean unpublished S5 branch was fetched and rebased onto that merge without conflicts. Six pinned storage primitive cases pass, zero skips; ADR0022 fixes the architecture. Task1 declarations and neutral contracts are locally qualified; Task2 persistence is next. S5 remains incomplete.
+**Status:** S4 [PR #137](https://github.com/TryKatch/TryKatch/pull/137) merged as `d1c54d0` after all20 final-head CI jobs, dependency review and previews passed. The clean unpublished S5 branch was fetched and rebased onto that merge without conflicts. Six pinned storage primitive cases pass, zero skips; ADR0022 fixes the architecture. Task1 declarations and neutral contracts are locally qualified. Task2 mapped persistence, exact grants, forced RLS and immutable transition guards are qualified locally; the authoritative reservation engine is still in progress. S5 remains incomplete.
 
 ## Global constraints and fixed decisions
 

@@ -1,4 +1,5 @@
 using Npgsql;
+using Trykatch.Infrastructure.Quotas;
 using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Organizations;
@@ -389,6 +390,7 @@ public static class PostgresIsolationInspector
         List<string> errors,
         CancellationToken cancellationToken)
     {
+        await InspectQuotaTransitionContractsAsync(connection, errors, cancellationToken);
         await using NpgsqlCommand compatibility = new("""
             SELECT EXISTS (
                      SELECT 1 FROM pg_attribute
@@ -480,6 +482,55 @@ public static class PostgresIsolationInspector
             && triggerEnablement.SequenceEqual(["O"], StringComparer.Ordinal);
         if (!valid)
             errors.Add("Host function 'platform.redact_legacy_outbox_error()' differs from its approved body, privileges, ownership, execution mode, configuration, or trigger binding.");
+    }
+
+    private static async Task InspectQuotaTransitionContractsAsync(
+        NpgsqlConnection connection,
+        List<string> errors,
+        CancellationToken cancellationToken)
+    {
+        foreach (QuotaPostgresTransitionContracts.Contract contract in QuotaPostgresTransitionContracts.All)
+        {
+            await using NpgsqlCommand command = new("""
+                SELECT to_regclass(@relation) IS NOT NULL,
+                       p.prosrc, l.lanname, p.prosecdef, p.proleakproof, p.provolatile::text,
+                       COALESCE(p.proconfig, ARRAY[]::text[]),
+                       p.proowner = (SELECT relowner FROM pg_class WHERE oid = to_regclass(@relation)),
+                       NOT EXISTS (
+                         SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) privilege
+                         WHERE privilege.grantee = 0 AND privilege.privilege_type = 'EXECUTE'),
+                       pg_get_function_result(p.oid),
+                       ARRAY(SELECT pg_get_triggerdef(t.oid, false) FROM pg_trigger t
+                             WHERE t.tgfoid = p.oid AND NOT t.tgisinternal ORDER BY t.tgname),
+                       ARRAY(SELECT t.tgenabled::text FROM pg_trigger t
+                             WHERE t.tgfoid = p.oid AND NOT t.tgisinternal ORDER BY t.tgname)
+                FROM (SELECT to_regprocedure(@function) AS oid) approved
+                LEFT JOIN pg_proc p ON p.oid = approved.oid
+                LEFT JOIN pg_language l ON l.oid = p.prolang
+                """, connection);
+            command.Parameters.AddWithValue("relation", contract.Relation);
+            command.Parameters.AddWithValue("function", contract.Function);
+            await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+            await reader.ReadAsync(cancellationToken);
+            bool relationExists = reader.GetBoolean(0);
+            bool functionExists = !reader.IsDBNull(1);
+            // Provisioning may inspect an older schema before these relations exist.
+            // The complete isolation inspection separately requires every declared relation.
+            if (!relationExists && !functionExists) continue;
+            bool valid = functionExists && relationExists
+                && reader.GetString(2) == "plpgsql"
+                && !reader.GetBoolean(3) && !reader.GetBoolean(4) && reader.GetString(5) == "v"
+                && reader.GetFieldValue<string[]>(6).SequenceEqual(["search_path=pg_catalog"], StringComparer.Ordinal)
+                && reader.GetBoolean(7) && reader.GetBoolean(8) && reader.GetString(9) == "trigger"
+                && HostPostgresFunctionContracts.Normalize(reader.GetString(1))
+                    == HostPostgresFunctionContracts.Normalize(contract.Body)
+                && reader.GetFieldValue<string[]>(10) is [string trigger]
+                && HostPostgresFunctionContracts.Normalize(trigger)
+                    == HostPostgresFunctionContracts.Normalize(contract.TriggerDefinition)
+                && reader.GetFieldValue<string[]>(11).SequenceEqual(["O"], StringComparer.Ordinal);
+            if (!valid)
+                errors.Add($"Quota guard '{contract.Function}' differs from its approved body, privileges, ownership, execution mode, configuration, or trigger binding.");
+        }
     }
 
     private static async Task<IReadOnlyList<string>> ReadUserSchemasAsync(

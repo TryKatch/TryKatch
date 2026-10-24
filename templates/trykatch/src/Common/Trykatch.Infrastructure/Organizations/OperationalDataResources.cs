@@ -4,6 +4,7 @@ using Trykatch.Infrastructure.Idempotency;
 using Trykatch.Infrastructure.Realtime;
 using Trykatch.Infrastructure.Jobs;
 using Trykatch.Infrastructure.Mailing;
+using Trykatch.Infrastructure.Quotas;
 using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Organizations;
@@ -27,6 +28,16 @@ internal static class OperationalDataResources
             typeof(RealtimeHistoryRecord).FullName, "realtime_history_read", ModuleDataAccessRule.HostOnly),
         new("cache-invalidations", "app", "cache_invalidations", ModuleDataOwnership.Organization,
             typeof(CacheInvalidation).FullName, "cache_invalidations_read", ModuleDataAccessRule.HostOnly),
+        new("organization-entitlements", "app", "organization_entitlements", ModuleDataOwnership.Organization,
+            typeof(OrganizationEntitlementRecord).FullName, "organization_entitlements_read", ModuleDataAccessRule.HostOnly),
+        new("organization-quota-reservations", "app", "organization_quota_reservations", ModuleDataOwnership.Organization,
+            typeof(OrganizationQuotaReservationRecord).FullName, "organization_quota_reservations_read", ModuleDataAccessRule.HostOnly),
+        new("organization-quota-inventory", "app", "organization_quota_inventory", ModuleDataOwnership.Organization,
+            typeof(OrganizationQuotaInventoryRecord).FullName, "organization_quota_inventory_read", ModuleDataAccessRule.HostOnly),
+        new("organization-usage", "app", "organization_usage", ModuleDataOwnership.Organization,
+            typeof(OrganizationUsageRecord).FullName, "organization_usage_read", ModuleDataAccessRule.HostOnly),
+        new("module-upload-operations", "app", "module_upload_operations", ModuleDataOwnership.Organization,
+            typeof(ModuleUploadOperationRecord).FullName, "module_upload_operations_read", ModuleDataAccessRule.HostOnly),
         new("organization-email-deliveries", "infrastructure", "email_deliveries", ModuleDataOwnership.Infrastructure,
             typeof(OrganizationEmailDeliveryRecord).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
         new("identity-account-sessions", "identity", "account_sessions", ModuleDataOwnership.Platform,
