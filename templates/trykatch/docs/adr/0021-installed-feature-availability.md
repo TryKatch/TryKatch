@@ -1,6 +1,6 @@
 # ADR 0021: Installed feature availability controls
 
-Status: Accepted; implementation is in progress and awaits the S4 final qualification.
+Status: Accepted; implemented and locally qualified; exact-head CI and merge pending.
 Date: 2026-10-24.
 
 ## Context
@@ -62,4 +62,4 @@ The Web SDK selects a snapshot only when it succeeded and its organization ID ma
 
 ## Evidence and limits
 
-The implementation contracts are recorded in the feature availability plan and [feature parity contract](../specs/feature-parity-contracts.md). Operator procedures are in [feature availability operations](../operations/features.md). This ADR records the decision; it does not claim the final packed-product, browser, CI, deployment, or release qualification is complete. It does not change the scope of S5, S6, future entitlements, or future permission reconciliation.
+The implementation contracts are recorded in the feature availability plan and [feature parity contract](../specs/feature-parity-contracts.md). Operator procedures are in [feature availability operations](../operations/features.md). Targeted backend/SDK/UI, renamed React/backend-only packed products and the corrected production-browser lifecycle are qualified in the [S4 evidence](../specs/evidence/parity-platform-services.md), including the single integrated review and its regression fix. Exact-head CI/merge, deployment and release qualification remain separate gates. It does not change the scope of S5, S6, future entitlements, or future permission reconciliation.
