@@ -35,6 +35,9 @@ public sealed record ModuleSystemGrantDescriptor(
 
     /// <summary>Realtime audience policies this producer grant may publish for.</summary>
     public IReadOnlyList<ModuleRealtimePolicyRef> AllowedRealtimePolicies { get; init; } = [];
+
+    /// <summary>Explicit quota authority, separate from the grant's business-data resource set.</summary>
+    public IReadOnlyList<string> AllowedQuotaResources { get; init; } = [];
 }
 
 /// <summary>Persisted execution provenance; it is data, not an authorization token.</summary>

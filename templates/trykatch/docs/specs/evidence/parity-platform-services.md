@@ -56,7 +56,7 @@ The approved platform-services roadmap remains the source for later scope. This 
 | S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Verified and merged in PR #135 as `b919234`; qualification below. |
 | S3 | Transaction-aware mutation idempotency | Verified and merged in PR #136 as `a3f19df`; qualification below. |
 | S4 | Installed-feature availability and runtime policy evaluation | Verified and merged in PR #137 as `d1c54d0`; final acceptance below. |
-| S5 | Entitlement projection, quota reservation, and organization throttling | Planned; no S5 implementation evidence here. |
+| S5 | Entitlement projection, quota reservation, and organization throttling | Neutral contracts and declaration metadata locally qualified; durable runtime and composed acceptance remain incomplete. |
 | S6 | Permission reconciliation for existing organizations | Planned; no S6 implementation evidence here. |
 
 ### Serialization safety follow-up
@@ -421,3 +421,11 @@ The complete generated-product script exits0 (`pr137-packed-browser-v7.log`, `ge
 ### S4 final acceptance
 
 [Final template CI40128276580](https://github.com/TryKatch/TryKatch/actions/runs/40128276580) passes all20 jobs on tested head `84e7361`, including940 host unit,27 architecture,50 module unit and658 integration cases with zero skips. Web qualification passes66 SDK,14 client,11 Documents,192 host,201 Storybook and9 browser cases. Both generated feature/realtime profiles, package/renamed products and release transfer pass. Dependency review and both Vercel contexts pass. All inline findings are resolved following the corrections and qualification above. The lead verifies the current head/base and uses head-guarded squash merge: [PR #137](https://github.com/TryKatch/TryKatch/pull/137) is merged as `d1c54d0b5225fa2083dbe61d8da3cd2b714fd901`, confirmed through GitHub and fetched develop. S4 is complete. S5–S6, later parity phases, deployment qualification and final main release remain required.
+
+### S5 declarations checkpoint
+
+S5 starts from fetched S4 merge `d1c54d0` after a clean rebase. Six pinned storage primitive cases are separately recorded in [storage evidence](parity-storage-fencing.md). The frozen entitlement/quota records and interfaces, explicit Bytes/Count resource metadata, strict runtime/manifest validation, generated API/migrator expectation guard and safe facts are implemented. Documents1.2.0 declares logical uploaded bytes across all lifecycle states. Explicit system quota grants default empty and cannot inherit business-data authority. Disabled installations retain facts but are omitted from runtime declarations.
+
+Test-first evidence includes missing-type compilation,10 semantic manifest rejections,7 neutral grant rejections,6 manifest grant rejections, missing published-schema shape and missing Documents declaration before correction. Final selected qualification passes189 host/catalog/manifest/workspace/contract cases and14 module-local Documents cases, zero skips. API and migrator Release builds pass with zero warnings/errors. Actual module generate/doctor/facts pass; tests cover legacy-empty, renamed/backend-only registry output, disabled modules and manifest drift. Frozen frontend installation and normal generation pass; generated OpenAPI/assistant diff is only Documents1.2.0 and emitted operation clients are unchanged. API-client/Documents typechecks and14 client/11 Documents Web cases pass.
+
+These are contracts and metadata evidence only. Durable projection/reservation/usage, capacity and expiry rules, inventory/removal adapters, upload admission/fencing/reconciliation, distributed throttling, usage UI, fresh packed products, one integrated S5 review and final-head CI/merge remain required. Existing uploads do not yet use quota admission. Neutral records are data; input and arithmetic validity are enforced and tested by the upcoming authoritative engine.

@@ -76,6 +76,19 @@ public sealed class DocumentsModuleTests
     }
 
     [TestMethod]
+    public void DescriptorDeclaresLogicalUploadedStorageSeparatelyFromPermissions()
+    {
+        ModuleQuotaResourceDescriptor resource = new DocumentsModule().Descriptor.QuotaResources.Single();
+
+        resource.Key.ShouldBe("documents.storage-bytes");
+        resource.Unit.ShouldBe(ModuleQuotaUnit.Bytes);
+        resource.Description.ShouldContain("Archived");
+        resource.Description.ShouldContain("pending-deletion");
+        new DocumentsModule().Descriptor.Permissions.Select(permission => permission.Key)
+            .ShouldBe(["documents.read", "documents.manage"]);
+    }
+
+    [TestMethod]
     public void UploadedDocumentKeepsStorageMetadataWithoutExposingTheObjectKey()
     {
         Guid organizationId = Guid.NewGuid();

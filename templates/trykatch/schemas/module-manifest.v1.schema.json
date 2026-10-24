@@ -81,6 +81,11 @@
       "maxItems": 100,
       "items": { "$ref": "#/$defs/moduleFeature" }
     },
+    "quotaResources": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/moduleQuotaResource" }
+    },
     "dataOwnership": {
       "oneOf": [
         { "type": "null" },
@@ -248,6 +253,22 @@
     }
   ],
   "$defs": {
+    "moduleQuotaResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "description", "unit"],
+      "properties": {
+        "key": { "$ref": "#/$defs/quotaStableKey" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "\\S" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" },
+        "unit": { "enum": ["bytes", "count"] }
+      }
+    },
+    "quotaStableKey": {
+      "type": "string", "minLength": 1, "maxLength": 120,
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+      "not": { "pattern": "\\s" }
+    },
     "moduleFeature": {
       "type": "object",
       "additionalProperties": false,
@@ -295,7 +316,8 @@
         "auditActorId": { "type": "string", "format": "uuid" },
         "allowedOperationKeys": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/stableKey" } },
         "allowedResourceKeys": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/stableKey" } },
-        "allowedRealtimePolicies": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimePolicyRef" } }
+        "allowedRealtimePolicies": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimePolicyRef" } },
+        "allowedQuotaResources": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/quotaStableKey" } }
       }
     },
     "realtimeAudiencePolicy": {

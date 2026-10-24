@@ -13,13 +13,18 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
     public string ModuleId => Descriptor.Id;
 
     public ModuleDescriptor Descriptor { get; } = new(
-        "documents", "Documents", "1.1.0",
+        "documents", "Documents", "1.2.0",
         "Organization-isolated file uploads backed by private S3-compatible object storage.",
         ["projects"], [],
         ModuleCapabilities.Api | ModuleCapabilities.Web | ModuleCapabilities.Data
             | ModuleCapabilities.BackgroundWork | ModuleCapabilities.Assistant,
         [new("documents.list.after-table", "Renders module contributions after the documents table.", ExtensionPointKind.UiSlot, ModuleCapabilities.Web)])
     {
+        QuotaResources =
+        [
+            new("documents.storage-bytes", "Document storage",
+                "Logical uploaded bytes in Active, Archived and pending-deletion documents.", ModuleQuotaUnit.Bytes)
+        ],
         DefaultDataOwnership = ModuleDataOwnership.Organization,
         DataResources =
         [
