@@ -1,0 +1,89 @@
+# S3 Mutation Idempotency Implementation Plan
+
+> **For agentic workers:** Use the established Sol/Luna workflow with targeted RED/GREEN checks and one final independent integrated review. This refines the already approved S3 task; standing authorization is to implement, review, pass exact-head CI and merge without further task-by-task approval.
+
+**Goal:** Opted-in organization mutations commit once and replay their original bounded successful HTTP response only after current authorization.
+
+**Architecture:** PostgreSQL transaction-scoped locks reserve request identities; completed receipts share the existing application/control-plane transaction with business, audit and outbox effects. HTTP preparation/filter/capture live in Modules.AspNetCore, framework-free contracts in Modules.Abstractions, and durable implementation in Infrastructure. Modules retain resource authorization and use cases; generic replay never invokes a mutation twice.
+
+**Tech Stack:** Existing .NET 10.0.402/ASP.NET 10.0.13, EF/Npgsql 10.0.11, PostgreSQL, System.Text.Json; no dependency addition.
+
+**Spec:** [Approved platform-services S3](2026-10-23-parity-02-platform-services.md#s3-add-transaction-aware-mutation-idempotency), [contracts](../../../templates/trykatch/docs/specs/feature-parity-contracts.md), [acceptance](../../../templates/trykatch/docs/specs/feature-parity-acceptance.md).
+
+## Global constraints and rulings
+
+- Preserve explicit module composition, organization/actor RLS, exact runtime profiles, cookie/antiforgery, separate platform/organization authority, existing operation IDs and SQL/module ownership. No Infrastructure-to-Modules.AspNetCore reference.
+- Sol owns security, migrations, integration and all local .NET commands. Bounded Luna work owns named files only; one final whole-branch review uses the existing reviewer plus ECC checklist. Targeted local tests; established CI supplies its wider gates.
+- Ruling: an immediate `pg_try_advisory_xact_lock` reserves `(organization, actor, module, operation, SHA256(key))` in the active transaction. Contention returns409 `idempotency_in_progress` with Retry-After1 after current authorization; no long-held waiting connection or orphan pending row. Completion is the only durable row. Rollback/process death releases the reservation; ambiguous commit is resolved by retry, never automatic handler execution inside a retry strategy.
+- Ruling: opt-in policy defaults to optional `Idempotency-Key`, preserving existing clients; required policy rejects a missing key with400. Keys are1–128 ASCII letters/digits plus `._:-`, first character alphanumeric; duplicates/empty/invalid keys reject400. Store only SHA256 keys and canonical intent hashes, never plaintext request bodies/keys.
+- Ruling: replay lifetime1 minute–24 hours (default24h), request maximum1–65,536 bytes (default65,536), response maximum1–1,048,576 bytes (default262,144, also constrained by outer staging limit). Expired identities may execute again under the same lock; replacement occurs only with the next successful transaction. No automatic purge or D3 business-retention policy.
+- Canonical intent includes protocol1, uppercase method, exact escaped PathBase/Path, exact raw query string, normalized supported JSON media type and canonical JSON body (or explicit absent-body marker). Sort object names ordinally, retain array order, normalize numbers with the existing exact OutboxPayloadHash algorithm, reject duplicate JSON names/depth>64/malformed JSON. Only UTF-8 application/json or application/*+json bodies; reject unsupported media/encoding415 and oversized/chunked bodies413 before binding. Ignore cookies/CSRF headers in intent; recheck their authority independently.
+- Ruling: reserve requires an enlisted organization transaction, refreshes IOrganizationAccessResolver after the lock attempt, checks current membership/required permissions and invokes a side-effect-free request gate BEFORE any receipt/conflict/expiry lookup. A separate module-owned prereplay gate receives fresh authority and the stored optional resource reference BEFORE response disclosure. A lifecycle/content change alone is not authorization loss.
+- Ruling: only2xx receipts persist. Opted-in non2xx responses roll back the entire mutation transaction before publishing the error; unenrolled endpoints keep their existing <500 behavior. Capture/overflow/cancellation/serialization/commit failures publish no staged success. Only exact bytes, status, content type and a bounded relative Location are replayed; never cookies/general headers. Streaming/files/presigned-URL responses are excluded.
+- Organizations_Create remains outside generic organization replay: preserve its existing initiating-actor/admin/placement/slug recovery identity. Keep RustFS. D2/D3/D4 remain undecided and do not block this kernel slice.
+
+## Review focus
+
+1. A duplicate while membership/permission/resource access is revoked must disclose neither receipt body nor Location; exercise both prelookup and prereplay gates.
+2. A crash after database commit but before network receipt must replay the same201/Location/body without a second project/audit/outbox effect.
+3. Canonically equivalent JSON must match while path/query/body/media changes conflict; duplicate names and unbounded chunked input fail closed.
+4. A handler that writes then returns400, overflows or streams must roll back; no committed unfinished reservation may poison retry.
+5. Archived/deletion-requested Projects remain eligible for an authorized original receipt; missing resources deny without calling a different read permission.
+
+## File and contract map
+
+Paths below are relative to templates/trykatch unless stated otherwise.
+
+- `src/Common/Trykatch.Modules.Abstractions/Idempotency/ModuleMutationIdempotencyContracts.cs`: ModuleMutationPolicy, MutationRequest, MutationAuthority, MutationResourceReference, MutationReceipt, MutationReservationState/Result, IModuleMutationIdempotencyStore.
+- `src/Common/Trykatch.Modules.Abstractions/Serialization/ModuleCanonicalJson.cs`: unchanged extracted canonical hash algorithm; existing Infrastructure/Persistence/OutboxDelivery.cs retains OutboxPayloadHash as a delegating compatibility wrapper.
+- `src/Common/Trykatch.Modules.AspNetCore/ModuleRequestFingerprint.cs`: bounded request preparation/key validation and protocol1 canonical intent, with rewind before minimal-API binding.
+- `src/Common/Trykatch.Modules.AspNetCore/AtomicMutationResponse.cs` plus `ModuleMutationResponseCapture.cs`: optional HTTP capture feature after result serialization/BodyWriter flush, before final transaction callback. Snapshot allocation only when enrolled.
+- `src/Common/Trykatch.Infrastructure/Idempotency/OrganizationRequestStore.cs`, `MutationReceiptRecord.cs`: current-context transaction-bound lock/authority/store implementation and EF mapping. Modify ApplicationDbContext, DependencyInjection, OperationalDataResources, HostPostgresPolicyContracts and RuntimeDatabaseAccessProfiles. Sol scaffolds a NEW application migration using actual EF10.0.11; no historical migration edits.
+- `src/Common/Trykatch.Modules.AspNetCore/ModuleIdempotency.cs`: explicit endpoint metadata, required request/replay delegates, early preparation middleware, post-antiforgery endpoint filter, bounded receipt result and server-only resource binding helper. Modify API ApiHostingExtensions and PlatformDataTransactionMiddleware. OrganizationTransactionMiddleware need not change if existing enlistment already suffices.
+- Projects Presentation/ProjectsEndpoints.cs opts in its mutations; Application/ProjectMutationAuthorization.cs owns the side-effect-free checks using IProjectStore. Create binds the new server-produced Project ID; resource mutations bind the route ID. Replay requires current management access and org-bound existence, including non-active lifecycle; generic code does not deserialize domain responses.
+
+**Neutral persistence signatures:** `ReserveAsync(MutationRequest, Func<MutationAuthority,CancellationToken,Task<bool>> authorizeRequest, CancellationToken) -> Task<MutationReservationResult>`; `CompleteAsync(Guid reservationId, MutationReceipt, CancellationToken) -> Task`. The store derives org/actor from trusted context. Reserved/Completed results carry current authority; only Reserved carries a scoped opaque reservation token and only Completed a receipt. Other states are Conflict/InProgress/Denied. Complete verifies the reservation and same active transaction, persists2xx only and never commits.
+
+**HTTP capture contract:** `IModuleMutationResponseCaptureFeature.RequiresRollback` and `CaptureAsync(StagedMutationResponse,CancellationToken)`. Snapshot contains status/content type/Location/exact bytes; server resource binding is stored on the capture implementation. AtomicMutationResponse discovers the feature AFTER downstream execution. Outer finalization additionally requires `RequiresRollback != true` to commit.
+
+## Task 0: Canonical request identity
+
+- [ ] Add `ModuleRequestFingerprintTests` and canonical golden vectors; reproduce missing implementation/failing assertions. Cover reorder/numeric equivalence, arrays, duplicate names, path/query/media differences, UTF-8/depth/chunked/body/key bounds and request rewind.
+- [ ] Extract the existing canonical algorithm without changing its output; preserve OutboxPayloadHash wrapper and add direct compatibility vectors/affected outbox hash regression filter. Implement bounded fingerprint preparation, leaving non-enrolled requests untouched.
+- [ ] Run only named unit filters through the S3 wrapper, inspect0fail/0skip, commit neutral focused changes.
+
+## Task 1: Staged response capture and neutral contracts
+
+- [ ] Define bounded policy/neutral reservation/receipt records and validation. Add `ModuleIdempotencyTests` for invalid policies/identity/receipt limits.
+- [ ] Extend `AtomicMutationResponseTests` and `AtomicMutationResponseIntegrationTests`: actual executed IResult/BodyWriter bytes reach capture before finalization; no feature incurs no snapshot; capture failure/overflow/cancel prevents commit/publication; start/complete remain staged.
+- [ ] Observe RED, implement feature/snapshot hook, then GREEN these exact cases and existing atomic-response cases. Commit.
+
+## Task 2: Authoritative receipt store and schema
+
+- [ ] Add real PostgreSQL `ModuleIdempotencyStoreIntegrationTests`: identical concurrent requests commit one receipt/effect, conflict and actor/org/module/operation separation, immediate bounded busy, fresh authority/resource gate before lookup, expiry/reuse, rollback retry, foreign-transaction/token rejection and forged identity denial.
+- [ ] Implement the transaction-bound store and host-owned completed-receipt table. Key is OrgId/ActorId/ModuleId/OperationId/KeyHash; request hash, successful status/content headers/body/resource and completed/expiry timestamps are bounded. Forced RLS SELECT/INSERT/UPDATE requires matching organization AND actor. Only organization runtime gets those verbs; every other profile gets no access; no runtime DELETE.
+- [ ] Sol creates a forward EF migration/snapshot and exact host policy/ownership declarations. Verify positive/negative raw SQL RLS and provisioning/inspector/migration drift regressions; existing module SQL ownership remains unchanged. Commit after targeted GREEN.
+
+## Task 3: HTTP opt-in and Projects reference
+
+- [ ] Add actual production HTTP `ModuleIdempotencyIntegrationTests`, using real cookies/CSRF and all five profiles: missing/invalid key, duplicate concurrent create/retry, changed payload/path/query, removed membership/permission, cross-actor/org, tampered/missing replay resource, archived/deletion-requested resource, exact201/Location/body and `projects=1/audit=1/outbox=2`.
+- [ ] Register preparation after UseAuthorization/UseAntiforgery but before binding; shared module antiforgery filter must run before reservation/replay filter. Validate metadata requires an installed module, named organization mutation, explicit coarse permission policy and both resource callbacks; deny platform/safe/streaming enrollment. Request DTO/handler invocation occurs once.
+- [ ] Install capture only for Reserved execution; execute stored bytes for Completed only after prereplay gate. Capture failure/non2xx sets rollback; existing compensation path handles it. Projects keeps direct-use-case authority and stable DTO/operation IDs. Add enrollment and rollback/status metadata tests.
+- [ ] GREEN targeted HTTP/store/atomic/organization-creation/Projects producer and architecture checks; actual OpenAPI/client/assistant regeneration/check if contracts change. Commit.
+
+## Task 4: Crash/failure and packaged qualification
+
+- [ ] Add child-process `ModuleIdempotencyProcessAcceptanceTests` with actual production API support modes: kill before commit then retry, and kill/drop response after confirmed commit then retry; prove one business/audit/outbox effect and exact receipt. Use private test process hooks, no public bypass endpoint.
+- [ ] Real HTTP synthetic enrolled handlers prove write-then400, transient500, cancellation, response overflow, serialization error, commit rejection and SendFile/stream exclusion all roll back safely; retry succeeds without a poisoned identity. Keep ordinary endpoint behavior and org-creation recovery regressions.
+- [ ] Fresh actual packed CLI renamed React and backend-only products: restore/locked restore, Release build/doctor and selected S3 authority/transaction acceptance. Existing runtime-backplane/SDK behavior is not requalified broadly unless changed. Record exact evidence and limits.
+
+## Task 5: Documentation, integrated review, CI and merge
+
+- [ ] Update frozen ledger with the above implemented bounds/semantics, ADR, acceptance matrix and platform-services evidence. English/French operations cover opt-in/header, conflict/busy/retry, required migrations, expiry/reuse, private receipt data and excluded streams/URLs.
+- [ ] Sol inspects actual changes/evidence, then one independent integrated review with the supplemental ECC checklist; fix substantive findings through focused regressions. Do not create duplicate review passes.
+- [ ] Push neutral branch, open/attach PR, wait all required exact-head CI/dependency/status checks, squash merge under standing authorization. Save verified project memory and move to S4 from latest develop in a new clean worktree. No main release until every required roadmap/release gate is actually satisfied.
+
+## Execution ledger
+
+- S2 predecessor merged asb919234 after exact-head9f6c5e7 all20CIjobs, dependency review and Vercel green. This clean worktree contains only documentation checkpointf68577c before S3 work; tracked predecessor merge tree exactly matches its tested head. No full local baseline rerun is needed.
+- Ruling: the existing approved roadmap and standing continuous implementation/merge instruction supply execution authorization. This document refines S3 mechanisms rather than changing business scope; no new approval menu is introduced. Sol/Luna ownership and single final review override generic per-task reviewer defaults.
