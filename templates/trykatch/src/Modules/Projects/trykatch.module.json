@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "projects",
   "name": "Projects",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Organization-scoped project management and lifecycle reference feature.",
   "publisher": "try\u006batch",
   "distribution": {
@@ -66,5 +66,31 @@
         "requiresHumanConfirmation": false
       }
     ]
+  },
+  "execution": {
+    "operations": [
+      {
+        "operationKey": "projects.create",
+        "operationVersion": 1,
+        "executionKind": "user-command",
+        "payloadSchemaKey": "projects.create-command",
+        "payloadSchemaVersion": 1,
+        "requiredPermissionKeys": ["projects.manage"],
+        "resourcePolicyKey": "projects",
+        "systemGrantKey": null,
+        "maximumPayloadBytes": 16384
+      }
+    ],
+    "systemGrants": [],
+    "integrationEvents": [
+      {
+        "eventKey": "projects.created",
+        "schemaVersion": 1,
+        "maximumPayloadBytes": 1024
+      }
+    ],
+    "eventConsumers": [],
+    "jobs": [],
+    "recurringSchedules": []
   }
 }

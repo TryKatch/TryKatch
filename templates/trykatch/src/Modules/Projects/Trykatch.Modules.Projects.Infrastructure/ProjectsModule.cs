@@ -6,9 +6,11 @@ using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 using Trykatch.Modules.AspNetCore;
 using Trykatch.Modules.Projects.Presentation;
+using Trykatch.Modules.Projects.IntegrationEvents;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace Trykatch.Modules.Projects.Infrastructure;
 
@@ -21,7 +23,7 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
     public ModuleDescriptor Descriptor { get; } = new(
         Id: "projects",
         Name: "Projects",
-        Version: "1.0.0",
+        Version: "1.1.0",
         Description: "Organization-scoped project management and lifecycle reference feature.",
         Requires: [],
         OptionalDependencies: [],
@@ -80,6 +82,30 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
                 "Get one project by its identifier in the current organization workspace.",
                 AssistantToolRisk.ReadOnly,
                 RequiresHumanConfirmation: false)
+        ],
+        Operations =
+        [
+            new(
+                "projects",
+                "projects.create",
+                1,
+                ModuleExecutionKind.UserCommand,
+                "projects.create-command",
+                1,
+                [Permissions.ProjectsManage],
+                "projects",
+                null,
+                16_384)
+        ],
+        IntegrationEvents =
+        [
+            new(
+                "projects.created",
+                1,
+                "projects",
+                typeof(ProjectCreated),
+                ReadProjectCreated,
+                1_024)
         ]
     };
 
@@ -132,10 +158,18 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
         services.AddScoped<IReadOnlyAssistantTool, GetProjectAssistantTool>();
         services.AddSingleton<IOrganizationEndpointContributor, ProjectsEndpoints>();
         services.AddScoped<ProjectUseCases>();
+        services.AddScoped<IModuleOperationHandler, ProjectsCreateOperationHandler>();
+        services.AddScoped<IModuleOperationResourcePolicy, ProjectsResourcePolicy>();
         services.AddScoped<IProjectStore, ProjectStore>();
         services.AddSingleton<IApplicationModelContributor, ProjectsModelContributor>();
         services.AddScoped<IWorkspaceOverviewMetricProvider, ProjectsOverviewMetricProvider>();
         services.AddSingleton<IValidator<CreateProjectCommand>, CreateProjectValidator>();
         services.AddSingleton<IValidator<UpdateProjectCommand>, UpdateProjectValidator>();
     }
+
+    private static readonly JsonSerializerOptions EventJson = new(JsonSerializerDefaults.Web);
+
+    private static ProjectCreated ReadProjectCreated(JsonElement payload) =>
+        payload.Deserialize<ProjectCreated>(EventJson)
+        ?? throw new JsonException("Project-created event payload is required.");
 }

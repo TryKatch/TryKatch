@@ -1,0 +1,51 @@
+# Phase 1 execution evidence
+
+Status: Phase 1 implementation and local exit qualification are complete, including the single integrated review and packed generated-output checks below. E1–E5 slices are linked below; E4/E5 are already merged. This exit branch still requires exact-head CI and merge checks, recorded on its pull request. Later parity phases and final release qualification remain open.
+
+## Qualified slices
+
+| Slice | Recorded evidence | Scope |
+| --- | --- | --- |
+| E1 contracts and ownership | [E1](parity-execution-e1.md) | Explicit versioned execution/event contracts, manifests and operational relation ownership. |
+| E2 validated organization execution | [E2](parity-execution-e2.md) | Current membership/system authority, transaction-local scope, audit, completion recovery and real PostgreSQL isolation. |
+| E3 durable consumer delivery | [E3](parity-execution-e3.md) | Transactional fanout, per-consumer delivery/inbox, source/schema/current authority validation and legacy fallback. Provider recreation checks are not OS-process restart proof. |
+| E4 durable jobs | [E4](parity-execution-e4.md) | Opt-in clustered Quartz/PostgreSQL bridge, durable host ledger, recurring controls, role/migration inspection and UI. PR #131 merged after CI. |
+| E5 approved email | [E5](parity-execution-e5.md) | Separate organization/Identity stores, protected intent, current disclosure checks, bounded SMTP and safe operators. PR #132 merged after exact-head CI and real production restart/two-replica qualification. |
+
+Earlier dependency-advisory blockers in E1/E3 records describe their historical checkpoints. E4 patched that baseline; E5 final CI audits report no vulnerable packages. Historical evidence must not be read as a new clean result for those old revisions.
+
+## Final E5 revision
+
+Final source `a21c9b161d87e3b9a8c7eae7bb26ea665b6c2532` passed [template CI](https://github.com/TryKatch/TryKatch/actions/runs/40056611054) and [dependency review](https://github.com/TryKatch/TryKatch/actions/runs/40056611017). Its strict builds reported zero warnings/errors; 631 host unit, 27 architecture, 16 module unit and 399 integration cases passed with zero skips. All 168 Storybook interaction/accessibility cases passed. Generated product matrices, both production profiles, deployment, image, schema, documentation, observability and supply-chain gates passed.
+
+[PR #132](https://github.com/TryKatch/TryKatch/pull/132) merged at `0c122fe30d34feaef52c64709956ed1c08591554`; comparing fetched develop with the tested head returned no tree differences. Phase 1 exit work starts from this commit in a fresh isolated branch.
+
+## Installed event and synthetic operation
+
+This remaining qualification uses an actual installed Projects creation operation/event and a test-only consumer/effect module. Its separate synthetic job is a current-user command; the event consumer exercises finite system-grant authority. Public production composition/executor/scheduler/hosted services are used by a dedicated test process. Parent-only setup owns migration credentials; child processes use the real named runtime roles. This is application/executor/process evidence, not HTTP/browser evidence.
+
+The real PostgreSQL producer selection passes three cases: one project plus its audit and exactly one unchanged legacy row/one typed context-and-hash event commit together; denied/invalid creation writes none; rollback of the enclosing organization transaction leaves none. Projects unit checks pass 6/6, Projects architecture 5/5, focused reference/outbox/execution-contract checks 36/36, and module doctor reports the Projects 1.1 workspace healthy. The four new unit cases first failed on the missing operation/event/adapter behavior.
+
+The first actual process run found both Quartz workers using the literal instance ID `AUTO`. Pinned Quartz 4.6 API XML and [official cluster guidance](https://www.quartz-scheduler.net/documentation/quartz-4.x/operations.html) confirm that typed `GenerateInstanceId = true` requests generation. The host adapter now uses it. The same distinct-node assertion passed afterward; no assertion was removed. This is a production correction discovered by qualification, not a fixture-only timing fix.
+
+The final local process case passes in Release with zero failures/skips. The child producer executes the parent-seeded `projects.create` command through the production executor, creates the real source, admits a separate synthetic UserCommand through the public scheduler, then exits with no consumer/job effect. A parent-only table lock prevents either effect from completing until two independent OS workers have distinct generated node IDs recorded in the real Quartz cluster table. Releasing the gate yields exactly one event effect/inbox and one synthetic effect/completion. Audit records preserve the originating user and the event grant's distinct effective actor. A separate deferred job is revoked before a parent-only due-time adjustment makes it eligible; it is denied without an effect. After both workers are killed, parent-only transitions model lost acknowledgements while preserving the committed inbox/completion rows. A fresh worker process repairs both acknowledgements without repeating effects, even after origin membership revocation. These deliberate fixture transitions are not claimed as an uncontrolled kill at the exact commit/ack instruction boundary.
+
+The fixture also proves organization A cannot read or update organization B's effect row. All five actual runtime roles lack elevated role flags and ownership; only the organization role can select the fixture business relation, which has FORCE RLS and installed ownership metadata. No migration-owner credential reaches a child. The fixture reuses the shipped migration chain, including Quartz; only its own effect table is parent setup DDL. No production schema or operation is introduced for fixture effects.
+
+The directly affected integration selection passes 108/108 with zero skips, including execution/event/scheduling partial classes, legacy replay/recovery, operational isolation and process cleanup. It includes the three producer cases above, so those counts are not additive. Release solution restore/build completes with zero warnings/errors; five scheduling unit cases and 12 common architecture cases pass, and the full solution package audit reports no vulnerable packages. An initial `--no-restore` solution build found missing assets in this fresh worktree; restoring those projects resolved it without source changes. The generated module lock and API/assistant metadata were refreshed through their normal tools; the generated contract check passes. No UI behavior changed.
+
+Logs are retained locally under `.superpowers/sdd/2026-10-24-execution-acceptance/`: `root-producer-green.log`, `root-process-first.log`, `root-process-generated-id.log`, `root-process-cluster-gate.log`, `root-process-release.log`, `root-execution-regressions.log`, `root-release-build-restored.log`, `root-job-units.log`, `root-common-architecture.log`, `root-package-audit.log`, `module-generate.log` and `web-generate-check.log`.
+
+## Review corrections and default behavior
+
+The single independent integrated review (including the supplemental ECC checklist in the same pass) found two test-harness defects. Readiness now writes a sibling temporary file and atomically renames it, preventing partial JSON reads. Each ready worker must remain alive until intentional shutdown; both are checked immediately before the effect gate opens, and an unexpected exit fails with captured diagnostics. Two deterministic exited-child cases first failed against the old harness (exit codes 0 and 1), then passed after the fix. The corrected process/restart and cleanup selection passes 5/5 in Release, zero skips. The reviewer inspected these deltas and found no residual issue or additional production defect.
+
+Actual public DI composition with an absent or false `Jobs:Enabled` returns an empty-ID `Unavailable/jobs_unavailable` receipt for both enqueue and schedule without a resolved organization or reachable database. No Quartz scheduler factory is registered. Enabling jobs without the named work connection rejects configuration even when the legacy owner connection exists; the existing wrong-role case also passes. These three added availability cases plus five scheduling cases pass 8/8. They qualify existing disabled semantics, not a new behavior change. A test command with a misplaced filter was stopped; the results above come from the corrected targeted command.
+
+## Packed generated products
+
+Fresh actual template/CLI packages were installed into a custom hive and used through the packaged CLI, rather than copying source into a generated directory. Renamed `Acme.ExecutionPortal` uses React and the default email-disabled selection; renamed `Acme.ExecutionBackend` has no Web project and enables email. Both locked restores, full Release builds and module doctor checks pass, with zero build warnings/errors. Each passes six Projects unit, five Projects architecture and 36 focused reference/outbox/scheduling/availability unit cases. The integration selections pass 11 React and 12 backend-only cases with zero skips: the three producer cases, real two-worker OS-process case, four process-cleanup/unexpected-exit cases and the applicable three/four Identity email-hosting cases.
+
+The corrected packages are qualification candidates, not final release bytes. Logs are retained under `packed-reviewed/` alongside `packed-reviewed-qualification.log`; review regression logs are `root-worker-exit-red-targeted.log`, `root-review-process-green.log` and `root-default-job-units.log`. The earlier `packed/` candidate passed before the harness corrections and is retained as historical evidence only. No HTTP/browser acceptance of the new Projects adapter or later module matrix is claimed here.
+
+This branch's exact-head CI and merge result belong to its pull request. No default release or later parity phase is accepted by this document.

@@ -1,6 +1,6 @@
 # Feature parity contract ledger
 
-Status: Phase 0 semantic baseline, with E1 contracts, E2 validated execution, E3 durable module event delivery and E4 scheduling and controls implemented and reviewed. Local E4 qualification is recorded; see [E1 evidence](evidence/parity-execution-e1.md), [E2 evidence](evidence/parity-execution-e2.md), [E3 evidence](evidence/parity-execution-e3.md) and [E4 evidence](evidence/parity-execution-e4.md) for scope and verification status. E5 durable email is implemented, locally qualified and reviewed; [E5 evidence](evidence/parity-execution-e5.md) records its process-restart/browser checks and remaining remote/Phase 1 gates.
+Status: Phase 0 semantic baseline, with E1 contracts, E2 validated execution, E3 durable module event delivery and E4 scheduling and controls implemented and reviewed. Local E4 qualification is recorded; see [E1 evidence](evidence/parity-execution-e1.md), [E2 evidence](evidence/parity-execution-e2.md), [E3 evidence](evidence/parity-execution-e3.md) and [E4 evidence](evidence/parity-execution-e4.md) for scope and verification status. E5 durable email merged in PR #132 after exact-head CI and dependency review passed; [E5 evidence](evidence/parity-execution-e5.md) records its process-restart/browser and final PR checks. The separate Phase 1 installed-event/operation exit is locally qualified, including integrated review and packaged products; [consolidated evidence](evidence/parity-execution.md) distinguishes those results from the exit pull request's exact-head CI/merge gate and later release work.
 
 Baseline: `origin/develop` at `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, reconciled on 2026-10-23. The repository was fetched again before Phase 0; no upstream source changes were present. The user subsequently authorized Phase 1 beginning with E1. The source baseline above is retained for traceability.
 
@@ -99,6 +99,12 @@ Each consumer runs through the bounded organization executor. Its business effec
 Disabled consumers are paused with retained records. On re-enable, compatible work can resume. Installing a new consumer does not backfill historical events; previously processed logging-only messages stay processed. A deployment with no enabled new consumers retains the current safe logging behavior rather than silently invoking newly discovered handlers.
 
 Legacy compatibility is explicit: retain `OutboxContractName.For` mappings for Projects/Documents and preserve existing payloads/IDs/replay generations. Nullable new context metadata does not license inventing an organization or actor for an old payload. A legacy message without safely provable scope may finish under its original logging-only adapter or become a visible compatibility outcome; it cannot produce new business side effects. Explicit export DTOs for Webhooks are a different allowlist from internal consumers and from assistant tools.
+
+### Installed Projects creation contract
+
+Projects 1.1 declares `projects.create`/1 as a real `UserCommand`, with `projects.manage`, the `projects` resource policy and the existing `CreateProjectCommand` validation. Its internal module adapter calls the existing creation use case; declaration alone does not make an operation executable or register a publicly submitted job.
+
+Successful creation retains the unchanged legacy `ProjectChanged` record and adds `ProjectCreated(OrganizationId, ProjectId, ActorId)` as `projects.created`/1. The new event carries opaque identifiers, not project name/description. Business state, audit and both outbox rows share the existing organization transaction. Legacy replay keeps its original wire identity and contextless semantics; no old row is promoted into the new consumer protocol. A no-consumer deployment still uses the configured outbox transport.
 
 ## 6. Jobs and schedules — E4
 

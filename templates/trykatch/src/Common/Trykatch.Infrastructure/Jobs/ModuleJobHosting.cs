@@ -37,7 +37,7 @@ public static class ModuleJobHosting
             quartz.ConfigureScheduler(options =>
             {
                 options.InstanceName = "TrykatchModuleJobs";
-                options.InstanceId = "AUTO";
+                options.GenerateInstanceId = true;
                 options.ShutdownJobInterruption = ShutdownJobInterruption.WhenWaitingForJobs;
             });
             quartz.UsePersistentStore(store =>

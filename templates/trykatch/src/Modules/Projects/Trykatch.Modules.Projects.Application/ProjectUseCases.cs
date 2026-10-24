@@ -89,6 +89,7 @@ public sealed class ProjectUseCases(
         await store.AddAsync(project, cancellationToken);
         auditWriter.Record(AuditActions.ProjectCreated, new AuditTarget("Project", project.Id.ToString(), project.Name));
         outbox.Enqueue(new ProjectChanged(project.OrganizationId, project.Id, "created", context.ActorId));
+        outbox.Enqueue(new ProjectCreated(project.OrganizationId, project.Id, context.ActorId), "projects.create", 1);
         await store.SaveChangesAsync(cancellationToken);
         return Result.Success(ToDto(project));
     }
