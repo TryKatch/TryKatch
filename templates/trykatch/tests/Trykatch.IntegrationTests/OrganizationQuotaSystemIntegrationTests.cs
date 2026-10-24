@@ -152,8 +152,12 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
                 ("OrganizationId", "ResourceKey", "OwnerModuleId", "Unit", "Mode", "Limit", "Version",
                  "Source", "SourceRevision", "SourceHash", "EffectiveAtUtc")
             VALUES (@organization, 'probe.units', 'probe', 2, 1, 10, @version,
-                    'quota-system-integration-test', 1, @hash, CURRENT_TIMESTAMP)
-            """, ("organization", organizationId), ("version", Guid.NewGuid()), ("hash", new string('c', 64)));
+                    'host-configuration', 1, @hash, CURRENT_TIMESTAMP);
+            INSERT INTO platform.entitlement_publication_history
+                ("OrganizationId", "SourceRevision", "SourceHash", "Source", "SourceVersion", "ActorId", "InitialResourceCount", "PublishedAtUtc")
+            VALUES (@organization, 1, @hash, 'host-configuration', 1, @publisher, 1, CURRENT_TIMESTAMP)
+            """, ("organization", organizationId), ("version", Guid.NewGuid()), ("hash", new string('c', 64)),
+                ("publisher", HostEntitlementPublisher.AuditActorId));
             await ExecuteOwnerAsync("""
                 INSERT INTO app.organization_quota_inventory
                     ("OrganizationId", "ResourceKey", "SourceKey", "SourceVersion", "Cursor", "State", "UpdatedAtUtc")

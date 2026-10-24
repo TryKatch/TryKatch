@@ -109,6 +109,7 @@ internal static class PostgresRuntimeRoleFixture
             GRANT SELECT, INSERT ON platform.roles, platform.role_permissions, platform.invitations TO {PlatformRole};
             GRANT SELECT, INSERT, UPDATE ON platform.feature_environment_controls, platform.organization_feature_overrides TO {PlatformRole};
             GRANT SELECT, INSERT ON platform.feature_control_history TO {PlatformRole};
+            GRANT SELECT, INSERT ON platform.entitlement_publication_history TO {PlatformRole};
 
             GRANT USAGE ON SCHEMA identity TO {IdentityRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity TO {IdentityRole};

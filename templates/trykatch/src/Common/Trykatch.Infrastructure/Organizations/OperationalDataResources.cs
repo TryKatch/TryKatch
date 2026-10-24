@@ -20,6 +20,8 @@ internal static class OperationalDataResources
             IsolationPolicy: "organization_feature_overrides_read", AccessRule: ModuleDataAccessRule.HostOnly),
         new("feature-control-history", "platform", "feature_control_history", ModuleDataOwnership.Platform,
             AccessRule: ModuleDataAccessRule.PlatformOnly),
+        new("entitlement-publication-history", "platform", "entitlement_publication_history", ModuleDataOwnership.Platform,
+            IsolationPolicy: "entitlement_publication_history_platform_read", AccessRule: ModuleDataAccessRule.PlatformOnly),
         new("mutation-receipts", "app", "mutation_receipts", ModuleDataOwnership.Organization,
             typeof(MutationReceiptRecord).FullName, "mutation_receipts_read", ModuleDataAccessRule.HostOnly),
         new("realtime-streams", "app", "realtime_streams", ModuleDataOwnership.Organization,

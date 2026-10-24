@@ -124,9 +124,11 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
         QuotaReservationResult? result = null;
         try
         {
+            OrganizationQuotaService quota = CreateQuota(scope);
+            await quota.GetAsync(DocumentsQuotaResource); // Warm the transaction-bound publication receipt first.
             int backendPid = await ExecutionFixture.GetQuotaApplicationBackendPidAsync(scope);
             await fixture.TerminateBackendAsync(backendPid);
-            result = await CreateQuota(scope).ReserveAsync(DocumentsQuotaResource, 1, Guid.NewGuid());
+            result = await quota.ReserveAsync(DocumentsQuotaResource, 1, Guid.NewGuid());
         }
         finally
         {

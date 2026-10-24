@@ -648,6 +648,46 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                         });
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Quotas.EntitlementPublicationHistory", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("SourceRevision")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("InitialResourceCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("PublishedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("SourceVersion")
+                        .HasColumnType("integer");
+
+                    b.HasKey("OrganizationId", "SourceRevision");
+
+                    b.ToTable("entitlement_publication_history", "platform", t =>
+                        {
+                            t.HasCheckConstraint("CK_entitlement_publication_history_identity", "\"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND \"SourceRevision\" >= 0 AND \"ActorId\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND \"InitialResourceCount\" BETWEEN 0 AND 10000 AND isfinite(\"PublishedAtUtc\")");
+
+                            t.HasCheckConstraint("CK_entitlement_publication_history_source", "\"SourceHash\" ~ '^[A-Fa-f0-9]{64}$'\nAND \"Source\" = 'host-configuration' AND \"SourceVersion\" = 1");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Domain.Organizations.Invitation", b =>
                 {
                     b.HasOne("Trykatch.Domain.Organizations.Role", null)
@@ -707,6 +747,15 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Platform
                 });
 
             modelBuilder.Entity("Trykatch.Infrastructure.Features.OrganizationFeatureOverride", b =>
+                {
+                    b.HasOne("Trykatch.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Quotas.EntitlementPublicationHistory", b =>
                 {
                     b.HasOne("Trykatch.Domain.Organizations.Organization", null)
                         .WithMany()

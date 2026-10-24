@@ -13,9 +13,16 @@ internal static class QuotaResourceLock
     {
         if (application.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Quota locks require an active organization transaction.");
-        long key = BinaryPrimitives.ReadInt64BigEndian(SHA256.HashData(
-            Encoding.UTF8.GetBytes($"quota/{organizationId:N}/{resourceKey}")));
+        long key = ResourceKey(organizationId, resourceKey);
         return application.Database.SqlQuery<bool>(
             $"SELECT pg_try_advisory_xact_lock({key}) AS \"Value\"").SingleAsync(cancellationToken);
     }
+
+    internal static long ResourceKey(Guid organizationId, string resourceKey) =>
+        HashKey($"quota/{organizationId:N}/{resourceKey}");
+
+    internal static long PublicationKey(Guid organizationId) => HashKey($"quota-publication/{organizationId:N}");
+
+    private static long HashKey(string value) =>
+        BinaryPrimitives.ReadInt64BigEndian(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }

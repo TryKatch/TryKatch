@@ -37,9 +37,9 @@ public sealed partial class OrganizationQuotaMigrationIntegrationTests
 
         await using NpgsqlConnection owner = new(ownerConnection);
         await owner.OpenAsync();
-        foreach (string table in Tables)
+        foreach (string table in Tables.Append("entitlement_publication_history"))
         {
-            string relation = $"app.{table}";
+            string relation = table == "entitlement_publication_history" ? $"platform.{table}" : $"app.{table}";
             await using (NpgsqlCommand command = new("""
                 SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE oid = to_regclass(@relation)
                 """, owner))
@@ -54,7 +54,9 @@ public sealed partial class OrganizationQuotaMigrationIntegrationTests
             foreach (string role in Roles)
             foreach (string privilege in Privileges)
             {
-                bool expected = role == PostgresRuntimeRoleFixture.OrganizationRole
+                bool expected = table == "entitlement_publication_history"
+                    ? role == PostgresRuntimeRoleFixture.PlatformRole && privilege is "SELECT" or "INSERT"
+                    : role == PostgresRuntimeRoleFixture.OrganizationRole
                     ? table switch
                     {
                         "organization_entitlements" => privilege == "SELECT",

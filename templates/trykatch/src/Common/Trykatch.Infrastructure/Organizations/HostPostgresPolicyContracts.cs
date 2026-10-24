@@ -62,6 +62,11 @@ internal static class HostPostgresPolicyContracts
             new("feature_control_history_read", "r", $"({PlatformRuntime} AND {CacheActor})", Roles: ["trykatch_platform_runtime"]),
             new("feature_control_history_insert", "a", "", $"({PlatformRuntime} AND {CacheActor} AND {Actor})", ["trykatch_platform_runtime"])
         ],
+        ["platform.entitlement_publication_history"] =
+        [
+            new("entitlement_publication_history_platform_read", "r", $"({Organization} AND {CacheActor} AND {PlatformRuntime})", Roles: ["trykatch_platform_runtime"]),
+            new("entitlement_publication_history_platform_insert", "a", "", $"({Organization} AND {CacheActor} AND {PlatformRuntime} AND {Actor})", ["trykatch_platform_runtime"])
+        ],
         ["app.mutation_receipts"] =
         [
             new("mutation_receipts_read", "r", $"({Organization} AND {Actor})", Roles: ["trykatch_org_runtime"]),

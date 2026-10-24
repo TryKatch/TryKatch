@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 using Trykatch.Application.Organizations;
+using Trykatch.Application.Quotas;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Persistence;
@@ -21,7 +22,9 @@ internal sealed class OrganizationQuotaService(
     ModuleCatalog catalog,
     ModuleWorkExecutionContext work,
     ModuleOperationRegistry operations,
-    TimeProvider timeProvider) : IOrganizationQuota, IOrganizationEntitlementReader
+    TimeProvider timeProvider,
+    QuotaPublicationAuthority publication,
+    IOrganizationEntitlementProjectionPublisher publisher) : IOrganizationQuota, IOrganizationEntitlementReader
 {
     private static readonly TimeSpan OperationTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ReservationLifetime = TimeSpan.FromMinutes(15);
@@ -40,11 +43,14 @@ internal sealed class OrganizationQuotaService(
         {
             CancellationToken token = timeout.Token;
             if (!await HasAuthorityAsync(owner, resourceKey, token)) throw new OrganizationQuotaUnavailableException();
+            QuotaPublicationReceipt receipt = await publication.EnsurePublishedAsync(publisher, token);
             if (!await QuotaResourceLock.TryAcquireAsync(application, organization.OrganizationId, resourceKey, token))
                 throw new OrganizationQuotaUnavailableException();
+            publication.ResourceLockAcquired();
             if (!await HasAuthorityAsync(owner, resourceKey, token)) throw new OrganizationQuotaUnavailableException();
             OrganizationEntitlementRecord? projection = await entitlements.ReadAsync(organization.OrganizationId, resourceKey, token);
-            if (projection is null || projection.OwnerModuleId != owner || projection.Unit != resource!.Unit)
+            if (projection is null || projection.OwnerModuleId != owner || projection.Unit != resource!.Unit
+                || !receipt.IsSatisfiedBy(projection))
                 throw new OrganizationQuotaUnavailableException();
             return OrganizationEntitlementStore.ToContract(projection);
         }
@@ -73,8 +79,10 @@ internal sealed class OrganizationQuotaService(
         {
             CancellationToken token = timeout.Token;
             if (!await HasAuthorityAsync(owner, resourceKey, token)) return Denied("quota_authority_denied");
+            QuotaPublicationReceipt receipt = await publication.EnsurePublishedAsync(publisher, token);
             if (!await QuotaResourceLock.TryAcquireAsync(application, organization.OrganizationId, resourceKey, token))
                 return Unavailable("quota_busy");
+            publication.ResourceLockAcquired();
             // Re-resolve after acquisition: neither a retry nor a busy identity confers authority.
             if (!await HasAuthorityAsync(owner, resourceKey, token)) return Denied("quota_authority_denied");
             OrganizationEntitlementRecord? projection = await entitlements.ReadAsync(organization.OrganizationId, resourceKey, token);
@@ -91,6 +99,8 @@ internal sealed class OrganizationQuotaService(
                     && existing.State == ModuleQuotaReservationState.Reserved
                         ? new(QuotaReservationDisposition.AlreadyReserved, ToContract(existing))
                         : new(QuotaReservationDisposition.Conflict, FailureCode: "quota_conflict");
+
+            if (!receipt.IsSatisfiedBy(projection)) return Unavailable("quota_projection_stale");
 
             (long committed, long held) = await ledger.TotalsAsync(organization.OrganizationId, resourceKey, token);
             bool inventoryComplete = await application.Set<OrganizationQuotaInventoryRecord>().AsNoTracking()
@@ -117,6 +127,10 @@ internal sealed class OrganizationQuotaService(
                         {operationId}, {projection.Version}, 1, 0, {now}, {reservation.ExpiresAtUtc}, NULL)
                 """, token);
             return new(QuotaReservationDisposition.Reserved, ToContract(reservation));
+        }
+        catch (OrganizationQuotaUnavailableException)
+        {
+            return Unavailable("quota_unavailable");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -153,8 +167,10 @@ internal sealed class OrganizationQuotaService(
             if (reservation is null || !entitlements.TryGetResource(reservation.ResourceKey, out string owner,
                     out ModuleQuotaResourceDescriptor? resource)) throw new OrganizationQuotaConflictException();
             if (!await HasAuthorityAsync(owner, reservation.ResourceKey, token)) throw new OrganizationQuotaUnavailableException();
+            await publication.EnsurePublishedAsync(publisher, token);
             if (!await QuotaResourceLock.TryAcquireAsync(application, organization.OrganizationId, reservation.ResourceKey, token))
                 throw new OrganizationQuotaUnavailableException();
+            publication.ResourceLockAcquired();
             if (!await HasAuthorityAsync(owner, reservation.ResourceKey, token)) throw new OrganizationQuotaUnavailableException();
             reservation = await application.Set<OrganizationQuotaReservationRecord>().AsNoTracking()
                 .SingleAsync(row => row.OrganizationId == organization.OrganizationId && row.Id == reservationId, token);

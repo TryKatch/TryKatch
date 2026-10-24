@@ -223,6 +223,7 @@ public sealed class PostgresIsolationInspectionTests
             GRANT SELECT ON platform.outbox_recovery_events TO {platform};
             GRANT SELECT, INSERT, UPDATE ON platform.feature_environment_controls, platform.organization_feature_overrides TO {platform};
             GRANT SELECT, INSERT ON platform.feature_control_history TO {platform};
+            GRANT SELECT, INSERT ON platform.entitlement_publication_history TO {platform};
             GRANT USAGE ON SCHEMA app TO {platform};
             GRANT SELECT, INSERT, UPDATE ON app.organization_entitlements TO {platform};
             """);
@@ -282,8 +283,10 @@ public sealed class PostgresIsolationInspectionTests
         await using PlatformDbContext owner = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(database.ConnectionString).Options);
         // This behavior test replaces the inspector's minimal stub with the full control-plane model.
         await database.ExecuteAsync("DROP TABLE platform.audit_intents");
-        await database.ExecuteAsync("DROP TABLE platform.feature_control_history, platform.organization_feature_overrides, platform.feature_environment_controls");
+        await database.ExecuteAsync("DROP TABLE platform.entitlement_publication_history, platform.feature_control_history, platform.organization_feature_overrides, platform.feature_environment_controls");
         await database.ExecuteAsync(owner.Database.GenerateCreateScript());
+        foreach (SqlOperation operation in new AddEntitlementPublicationHistory().UpOperations.OfType<SqlOperation>())
+            await database.ExecuteAsync(operation.Sql);
         foreach (SqlOperation operation in new ScopeControlPlaneAccess().UpOperations.OfType<SqlOperation>())
         {
             string testRoles = operation.Sql
@@ -1020,6 +1023,16 @@ public sealed class PostgresIsolationInspectionTests
                 table.ForeignKeys.Clear();
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(featureOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            await using (PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>()
+                .UseNpgsql(result.connectionString).Options))
+            {
+                MigrationOperation[] publicationHistoryOperations = new AddEntitlementPublicationHistory().UpOperations.ToArray();
+                foreach (CreateTableOperation table in publicationHistoryOperations.OfType<CreateTableOperation>())
+                    table.ForeignKeys.Clear();
+                foreach (var command in platform.GetService<IMigrationsSqlGenerator>()
+                             .Generate(publicationHistoryOperations, platform.Model))
+                    await result.ExecuteAsync(command.CommandText);
+            }
             await result.ExecuteAsync($"""
                 GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
                 GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
@@ -1056,6 +1069,7 @@ public sealed class PostgresIsolationInspectionTests
                 "platform.feature_environment_controls",
                 "platform.organization_feature_overrides",
                 "platform.feature_control_history",
+                "platform.entitlement_publication_history",
                 "app.mutation_receipts",
                 "app.organization_entitlements",
                 "app.organization_quota_reservations",

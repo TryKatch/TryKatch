@@ -30,7 +30,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
         secondProjection.Limit.ShouldBe(20);
         firstProjection.Version.ShouldNotBe(Guid.Empty);
         secondProjection.Version.ShouldNotBe(firstProjection.Version);
-        firstProjection.Source.ShouldBe("quota-integration-test");
+        firstProjection.Source.ShouldBe(HostEntitlementPublisher.Source);
     }
 
     [TestMethod]
@@ -39,7 +39,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
         ProjectsSeededUser missing = await fixture.SeedProjectsUserAsync([Permissions.ProjectsManage]);
         await using (MutationScope scope = await fixture.BeginMutationScopeAsync(missing))
         {
-            await Should.ThrowAsync<OrganizationQuotaUnavailableException>(() => CreateQuota(scope).GetAsync(DocumentsQuotaResource));
+            (await CreateQuota(scope).GetAsync(DocumentsQuotaResource)).Mode.ShouldBe(OrganizationEntitlementMode.Disabled);
             await Should.ThrowAsync<OrganizationQuotaUnavailableException>(() => CreateQuota(scope).GetAsync("documents.unknown"));
         }
         ProjectsSeededUser mismatch = await fixture.SeedProjectsUserAsync([Permissions.ProjectsManage]);
@@ -83,7 +83,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
 
         ProjectsSeededUser unconfiguredUser = await fixture.SeedProjectsUserAsync([Permissions.ProjectsManage]);
         await using MutationScope unconfiguredScope = await fixture.BeginMutationScopeAsync(unconfiguredUser);
-        QuotaReservationResult unconfigured = await CreateQuota(unconfiguredScope)
+        QuotaReservationResult unconfigured = await CreatePublishedQuota(unconfiguredScope, CreatePublication(unconfiguredScope, revision: 1))
             .ReserveAsync(DocumentsQuotaResource, 1, Guid.NewGuid());
         unconfigured.Disposition.ShouldBe(QuotaReservationDisposition.Denied);
         unconfigured.Reservation.ShouldBeNull();
@@ -463,9 +463,13 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
                 ("OrganizationId", "ResourceKey", "OwnerModuleId", "Unit", "Mode", "Limit", "Version",
                  "Source", "SourceRevision", "SourceHash", "EffectiveAtUtc")
             VALUES (@organization, 'documents.storage-bytes', 'documents', @unit, @mode, @limit, @version,
-                    'quota-integration-test', 1, @hash, CURRENT_TIMESTAMP)
+                    'host-configuration', 1, @hash, CURRENT_TIMESTAMP);
+            INSERT INTO platform.entitlement_publication_history
+                ("OrganizationId", "SourceRevision", "SourceHash", "Source", "SourceVersion", "ActorId", "InitialResourceCount", "PublishedAtUtc")
+            VALUES (@organization, 1, @hash, 'host-configuration', 1, @publisher, 1, CURRENT_TIMESTAMP)
             """, ("organization", organizationId), ("unit", (int)unit), ("mode", (int)mode),
-                ("limit", (object?)limit ?? DBNull.Value), ("version", Guid.NewGuid()), ("hash", new string('a', 64)));
+                ("limit", (object?)limit ?? DBNull.Value), ("version", Guid.NewGuid()), ("hash", new string('a', 64)),
+                ("publisher", HostEntitlementPublisher.AuditActorId));
             await ExecuteOwnerAsync("""
                 INSERT INTO app.organization_quota_inventory
                     ("OrganizationId", "ResourceKey", "SourceKey", "SourceVersion", "Cursor", "State", "UpdatedAtUtc")
@@ -477,12 +481,16 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
         }
 
         public Task SetQuotaProjectionAsync(Guid organizationId, long? limit) => ExecuteOwnerAsync("""
-            UPDATE app.organization_entitlements
+            WITH changed AS (UPDATE app.organization_entitlements
             SET "Mode" = 1, "Limit" = @limit, "Version" = @version, "SourceRevision" = "SourceRevision" + 1,
                 "SourceHash" = @hash, "EffectiveAtUtc" = CURRENT_TIMESTAMP
             WHERE "OrganizationId" = @organization AND "ResourceKey" = 'documents.storage-bytes'
+            RETURNING "OrganizationId", "SourceRevision", "SourceHash")
+            INSERT INTO platform.entitlement_publication_history
+                ("OrganizationId", "SourceRevision", "SourceHash", "Source", "SourceVersion", "ActorId", "InitialResourceCount", "PublishedAtUtc")
+            SELECT "OrganizationId", "SourceRevision", "SourceHash", 'host-configuration', 1, @publisher, 1, CURRENT_TIMESTAMP FROM changed
             """, ("organization", organizationId), ("limit", (object?)limit ?? DBNull.Value),
-            ("version", Guid.NewGuid()), ("hash", new string('b', 64)));
+            ("version", Guid.NewGuid()), ("hash", new string('b', 64)), ("publisher", HostEntitlementPublisher.AuditActorId));
 
         public async Task SeedExpiredActiveReservationAsync(ProjectsSeededUser user, long units)
         {
