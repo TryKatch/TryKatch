@@ -24,6 +24,7 @@ public sealed partial class PlatformDataTransactionMiddleware(
     public async Task InvokeAsync(
         HttpContext context,
         OrganizationControlPlaneDbContext organizationDbContext,
+        ApplicationDbContext applicationDbContext,
         IWorkspaceContextCookie workspaceCookie,
         ModuleTransactionCompensation transactionCompensation)
     {
@@ -58,6 +59,7 @@ public sealed partial class PlatformDataTransactionMiddleware(
         await using IDbContextTransaction transaction = readOnly
             ? await platformDbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, context.RequestAborted)
             : await platformDbContext.Database.BeginTransactionAsync(context.RequestAborted);
+        await using ApplicationEnlistmentLifetime applicationEnlistment = new(applicationDbContext, transaction);
         if (readOnly)
             await platformDbContext.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY", context.RequestAborted);
         string actor = actorId.ToString();
@@ -92,7 +94,8 @@ public sealed partial class PlatformDataTransactionMiddleware(
                 next,
                 async cancellationToken =>
                 {
-                    if (context.Response.StatusCode < StatusCodes.Status500InternalServerError)
+                    if (context.Response.StatusCode < StatusCodes.Status500InternalServerError
+                        && context.Features.Get<IModuleMutationResponseCaptureFeature>()?.RequiresRollback != true)
                     {
                         try
                         {
@@ -136,6 +139,16 @@ public sealed partial class PlatformDataTransactionMiddleware(
                 await RollbackAfterFailureAsync(transaction, transactionCompensation);
             }
             throw;
+        }
+    }
+
+    private sealed class ApplicationEnlistmentLifetime(ApplicationDbContext application, IDbContextTransaction owner) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            IDbContextTransaction? enlisted = application.Database.CurrentTransaction;
+            if (enlisted is not null && ReferenceEquals(enlisted.GetDbTransaction(), owner.GetDbTransaction()))
+                await enlisted.DisposeAsync();
         }
     }
 

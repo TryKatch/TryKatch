@@ -32,7 +32,7 @@ public sealed partial class ProjectsCreationExecutionTests
     {
         ProjectsModule module = new();
 
-        module.Descriptor.Version.ShouldBe("1.2.0");
+        module.Descriptor.Version.ShouldBe("1.3.0");
         module.Descriptor.Operations.ShouldContain(operation =>
             operation.ModuleId == "projects"
             && operation.OperationKey == "projects.create"

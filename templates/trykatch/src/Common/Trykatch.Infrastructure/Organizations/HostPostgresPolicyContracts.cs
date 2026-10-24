@@ -42,6 +42,12 @@ internal static class HostPostgresPolicyContracts
     {
         Dictionary<string, Policy[]> policies = new(StringComparer.Ordinal)
     {
+        ["app.mutation_receipts"] =
+        [
+            new("mutation_receipts_read", "r", $"({Organization} AND {Actor})", Roles: ["trykatch_org_runtime"]),
+            new("mutation_receipts_insert", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
+            new("mutation_receipts_update", "w", $"({Organization} AND {Actor})", $"({Organization} AND {Actor})", ["trykatch_org_runtime"])
+        ],
         ["app.realtime_streams"] =
         [
             new("realtime_streams_read", "r", Organization, Roles: ["trykatch_org_runtime"]),

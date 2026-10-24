@@ -7,7 +7,7 @@
 **Tech Stack:** Existing stack; SignalR and reviewed distributed cache/backplane adapters selected in P0.1, with no vendor types in module contracts.
 **Spec:** [Design](../specs/2026-10-23-feature-parity-design.md); [roadmap](2026-10-23-feature-parity-plan.md).
 
-**Status:** S1 merged in PR #134 after exact-head CI and dependency review. S2 implementation and local qualification follow the [refined S2 plan](2026-10-24-parity-s2-authorized-realtime.md); local targeted, browser/proxy, packaged-product, retained-module restart and integrated-review fixes are complete; exact-head PR/CI/merge remains pending. S3–S6 remain planned.
+**Status:** S1 merged in PR #134 after exact-head CI and dependency review. S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234` after all 20 exact-head CI jobs, dependency review and both Vercel checks passed; the [refined S2 plan](2026-10-24-parity-s2-authorized-realtime.md) records targeted, browser/proxy, packaged-product, retained-module restart and review qualification. S3 identity, staged response capture, authoritative receipt store, Projects HTTP opt-in, Production process crash recovery and fresh renamed packed products are locally qualified under the [refined S3 plan](2026-10-24-parity-s3-mutation-idempotency.md). Operations/contract documentation, one integrated review, exact-head CI and merge remain in progress. S4–S6 remain planned.
 
 ## Global Constraints
 

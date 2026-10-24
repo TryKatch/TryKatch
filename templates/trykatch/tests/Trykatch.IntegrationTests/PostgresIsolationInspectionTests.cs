@@ -911,12 +911,16 @@ public sealed class PostgresIsolationInspectionTests
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
                          new AddOrganizationRealtimeHistory().UpOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddMutationReceipts().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             await result.ExecuteAsync($"""
                 GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
                 GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.module_event_inbox TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.module_work_completions TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON app.cache_invalidations TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.mutation_receipts TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON app.realtime_streams TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.realtime_history TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON infrastructure.module_work_items TO trykatch_work_coordinator;
@@ -939,6 +943,7 @@ public sealed class PostgresIsolationInspectionTests
             Dictionary<string, DataResourceDescriptor> resources = OperationalDataResources.All
                 .ToDictionary(resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
             string[] relations = [
+                "app.mutation_receipts",
                 "app.cache_invalidations",
                 "app.realtime_streams",
                 "app.realtime_history",

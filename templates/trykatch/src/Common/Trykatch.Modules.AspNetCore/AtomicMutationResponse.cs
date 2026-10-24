@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using System.IO.Pipelines;
+using Trykatch.Modules;
 
 namespace Trykatch.Modules.AspNetCore;
 
@@ -10,6 +11,31 @@ namespace Trykatch.Modules.AspNetCore;
 /// </summary>
 public static class AtomicMutationResponse
 {
+    /// <summary>Stages application response-start callbacks until an atomic response is ready to publish.</summary>
+    public static async Task StageStartingCallbacksAsync(HttpContext context, RequestDelegate next)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(next);
+        if (context.Features.Get<StagedResponseStartingFeature>() is not null)
+        {
+            await next(context);
+            return;
+        }
+
+        IHttpResponseFeature original = context.Features.Get<IHttpResponseFeature>()
+            ?? throw new InvalidOperationException("The HTTP response feature is unavailable.");
+        InstallStartingFeature(context, original);
+        try
+        {
+            await next(context);
+        }
+        finally
+        {
+            context.Features.Set<IHttpResponseFeature>(original);
+            context.Features.Set<StagedResponseStartingFeature>(null);
+        }
+    }
+
     public static async Task ExecuteAsync(
         HttpContext context,
         int maximumBytes,
@@ -23,37 +49,103 @@ public static class AtomicMutationResponse
 
         IHttpResponseBodyFeature clientBody = context.Features.Get<IHttpResponseBodyFeature>()
             ?? throw new InvalidOperationException("The HTTP response body feature is unavailable.");
+        StagedResponseStartingFeature? existingStarting = context.Features.Get<StagedResponseStartingFeature>();
+        bool ownsStartingFeature = existingStarting is null;
+        IHttpResponseFeature? originalResponse = null;
+        StagedResponseStartingFeature stagedStarting;
+        if (existingStarting is not null)
+        {
+            stagedStarting = existingStarting;
+        }
+        else
+        {
+            originalResponse = context.Features.Get<IHttpResponseFeature>()
+                ?? throw new InvalidOperationException("The HTTP response feature is unavailable.");
+            stagedStarting = InstallStartingFeature(context, originalResponse);
+        }
+
         await using StagedResponseBodyFeature staged = new(maximumBytes);
+        ModuleAtomicMutationResponseLimit? previousLimit = context.Features.Get<ModuleAtomicMutationResponseLimit>();
+        context.Features.Set(new ModuleAtomicMutationResponseLimit(maximumBytes));
         context.Features.Set<IHttpResponseBodyFeature>(staged);
+        bool transactionFinalized = false;
         try
         {
             await next(context);
             await staged.FlushAsync(context.RequestAborted);
+            await stagedStarting.FireStartingCallbacksAsync();
+            await staged.FlushAsync(context.RequestAborted);
+
+            if (context.Features.Get<ModuleMutationReplayResponse>() is { } replay)
+            {
+                MutationReceipt receipt = replay.Receipt;
+                context.Response.StatusCode = receipt.StatusCode;
+                context.Response.ContentType = receipt.ContentType;
+                if (receipt.Location is null)
+                    context.Response.Headers.Remove("Location");
+                else
+                    context.Response.Headers.Location = receipt.Location;
+
+                stagedStarting.Freeze();
+                byte[] responseBody = staged.SealAndGetBody();
+                if (!responseBody.AsSpan().SequenceEqual(receipt.Body))
+                    throw new InvalidOperationException("The replay response body changed while starting the response.");
+            }
+            else if (context.Features.Get<IModuleMutationResponseCaptureFeature>() is { } capture)
+            {
+                stagedStarting.Freeze();
+                StagedMutationResponse snapshot = staged.Capture(context.Response, capture.MaximumResponseBytes);
+                await capture.CaptureAsync(snapshot, context.RequestAborted);
+                context.RequestAborted.ThrowIfCancellationRequested();
+            }
+
             await finalizeTransaction(context.RequestAborted);
-            context.Features.Set(clientBody);
+            transactionFinalized = true;
+            await clientBody.StartAsync(context.RequestAborted);
+            context.Features.Set<IHttpResponseBodyFeature>(clientBody);
             await staged.CopyToAsync(clientBody.Stream, context.RequestAborted);
             if (staged.CompleteRequested) await clientBody.CompleteAsync();
         }
         finally
         {
-            context.Features.Set(clientBody);
+            if (!transactionFinalized)
+                stagedStarting.Unfreeze();
+            context.Features.Set<IHttpResponseBodyFeature>(clientBody);
+            context.Features.Set(previousLimit);
+            if (ownsStartingFeature && originalResponse is not null)
+            {
+                context.Features.Set<IHttpResponseFeature>(originalResponse);
+                context.Features.Set<StagedResponseStartingFeature>(null);
+            }
         }
+    }
+
+    private static StagedResponseStartingFeature InstallStartingFeature(HttpContext context, IHttpResponseFeature original)
+    {
+        StagedResponseStartingFeature staged = new(original);
+        staged.RegisterNativeFallback();
+        context.Features.Set(staged);
+        context.Features.Set<IHttpResponseFeature>(staged);
+        return staged;
     }
 
     private sealed class StagedResponseBodyFeature(int maximumBytes) : IHttpResponseBodyFeature, IAsyncDisposable
     {
         private readonly BoundedResponseStream stream = new(maximumBytes);
         private PipeWriter? writer;
+        private bool streamingRequested;
+        private bool fileRequested;
 
         public Stream Stream => stream;
         public PipeWriter Writer => writer ??= PipeWriter.Create(stream, new StreamPipeWriterOptions(leaveOpen: true));
         public bool CompleteRequested { get; private set; }
 
-        public void DisableBuffering() { }
+        public void DisableBuffering() => streamingRequested = true;
         public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public async Task SendFileAsync(string path, long offset, long? count, CancellationToken cancellationToken = default)
         {
+            fileRequested = true;
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
             await using FileStream file = File.OpenRead(path);
             file.Position = offset;
@@ -80,6 +172,27 @@ public static class AtomicMutationResponse
             await stream.FlushAsync(cancellationToken);
         }
 
+        public StagedMutationResponse Capture(HttpResponse response, int maximumResponseBytes)
+        {
+            if (streamingRequested || fileRequested)
+                throw new NotSupportedException("Streaming and file responses cannot be captured for mutation replay.");
+            if (maximumResponseBytes < 1 || maximumResponseBytes > maximumBytes || stream.Length > maximumResponseBytes)
+                throw new InvalidOperationException("The response exceeds its configured mutation replay limit.");
+            if (response.Headers.Location.Count > 1)
+                throw new InvalidOperationException("A mutation replay cannot capture multiple Location headers.");
+            stream.Seal();
+            string? location = response.Headers.Location.Count == 0 ? null : response.Headers.Location.ToString();
+            return new(response.StatusCode, response.ContentType, location, stream.ToArray());
+        }
+
+        public byte[] SealAndGetBody()
+        {
+            if (streamingRequested || fileRequested)
+                throw new NotSupportedException("Streaming and file responses cannot be replayed.");
+            stream.Seal();
+            return stream.ToArray();
+        }
+
         public async Task CopyToAsync(Stream destination, CancellationToken cancellationToken)
         {
             stream.Position = 0;
@@ -95,6 +208,10 @@ public static class AtomicMutationResponse
 
     private sealed class BoundedResponseStream(int maximumBytes) : MemoryStream
     {
+        private bool sealedForCapture;
+
+        public void Seal() => sealedForCapture = true;
+
         public override void Write(byte[] buffer, int offset, int count)
         {
             EnsureCapacity(count);
@@ -127,16 +244,26 @@ public static class AtomicMutationResponse
 
         public override void SetLength(long value)
         {
+            EnsureWritable();
             if (value > maximumBytes) throw TooLarge();
             base.SetLength(value);
         }
 
         private void EnsureCapacity(int writeLength)
         {
+            EnsureWritable();
             if (Position + writeLength > maximumBytes) throw TooLarge();
+        }
+
+        private void EnsureWritable()
+        {
+            if (sealedForCapture)
+                throw new InvalidOperationException("The staged mutation response is sealed for capture.");
         }
 
         private static InvalidOperationException TooLarge() =>
             new("The mutation response exceeded the configured atomic response limit.");
     }
 }
+
+internal sealed record ModuleAtomicMutationResponseLimit(int MaximumBytes);
