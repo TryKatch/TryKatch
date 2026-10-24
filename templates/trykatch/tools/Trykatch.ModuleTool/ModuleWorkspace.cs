@@ -302,6 +302,7 @@ public sealed partial class ModuleWorkspace
 
         ModuleExecutionManifestRules.Validate(modules, errors);
         ModuleEmailManifestRules.Validate(modules, errors);
+        ModuleRealtimeManifestRules.Validate(modules, errors);
         ValidateEnabledGraph(modules, errors);
         ValidateGlobalContributions(modules.Where(module => module.Registration.Enabled), errors);
     }
@@ -852,7 +853,9 @@ public sealed partial class ModuleWorkspace
         }
         catch (JsonException exception)
         {
-            errors.Add($"Invalid {subject} JSON: {exception.Message}");
+            errors.Add(exception.Path?.Contains("realtime", StringComparison.OrdinalIgnoreCase) == true
+                ? $"Invalid {subject} realtime metadata JSON."
+                : $"Invalid {subject} JSON: {exception.Message}");
             return default;
         }
     }
@@ -1125,6 +1128,7 @@ public sealed class ModuleExecutionManifest
     public List<ModuleRecurringScheduleManifest> RecurringSchedules { get; init; } = [];
     public List<ModuleEmailTemplateManifest> EmailTemplates { get; init; } = [];
     public List<ModuleEmailDisclosurePolicyManifest> EmailDisclosurePolicies { get; init; } = [];
+    public List<ModuleRealtimeAudiencePolicyManifest?>? RealtimeAudiencePolicies { get; init; } = [];
 }
 
 public sealed class ModuleOperationManifest
@@ -1148,6 +1152,38 @@ public sealed class ModuleSystemGrantManifest
     public List<string> AllowedOperationKeys { get; init; } = [];
     public List<string> AllowedResourceKeys { get; init; } = [];
     public List<ModuleEmailDisclosurePolicyRefManifest> AllowedEmailDisclosurePolicies { get; init; } = [];
+    public List<ModuleRealtimePolicyRefManifest?>? AllowedRealtimePolicies { get; init; } = [];
+}
+
+public sealed class ModuleRealtimeAudiencePolicyManifest
+{
+    public string PolicyKey { get; init; } = string.Empty;
+    public int PolicyVersion { get; init; }
+    public List<string?>? AllowedAudiences { get; init; } = [];
+    public List<string?>? AllowedResourceKeys { get; init; } = [];
+    public List<string?>? RequiredUserPermissionKeys { get; init; } = [];
+    public List<ModuleRealtimeEventVersionManifest?>? AllowedEvents { get; init; } = [];
+    public List<ModuleRealtimeProducerManifest?>? AllowedSystemProducers { get; init; } = [];
+}
+
+public sealed class ModuleRealtimePolicyRefManifest
+{
+    public string OwnerModuleId { get; init; } = string.Empty;
+    public string PolicyKey { get; init; } = string.Empty;
+    public int PolicyVersion { get; init; }
+}
+
+public sealed class ModuleRealtimeEventVersionManifest
+{
+    public string EventKey { get; init; } = string.Empty;
+    public int SchemaVersion { get; init; }
+}
+
+public sealed class ModuleRealtimeProducerManifest
+{
+    public string ModuleId { get; init; } = string.Empty;
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
 }
 
 public sealed class ModuleEmailTemplateManifest
