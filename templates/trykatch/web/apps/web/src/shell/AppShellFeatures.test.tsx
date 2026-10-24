@@ -32,6 +32,7 @@ let workspaceOrganizationId: string
 let featureResponseOrganizationId: string
 let featureValues: Record<string, boolean>
 let accessFailure: (Error & { status?: number }) | undefined
+let workspaceFailure: (Error & { status?: number }) | undefined
 
 const accessDto = (organizationId: string) => ({ organizationId, userId: 'user-1', membershipId: `membership-${organizationId}`, permissions })
 const workspaceDto = (organizationId: string) => ({ organizationId, membershipId: `membership-${organizationId}`, permissions })
@@ -42,6 +43,7 @@ beforeEach(() => {
   featureResponseOrganizationId = organizationA
   featureValues = { 'projects.reads': true, 'projects.writes': true }
   accessFailure = undefined
+  workspaceFailure = undefined
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
   vi.stubGlobal('scrollTo', () => {})
   vi.mocked(customFetch).mockImplementation(async (url) => {
@@ -52,7 +54,10 @@ beforeEach(() => {
     }
     return undefined
   })
-  vi.mocked(workspaceCurrent).mockImplementation(async () => workspaceDto(workspaceOrganizationId) as never)
+  vi.mocked(workspaceCurrent).mockImplementation(async () => {
+    if (workspaceFailure) throw workspaceFailure
+    return workspaceDto(workspaceOrganizationId) as never
+  })
   vi.mocked(featuresCurrent).mockImplementation(async () => ({
     organizationId: featureResponseOrganizationId,
     evaluatedAtUtc: '2026-10-24T10:00:00Z',
@@ -141,86 +146,125 @@ describe('Projects availability in the actual workspace shell', () => {
     })
   })
 
-  it('recovers from a 429 access response only after a fresh access snapshot authorizes the switched workspace', async () => {
-    const { client } = mount()
-    expect(await screen.findByText('Protected Projects outlet probe')).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'Projects' })).toBeInTheDocument()
-    const initialFeatureRequests = vi.mocked(featuresCurrent).mock.calls.length
+  it.each(['access', 'workspace', 'both'] as const)(
+    'recovers from a 429 %s query failure only after fresh matching access and workspace snapshots',
+    async (failedQuery) => {
+      const { client } = mount()
+      expect(await screen.findByText('Protected Projects outlet probe')).toBeInTheDocument()
+      expect(await screen.findByRole('link', { name: 'Projects' })).toBeInTheDocument()
+      const initialFeatureRequests = vi.mocked(featuresCurrent).mock.calls.length
 
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-    workspaceOrganizationId = organizationB
-    accessOrganizationId = organizationB
-    featureResponseOrganizationId = organizationB
-    accessFailure = Object.assign(new Error('Too many requests'), { status: 429 })
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+      workspaceOrganizationId = organizationB
+      accessOrganizationId = organizationB
+      featureResponseOrganizationId = organizationB
+      if (failedQuery === 'access' || failedQuery === 'both') {
+        accessFailure = Object.assign(new Error('Too many requests'), { status: 429 })
+      }
+      if (failedQuery === 'workspace' || failedQuery === 'both') {
+        workspaceFailure = Object.assign(new Error('Too many requests'), { status: 429 })
+      }
 
-    await act(async () => {
-      await client.invalidateQueries({ queryKey: getWorkspaceCurrentQueryKey(), exact: true })
-    })
-    expect(workspaceCurrent).toHaveBeenCalled()
-    expect(client.getQueryData(getWorkspaceCurrentQueryKey())).toMatchObject({ organizationId: organizationB })
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: getWorkspaceCurrentQueryKey(), exact: true })
+      })
+      expect(workspaceCurrent).toHaveBeenCalled()
 
-    await act(async () => {
-      await client.invalidateQueries({ queryKey: ['access'], exact: true })
-    })
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: ['access'], exact: true })
+      })
 
-    expect(client.getQueryState(['access'])?.status).toBe('error')
-    expect(client.getQueryState(['access'])?.error).toMatchObject({ status: 429 })
-    await waitFor(() => {
-      expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
-      expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
-    })
-    expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests)
+      if (failedQuery === 'access' || failedQuery === 'both') {
+        expect(client.getQueryState(['access'])?.status).toBe('error')
+        expect(client.getQueryState(['access'])?.error).toMatchObject({ status: 429 })
+      } else {
+        expect(client.getQueryData(['access'])).toMatchObject({ organizationId: organizationB })
+      }
+      if (failedQuery === 'workspace' || failedQuery === 'both') {
+        expect(client.getQueryState(getWorkspaceCurrentQueryKey())?.status).toBe('error')
+        expect(client.getQueryState(getWorkspaceCurrentQueryKey())?.error).toMatchObject({ status: 429 })
+      } else {
+        expect(client.getQueryData(getWorkspaceCurrentQueryKey())).toMatchObject({ organizationId: organizationB })
+      }
+      await waitFor(() => {
+        expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
+        expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
+      })
+      expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests)
 
-    accessFailure = undefined
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000)
-    })
+      accessFailure = undefined
+      workspaceFailure = undefined
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000)
+      })
 
-    await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument()
-      expect(screen.getByText('Protected Projects outlet probe')).toBeInTheDocument()
-    })
-    expect(client.getQueryData(['access'])).toMatchObject({ organizationId: organizationB })
-    expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests + 1)
-    expect(client.getQueryData(['organization-features', organizationB])).toMatchObject({ organizationId: organizationB })
-  })
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument()
+        expect(screen.getByText('Protected Projects outlet probe')).toBeInTheDocument()
+      })
+      expect(client.getQueryData(['access'])).toMatchObject({ organizationId: organizationB })
+      expect(client.getQueryData(getWorkspaceCurrentQueryKey())).toMatchObject({ organizationId: organizationB })
+      expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests + 1)
+      expect(client.getQueryData(['organization-features', organizationB])).toMatchObject({ organizationId: organizationB })
+    },
+  )
 
-  it('does not automatically retry a 403 access failure on the 429 recovery interval', async () => {
-    const { client } = mount()
-    expect(await screen.findByText('Protected Projects outlet probe')).toBeInTheDocument()
-    const initialAccessRequests = vi.mocked(customFetch).mock.calls.filter(([url]) => url === '/api/v1/access').length
-    const initialFeatureRequests = vi.mocked(featuresCurrent).mock.calls.length
+  it.each(['access', 'workspace'] as const)(
+    'does not automatically retry a 403 %s query failure on the 429 recovery interval',
+    async (failedQuery) => {
+      const { client } = mount()
+      expect(await screen.findByText('Protected Projects outlet probe')).toBeInTheDocument()
+      const initialFeatureRequests = vi.mocked(featuresCurrent).mock.calls.length
 
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-    workspaceOrganizationId = organizationB
-    accessOrganizationId = organizationB
-    featureResponseOrganizationId = organizationB
-    accessFailure = Object.assign(new Error('Forbidden'), { status: 403 })
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+      workspaceOrganizationId = organizationB
+      accessOrganizationId = organizationB
+      featureResponseOrganizationId = organizationB
+      if (failedQuery === 'access') {
+        accessFailure = Object.assign(new Error('Forbidden'), { status: 403 })
+      } else {
+        workspaceFailure = Object.assign(new Error('Forbidden'), { status: 403 })
+      }
 
-    await act(async () => {
-      await client.invalidateQueries({ queryKey: getWorkspaceCurrentQueryKey(), exact: true })
-    })
-    await act(async () => {
-      await client.invalidateQueries({ queryKey: ['access'], exact: true })
-    })
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: getWorkspaceCurrentQueryKey(), exact: true })
+      })
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: ['access'], exact: true })
+      })
 
-    expect(client.getQueryState(['access'])?.status).toBe('error')
-    expect(client.getQueryState(['access'])?.error).toMatchObject({ status: 403 })
-    await waitFor(() => {
-      expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
-      expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
-    })
-    expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests)
+      const failedAccessRequests = vi.mocked(customFetch).mock.calls.filter(([url]) => url === '/api/v1/access').length
+      const failedWorkspaceRequests = vi.mocked(workspaceCurrent).mock.calls.length
+      if (failedQuery === 'access') {
+        expect(client.getQueryState(['access'])?.status).toBe('error')
+        expect(client.getQueryState(['access'])?.error).toMatchObject({ status: 403 })
+        expect(client.getQueryData(getWorkspaceCurrentQueryKey())).toMatchObject({ organizationId: organizationB })
+      } else {
+        expect(client.getQueryData(['access'])).toMatchObject({ organizationId: organizationB })
+        expect(client.getQueryState(getWorkspaceCurrentQueryKey())?.status).toBe('error')
+        expect(client.getQueryState(getWorkspaceCurrentQueryKey())?.error).toMatchObject({ status: 403 })
+      }
+      await waitFor(() => {
+        expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
+        expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
+      })
+      expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests)
 
-    accessFailure = undefined
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000)
-    })
+      accessFailure = undefined
+      workspaceFailure = undefined
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000)
+      })
 
-    expect(vi.mocked(customFetch).mock.calls.filter(([url]) => url === '/api/v1/access')).toHaveLength(initialAccessRequests + 1)
-    expect(client.getQueryState(['access'])?.status).toBe('error')
-    expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
-    expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests)
-  })
+      await waitFor(() => {
+        if (failedQuery === 'access') expect(client.getQueryState(['access'])?.status).toBe('error')
+        else expect(client.getQueryState(getWorkspaceCurrentQueryKey())?.status).toBe('error')
+        expect(screen.queryByRole('link', { name: 'Projects' })).not.toBeInTheDocument()
+        expect(screen.queryByText('Protected Projects outlet probe')).not.toBeInTheDocument()
+      })
+      expect(vi.mocked(customFetch).mock.calls.filter(([url]) => url === '/api/v1/access')).toHaveLength(failedAccessRequests)
+      expect(vi.mocked(workspaceCurrent).mock.calls).toHaveLength(failedWorkspaceRequests)
+      expect(featuresCurrent).toHaveBeenCalledTimes(initialFeatureRequests)
+    },
+  )
 })

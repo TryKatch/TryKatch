@@ -101,6 +101,7 @@ export function AppShell() {
     queryFn: ({ signal }) => workspaceCurrent({ signal }),
     enabled: Boolean(session.data),
     retry: false,
+    refetchInterval: (query) => (query.state.error as RequestError | null)?.status === 429 ? 30_000 : false,
   })
   const realtimeContext = session.data && access.data && currentWorkspace.data
     ? `${session.data.userId}:${currentWorkspace.data.organizationId}:${currentWorkspace.data.membershipId}`
