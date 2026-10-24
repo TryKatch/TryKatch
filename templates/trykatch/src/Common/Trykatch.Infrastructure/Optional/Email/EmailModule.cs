@@ -3,11 +3,15 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Trykatch.Application.Mailing;
 using Trykatch.Application.Identity;
 
 namespace Trykatch.Infrastructure.Modules.Email;
 
-public sealed record EmailMessage(string Recipient, string Subject, string TextBody, string? HtmlBody = null);
+public sealed record EmailMessage(string Recipient, string Subject, string TextBody, string? HtmlBody = null)
+{
+    public override string ToString() => "Email message (private content)";
+}
 
 public interface IEmailSender
 {
@@ -37,7 +41,7 @@ internal sealed class SmtpEmailSender(IEmailTransport transport) : IEmailSender
     }
 }
 
-internal sealed class SmtpAccountRecoveryNotifier(IEmailSender emailSender, BrandedEmailTemplate template) : IAccountRecoveryNotifier
+internal sealed class SmtpAccountRecoveryNotifier(IEmailSender emailSender, PasswordResetEmailRendering rendering) : IAccountRecoveryNotifier
 {
     public bool IsConfigured => true;
 
@@ -45,18 +49,8 @@ internal sealed class SmtpAccountRecoveryNotifier(IEmailSender emailSender, Bran
         string recipient,
         string displayName,
         string resetUrl,
-        CancellationToken cancellationToken = default)
-    {
-        string safeName = System.Net.WebUtility.HtmlEncode(displayName);
-        return emailSender.SendAsync(new EmailMessage(
-            recipient,
-            $"Reset your {template.ApplicationName} password",
-            $"Hello {displayName},\n\nUse this link to reset your password:\n{resetUrl}\n\nIf you did not request this, you can safely ignore this message.",
-            template.Render("Reset your password", $"Reset your {template.ApplicationName} password.",
-                $"<p>Hello {safeName},</p><p>Use the link below to reset your password.</p>", "Reset password", resetUrl,
-                "If you did not request this, you can safely ignore this message.")),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        rendering.SendAsync(emailSender, recipient, displayName, resetUrl, cancellationToken);
 }
 
 internal sealed class SmtpInvitationNotifier(IEmailSender emailSender, BrandedEmailTemplate template) : IInvitationNotifier
@@ -92,6 +86,7 @@ public static class EmailModule
             .Validate(options => options.IsValid(), "Email branding is invalid. Use an application name, a six-digit hex accent color, and an optional HTTPS logo URL.")
             .ValidateOnStart();
         services.TryAddSingleton<BrandedEmailTemplate>();
+        services.TryAddSingleton<PasswordResetEmailRendering>();
         services.AddOptions<SmtpOptions>().Configure(options =>
         {
             SmtpOptions configured = SmtpOptions.Load(configuration, isDevelopment || isOpenApiGeneration);
@@ -105,6 +100,7 @@ public static class EmailModule
         services.TryAddSingleton<ISmtpClientFactory, SmtpClientFactory>();
         services.AddScoped<IEmailTransport, SmtpEmailTransport>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<IPasswordResetEmailRenderer, PasswordResetEmailRenderer>();
         services.AddScoped<IAccountRecoveryNotifier, SmtpAccountRecoveryNotifier>();
         services.AddScoped<IInvitationNotifier, SmtpInvitationNotifier>();
         return services;

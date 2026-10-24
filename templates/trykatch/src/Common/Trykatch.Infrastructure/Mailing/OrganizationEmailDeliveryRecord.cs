@@ -8,6 +8,7 @@ internal sealed class OrganizationEmailDeliveryRecord
     public Guid Id { get; init; }
     public Guid OrganizationId { get; init; }
     public Guid ActorId { get; init; }
+    // Retained storage column: logical dedup ID. The distinct caller message ID belongs in the protected intent.
     public Guid MessageId { get; init; }
     public required string AdmissionIdentityKey { get; init; }
     public required string TemplateKey { get; init; }
