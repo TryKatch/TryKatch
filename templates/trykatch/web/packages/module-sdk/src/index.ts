@@ -6,6 +6,7 @@ export { defineTableExtensionPoint, defineTableContribution, type TableColumn, t
 
 export { ModuleExtensionSlot, ModuleProvider, useTableContributions } from './extensions'
 export { ModuleI18nProvider, useModuleI18n, type ModuleI18n, type ModuleMessageValues } from './i18n'
+export { isModuleFeatureEnabled, ModuleFeatureProvider, useModuleFeature, useModuleFeatures, type FeatureAvailabilityState, type OrganizationFeatureSnapshot } from './features'
 
 export interface ModuleIconProps {
   size?: string | number
@@ -15,6 +16,8 @@ export interface WebRoute {
   id: string
   path: `/${string}`
   surface?: 'workspace' | 'platform'
+  requiredPermission?: string
+  requiredFeature?: string
   component: ComponentType | LazyExoticComponent<ComponentType>
 }
 
@@ -27,6 +30,7 @@ export interface NavigationContribution {
   labels?: Readonly<{ en: string; fr: string }>
   icon: ComponentType<ModuleIconProps>
   requiredPermission?: string
+  requiredFeature?: string
   exact?: boolean
   surface?: 'workspace' | 'platform'
 }
@@ -73,6 +77,8 @@ export interface ArchiveResourceContribution {
   typeLabel: string
   readPermission: string
   managePermission: string
+  readFeature?: string
+  manageFeature?: string
   load(): Promise<readonly ArchiveItem[]>
   restore(id: string, expectedVersion?: string): Promise<unknown>
   requestDeletion?(id: string, reason: string, expectedVersion?: string): Promise<unknown>
@@ -181,6 +187,7 @@ export class WebModuleCatalog {
       .map((item) => item.subscription)
       .filter((subscription, index, all) => all.findIndex((candidate) => sameRealtimeAudience(candidate, subscription)) === index)
     validateEffectiveContracts(this.routes, this.navigation, this.extensionPoints, this.extensions)
+    validateFeatureBindings(this.routes, this.navigation, this.archiveResources, this.features)
   }
 
   extensionsFor(point: string) {
@@ -245,6 +252,12 @@ function validateModules(modules: readonly WebModule[]) {
     modules.flatMap((module) => module.navigation),
     modules.flatMap((module) => module.extensionPoints),
     modules.flatMap((module) => module.extensions),
+  )
+  validateFeatureBindings(
+    modules.flatMap((module) => module.routes),
+    modules.flatMap((module) => module.navigation),
+    modules.flatMap((module) => module.archiveResources ?? []),
+    modules.flatMap((module) => module.features ?? []),
   )
 }
 
@@ -344,6 +357,40 @@ function validateEffectiveContracts(
   for (const extension of extensions) {
     if (!stableContractId.test(extension.id)) throw new Error(`Invalid Trykatch extension id '${extension.id}'.`)
     if (!declaredPoints.has(extension.point)) throw new Error(`Trykatch extension '${extension.id}' targets unknown point '${extension.point}'.`)
+  }
+}
+
+function validateFeatureBindings(
+  routes: readonly WebRoute[],
+  navigation: readonly NavigationContribution[],
+  archiveResources: readonly ArchiveResourceContribution[],
+  installedFeatures: readonly ModuleFeatureDescriptor[],
+) {
+  const featureKeys = new Set(installedFeatures.map((feature) => feature.key))
+  const validateFeature = (featureKey: string | undefined, subject: string) => {
+    if (featureKey !== undefined && (typeof featureKey !== 'string' || !featureKeys.has(featureKey))) {
+      throw new Error(`${subject} references an unknown installed Trykatch feature '${String(featureKey)}'.`)
+    }
+  }
+
+  for (const route of routes) {
+    if (route.requiredPermission !== undefined && !stableContractId.test(route.requiredPermission)) {
+      throw new Error(`Trykatch route '${route.id}' has an invalid required permission.`)
+    }
+    validateFeature(route.requiredFeature, `Trykatch route '${route.id}'`)
+    if ((route.surface ?? 'workspace') === 'platform' && route.requiredFeature !== undefined) {
+      throw new Error(`Trykatch platform route '${route.id}' cannot require an organization feature.`)
+    }
+  }
+  for (const item of navigation) {
+    validateFeature(item.requiredFeature, `Trykatch navigation contribution '${item.id}'`)
+    if ((item.surface ?? 'workspace') === 'platform' && item.requiredFeature !== undefined) {
+      throw new Error(`Trykatch platform navigation contribution '${item.id}' cannot require an organization feature.`)
+    }
+  }
+  for (const resource of archiveResources) {
+    validateFeature(resource.readFeature, `Trykatch archive resource '${resource.kind}' read access`)
+    validateFeature(resource.manageFeature, `Trykatch archive resource '${resource.kind}' manage access`)
   }
 }
 

@@ -741,6 +741,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .platform-role-permissions { display: grid; gap: 10px; padding: 14px 18px; }
 .platform-role-permissions ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 0; padding: 0; list-style: none; }
 .platform-role-permissions li { min-width: 0; min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.platform-features-panel { min-width: 0; }
+.platform-features-panel > section > p { margin: 12px 14px; color: var(--muted); }
+.platform-features-panel > section > .button { margin: 12px 14px; }
+.platform-features-panel .filter-bar { flex-wrap: wrap; gap: 12px; padding: 14px; }
+.platform-features-panel .filter-bar > .floating-control { flex: 1; min-width: min(260px, 100%); }
+.platform-features-panel .filter-bar .table-pagination { margin-left: auto; padding: 0; border: 0; }
+.platform-feature-controls { min-width: 280px; display: grid; gap: 12px; padding-block: 8px; white-space: normal; }
+.platform-feature-controls > label { display: flex; align-items: center; gap: 8px; }
+.platform-feature-controls > label input { accent-color: var(--accent); }
+.platform-feature-controls > p { margin: 0; overflow-wrap: anywhere; }
+.platform-feature-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.platform-feature-actions .button { max-width: 100%; height: auto; white-space: normal; text-align: left; }
 .platform-role-picker label.is-disabled { opacity: .5; cursor: not-allowed; }
 .form-guidance { margin: 0; padding: 10px 11px; color: var(--muted); background: var(--panel-raised); border-left: 2px solid var(--accent); font-size: 11px; }
 .standalone-page { max-width: 1180px; margin: 0 auto; padding: 36px 28px; }

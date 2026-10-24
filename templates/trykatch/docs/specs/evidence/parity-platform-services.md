@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 declarations, precedence, persistence, strict administration APIs, current-organization evaluation and backend enforcement are locally verified; UI, packed-product qualification and final S4–S6 acceptance remain outstanding. This is not a release claim.
+Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 declarations, precedence, persistence, strict administration APIs, current-organization evaluation and backend enforcement are locally verified; SDK and UI component/browser-fixture checks are also locally verified; actual packed-product browser qualification and final S4–S6 acceptance remain outstanding. This is not a release claim.
 
 ## S1 — Scoped organization cache
 
@@ -55,7 +55,7 @@ The approved platform-services roadmap remains the source for later scope. This 
 | --- | --- | --- |
 | S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Verified and merged in PR #135 as `b919234`; qualification below. |
 | S3 | Transaction-aware mutation idempotency | Verified and merged in PR #136 as `a3f19df`; qualification below. |
-| S4 | Installed-feature availability and runtime policy evaluation | Declarations, precedence, persistence, strict administration APIs and current-organization evaluation verified locally; Projects enforcement, UI and final qualification remain outstanding. |
+| S4 | Installed-feature availability and runtime policy evaluation | Declarations, persistence, strict administration/evaluation, Projects enforcement and SDK/UI checks verified locally; actual packed-product browser qualification and final S4 review/CI remain outstanding. |
 | S5 | Entitlement projection, quota reservation, and organization throttling | Planned; no S5 implementation evidence here. |
 | S6 | Permission reconciliation for existing organizations | Planned; no S6 implementation evidence here. |
 
@@ -360,3 +360,23 @@ Verification uses the pinned SDK from the task wrapper and real PostgreSQL conta
 | Host architecture / Projects architecture | 12 / 5 passed | `task3-host-architecture.log`, `task3-projects-architecture.log` |
 
 Normal API build/OpenAPI generation and client/assistant regeneration succeed. A structured comparison confirms all operation IDs, schemas and existing responses remain unchanged; only 409/503 ProblemDetails responses are added to the seven guarded Projects operations. The generated client carries those error types. Generated client and host typechecks pass; the assistant contract has no drift. Actual browser stale-render behavior and module absence/re-enable with retained controls remain required at Tasks 4–5, together with operator UI, packed React/backend qualification, the single integrated review and CI/merge.
+
+
+### Current-organization SDK and UI checkpoint
+
+The neutral React SDK selects only declared installed features with a successful matching organization snapshot and an explicit true value. Missing, malformed, loading or failed availability cannot reuse an enabled decision. Typed route/navigation and archive read/manage bindings are validated against installed declarations, including effective overrides; platform contributions cannot bind an organization feature. The host uses organization-keyed requests with cancellation, focus/30second refresh and actual feature-error invalidation. Current access and workspace IDs must match before enabling protected navigation or routes. Existing cookie/antiforgery and realtime lifecycle behavior remains in place.
+
+Projects and Archive remove cached protected rows, details, counts and extensions after read disable. Writes remain independent; forms, action menus and stale deletion confirmations cannot submit after write disable. Organization-keyed local state prevents a prior workspace's dialog from reappearing. Server enforcement remains authoritative.
+
+The platform Feature controls page supports environment defaults/force-off, optional organization overrides linked from the existing organization directory, independent strict read/manage rights, CAS saves and paged immutable history. Feature permissions do not grant directory access. Draft versions are captured at first edit; background reads cannot silently replace them. Conflict and busy outcomes retain choices, require explicit reload and never automatically retry a save. Target selection is frozen during a pending save. Shared controls, English/French copy and themed responsive stories are included.
+
+| Targeted validation | Result | Local evidence |
+| --- | --- | --- |
+| SDK availability, bindings and existing catalog | 52 passed | `task4-sdk-green.log` |
+| HTTP feature-error subscription and existing transport | 10 passed | `task4-http-rejection-green.log` |
+| Host operator, Projects, Archive, snapshot, route, shell and navigation | 56 passed, zero skips | `task4-web-final.log` |
+| Operator plus existing realtime lifecycle regressions | 31 passed, zero skips (14 operator +17 lifecycle) | `task4-platform-lifecycle-green.log` |
+| Chromium story interactions and accessibility | 41 affected stories passed (15 Projects +7 Archive +19 operator), no skips | `task4-stories-green.log` for Projects/Archive; final operator19 in `task4-platform-stories-green.log`; final Archive7 in `task4-archive-stories-final.log` |
+| Workspace typecheck / production build / Storybook build | passed; production fixture-exclusion guard passed | `task4-workspace-typecheck.log`, `task4-workspace-build.log`, `task4-storybook-build.log` |
+
+Phone, tablet and desktop operator stories verify actual320/768/1440pixel widths and no document overflow. The visible local preview uses sample data. These results do not establish a running generated-production operator journey. Actual stale-submit, policy-store outage/recovery, workspace-switch and retained-control module removal/reenable acceptance, fresh packed React/backend outputs, operations documentation, the single integrated review and exact-head CI/merge remain outstanding. No dependency or object-storage change is introduced.

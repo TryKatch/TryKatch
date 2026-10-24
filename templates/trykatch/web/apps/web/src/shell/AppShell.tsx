@@ -2,6 +2,7 @@ import { applicationName } from '../branding'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { customFetch, getWorkspaceCurrentQueryKey, workspaceCurrent } from '@trykatch/api-client'
+import { isModuleFeatureEnabled, ModuleFeatureProvider } from '@trykatch/module-sdk'
 import { Button, Dialog, Skeleton } from '@trykatch/ui'
 import {
   Activity,
@@ -35,6 +36,7 @@ import { navigationLabel } from './navigationLabel'
 import { permittedWorkspaceNavigation, type WorkspaceNavigation } from './workspaceNavigation'
 import { AssistantChat, AssistantChatProvider } from '../features/assistant/AssistantChat'
 import { useWorkspaceRealtimeLifecycle } from './useWorkspaceRealtimeLifecycle'
+import { useOrganizationFeatures } from '../features/availability/useOrganizationFeatures'
 
 const coreNavigation: readonly WorkspaceNavigation[] = [
   { id: 'core.overview', section: 'Workspace', order: 10, to: '/overview', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -48,7 +50,7 @@ const allNavigation = [...coreNavigation, ...workspaceModules.navigationFor('wor
 const sectionOrder = ['Workspace', 'Administration', 'Recovery']
 
 interface Session { userId: string; displayName: string; email: string; isPlatformAdministrator: boolean }
-interface OrganizationAccess { permissions: string[] }
+interface OrganizationAccess { organizationId: string; permissions: string[] }
 interface RequestError extends Error { status?: number }
 
 function getInitials(value: string) {
@@ -104,6 +106,10 @@ export function AppShell() {
     : undefined
   const hasSession = Boolean(session.data)
   useWorkspaceRealtimeLifecycle({ realtimeContext, hasSession })
+  const hasCurrentAccess = access.isSuccess && !access.isFetching && currentWorkspace.isSuccess
+    && !currentWorkspace.isFetching && access.data.organizationId === currentWorkspace.data.organizationId
+  const featureState = useOrganizationFeatures(session.isSuccess && hasCurrentAccess ? currentWorkspace.data!.organizationId : undefined)
+  const isFeatureEnabled = (key: string) => isModuleFeatureEnabled(workspaceModules, featureState, key)
 
   const logout = useMutation({
     mutationFn: () => customFetch<void>('/api/v1/auth/logout', { method: 'POST' }),
@@ -165,11 +171,11 @@ export function AppShell() {
   const identity = session.data?.displayName || session.data?.email || t('Account')
   const initials = getInitials(identity)
   const area = pathname.endsWith('/assistant') ? 'AI Help' : pathname.endsWith('/archive') ? 'Recovery' : pathname.includes('/user-management') || pathname.endsWith('/audit') ? 'Administration' : 'Workspace'
-  const permittedNavigation = permittedWorkspaceNavigation(allNavigation, access.data?.permissions)
+  const permittedNavigation = permittedWorkspaceNavigation(allNavigation, hasCurrentAccess ? access.data!.permissions : [], isFeatureEnabled)
     .map((item) => ({ ...item, displayLabel: navigationLabel(item, locale, t) }))
   const navSections = sectionOrder.map((label) => ({ label, items: permittedNavigation.filter((item) => item.section === label) }))
 
-  return <AssistantChatProvider panelOpen={helpOpen}><div className={`app-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
+  return <ModuleFeatureProvider catalog={workspaceModules} state={featureState}><AssistantChatProvider panelOpen={helpOpen}><div className={`app-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>
     <aside className="sidebar" id="organization-navigation">
       <div className="mobile-sidebar-heading">
         <Link className="brand" to="/overview" aria-label={`${applicationName} ${t('Overview')}`} onClick={() => setMobileNavOpen(false)}><span className="brand-mark"><ProductLogo size={17} /></span><span className="sidebar-label">{applicationName}</span></Link>
@@ -228,5 +234,5 @@ export function AppShell() {
     <SignOutDialog open={signOutOpen} identity={identity} isPending={logout.isPending} error={logout.error?.message} onOpenChange={setSignOutOpen} onConfirm={() => logout.mutate()} />
     <button ref={helpLauncher} className="help-chat-launcher" type="button" aria-label={t('Open AI Help')} title={t('AI Help')} aria-haspopup="dialog" aria-expanded={helpOpen} disabled={!session.data} onClick={() => setHelpOpen(true)}><Bot size={23} aria-hidden="true" /></button>
     <Dialog open={helpOpen} onOpenChange={setHelpOpen} title={t('AI Help')} description={t('A conversation about your workspace.')} className="help-chat-dialog"><AssistantChat /></Dialog>
-  </div></AssistantChatProvider>
+  </div></AssistantChatProvider></ModuleFeatureProvider>
 }
