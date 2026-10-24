@@ -35,6 +35,12 @@ test('publication rejects candidates and failed or missing gates', t => {
   assert.throws(() => verifyManifest(directory, { ...manifest, state: 'qualified', gates: [] }, version, commit, runId, true), /gates are missing/);
 });
 
+test('publication cannot seal a candidate without production queued-email qualification', t => {
+  const { directory, manifest } = fixture(t);
+  const withoutEmail = qualificationGates.filter(gate => gate !== 'generated-email-production');
+  assert.throws(() => sealManifest(directory, manifest, version, commit, runId, withoutEmail), /Every required/);
+});
+
 test('altered bytes or rebuilt packages cannot pass the recorded digest', t => {
   const { directory, manifest } = fixture(t);
   writeFileSync(join(directory, `Trykatch.Cli.${version}.nupkg`), 'tampered package');

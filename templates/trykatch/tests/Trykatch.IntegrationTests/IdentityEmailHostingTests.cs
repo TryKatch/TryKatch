@@ -91,7 +91,7 @@ public sealed class IdentityEmailHostingTests
     }
 #endif
 
-#if !TRYKATCH_EMAIL
+#if (!TRYKATCH_EMAIL)
     [TestMethod]
     public void EmailDisabledBuildRegistersUnavailableSubmissionWithoutQueueServices()
     {

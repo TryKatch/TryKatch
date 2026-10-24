@@ -40,7 +40,7 @@ jobs:
           node scripts/ci/test-first-feature-assertions.mjs
           node scripts/ci/test-template-payload-assertion.mjs
           node scripts/ci/test-blueprint-dialog-refresh.mjs
-          node --test scripts/ci/test-release-artifacts.mjs
+          node --test scripts/ci/test-release-artifacts.mjs scripts/ci/test-email-log-privacy.mjs
           node --test scripts/ci/test-generated-reproducibility.mjs
           bash scripts/ci/check-docs-required.sh "$BASE_SHA" "$HEAD_SHA"
           bash scripts/ci/detect-changes.sh "$BASE_SHA" "$HEAD_SHA" | tee -a "$GITHUB_OUTPUT"
@@ -317,6 +317,10 @@ jobs:
     if: needs.changes.outputs.qualification == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        email: ['false', 'true']
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
@@ -335,10 +339,12 @@ jobs:
         run: pnpm --dir templates/trykatch/web --filter @trykatch/web exec playwright install --with-deps chromium
       - name: Qualify a clean generated production application
         run: bash scripts/test-generated-application.sh
+        env:
+          TRYKATCH_ACCEPTANCE_EMAIL: ${{ matrix.email }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: generated-application-acceptance
+          name: generated-application-acceptance-email-${{ matrix.email }}
           path: artifacts/generated-application
           if-no-files-found: error
           retention-days: 14
