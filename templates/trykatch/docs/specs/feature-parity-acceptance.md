@@ -1,6 +1,6 @@
 # Feature parity acceptance and permission matrix
 
-**Status:** Phase 0 contract baseline with E1–E5 implementation evidence linked below. Later parity behavior remains planned or explicitly deferred. E4 merged in PR #131 after its selected CI gates passed; E5 merged in PR #132 after exact-head CI and dependency review passed; the separate Phase 1 installed-event/operation exit is locally qualified with integrated review and packed outputs in [consolidated evidence](evidence/parity-execution.md); its exact-head merge gates are recorded on the exit pull request. This matrix does not establish release readiness.
+**Status:** Phase 0 contract baseline with E1–E5 implementation evidence linked below. Later parity behavior remains planned or explicitly deferred. E4 merged in PR #131 after its selected CI gates passed; E5 merged in PR #132 after exact-head CI and dependency review passed; the separate Phase 1 installed-event/operation exit merged in PR #133 after exact-head CI, integrated review and packed outputs recorded in [consolidated evidence](evidence/parity-execution.md). This matrix does not establish release readiness.
 **Source baseline:** `origin/develop` at `d3e8dc40b6c5d4d20a173ec2f884353f4f25a7d9`, inspected 2026-10-23.
 **Contract ledger:** [Feature parity contracts](feature-parity-contracts.md) (created in P0.1).
 

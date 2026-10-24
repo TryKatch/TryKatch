@@ -85,7 +85,7 @@ Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`
 
 ## Phase exit
 
-Local qualification and integrated review are recorded in [consolidated evidence](../../../templates/trykatch/docs/specs/evidence/parity-execution.md). Exact-head CI/merge is a separate pull-request gate. These checks do not accept later parity phases or the final release.
+Local qualification and integrated review are recorded in [consolidated evidence](../../../templates/trykatch/docs/specs/evidence/parity-execution.md). Exact-head CI and dependency review passed before PR #133 merged at b70fbe49b4426e50b35c35d9ba2dc26578facc5e; fetched develop matches the tested tree. These checks do not accept later parity phases or the final release.
 
 - [x] A synthetic organization operation and a real installed module event survive process restart and competing workers with correct audit and isolation evidence.
 - [x] Old event IDs, existing outbox replay and default applications remain compatible. New unconfigured capabilities fail closed or report explicit unavailability.

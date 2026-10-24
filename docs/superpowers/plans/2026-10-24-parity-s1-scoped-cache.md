@@ -6,7 +6,7 @@
 **Architecture:** Module-neutral keys/interfaces; host HybridCache adapter; optional private Valkey L2; PostgreSQL transaction/RLS owns invalidation generations. Caches never supply authorization.
 **Tech Stack:** .NET 10, existing EF/Npgsql/PostgreSQL, HybridCache and the reviewed optional Valkey adapter, MSTest/Testcontainers; existing module/CLI tooling.
 **Spec:** [Section 7](../../../templates/trykatch/docs/specs/feature-parity-contracts.md#7-cache-and-realtime--s1s2), [ADR 0018](../../../templates/trykatch/docs/adr/0018-scheduler-cache-and-realtime-adapters.md), existing organization transaction and ownership contracts.
-**Start condition:** The isolated worktree starts from freshly fetched develop. Dependency qualification may run independently while Phase 1 exit PR #133 qualifies. Before product implementation, keep this branch clean and rebase onto the merged exit revision. Preserve the primary checkout and prior evidence.
+**Start condition:** The isolated worktree starts from freshly fetched develop. Dependency qualification may run independently while Phase 1 exit PR #133 qualifies. This clean branch was rebased onto the merged exit revision b70fbe49b4426e50b35c35d9ba2dc26578facc5e before product implementation. Preserve the primary checkout and prior evidence.
 
 ## Global constraints
 
