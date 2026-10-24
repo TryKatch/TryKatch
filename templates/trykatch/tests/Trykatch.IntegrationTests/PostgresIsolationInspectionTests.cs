@@ -208,7 +208,8 @@ public sealed class PostgresIsolationInspectionTests
             CREATE ROLE {identity} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             CREATE ROLE {outbox} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             GRANT USAGE ON SCHEMA identity TO {identity};
-            GRANT SELECT, INSERT, UPDATE ON identity.email_deliveries TO {identity};
+            GRANT SELECT, INSERT, UPDATE ON identity.email_deliveries, identity.account_sessions TO {identity};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON identity."AspNetUsers" TO {identity};
             GRANT USAGE ON SCHEMA infrastructure TO {outbox};
             GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO {outbox};
             GRANT USAGE ON SCHEMA platform TO {outbox};
@@ -543,7 +544,7 @@ public sealed class PostgresIsolationInspectionTests
         await using (NpgsqlCommand before = new("SELECT has_table_privilege('trykatch_outbox_worker', 'infrastructure.module_work_items', 'SELECT')", owner))
             (await before.ExecuteScalarAsync()).ShouldBe(false);
 
-        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
         await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
             new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
         RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
@@ -586,7 +587,7 @@ public sealed class PostgresIsolationInspectionTests
     public async Task OperationalCompletionMarkerEnforcesOrganizationAndActorScope()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
-        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
         await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
             new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
         RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
@@ -685,7 +686,7 @@ public sealed class PostgresIsolationInspectionTests
     public async Task OperationalInspectorRejectsMissingPolicyAndOverbroadGrant()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
-        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
         await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
             new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
         RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
@@ -706,7 +707,7 @@ public sealed class PostgresIsolationInspectionTests
     public async Task OperationalInboxEnforcesCurrentScopeActorAndConsumerDeduplication()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
-        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
         await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
             new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
         RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
@@ -900,6 +901,10 @@ public sealed class PostgresIsolationInspectionTests
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
                          new AddIdentityEmailDelivery().UpOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            await result.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY); GRANT SELECT, INSERT, UPDATE, DELETE ON identity.\"AspNetUsers\" TO trykatch_identity_runtime");
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddDurableAccountSessions().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
                          new AddOrganizationCacheInvalidations().UpOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
@@ -941,6 +946,7 @@ public sealed class PostgresIsolationInspectionTests
                 "infrastructure.module_work_controls",
                 "infrastructure.email_deliveries",
                 "identity.email_deliveries",
+                "identity.account_sessions",
                 .. QuartzSchemaContract.Tables.Select(table => "infrastructure." + table)
             ];
 

@@ -12,7 +12,7 @@ namespace Trykatch.Api.Controllers;
 [ApiController]
 [Authorize(AuthenticationSchemes = AuthenticationSchemes.ApplicationCookie)]
 [Route("api/v1/invitations")]
-public sealed class InvitationsController(OrganizationAdministration administration, UserManager<ApplicationUser> users, SignInManager<ApplicationUser> signIn, IWorkspaceContextCookie workspaceCookie, IAntiforgery antiforgery) : ControllerBase
+public sealed class InvitationsController(OrganizationAdministration administration, UserManager<ApplicationUser> users, SignInManager<ApplicationUser> signIn, IWorkspaceContextCookie workspaceCookie, WorkspaceSessionBinding workspaceSession, IAntiforgery antiforgery) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("preview/{token}", Name = "Invitations_Preview")]
@@ -75,6 +75,7 @@ public sealed class InvitationsController(OrganizationAdministration administrat
         }
 
         await signIn.SignInAsync(user, isPersistent: true);
+        if (!await workspaceSession.RotateAsync(HttpContext, accepted.Value, user.Id)) return Unauthorized();
         workspaceCookie.Write(HttpContext, accepted.Value, persistent: true);
         return Ok(new AcceptInvitationResponse(accepted.Value));
     }
@@ -89,6 +90,7 @@ public sealed class InvitationsController(OrganizationAdministration administrat
         if (!result.IsSuccess)
             return Problem(statusCode: result.ErrorCode == "conflict" ? 409 : 400, title: result.ErrorCode, detail: result.ErrorMessage);
 
+        if (!await workspaceSession.RotateAsync(HttpContext, result.Value, user.Id)) return Unauthorized();
         workspaceCookie.Write(HttpContext, result.Value, persistent: true);
         return Ok(new AcceptInvitationResponse(result.Value));
     }

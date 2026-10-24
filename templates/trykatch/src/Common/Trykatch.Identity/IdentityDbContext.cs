@@ -45,6 +45,22 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.Property(value => value.Outcome).HasMaxLength(64);
             entity.HasIndex(value => new { value.UserId, value.OccurredAt });
         });
+        builder.Entity<IdentitySessionRecord>(entity =>
+        {
+            entity.ToTable("account_sessions", table =>
+            {
+                table.HasCheckConstraint("CK_account_sessions_hash", "\"SessionHash\" ~ '^[0-9a-f]{64}$'");
+                table.HasCheckConstraint("CK_account_sessions_stamp", "length(\"SecurityStamp\") > 0");
+                table.HasCheckConstraint("CK_account_sessions_generation", "\"WorkspaceGeneration\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                table.HasCheckConstraint("CK_account_sessions_organization", "\"OrganizationId\" IS NULL OR \"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                table.HasCheckConstraint("CK_account_sessions_expiry", "\"ExpiresAt\" > \"CreatedAt\"");
+            });
+            entity.HasKey(value => value.SessionHash);
+            entity.Property(value => value.SessionHash).HasMaxLength(64);
+            entity.Property(value => value.SecurityStamp).HasMaxLength(256);
+            entity.HasIndex(value => new { value.UserId, value.ExpiresAt });
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(value => value.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
         IdentityEmailDeliveryMapping.Configure(builder);
     }
 }

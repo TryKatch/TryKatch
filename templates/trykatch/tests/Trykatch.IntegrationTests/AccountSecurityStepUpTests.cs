@@ -251,7 +251,9 @@ public sealed class AccountSecurityStepUpTests
             password = SecurityHost.Password,
             code = Totp(key)
         });
-        await AssertProblemAsync(staleCookie, HttpStatusCode.Forbidden, "reauthentication_required");
+        // Fresh durable-session stamp checks reject this cookie before the step-up use case.
+        staleCookie.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await second.GetAsync("/api/v1/auth/session")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [TestMethod]

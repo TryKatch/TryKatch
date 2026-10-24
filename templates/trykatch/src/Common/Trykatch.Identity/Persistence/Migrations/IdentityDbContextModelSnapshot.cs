@@ -572,6 +572,56 @@ namespace Trykatch.Identity.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Trykatch.Identity.IdentitySessionRecord", b =>
+                {
+                    b.Property<string>("SessionHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkspaceGeneration")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("SessionHash");
+
+                    b.HasIndex("UserId", "ExpiresAt");
+
+                    b.ToTable("account_sessions", "identity", t =>
+                        {
+                            t.HasCheckConstraint("CK_account_sessions_expiry", "\"ExpiresAt\" > \"CreatedAt\"");
+
+                            t.HasCheckConstraint("CK_account_sessions_generation", "\"WorkspaceGeneration\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_account_sessions_hash", "\"SessionHash\" ~ '^[0-9a-f]{64}$'");
+
+                            t.HasCheckConstraint("CK_account_sessions_organization", "\"OrganizationId\" IS NULL OR \"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_account_sessions_stamp", "length(\"SecurityStamp\") > 0");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Identity.PendingMfaEnrollment", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -715,6 +765,15 @@ namespace Trykatch.Identity.Persistence.Migrations
                     b.Navigation("Application");
 
                     b.Navigation("Authorization");
+                });
+
+            modelBuilder.Entity("Trykatch.Identity.IdentitySessionRecord", b =>
+                {
+                    b.HasOne("Trykatch.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Trykatch.Identity.PendingMfaEnrollment", b =>

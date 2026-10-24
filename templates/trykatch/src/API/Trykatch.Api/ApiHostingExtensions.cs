@@ -71,6 +71,7 @@ internal static class ApiHostingExtensions
         builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
         builder.Services.AddExceptionHandler<RequestBindingExceptionHandler>();
         builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
+        builder.Services.AddScoped<WorkspaceSessionBinding>();
         builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();
         builder.Services.AddScoped<ModuleTransactionCompensation>();
         builder.Services.AddScoped<IModuleTransactionCompensation>(services =>

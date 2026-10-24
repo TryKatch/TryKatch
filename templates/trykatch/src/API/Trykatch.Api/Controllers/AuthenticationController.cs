@@ -20,6 +20,7 @@ public sealed class AuthenticationController(
     UserManager<ApplicationUser> users,
     SignInManager<ApplicationUser> signIn,
     IWorkspaceContextCookie workspaceCookie,
+    WorkspaceSessionBinding workspaceSession,
     IPlatformAccessDirectory platformAccess,
     IIdentitySecurityEmailSubmission recoverySubmission,
     IApplicationUrlResolver applicationUrls,
@@ -45,6 +46,7 @@ public sealed class AuthenticationController(
     public async Task<ActionResult<SessionResponse>> Login(LoginRequest request)
     {
         await antiforgery.ValidateRequestAsync(HttpContext);
+        await workspaceSession.RotateAsync(HttpContext, null);
         workspaceCookie.Clear(HttpContext);
         ApplicationUser? user = await users.FindByEmailAsync(request.Email);
         if (user is null || !user.EmailConfirmed)
@@ -112,6 +114,7 @@ public sealed class AuthenticationController(
     public async Task<IActionResult> Logout()
     {
         await antiforgery.ValidateRequestAsync(HttpContext);
+        await workspaceSession.RotateAsync(HttpContext, null);
         await signIn.SignOutAsync();
         workspaceCookie.Clear(HttpContext);
         return NoContent();
@@ -196,6 +199,7 @@ public sealed class AuthenticationController(
                 : InvalidReset();
         }
 
+        await workspaceSession.RotateAsync(HttpContext, null);
         workspaceCookie.Clear(HttpContext);
         return NoContent();
     }

@@ -20,6 +20,8 @@ internal static class OperationalDataResources
             typeof(CacheInvalidation).FullName, "cache_invalidations_read", ModuleDataAccessRule.HostOnly),
         new("organization-email-deliveries", "infrastructure", "email_deliveries", ModuleDataOwnership.Infrastructure,
             typeof(OrganizationEmailDeliveryRecord).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
+        new("identity-account-sessions", "identity", "account_sessions", ModuleDataOwnership.Platform,
+            AccessRule: ModuleDataAccessRule.IdentityOnly),
         new("identity-email-deliveries", "identity", "email_deliveries", ModuleDataOwnership.Platform,
             AccessRule: ModuleDataAccessRule.IdentityOnly),
         new("module-work-items", "infrastructure", "module_work_items", ModuleDataOwnership.Infrastructure,

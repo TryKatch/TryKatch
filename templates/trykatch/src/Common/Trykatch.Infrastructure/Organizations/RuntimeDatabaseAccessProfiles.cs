@@ -99,6 +99,7 @@ public static class RuntimeDatabaseAccessProfiles
                 (RuntimeDatabaseRoleKind.Organization, "app.realtime_history") => SelectInsert,
                 (RuntimeDatabaseRoleKind.Organization, "infrastructure.email_deliveries") => Insert,
                 (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.email_deliveries") => SelectUpdate,
+                (RuntimeDatabaseRoleKind.Identity, "identity.account_sessions") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Identity, "identity.email_deliveries") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "infrastructure.module_work_items") => Insert,
                 (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_schedule_cursors") => SelectInsertUpdate,
