@@ -271,6 +271,35 @@ describe('workspace realtime lifecycle', () => {
     }
   })
 
+  it('repairs rate-limited bootstrap through the periodic timer before subscribing', async () => {
+    vi.useFakeTimers()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    let rateLimited = true
+    const observer = new QueryObserver(client, {
+      queryKey: ['projects', 'active'], staleTime: Infinity,
+      queryFn: async () => { if (rateLimited) throw Object.assign(new Error('rate limited'), { status: 429 }); return ['recovered'] },
+    })
+    client.setQueryData(['projects', 'active'], ['before'])
+    const unsubscribe = observer.subscribe(() => undefined)
+    const lifecycle = createWorkspaceRealtimeLifecycle(client)
+    try {
+      await expect(lifecycle.start()).rejects.toMatchObject({ status: 429 })
+      expect(signalr.connection.start).not.toHaveBeenCalled()
+
+      rateLimited = false
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(realtimeGetState).toHaveBeenCalledTimes(2)
+      expect(observer.getCurrentResult().data).toEqual(['recovered'])
+      expect(signalr.connection.invoke).toHaveBeenCalledWith('ReplaceSubscriptions', expect.any(Array))
+    } finally {
+      lifecycle.stop()
+      unsubscribe()
+      client.clear()
+      vi.useRealTimers()
+    }
+  })
+
   it('settles an inactive retained domain 403 during bootstrap and retries it after recovery', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     let fail = false
