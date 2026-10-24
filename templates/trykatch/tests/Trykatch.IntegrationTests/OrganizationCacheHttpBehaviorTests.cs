@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Caching.Hybrid;
 using Npgsql;
 using Shouldly;
 using Trykatch.Infrastructure.Caching;
@@ -165,6 +166,14 @@ public sealed partial class AccessManagementBoundaryTests
     {
         using HttpResponseMessage response = await AccessHost.SendAsync(owner, method, path, body);
         response.IsSuccessStatusCode.ShouldBeTrue(await response.Content.ReadAsStringAsync());
+        bool oldEntryMissed = false;
+        _ = await host.Services.GetRequiredKeyedService<HybridCache>(OrganizationCacheRegistration.CacheServiceKey)
+            .GetOrCreateAsync<byte[]>(CacheKeyPolicy.PhysicalKey(logicalHash, previousGeneration), _ =>
+            {
+                oldEntryMissed = true;
+                return ValueTask.FromResult(Array.Empty<byte>());
+            }, new HybridCacheEntryOptions { Flags = HybridCacheEntryFlags.DisableDistributedCache });
+        oldEntryMissed.ShouldBeTrue("The real HTTP commit interceptor must evict the warmed old local generation.");
         Guid current = await ReadGenerationAsync(host.OwnerConnection, organizationId, logicalHash);
         current.ShouldNotBe(Guid.Empty);
         current.ShouldNotBe(previousGeneration);
@@ -236,7 +245,8 @@ public sealed partial class AccessManagementBoundaryTests
             BEGIN
                 RAISE EXCEPTION 'Injected cache generation persistence failure';
             END $$;
-            CREATE TRIGGER reject_cache_generation_update BEFORE UPDATE ON app.cache_invalidations
+            CREATE CONSTRAINT TRIGGER reject_cache_generation_update AFTER UPDATE ON app.cache_invalidations
+                DEFERRABLE INITIALLY DEFERRED
                 FOR EACH ROW EXECUTE FUNCTION app.reject_cache_generation_update();
             """, connection);
         await command.ExecuteNonQueryAsync();

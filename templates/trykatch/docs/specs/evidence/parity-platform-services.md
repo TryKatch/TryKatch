@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 scoped-cache implementation and local qualification are in progress. The evidence below records completed local checks only; it does not claim that S1 is accepted, reviewed, merged, or released. Actual packaged-product checks, one integrated implementation review, PR, exact-head CI, and merge are still pending.
+Status: S1 scoped-cache implementation and local qualification are in progress. The evidence below records completed local checks only; it does not claim that S1 is accepted, reviewed, merged, or released. Local packaged-product checks have passed. One integrated implementation review, PR, exact-head CI, and merge are still pending.
 
 ## S1 — Scoped organization cache
 
@@ -22,11 +22,13 @@ The change adds an explicit READ ONLY, ReadCommitted organization scope for safe
 | Live Distributed adapter | `DistributedCacheUsesAuthenticatedL2AndPartitionsOrganizationsAndActors`, `DistributedGenerationRejectsIdlePeerAndLateFactoryAndWritesWhileDisabled`, and `DistributedOutageCallsSourceOnceAndSameClientRecoversAfterFixedEndpointRestart` | 3 passed, 0 skipped against authenticated Valkey and fresh service providers. This is an in-process host test, not multi-process or HA evidence. Scratch log: `root-host-distributed.log`. |
 | Metrics and delayed L2 | `CacheMetricsUseOnlyClosedModeAndOutcomeDimensions` and the delayed L2/canceled-owner scope case | 2 passed, 0 skipped. Scratch log: `root-cache-diagnostics-delay-green.log`. |
 | Outage and health | Fixed-endpoint outage/recovery with health behavior plus existing observability contract tests | 11 passed, 0 skipped in the selected group. A separate process case in that run failed its test-helper startup and is not included in this result. Scratch log: `root-cache-process-outage.log`. |
-| OS-process peer behavior | `DistributedProjectDetailIsSharedAcrossProcessesAndIdlePeerReadsCommittedGeneration` | 1 passed, 0 skipped: two persistent child processes shared L2, a fresh L2 reader observed the committed generation, and current HTTP mutation plus archived-membership denial were exercised. This does not prove production browser behavior or HA failover. Scratch log: `root-cache-process-green.log`. |
+| OS-process peer behavior | `DistributedProjectDetailIsSharedAcrossProcessesAndIdlePeerReadsCommittedGeneration` | 1 passed, 0 skipped: two persistent child processes shared L2, fresh processes observed L2 before and after a fixed-endpoint Valkey restart. A real HTTP mutation succeeded while Valkey was stopped; the idle peer read the current generation from PostgreSQL during the outage, and archived membership was denied before a warm value. The final outage refinement passed separately in `root-cache-process-outage-final.log`. This does not prove production browser behavior or HA failover. Scratch log: `root-cache-process-green.log`. |
 | Optional Compose topology | Regular and backend-only cache overlays | Both runtime probes authenticated successfully; unauthenticated access was rejected; Valkey ran as UID 999 with read-only root, dropped capabilities, internal cache-only network, and no published ports. API/PostgreSQL were not started for this cache-service topology check. Scratch log: `cache-compose-runtime-proof.log`. |
 | Build and boundaries | Full solution Debug build; host and Projects architecture tests | Build completed with 0 warnings/errors; 12 host and 5 Projects architecture tests passed with 0 skips. Module doctor reported enabled Projects and Documents at version 1.1.0 as healthy. Scratch logs: `root-cache-solution-build.log`, `root-cache-architecture.log`, and `root-cache-projects-architecture.log`. |
 | Focused host unit checks | Final cache-related unit selection | 40 passed, 0 skipped. Scratch log: `root-cache-unit-final.log`. |
 | Generated API/web contracts | Actual OpenAPI generation, pnpm generation, and generated-contract check | Completed with no tracked generated drift. Scratch check log: `root-cache-web-contract-check.log`. |
+| HTTP commit callbacks | Exact old-generation eviction on real HTTP commits and a deferred generation trigger failure at COMMIT | 2 passed, 0 skipped; failed commit preserves business value, generation and warm entry. Scratch log: `root-cache-http-commit-final.log`. |
+| Packed renamed products | Fresh packaged CLI generated Acme.CachePortal (React/email-off) and Acme.CacheWorker (backend-only/email-on) | Each passed normal+locked restore, Release solution/AppHost build with zero warnings/errors, doctor, 40 cache unit checks, 8 Projects reference checks, and 2 actual HTTP/process cases with zero skips. React contract check passed; backend contract check explicitly consumed `obj/openapi`, with Web absent. Package inspection excludes scratch/build/dependency artifacts. The later HTTP commit/outage refinements strengthen tests only; product source is unchanged. |
 | Final adapter regressions | Focused cache adapter regression selection | 10 passed, 0 skipped. Scratch log: `root-cache-adapter-regressions-final.log`. |
 
 Dependency audit and isolated-gate artifacts are retained in the task's local qualification workspace (`dependency-gate/`); those scratch files are not distributed with generated applications.
@@ -43,7 +45,7 @@ Operational bounds are fixed or validated: default `short` and `standard` TTLs a
 
 ### Remaining S1 work
 
-S1 remains incomplete pending actual packaged-product checks, integrated review, PR, required exact-head CI, and merge. The full solution/AppHost compile and API/web contract generation are qualified above; they do not replace packaged-product or remote PR gates. Do not use this evidence as a release or S1-complete claim. Additional qualifications must be added here with their exact test layer and results after they run.
+S1 remains incomplete pending integrated review, PR, required exact-head CI, and merge. The full solution/AppHost compile and API/web contract generation are qualified above; they do not replace packaged-product or remote PR gates. Do not use this evidence as a release or S1-complete claim. Additional qualifications must be added here with their exact test layer and results after they run.
 
 ## S2–S6 — Planned, not implemented by this evidence
 

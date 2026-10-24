@@ -72,6 +72,7 @@ public sealed partial class AccessManagementBoundaryTests
             freshHit.SourceQueryCount.ShouldBe(0, "a newly started process must read the already populated shared Valkey L2 entry");
         }
 
+        await valkey.StopAsync();
         await AccessHost.SuccessAsync(owner, HttpMethod.Put, $"/api/v1/projects/{projectId}", new
         {
             id = projectId, name = "Committed while the peer was idle", description = "Generation changes with the project transaction"
@@ -81,11 +82,22 @@ public sealed partial class AccessManagementBoundaryTests
         refreshedPeer.Kind.ShouldBe("project");
         refreshedPeer.Name.ShouldBe("Committed while the peer was idle");
         refreshedPeer.SourceQueryCount.ShouldBe(1, "the idle replica must reject its old generation and load the committed detail once");
-        await AwaitProjectL2Async(host, organizationId, ownerActorId, projectId);
+        await valkey.StartAsync();
+        await AwaitCacheBackendRecoveryAsync(host.Services);
         CacheAcceptanceReadResponse refreshedFirst = await first.ReadAsync(organizationId, ownerActorId, projectId);
         refreshedFirst.Kind.ShouldBe("project");
         refreshedFirst.Name.ShouldBe("Committed while the peer was idle");
-        refreshedFirst.SourceQueryCount.ShouldBe(0, "the other replica must reject its own old L1 entry and read the new committed generation from L2");
+        // The idle peer's asynchronous L2 publication can finish on either side of restart.
+        // Both a fresh source read and the recovered new-generation L2 value are valid here.
+        refreshedFirst.SourceQueryCount.ShouldBeInRange(0, 1);
+        await AwaitProjectL2Async(host, organizationId, ownerActorId, projectId);
+        await using (CacheReaderProcess recovered = await CacheReaderProcess.StartAsync(configuration, cacheSettings))
+        {
+            CacheAcceptanceReadResponse recoveredHit = await recovered.ReadAsync(organizationId, memberActorId, projectId);
+            recoveredHit.Kind.ShouldBe("project");
+            recoveredHit.Name.ShouldBe("Committed while the peer was idle");
+            recoveredHit.SourceQueryCount.ShouldBe(0, "a fresh OS process must use actual L2 after the same endpoint recovers");
+        }
 
         using HttpResponseMessage revoked = await AccessHost.SendAsync(owner, HttpMethod.Post,
             $"/api/v1/members/{memberMembershipId}/archive", new { });
@@ -105,6 +117,18 @@ public sealed partial class AccessManagementBoundaryTests
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
         while (await backend.GetAsync(physical, deadline.Token) is null)
             await Task.Delay(50, deadline.Token);
+    }
+
+    private static async Task AwaitCacheBackendRecoveryAsync(IServiceProvider services)
+    {
+        IDistributedCache backend = services.GetRequiredKeyedService<IDistributedCache>(OrganizationCacheRegistration.DistributedServiceKey);
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(20));
+        while (true)
+        {
+            try { _ = await backend.GetAsync("process-recovery:read-probe", deadline.Token); return; }
+            catch (StackExchange.Redis.RedisException) { }
+            await Task.Delay(100, deadline.Token);
+        }
     }
 
     private sealed record CacheAcceptanceReadResponse(
