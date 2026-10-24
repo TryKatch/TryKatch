@@ -40,6 +40,7 @@ public static class DependencyInjection
         string outboxConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Outbox);
 
         services.AddScoped<CacheInvalidationCommitState>();
+        services.AddScoped<CacheGenerationStore>();
         services.AddScoped<CacheInvalidationTransactionInterceptor>();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));
         services.AddDbContext<OrganizationControlPlaneDbContext>((provider, options) => options

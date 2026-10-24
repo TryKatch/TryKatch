@@ -142,7 +142,7 @@ public sealed partial class OrganizationCacheScopeIntegrationTests
         return postgres;
     }
 
-    private static ServiceProvider BuildProvider(string ownerConnection)
+    private static ServiceProvider BuildProvider(string ownerConnection, params IModule[] modules)
     {
         NpgsqlConnectionStringBuilder owner = new(ownerConnection);
         Dictionary<string, string?> settings = new()
@@ -160,9 +160,10 @@ public sealed partial class OrganizationCacheScopeIntegrationTests
         };
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         ServiceCollection services = new();
+        services.AddSingleton(configuration);
         services.AddLogging();
         services.AddApplication();
-        services.AddModules(configuration, Array.Empty<IModule>());
+        services.AddModules(configuration, modules);
         services.AddInfrastructure(configuration, isOpenApiGeneration: true);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
