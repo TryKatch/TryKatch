@@ -62,17 +62,20 @@ public static class DependencyInjection
         services.AddFeaturePolicy(configuration);
         services.AddOrganizationQuotas(configuration);
         services.AddScoped<CacheInvalidationTransactionInterceptor>();
+        services.AddScoped<UploadFinalizationTransactionInterceptor>();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));
         services.AddDbContext<OrganizationControlPlaneDbContext>((provider, options) => options
             .UseNpgsql(organizationConnection)
-            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>()));
+            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>(),
+                provider.GetRequiredService<UploadFinalizationTransactionInterceptor>()));
         // Organization-scoped requests use explicit transactions on both contexts so
         // PostgreSQL transaction-local RLS variables cannot leak between pooled
         // connections. Retrying an entire HTTP transaction could replay downstream
         // side effects, therefore these contexts deliberately avoid EF retries.
         services.AddDbContext<ApplicationDbContext>((provider, options) => options
             .UseNpgsql(organizationConnection)
-            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>()));
+            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>(),
+                provider.GetRequiredService<UploadFinalizationTransactionInterceptor>()));
         services.AddOptions<OutboxRecoveryOptions>()
             .BindConfiguration(OutboxRecoveryOptions.SectionName)
             .ValidateOnStart();
