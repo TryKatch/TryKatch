@@ -7,11 +7,18 @@ public sealed class OrganizationFeatureExceptionHandler : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        if (exception is not OrganizationFeaturePolicyUnavailableException) return false;
-        httpContext.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-        await Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
-            title: "feature_policy_unavailable", detail: "Feature policy is temporarily unavailable. Try again later.",
-            extensions: new Dictionary<string, object?> { ["code"] = "feature_policy_unavailable" })
+        (int status, string code, string detail) = exception switch
+        {
+            OrganizationFeatureUnavailableException => (StatusCodes.Status409Conflict, "feature_unavailable",
+                "The requested feature is unavailable in this organization."),
+            OrganizationFeaturePolicyUnavailableException => (StatusCodes.Status503ServiceUnavailable, "feature_policy_unavailable",
+                "Feature policy is temporarily unavailable. Try again later."),
+            _ => (0, "", "")
+        };
+        if (status == 0) return false;
+        httpContext.Response.StatusCode = status;
+        await Results.Problem(statusCode: status, title: code, detail: detail,
+            extensions: new Dictionary<string, object?> { ["code"] = code })
             .ExecuteAsync(httpContext);
         return true;
     }

@@ -22,7 +22,7 @@ public sealed class ProjectMutationAuthorizationTests
         TestProjectStore store = new();
         Project project = Project.Create(OrganizationId, "Launch", null, ActorId);
         store.Add(project);
-        ProjectMutationAuthorization authorization = new(store);
+        ProjectMutationAuthorization authorization = new(store, new TestFeatures());
         MutationAuthority authority = Authority(Permissions.ProjectsManage);
 
         (await authorization.AuthorizeRequestAsync(authority, null, CancellationToken.None)).ShouldBeTrue();
@@ -37,7 +37,7 @@ public sealed class ProjectMutationAuthorizationTests
         TestProjectStore store = new();
         Project project = Project.Create(OrganizationId, "Launch", null, ActorId);
         store.Add(project);
-        ProjectMutationAuthorization authorization = new(store);
+        ProjectMutationAuthorization authorization = new(store, new TestFeatures());
 
         (await authorization.AuthorizeRequestAsync(Authority(Permissions.ProjectsRead), null, CancellationToken.None)).ShouldBeFalse();
         (await authorization.AuthorizeRequestAsync(Authority(Permissions.ProjectsManage, organizationId: Guid.Empty), null, CancellationToken.None)).ShouldBeFalse();
@@ -55,7 +55,7 @@ public sealed class ProjectMutationAuthorizationTests
         TestProjectStore store = new();
         Project project = Project.Create(OrganizationId, "Launch", null, ActorId);
         store.Add(project);
-        ProjectMutationAuthorization authorization = new(store);
+        ProjectMutationAuthorization authorization = new(store, new TestFeatures());
         MutationAuthority authority = Authority(Permissions.ProjectsManage);
 
         (await authorization.AuthorizeReplayAsync(authority, new MutationResourceReference("projects", project.Id), CancellationToken.None)).ShouldBeTrue();
@@ -79,7 +79,7 @@ public sealed class ProjectMutationAuthorizationTests
             if (deleted) project.Delete(ActorId, "Requested by the organization owner", DateTimeOffset.UtcNow);
             store.Add(project);
 
-            ProjectMutationAuthorization authorization = new(store);
+            ProjectMutationAuthorization authorization = new(store, new TestFeatures());
             MutationAuthority authority = Authority(Permissions.ProjectsManage);
             (await authorization.AuthorizeRequestAsync(authority, project.Id, CancellationToken.None)).ShouldBeTrue();
             (await authorization.AuthorizeReplayAsync(authority, new MutationResourceReference("projects", project.Id), CancellationToken.None)).ShouldBeTrue();
@@ -87,9 +87,52 @@ public sealed class ProjectMutationAuthorizationTests
         }
     }
 
+    [TestMethod]
+    public async Task CurrentWritesPolicyIsCheckedIndependentlyForRequestAndReplayBeforeStorage()
+    {
+        TestProjectStore store = new();
+        Project project = Project.Create(OrganizationId, "Launch", null, ActorId);
+        store.Add(project);
+        TestFeatures features = new() { WritesEnabled = false };
+        ProjectMutationAuthorization authorization = new(store, features);
+        MutationAuthority authority = Authority(Permissions.ProjectsManage);
+
+        await Should.ThrowAsync<OrganizationFeatureUnavailableException>(() =>
+            authorization.AuthorizeRequestAsync(authority, null, CancellationToken.None));
+        await Should.ThrowAsync<OrganizationFeatureUnavailableException>(() =>
+            authorization.AuthorizeReplayAsync(authority, new MutationResourceReference("projects", project.Id), CancellationToken.None));
+        store.FindCalls.ShouldBe(0);
+
+        features.WritesEnabled = true;
+        (await authorization.AuthorizeRequestAsync(authority, null, CancellationToken.None)).ShouldBeTrue();
+        (await authorization.AuthorizeReplayAsync(authority, new MutationResourceReference("projects", project.Id), CancellationToken.None)).ShouldBeTrue();
+        store.FindCalls.ShouldBe(1);
+        store.Writes.ShouldBe(0);
+    }
+
+    [TestMethod]
+    public async Task InvalidAuthorityIsRejectedWithoutConsultingFeaturePolicy()
+    {
+        TestProjectStore store = new();
+        TestFeatures features = new() { WritesEnabled = false };
+        ProjectMutationAuthorization authorization = new(store, features);
+
+        (await authorization.AuthorizeRequestAsync(Authority(Permissions.ProjectsRead), null, CancellationToken.None)).ShouldBeFalse();
+        features.Calls.ShouldBe(0);
+        store.FindCalls.ShouldBe(0);
+    }
+
     private static MutationAuthority Authority(string permission, Guid? organizationId = null, Guid? actorId = null, Guid? membershipId = null) =>
         new(organizationId ?? OrganizationId, actorId ?? ActorId, membershipId ?? MembershipId,
             new HashSet<string>([permission], StringComparer.Ordinal));
+
+    private sealed class TestFeatures : IOrganizationFeatureEvaluator
+    {
+        public bool WritesEnabled { get; set; } = true;
+        public int Calls { get; private set; }
+        public Task<bool> IsEnabledAsync(string featureKey, CancellationToken ct)
+        { Calls++; return Task.FromResult(WritesEnabled); }
+    }
 
     private sealed class TestProjectStore : IProjectStore
     {

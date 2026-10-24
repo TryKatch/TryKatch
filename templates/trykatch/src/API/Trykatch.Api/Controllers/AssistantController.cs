@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Trykatch.Api.Security;
 using Trykatch.Application.Organizations;
+using Trykatch.Modules;
 using Trykatch.Modules.AspNetCore.Assistant;
 
 namespace Trykatch.Api.Controllers;
@@ -78,6 +79,7 @@ public sealed class AssistantController(AssistantRuntime runtime, AssistantConve
             return Problem(statusCode: 403, title: "tool_forbidden", detail: "The requested information is not available to this membership.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception failure) when (failure is OrganizationFeatureUnavailableException or OrganizationFeaturePolicyUnavailableException) { throw; }
         catch (Exception)
         {
             // Never log prompts, arguments, retrieved records, provider bodies or API keys.

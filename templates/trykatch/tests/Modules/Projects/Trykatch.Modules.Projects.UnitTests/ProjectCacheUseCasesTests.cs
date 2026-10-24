@@ -47,6 +47,24 @@ public sealed class ProjectCacheUseCasesTests
     }
 
     [TestMethod]
+    public async Task GetRechecksReadsAvailabilityBeforeReturningPreviouslyCachedDto()
+    {
+        Project project = Project.Create(OrganizationId, "Launch", "Roadmap", ActorId);
+        RecordingCache cache = new() { ReturnCachedValue = true, CachedValue = new ProjectDto(project.Id, "Launch", "Roadmap",
+            project.CreatedAt, null, new RecordLifecycleDto("Active", null, null, null)) };
+        TestProjectStore store = new() { Project = project };
+        TestOrganizationFeatureEvaluator features = new() { ReadsEnabled = false };
+        ProjectUseCases useCases = CreateUseCases(store, cache, permission: true, features: features);
+
+        Result<ProjectDto> denied = await useCases.GetAsync(project.Id, CancellationToken.None);
+
+        denied.IsSuccess.ShouldBeFalse();
+        denied.ErrorCode.ShouldBe("feature_unavailable");
+        store.FindCalls.ShouldBe(0);
+        cache.GetKeys.ShouldBeEmpty();
+    }
+
+    [TestMethod]
     public async Task GetPreservesNotFoundAndListDoesNotUseDetailCache()
     {
         RecordingCache cache = new();
@@ -156,11 +174,21 @@ public sealed class ProjectCacheUseCasesTests
         cache.InvalidationKeys[0].ShouldBe(DetailKey(resultingProjectId));
     }
 
-    private static ProjectUseCases CreateUseCases(TestProjectStore store, RecordingCache cache, bool permission)
+    private static ProjectUseCases CreateUseCases(TestProjectStore store, RecordingCache cache, bool permission,
+        TestOrganizationFeatureEvaluator? features = null)
     {
         cache.Observe(store);
         return new(store, new TestOrganizationContext(), new TestPermissionAuthorizer(permission), new TestAuditWriter(),
-            new TestOutboxWriter(), new CreateProjectValidator(), new UpdateProjectValidator(), cache);
+            new TestOutboxWriter(), new CreateProjectValidator(), new UpdateProjectValidator(), cache,
+            features ?? new TestOrganizationFeatureEvaluator());
+    }
+
+    private sealed class TestOrganizationFeatureEvaluator : IOrganizationFeatureEvaluator
+    {
+        public bool ReadsEnabled { get; set; } = true;
+        public bool WritesEnabled { get; set; } = true;
+        public Task<bool> IsEnabledAsync(string featureKey, CancellationToken ct) =>
+            Task.FromResult(featureKey == ProjectFeatures.Reads ? ReadsEnabled : WritesEnabled);
     }
 
     private static ModuleCacheKey DetailKey(Guid projectId) => new(

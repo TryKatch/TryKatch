@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 declarations, precedence, persistence, strict administration APIs and current-organization evaluation are locally verified; Projects/HTTP/replay/realtime enforcement, UI and final S4–S6 acceptance remain outstanding. This is not a release claim.
+Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234`. S3 merged in [PR #136](https://github.com/TryKatch/TryKatch/pull/136) as `a3f19df` after the single integrated review, focused corrections and all required exact-head CI, dependency and preview checks. The transaction, HTTP, crash, packed-product and realtime evidence is recorded below. S4 declarations, precedence, persistence, strict administration APIs, current-organization evaluation and backend enforcement are locally verified; UI, packed-product qualification and final S4–S6 acceptance remain outstanding. This is not a release claim.
 
 ## S1 — Scoped organization cache
 
@@ -336,3 +336,25 @@ Each organization evaluation reads the environment control and its own override 
 Test-first evidence is recorded in the refined S4 plan. Final focused coverage passes 43 unit cases; the ten new PostgreSQL/HTTP cases are qualified through the initial eight passes plus the two corrected focused passes, all with zero skips. Those corrections preserve the existing role-editor normalization and support the hosting provider's verified empty-parent configuration marker while retaining strict typed-child validation. Tests cover identity revocation/suspension/unconfirmed/passwordless/legacy-only rejection, busy and authority revocation at admission with zero effects, current-org isolation, precedence, policy outage/recovery, cancellation, cookie CSRF, CAS and history rollback. The 13 selected existing atomic-response, module-antiforgery and platform-access regressions pass.
 
 The actual API build and normal OpenAPI/client/assistant generation add exactly `Features_Current` and four `PlatformFeatures_*` operations, changing no existing operation or schema and adding no assistant tool. Generated client and host TypeScript checks pass. These are local Task 2 results; Projects/use-case/replay/realtime gates, UI, packed qualification, the single integrated S4 review and exact-head CI/merge remain pending.
+
+### Projects availability enforcement checkpoint
+
+Explicit `RequireModuleFeature` metadata is validated against one installed module's declarations inside the host's secured organization group. Unknown, foreign, duplicate, anonymous, platform and synthetic organization-scope enrollments fail composition. The host filter runs after cookie antiforgery and before idempotency, independently of endpoint helper call order; legacy endpoints without requirements do not resolve an evaluator.
+
+Projects list/get recheck reads before storage or cached DTO access. All five mutations recheck writes after permission authorization and before validation or effects. Both idempotency callbacks independently recheck current writes while preserving manage-only replay. Disabled mutations return 409 `feature_unavailable`, and a policy source failure returns 503 `feature_policy_unavailable`. A successful receipt remains retained: disabling writes blocks replay without new effects, and re-enabling permits its exact bytes, content type and Location again.
+
+The two existing read-only assistant adapters retain their bounded DTO queries and check permission then reads before parsing/querying. A real HTTP regression initially reproduces the controller's incorrect generic 500; a narrow exception passthrough now preserves the same 409/503 contract without exposing database diagnostics. The test supplies only an in-process scripted model and activation to the real runtime, adapters, permissions and PostgreSQL boundary; it does not qualify a live provider or activation administration.
+
+A persisted `projects.create` user operation fails without business, audit, outbox or completion effects while writes are disabled, then completes once after an organization override enables it. Existing execution failure/backoff semantics remain unchanged. This qualifies the actual executor with a persisted authority envelope; it does not claim a new Projects job declaration or scheduler enqueue API. Current recipient policy checks reads before resource lookup. Actual HTTP/WebSocket qualification proves an existing subscription closes after disable, no subsequent invalidation is delivered, committed event publication continues, retained rows remain unchanged, and a fresh subscription works after re-enable.
+
+Verification uses the pinned SDK from the task wrapper and real PostgreSQL containers. All executed test cases below pass with zero skips:
+
+| Check | Result | Task scratch log |
+| --- | --- | --- |
+| Projects module unit project | 36 passed | `task3-projects-green.log` |
+| Feature HTTP metadata, actual Projects/replay, assistant, persisted executor and existing/current realtime authorization | 22 passed | `task3-integration-green.log` |
+| Selected existing HTTP replay, response/commit rollback, two OS-process crash cases, antiforgery and assistant HTTP boundary | 21 passed | `task3-boundary-regressions.log` |
+| `AssistantRuntimeTests` | 133 passed | `task3-assistant-unit-regressions.log` |
+| Host architecture / Projects architecture | 12 / 5 passed | `task3-host-architecture.log`, `task3-projects-architecture.log` |
+
+Normal API build/OpenAPI generation and client/assistant regeneration succeed. A structured comparison confirms all operation IDs, schemas and existing responses remain unchanged; only 409/503 ProblemDetails responses are added to the seven guarded Projects operations. The generated client carries those error types. Generated client and host typechecks pass; the assistant contract has no drift. Actual browser stale-render behavior and module absence/re-enable with retained controls remain required at Tasks 4–5, together with operator UI, packed React/backend qualification, the single integrated review and CI/merge.

@@ -16,7 +16,7 @@ namespace Trykatch.IntegrationTests;
 
 // Actual installed Projects policy, PostgreSQL and HTTP/WebSocket protocol; TestServer, not OS replicas.
 [TestClass, TestCategory("Integration")]
-public sealed class RealtimeProjectsAuthorizationTests
+public sealed partial class RealtimeProjectsAuthorizationTests
 {
     private static readonly ModuleRealtimePolicyRef Policy = new("projects", "projects.read", 1);
 
