@@ -30,6 +30,7 @@ internal static class IdentityEmailHosting
             services.AddScoped<IdentitySecurityEmailDelivery>();
             services.TryAddScoped<IIdentitySecurityEmailSubmission>(provider =>
                 provider.GetRequiredService<IdentitySecurityEmailDelivery>());
+            services.AddScoped<IEmailDeliveryMetadataReader, IdentityEmailDeliveryMetadataReader>();
             services.AddScoped<IEmailDeliverySource>(provider =>
                 provider.GetRequiredService<IdentitySecurityEmailDelivery>());
             return services;

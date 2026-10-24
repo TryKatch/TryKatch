@@ -1,6 +1,7 @@
 #if TRYKATCH_EMAIL
 using System.Data.Common;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Trykatch.Application.Mailing;
@@ -11,6 +12,49 @@ namespace Trykatch.UnitTests;
 [TestClass]
 public sealed class QueuedEmailDispatcherTests
 {
+    private static readonly string[] SafeTraceKeys = ["email.delivery.boundary", "email.delivery.outcome", "messaging.message.id"];
+    private static readonly string[] SafeMetricKeys = ["boundary", "outcome"];
+    [TestMethod]
+    [DoNotParallelize]
+    public async Task AttemptTelemetryCorrelatesOpaqueDeliveryWithoutPrivateContentOrHighCardinalityMetricTags()
+    {
+        List<Activity> activities = [];
+        List<KeyValuePair<string, object?>[]> measurements = [];
+        using ActivityListener tracing = new()
+        {
+            ShouldListenTo = source => source.Name == "Trykatch.EmailDelivery",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activities.Add
+        };
+        ActivitySource.AddActivityListener(tracing);
+        using MeterListener metrics = new();
+        metrics.InstrumentPublished = (instrument, listener) =>
+        {
+            if (instrument.Meter.Name == "Trykatch.EmailDelivery") listener.EnableMeasurementEvents(instrument);
+        };
+        metrics.SetMeasurementEventCallback<long>((_, _, tags, _) => measurements.Add(tags.ToArray()));
+        metrics.Start();
+        TestSource source = new(includeDefaultClaim: false);
+        EmailDeliveryLease lease = Lease() with { ProtectedIntent = "planted-ciphertext-marker" };
+        source.Claims.Enqueue([lease]);
+        source.Prepare = (_, _) => Task.FromResult(new EmailDeliveryPreparation(EmailPreparationDisposition.Ready,
+            new("planted-recipient@example.invalid", "planted-subject", "planted-body-token", "planted-private-html")));
+        using Harness harness = new(source);
+        await harness.Dispatcher.DispatchOnceAsync();
+
+        Activity activity = activities.ShouldHaveSingleItem();
+        activity.GetTagItem("messaging.message.id").ShouldBe(lease.Context.DeliveryId);
+        activity.GetTagItem("email.delivery.outcome").ShouldBe("acknowledged");
+        activity.TagObjects.Select(value => value.Key).Order().ShouldBe(SafeTraceKeys.Order());
+        foreach (KeyValuePair<string, object?> tag in activity.TagObjects) (tag.Value?.ToString() ?? "").ShouldNotContain("planted");
+        measurements.ShouldNotBeEmpty();
+        foreach (KeyValuePair<string, object?>[] tags in measurements)
+        {
+            tags.Select(value => value.Key).Order().ShouldBe(SafeMetricKeys.Order());
+            foreach (KeyValuePair<string, object?> tag in tags) (tag.Value?.ToString() ?? "").ShouldNotContain("planted");
+        }
+    }
+
     [TestMethod]
     public async Task SuppressedPreparationCompletesWithoutCallingSmtp()
     {

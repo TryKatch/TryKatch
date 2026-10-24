@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Trykatch.Application.Mailing;
 using Trykatch.Infrastructure.Modules.Email;
 using Trykatch.Modules;
 
@@ -49,6 +50,29 @@ public sealed class EmailTemplateRegistryTests
         registry.TryRender(Template(), JsonSerializer.SerializeToElement("not an object"), out _).ShouldBeFalse();
         renderer.InvalidSubject = true;
         registry.TryPreview(Template(), out _).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public void OperatorCatalogueUsesOnlyCompiledTemplatesAndSyntheticFixtures()
+    {
+        EmailTemplateRegistry registry = new(Catalog(), [new(Template(), new FixtureRenderer())], [new(Policy(), new FixturePolicy())]);
+        ServiceCollection services = new();
+        services.AddEmailModule(new ConfigurationBuilder().Build(), isDevelopment: true);
+        services.AddScoped(_ => registry);
+        using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        using IServiceScope scope = provider.CreateScope();
+        IEmailTemplateCatalogue catalogue = scope.ServiceProvider.GetRequiredService<IEmailTemplateCatalogue>();
+        catalogue.List().ShouldBe(new[] { new EmailTemplateView("core.organization-invitation", 1),
+            new EmailTemplateView("core.password-reset", 1), new EmailTemplateView("messages/message.notice", 1) });
+        catalogue.Preview("messages/message.notice", 1)!.TextBody.ShouldBe("Synthetic preview");
+        foreach (string key in new[] { "core.organization-invitation", "core.password-reset" })
+        {
+            EmailTemplatePreview preview = catalogue.Preview(key, 1)!;
+            preview.TextBody.ShouldContain("https://example.invalid/");
+            preview.HtmlBody.ShouldNotBeNull().ShouldContain("https://example.invalid/");
+            catalogue.Preview(key, 2).ShouldBeNull();
+        }
+        catalogue.Preview("unregistered/private", 1).ShouldBeNull();
     }
 
     private static ModuleEmailTemplateRef Template() => new("messages", "message.notice", 1);

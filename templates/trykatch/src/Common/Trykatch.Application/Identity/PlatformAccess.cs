@@ -18,6 +18,7 @@ public static class PlatformPermissions
     public const string OutboxReplay = "platform.outbox.replay";
     public const string JobsRead = "platform.jobs.read";
     public const string JobsManage = "platform.jobs.manage";
+    public const string EmailRead = "platform.email.read";
 
     public static readonly IReadOnlyList<PlatformPermissionModuleDefinition> Modules =
     [
@@ -49,6 +50,10 @@ public static class PlatformPermissions
         [
             new(JobsRead, "View module work", "View bounded operational job metadata.", false),
             new(JobsManage, "Manage module work", "Pause, resume and request controlled retries.", true)
+        ]),
+        new("email", "Email delivery", "Inspect safe delivery status and synthetic template previews.",
+        [
+            new(EmailRead, "View email delivery", "View safe delivery metadata and synthetic template previews after an explicit grant.", true)
         ]),
         new("outbox", "Outbox recovery", "Inspect terminal deliveries and request controlled replay.",
         [
@@ -83,7 +88,8 @@ public static class PlatformRoles
 
     public static readonly IReadOnlyList<PlatformRoleDefinition> All =
     [
-        new(Administrator, "Administrator", "Full platform control, including access and authentication policy.", 10, PlatformPermissions.All),
+        new(Administrator, "Administrator", "Full platform control, including access and authentication policy.", 10,
+            PlatformPermissions.All.Where(permission => permission != PlatformPermissions.EmailRead).ToFrozenSet(StringComparer.Ordinal)),
         new(Operator, "Operator", "Operate tenants and invitations without changing privileged platform access.", 20, new[]
         {
             PlatformPermissions.DashboardRead,
@@ -145,7 +151,11 @@ public sealed record EffectivePlatformAccess(
     public static EffectivePlatformAccess None { get; } = new(false, false, null, FrozenSet<string>.Empty);
 
     public bool HasPermission(string permission) =>
-        IsActive && (IsAdministrator || Permissions.Contains(permission));
+        IsActive && (Permissions.Contains(permission) || IsAdministrator && permission != PlatformPermissions.EmailRead);
+
+    // Administrators can grant catalog permissions without receiving explicit-only read access themselves.
+    public IReadOnlySet<string> GrantBoundary => !IsActive ? FrozenSet<string>.Empty
+        : IsAdministrator ? PlatformPermissions.All : Permissions;
 }
 
 public interface IPlatformAccessDirectory

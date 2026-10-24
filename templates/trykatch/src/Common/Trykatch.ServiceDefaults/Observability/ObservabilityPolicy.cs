@@ -104,6 +104,8 @@ internal sealed class ObservabilityPolicy
             "Trykatch.Outbox" => [],
             "Trykatch.AuditProjection" when instrument.Name == "trykatch.audit.projections" => ["outcome"],
             "Trykatch.AuditProjection" => [],
+            "Trykatch.EmailDelivery" when instrument.Name == "trykatch.email.delivery.attempts" => ["boundary", "outcome"],
+            "Trykatch.EmailDelivery" => [],
             "Microsoft.AspNetCore.Hosting" => ["http.request.method", "http.response.status_code", "http.route", "network.protocol.version", "url.scheme"],
             "Npgsql" => ["db.operation.name", "db.namespace", "server.address", "server.port"],
             _ => []

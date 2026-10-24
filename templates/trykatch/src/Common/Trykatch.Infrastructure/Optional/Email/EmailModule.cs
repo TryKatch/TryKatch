@@ -99,6 +99,8 @@ public static class EmailModule
         services.AddScoped<IPasswordResetEmailRenderer, PasswordResetEmailRenderer>();
         services.AddScoped<IAccountRecoveryNotifier, SmtpAccountRecoveryNotifier>();
         services.AddScoped<IInvitationNotifier, SmtpInvitationNotifier>();
+        if (!isOpenApiGeneration)
+            services.TryAddScoped<IEmailTemplateCatalogue, ApprovedEmailTemplateCatalogue>();
 
         string? workConnection = configuration.GetConnectionString("trykatch-work");
         if (!isOpenApiGeneration && !string.IsNullOrWhiteSpace(workConnection))
@@ -107,6 +109,7 @@ public static class EmailModule
                 new DbContextOptionsBuilder<OrganizationEmailDeliveryDbContext>().UseNpgsql(workConnection).Options);
             services.TryAddSingleton<OrganizationEmailDeliveryStore>();
             services.TryAddScoped<EmailTemplateRegistry>();
+            services.AddScoped<IEmailDeliveryMetadataReader, OrganizationEmailDeliveryMetadataReader>();
             services.TryAddScoped<OrganizationModuleEmailPolicy>();
             services.TryAddSingleton(new InvitationEmailLinkPolicy(configuration, isDevelopment));
             services.TryAddScoped<OrganizationInvitationEmailPolicy>();

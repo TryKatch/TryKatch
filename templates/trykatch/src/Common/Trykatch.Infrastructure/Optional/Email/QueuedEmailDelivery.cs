@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -8,6 +9,7 @@ namespace Trykatch.Infrastructure.Modules.Email;
 
 internal sealed class QueuedEmailDispatcher(IServiceScopeFactory scopes, TimeProvider clock)
 {
+    private static readonly ActivitySource Traces = new("Trykatch.EmailDelivery");
     private static readonly Meter Meter = new("Trykatch.EmailDelivery");
     private static readonly Counter<long> Outcomes = Meter.CreateCounter<long>("trykatch.email.delivery.attempts");
     private static readonly TimeSpan CompletionBudget = TimeSpan.FromSeconds(5);
@@ -58,6 +60,9 @@ internal sealed class QueuedEmailDispatcher(IServiceScopeFactory scopes, TimePro
             return;
         }
 
+        using Activity? activity = Traces.StartActivity("email delivery", ActivityKind.Producer);
+        activity?.SetTag("messaging.message.id", lease.Context.DeliveryId);
+        activity?.SetTag("email.delivery.boundary", SafeBoundary(source.Boundary));
         using CancellationTokenSource attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         attempt.CancelAfter(attemptBudget);
         EmailAttemptOutcome outcome;
@@ -73,7 +78,7 @@ internal sealed class QueuedEmailDispatcher(IServiceScopeFactory scopes, TimePro
         catch (OperationCanceledException) when (attempt.IsCancellationRequested)
         {
             outcome = new(EmailAttemptDisposition.RetryableFailure, EmailFailureCode.SourceUnavailable);
-            Count(source.Boundary, OutcomeTag(outcome));
+            RecordOutcome(activity, source.Boundary, outcome);
             await CompleteBoundedAsync(source, lease, outcome);
             return;
         }
@@ -81,21 +86,21 @@ internal sealed class QueuedEmailDispatcher(IServiceScopeFactory scopes, TimePro
         {
             cancellationToken.ThrowIfCancellationRequested();
             outcome = new(EmailAttemptDisposition.RetryableFailure, EmailFailureCode.SourceUnavailable);
-            Count(source.Boundary, OutcomeTag(outcome));
+            RecordOutcome(activity, source.Boundary, outcome);
             await CompleteBoundedAsync(source, lease, outcome);
             return;
         }
 
         if (!TryMapPreparation(preparation, out outcome, out EmailPreparedMessage? message))
         {
-            Count(source.Boundary, OutcomeTag(outcome));
+            RecordOutcome(activity, source.Boundary, outcome);
             await CompleteBoundedAsync(source, lease, outcome);
             return;
         }
 
         if (outcome.Disposition != EmailAttemptDisposition.Acknowledged || message is null)
         {
-            Count(source.Boundary, OutcomeTag(outcome));
+            RecordOutcome(activity, source.Boundary, outcome);
             await CompleteBoundedAsync(source, lease, outcome);
             return;
         }
@@ -105,7 +110,7 @@ internal sealed class QueuedEmailDispatcher(IServiceScopeFactory scopes, TimePro
             if (cancellationToken.IsCancellationRequested)
                 cancellationToken.ThrowIfCancellationRequested();
             outcome = new(EmailAttemptDisposition.RetryableFailure, EmailFailureCode.SourceUnavailable);
-            Count(source.Boundary, OutcomeTag(outcome));
+            RecordOutcome(activity, source.Boundary, outcome);
             await CompleteBoundedAsync(source, lease, outcome);
             return;
         }
@@ -122,7 +127,7 @@ internal sealed class QueuedEmailDispatcher(IServiceScopeFactory scopes, TimePro
             outcome = new(EmailAttemptDisposition.Uncertain, EmailFailureCode.ConnectionLost);
         }
 
-        Count(source.Boundary, OutcomeTag(outcome));
+        RecordOutcome(activity, source.Boundary, outcome);
         await CompleteBoundedAsync(source, lease, outcome);
     }
 
@@ -250,17 +255,23 @@ internal sealed class QueuedEmailDispatcher(IServiceScopeFactory scopes, TimePro
         _ => "invalid"
     };
 
-    private static void Count(EmailDeliveryBoundary boundary, string outcome)
+    private static void RecordOutcome(Activity? activity, EmailDeliveryBoundary boundary, EmailAttemptOutcome outcome)
     {
-        string safeBoundary = boundary switch
-        {
-            EmailDeliveryBoundary.Organization => "organization",
-            EmailDeliveryBoundary.Identity => "identity",
-            _ => "unknown"
-        };
-        Outcomes.Add(1, new KeyValuePair<string, object?>("boundary", safeBoundary),
-            new KeyValuePair<string, object?>("outcome", outcome));
+        string tag = OutcomeTag(outcome);
+        activity?.SetTag("email.delivery.outcome", tag);
+        Count(boundary, tag);
     }
+
+    private static string SafeBoundary(EmailDeliveryBoundary boundary) => boundary switch
+    {
+        EmailDeliveryBoundary.Organization => "organization",
+        EmailDeliveryBoundary.Identity => "identity",
+        _ => "unknown"
+    };
+
+    private static void Count(EmailDeliveryBoundary boundary, string outcome) =>
+        Outcomes.Add(1, new KeyValuePair<string, object?>("boundary", SafeBoundary(boundary)),
+            new KeyValuePair<string, object?>("outcome", outcome));
 }
 
 /// <summary>Optional poller. Hosts opt in by registering this worker after composing delivery sources.</summary>

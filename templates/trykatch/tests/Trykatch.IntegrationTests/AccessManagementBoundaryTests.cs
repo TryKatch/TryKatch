@@ -808,7 +808,7 @@ public sealed partial class AccessManagementBoundaryTests
             return await database.AuditIntents.CountAsync(intent => intent.Operation == "organization.ai.updated");
         }
 
-        public static async Task<AccessHost> StartAsync(IInvitationNotifier? invitationNotifier = null, bool queuedEmail = false)
+        public static async Task<AccessHost> StartAsync(IInvitationNotifier? invitationNotifier = null, bool queuedEmail = false, Action<IServiceCollection>? configureServices = null)
         {
             string? configuredPostgres = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
             PostgreSqlContainer? postgres = string.IsNullOrWhiteSpace(configuredPostgres)
@@ -828,7 +828,7 @@ public sealed partial class AccessManagementBoundaryTests
             }
             try
             {
-                return new(postgres, await CreateFactoryAsync(ownerConnection, invitationNotifier, queuedEmail), ownerConnection, configuredPostgres, databaseName);
+                return new(postgres, await CreateFactoryAsync(ownerConnection, invitationNotifier, queuedEmail, configureServices), ownerConnection, configuredPostgres, databaseName);
             }
             catch
             {
@@ -838,7 +838,7 @@ public sealed partial class AccessManagementBoundaryTests
             }
         }
 
-        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(string ownerConnection, IInvitationNotifier? invitationNotifier, bool queuedEmail)
+        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(string ownerConnection, IInvitationNotifier? invitationNotifier, bool queuedEmail, Action<IServiceCollection>? configureServices)
         {
             var connections = await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(ownerConnection);
             await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ownerConnection).Options);
@@ -900,6 +900,7 @@ public sealed partial class AccessManagementBoundaryTests
                             && descriptor.ImplementationType?.Name == "QueuedEmailDeliveryWorker").ToArray())
                             services.Remove(descriptor);
                     });
+                if (configureServices is not null) webHost.ConfigureTestServices(configureServices);
             });
             return factory;
         }

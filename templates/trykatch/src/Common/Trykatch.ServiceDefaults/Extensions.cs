@@ -39,10 +39,11 @@ public static class Extensions
                 .AddNpgsqlInstrumentation()
                 .AddMeter("Trykatch.Outbox")
                 .AddMeter("Trykatch.AuditProjection")
+                .AddMeter("Trykatch.EmailDelivery")
                 .AddView(instrument => ObservabilityPolicy.MetricView(instrument)))
             .WithTracing(traces => traces
                 .SetSampler(policy.Sampler)
-                .AddSource(builder.Environment.ApplicationName, "Trykatch.Outbox")
+                .AddSource(builder.Environment.ApplicationName, "Trykatch.Outbox", "Trykatch.EmailDelivery")
                 .AddAspNetCoreInstrumentation(options => options.Filter = context =>
                     !OperationalRoutePolicy.IsOperationalPath(context.Request.Path))
                 .AddHttpClientInstrumentation()
