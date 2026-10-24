@@ -39,6 +39,7 @@ public static class DependencyInjection
         string organizationConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Organization);
         string outboxConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Outbox);
 
+        services.AddLogging();
         services.AddScoped<CacheInvalidationCommitState>();
         services.AddScoped<CacheGenerationStore>();
         services.AddOrganizationCache(configuration, isOpenApiGeneration);

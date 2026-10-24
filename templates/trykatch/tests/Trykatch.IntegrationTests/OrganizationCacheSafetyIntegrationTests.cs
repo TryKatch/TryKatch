@@ -149,6 +149,54 @@ public sealed partial class OrganizationCacheScopeIntegrationTests
     }
 
     [TestMethod]
+    public async Task CacheSafetyDeferredDtoEnumerationCannotPublishUncommittedTrackedChanges()
+    {
+        await using PostgreSqlContainer postgres = await StartMigratedCachePostgresAsync();
+        using ServiceProvider provider = BuildProvider(postgres.GetConnectionString(), AdapterSettings(OrganizationCacheMode.LocalOnly), new ProjectsModule());
+        Guid organization = Guid.NewGuid(), actor = Guid.NewGuid();
+        Guid projectId = await SeedCacheProjectAsync(provider, organization, actor);
+        ModuleCacheKey key = Key("safety.deferred-dto");
+        int calls = 0;
+        await using (AsyncServiceScope scope = provider.CreateAsyncScope())
+        {
+            InitializeCacheContext(scope.ServiceProvider, organization, actor);
+            await using IOrganizationDataScope read = await scope.ServiceProvider.GetRequiredService<IOrganizationDataScopeFactory>()
+                .BeginReadOnlyAsync(organization, actor, CancellationToken.None);
+            ApplicationDbContext application = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            IEnumerable<CacheDto> DeferredDtos()
+            {
+                Project project = application.Set<Project>().Single(value => value.Id == projectId);
+                project.Update("uncommitted during enumeration", null);
+                yield return new CacheDto { Name = project.Name };
+            }
+            IEnumerable<CacheDto> result = await scope.ServiceProvider.GetRequiredService<IOrganizationCache>()
+                .GetOrCreateAsync<IEnumerable<CacheDto>>(key, _ =>
+                {
+                    calls++;
+                    return Task.FromResult(DeferredDtos());
+                });
+            result.Single().Name.ShouldBe("uncommitted during enumeration");
+            calls.ShouldBe(1);
+        }
+        await using (AsyncServiceScope fresh = provider.CreateAsyncScope())
+        {
+            InitializeCacheContext(fresh.ServiceProvider, organization, actor);
+            await using IOrganizationDataScope read = await fresh.ServiceProvider.GetRequiredService<IOrganizationDataScopeFactory>()
+                .BeginReadOnlyAsync(organization, actor, CancellationToken.None);
+            ApplicationDbContext application = fresh.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            IEnumerable<CacheDto> result = await fresh.ServiceProvider.GetRequiredService<IOrganizationCache>()
+                .GetOrCreateAsync<IEnumerable<CacheDto>>(key, async token =>
+                {
+                    calls++;
+                    Project project = await application.Set<Project>().SingleAsync(value => value.Id == projectId, token);
+                    return new[] { new CacheDto { Name = project.Name } };
+                });
+            result.Single().Name.ShouldBe("committed");
+            calls.ShouldBe(2);
+        }
+    }
+
+    [TestMethod]
     public async Task CacheSafetyMappedEntityBehindObjectPropertyIsRejectedWithoutRetry()
     {
         await using PostgreSqlContainer postgres = await StartMigratedCachePostgresAsync();
@@ -162,6 +210,55 @@ public sealed partial class OrganizationCacheScopeIntegrationTests
             })));
         calls.ShouldBe(1);
         failure.Message.ShouldNotContain("private mapped payload");
+    }
+
+    [TestMethod]
+    public async Task CacheSafetyDirtyOwnerResultIsNotReturnedToCoalescedWaiter()
+    {
+        await using PostgreSqlContainer postgres = await StartMigratedCachePostgresAsync();
+        using ServiceProvider provider = BuildProvider(postgres.GetConnectionString(), AdapterSettings(OrganizationCacheMode.LocalOnly), new ProjectsModule());
+        Guid organization = Guid.NewGuid(), actor = Guid.NewGuid();
+        Guid projectId = await SeedCacheProjectAsync(provider, organization, actor);
+        ModuleCacheKey key = Key("safety.dirty-owner");
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int ownerCalls = 0, waiterCalls = 0;
+        async Task<CacheDto> Read(bool owner)
+        {
+            await using AsyncServiceScope scope = provider.CreateAsyncScope();
+            InitializeCacheContext(scope.ServiceProvider, organization, actor);
+            await using IOrganizationDataScope data = await scope.ServiceProvider.GetRequiredService<IOrganizationDataScopeFactory>()
+                .BeginReadOnlyAsync(organization, actor, CancellationToken.None);
+            ApplicationDbContext application = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            return await scope.ServiceProvider.GetRequiredService<IOrganizationCache>().GetOrCreateAsync(key, async token =>
+            {
+                Project project = await application.Set<Project>().SingleAsync(value => value.Id == projectId, token);
+                if (owner)
+                {
+                    Interlocked.Increment(ref ownerCalls);
+                    started.TrySetResult();
+                    await release.Task.WaitAsync(token);
+                    project.Update("private uncommitted owner value", null);
+                }
+                else Interlocked.Increment(ref waiterCalls);
+                return new CacheDto { Name = project.Name };
+            });
+        }
+        Task<CacheDto> ownerRead = Read(owner: true);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Task<CacheDto> waiterRead = Read(owner: false);
+        try
+        {
+            await Task.Delay(100);
+            waiterCalls.ShouldBe(0);
+            waiterRead.IsCompleted.ShouldBeFalse();
+        }
+        finally { release.TrySetResult(); }
+        CacheDto[] results = await Task.WhenAll(ownerRead, waiterRead);
+        results[0].Name.ShouldBe("private uncommitted owner value");
+        results[1].Name.ShouldBe("committed");
+        ownerCalls.ShouldBe(1);
+        waiterCalls.ShouldBe(1);
     }
 
     private static async Task<Guid> SeedCacheProjectAsync(ServiceProvider provider, Guid organization, Guid actor)

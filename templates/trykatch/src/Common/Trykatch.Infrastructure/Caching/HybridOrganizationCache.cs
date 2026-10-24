@@ -79,12 +79,14 @@ internal sealed class HybridOrganizationCache(
                 : HybridCacheEntryFlags.None
         };
 
+        FactoryState<T> invocation = new(factory, configuration.FactoryTimeout, generations.CanPublishSourceResult,
+            serializerOptions, configuration.Mode);
         byte[] payload;
         try
         {
             payload = await cache.GetOrCreateAsync<FactoryState<T>, byte[]>(
                 physicalKey,
-                new(factory, configuration.FactoryTimeout, generations.CanPublishSourceResult, serializerOptions, configuration.Mode),
+                invocation,
                 static async (state, _) => await CreatePayloadAsync(state).ConfigureAwait(false),
                 entryOptions,
                 tags: null,
@@ -93,7 +95,15 @@ internal sealed class HybridOrganizationCache(
         catch (UncachedSourcePayloadException uncached)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return DecodeSourceResult<T>(uncached.Payload, serializerOptions);
+            if (ReferenceEquals(uncached.Owner, invocation))
+                return DecodeSourceResult<T>(uncached.Payload, serializerOptions);
+
+            // A refused owner value may contain private tracked changes. Coalesced waiters
+            // must use their own still-live scope; their source has not executed yet.
+            OrganizationCacheTelemetry.Source(configuration.Mode);
+            byte[] ownPayload = await CreateDetachedPayloadAsync(factory, configuration.FactoryTimeout, serializerOptions).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return DecodeSourceResult<T>(ownPayload, serializerOptions);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -136,13 +146,16 @@ internal sealed class HybridOrganizationCache(
         OrganizationCacheTelemetry.Source(state.Mode);
         T value = await state.Factory(timeout.Token).ConfigureAwait(false);
         timeout.Token.ThrowIfCancellationRequested();
-        bool canPublish = state.CanPublish();
         byte[] payload = CachePayloadCodec.Encode(value, state.SerializerOptions);
+        timeout.Token.ThrowIfCancellationRequested();
+        // Serialization can evaluate deferred DTO sequences and property getters. Inspect
+        // tracking only after that source work has finished, before either tier can publish.
+        bool canPublish = state.CanPublish();
         if (!canPublish || payload.Length > OrganizationCacheOptions.MaximumPayloadBytes)
         {
             if (!canPublish) OrganizationCacheTelemetry.Dirty(state.Mode);
             else OrganizationCacheTelemetry.Oversized(state.Mode);
-            throw new UncachedSourcePayloadException(payload);
+            throw new UncachedSourcePayloadException(payload, state);
         }
         return payload;
     }
@@ -153,7 +166,9 @@ internal sealed class HybridOrganizationCache(
         using CancellationTokenSource timeout = new(timeoutDuration);
         T value = await factory(timeout.Token).ConfigureAwait(false);
         timeout.Token.ThrowIfCancellationRequested();
-        return CachePayloadCodec.Encode(value, serializerOptions);
+        byte[] payload = CachePayloadCodec.Encode(value, serializerOptions);
+        timeout.Token.ThrowIfCancellationRequested();
+        return payload;
     }
 
     private static T DecodeSourceResult<T>(byte[] payload, JsonSerializerOptions serializerOptions)
@@ -166,8 +181,9 @@ internal sealed class HybridOrganizationCache(
     private sealed record FactoryState<T>(
         Func<CancellationToken, Task<T>> Factory, TimeSpan Timeout, Func<bool> CanPublish, JsonSerializerOptions SerializerOptions, OrganizationCacheMode Mode);
 
-    private sealed class UncachedSourcePayloadException(byte[] payload) : Exception("Organization cache source value is not eligible for storage.")
+    private sealed class UncachedSourcePayloadException(byte[] payload, object owner) : Exception("Organization cache source value is not eligible for storage.")
     {
         public byte[] Payload { get; } = payload;
+        public object Owner { get; } = owner;
     }
 }
