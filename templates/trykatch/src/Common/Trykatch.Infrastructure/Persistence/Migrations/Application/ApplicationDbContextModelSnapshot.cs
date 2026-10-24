@@ -404,6 +404,77 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         });
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Idempotency.MutationReceiptRecord", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ModuleId")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("OperationId")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("KeyHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<byte[]>("Body")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTimeOffset>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("ResourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResourceKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("StatusCode")
+                        .HasColumnType("integer");
+
+                    b.HasKey("OrganizationId", "ActorId", "ModuleId", "OperationId", "KeyHash");
+
+                    b.HasIndex("OrganizationId", "ExpiresAtUtc");
+
+                    b.ToTable("mutation_receipts", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_mutation_receipts_identity", "\"ModuleId\" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]*$'\nAND \"OperationId\" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]*$'\nAND \"KeyHash\" ~ '^[0-9A-F]{64}$' AND \"RequestHash\" ~ '^[0-9A-F]{64}$'");
+
+                            t.HasCheckConstraint("CK_mutation_receipts_lifetime", "\"ExpiresAtUtc\" >= \"CompletedAtUtc\" + interval '1 minute'\nAND \"ExpiresAtUtc\" <= \"CompletedAtUtc\" + interval '24 hours'");
+
+                            t.HasCheckConstraint("CK_mutation_receipts_principal", "\"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND \"ActorId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_mutation_receipts_resource", "(\"ResourceKey\" IS NULL AND \"ResourceId\" IS NULL)\nOR (\"ResourceKey\" IS NOT NULL AND \"ResourceId\" IS NOT NULL\n    AND \"ResourceKey\" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]*$'\n    AND \"ResourceId\" <> '00000000-0000-0000-0000-000000000000'::uuid)");
+
+                            t.HasCheckConstraint("CK_mutation_receipts_response", "\"StatusCode\" BETWEEN 200 AND 299 AND octet_length(\"Body\") <= 1048576\nAND (\"ContentType\" IS NULL OR (length(\"ContentType\") > 0 AND \"ContentType\" !~ '[[:cntrl:]]'))\nAND (\"Location\" IS NULL OR (left(\"Location\", 1) = '/' AND left(\"Location\", 2) <> '//'\n    AND strpos(\"Location\", chr(92)) = 0 AND \"Location\" !~ '[[:cntrl:]]'))");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Infrastructure.Jobs.ModuleScheduleCursor", b =>
                 {
                     b.Property<string>("ScheduleKey")

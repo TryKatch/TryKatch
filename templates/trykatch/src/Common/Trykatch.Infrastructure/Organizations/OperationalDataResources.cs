@@ -1,5 +1,6 @@
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Caching;
+using Trykatch.Infrastructure.Idempotency;
 using Trykatch.Infrastructure.Realtime;
 using Trykatch.Infrastructure.Jobs;
 using Trykatch.Infrastructure.Mailing;
@@ -12,6 +13,8 @@ internal static class OperationalDataResources
 {
     public static IReadOnlyList<DataResourceDescriptor> All { get; } =
     [
+        new("mutation-receipts", "app", "mutation_receipts", ModuleDataOwnership.Organization,
+            typeof(MutationReceiptRecord).FullName, "mutation_receipts_read", ModuleDataAccessRule.HostOnly),
         new("realtime-streams", "app", "realtime_streams", ModuleDataOwnership.Organization,
             typeof(RealtimeStream).FullName, "realtime_streams_read", ModuleDataAccessRule.HostOnly),
         new("realtime-history", "app", "realtime_history", ModuleDataOwnership.Organization,

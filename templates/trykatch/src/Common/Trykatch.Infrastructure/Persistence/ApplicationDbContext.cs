@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Trykatch.Application.Organizations;
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Caching;
+using Trykatch.Infrastructure.Idempotency;
 using Trykatch.Infrastructure.Realtime;
 using Trykatch.Infrastructure.Mailing;
 using Trykatch.Domain.Organizations;
@@ -107,6 +108,7 @@ public sealed class ApplicationDbContext(
         ModuleWorkPersistence.Configure(modelBuilder);
         ModuleWorkCompletion.Configure(modelBuilder);
         CacheInvalidation.Configure(modelBuilder);
+        MutationReceiptRecord.Configure(modelBuilder);
         RealtimeStream.Configure(modelBuilder);
         RealtimeHistoryRecord.Configure(modelBuilder);
         OrganizationEmailDeliveryMapping.Configure(modelBuilder);

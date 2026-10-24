@@ -94,6 +94,7 @@ public static class RuntimeDatabaseAccessProfiles
                 return None;
             return (kind, relation) switch
             {
+                (RuntimeDatabaseRoleKind.Organization, "app.mutation_receipts") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "app.cache_invalidations") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "app.realtime_streams") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "app.realtime_history") => SelectInsert,
