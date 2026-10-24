@@ -505,9 +505,10 @@ public sealed partial class OrganizationQuotaMigrationIntegrationTests
             INSERT INTO app.module_upload_operations
                 ("OrganizationId", "ResourceKey", "OperationId", "ActorId", "MembershipId", "ReservationId", "SubjectId",
                  "ObjectKey", "StorageNamespaceFingerprint", "Length", "Sha256", "MetadataFingerprint", "State",
-                 "CreatedAtUtc", "ExpiresAtUtc", "ClosedAtUtc")
+                 "CreatedAtUtc", "ExpiresAtUtc", "ClosedAtUtc", "UploadPolicyKey", "UploadPolicyVersion")
             VALUES (@organization, @resource, @operation, @actor, @membership, @reservation, @subject,
-                    @object, @namespace, 1, @sha, @metadata, @state, @created, @expires, @closed)
+                    @object, @namespace, 1, @sha, @metadata, @state, @created, @expires, @closed,
+                    'documents.upload', 1)
             """, owner);
         upload.Parameters.AddWithValue("organization", organization);
         upload.Parameters.AddWithValue("resource", QuotaResourceKey);

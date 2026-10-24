@@ -77,6 +77,9 @@ internal sealed class ModuleUploadOperationRecord : IOrganizationOwned
     public long Length { get; set; }
     public string Sha256 { get; set; } = string.Empty;
     public string MetadataFingerprint { get; set; } = string.Empty;
+    // Unbound historical rows retain their identity/hold; no policy is invented during migration.
+    public string? UploadPolicyKey { get; set; }
+    public int? UploadPolicyVersion { get; set; }
     public ModuleUploadState State { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset ExpiresAtUtc { get; set; }
@@ -211,6 +214,14 @@ internal static class QuotaRecordMapping
                     AND "Sha256" ~ '^[A-Fa-f0-9]{64}$' AND "MetadataFingerprint" ~ '^[A-Fa-f0-9]{64}$'
                     AND "StorageNamespaceFingerprint" ~ '^[A-Fa-f0-9]{64}$'
                     """);
+                definition.HasCheckConstraint("CK_module_upload_operations_policy", """
+                    ("UploadPolicyKey" IS NULL AND "UploadPolicyVersion" IS NULL)
+                    OR ("UploadPolicyKey" IS NOT NULL AND "UploadPolicyVersion" IS NOT NULL AND "UploadPolicyVersion" > 0
+                        AND "UploadPolicyKey" ~ '^[a-z][a-z0-9]*([.-][a-z0-9]+)*$'
+                        AND "UploadPolicyKey" !~ '[[:space:]]'
+                        AND left("UploadPolicyKey", length(split_part("ResourceKey", '.', 1)) + 1)
+                            = split_part("ResourceKey", '.', 1) || '.')
+                    """);
                 definition.HasCheckConstraint("CK_module_upload_operations_state", """
                     "State" IN (0, 1, 2, 3) AND isfinite("CreatedAtUtc") AND isfinite("ExpiresAtUtc")
                     AND "ExpiresAtUtc" > "CreatedAtUtc"
@@ -223,6 +234,7 @@ internal static class QuotaRecordMapping
             entity.Property(row => row.ObjectKey).HasMaxLength(500);
             entity.Property(row => row.Sha256).HasMaxLength(64);
             entity.Property(row => row.MetadataFingerprint).HasMaxLength(64);
+            entity.Property(row => row.UploadPolicyKey).HasMaxLength(120);
             entity.Property(row => row.StorageNamespaceFingerprint).HasMaxLength(64);
             entity.HasIndex(row => new { row.OrganizationId, row.ObjectKey }).IsUnique();
             entity.HasIndex(row => new { row.OrganizationId, row.SubjectId }).IsUnique();

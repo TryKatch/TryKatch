@@ -40,6 +40,8 @@ internal static class OperationalDataResources
             typeof(OrganizationUsageRecord).FullName, "organization_usage_read", ModuleDataAccessRule.HostOnly),
         new("module-upload-operations", "app", "module_upload_operations", ModuleDataOwnership.Organization,
             typeof(ModuleUploadOperationRecord).FullName, "module_upload_operations_read", ModuleDataAccessRule.HostOnly),
+        new("quota-maintenance-work", "infrastructure", "quota_maintenance_work", ModuleDataOwnership.Infrastructure,
+            typeof(QuotaMaintenanceWorkRecord).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
         new("organization-email-deliveries", "infrastructure", "email_deliveries", ModuleDataOwnership.Infrastructure,
             typeof(OrganizationEmailDeliveryRecord).FullName, AccessRule: ModuleDataAccessRule.HostOnly),
         new("identity-account-sessions", "identity", "account_sessions", ModuleDataOwnership.Platform,

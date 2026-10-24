@@ -1015,6 +1015,9 @@ public sealed class PostgresIsolationInspectionTests
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
                          new AddOrganizationQuotas().UpOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddQuotaUploadRecovery().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             // This catalog-inspection fixture omits the organization directory.
             // Real feature migration tests separately prove its restricting FKs.
             // Retain the actual column/key/index and forced-RLS operations here.
@@ -1036,6 +1039,7 @@ public sealed class PostgresIsolationInspectionTests
             await result.ExecuteAsync($"""
                 GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
                 GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
+                GRANT INSERT ON infrastructure.quota_maintenance_work TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.module_event_inbox TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.module_work_completions TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON app.cache_invalidations TO {result.RuntimeRole};
@@ -1076,6 +1080,7 @@ public sealed class PostgresIsolationInspectionTests
                 "app.organization_quota_inventory",
                 "app.organization_usage",
                 "app.module_upload_operations",
+                "infrastructure.quota_maintenance_work",
                 "app.cache_invalidations",
                 "app.realtime_streams",
                 "app.realtime_history",

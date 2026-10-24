@@ -849,6 +849,13 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.Property<Guid>("SubjectId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("UploadPolicyKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int?>("UploadPolicyVersion")
+                        .HasColumnType("integer");
+
                     b.HasKey("OrganizationId", "ResourceKey", "OperationId");
 
                     b.HasIndex("OrganizationId", "ObjectKey")
@@ -865,6 +872,8 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                             t.HasCheckConstraint("CK_module_upload_operations_identity", "\"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND \"ResourceKey\" ~ '^[a-z][a-z0-9]*([.-][a-z0-9]+)*$'\nAND \"ResourceKey\" !~ '[[:space:]]' AND strpos(\"ResourceKey\", '.') > 0 AND \"OperationId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"ActorId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"MembershipId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"ReservationId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"SubjectId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
 
                             t.HasCheckConstraint("CK_module_upload_operations_payload", "\"Length\" > 0 AND length(\"ObjectKey\") > 0\nAND \"Sha256\" ~ '^[A-Fa-f0-9]{64}$' AND \"MetadataFingerprint\" ~ '^[A-Fa-f0-9]{64}$'\nAND \"StorageNamespaceFingerprint\" ~ '^[A-Fa-f0-9]{64}$'");
+
+                            t.HasCheckConstraint("CK_module_upload_operations_policy", "(\"UploadPolicyKey\" IS NULL AND \"UploadPolicyVersion\" IS NULL)\nOR (\"UploadPolicyKey\" IS NOT NULL AND \"UploadPolicyVersion\" IS NOT NULL AND \"UploadPolicyVersion\" > 0\n    AND \"UploadPolicyKey\" ~ '^[a-z][a-z0-9]*([.-][a-z0-9]+)*$'\n    AND \"UploadPolicyKey\" !~ '[[:space:]]'\n    AND left(\"UploadPolicyKey\", length(split_part(\"ResourceKey\", '.', 1)) + 1)\n        = split_part(\"ResourceKey\", '.', 1) || '.')");
 
                             t.HasCheckConstraint("CK_module_upload_operations_state", "\"State\" IN (0, 1, 2, 3) AND isfinite(\"CreatedAtUtc\") AND isfinite(\"ExpiresAtUtc\")\nAND \"ExpiresAtUtc\" > \"CreatedAtUtc\"\nAND ((\"State\" IN (0, 2) AND \"ClosedAtUtc\" IS NULL) OR\n    (\"State\" IN (1, 3) AND \"ClosedAtUtc\" IS NOT NULL\n        AND isfinite(\"ClosedAtUtc\") AND \"ClosedAtUtc\" >= \"CreatedAtUtc\"))");
                         });
@@ -1058,6 +1067,78 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                             t.HasCheckConstraint("CK_organization_usage_effect", "\"Units\" <> 0 AND \"Units\" <> '-9223372036854775808'::bigint\nAND isfinite(\"OccurredAtUtc\")\nAND ((\"Units\" > 0 AND \"SourceEffectId\" IS NULL)\n    OR (\"Units\" < 0 AND \"SourceEffectId\" IS NOT NULL AND \"SourceEffectId\" <> \"EffectId\"))");
 
                             t.HasCheckConstraint("CK_organization_usage_identity", "\"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND \"ResourceKey\" ~ '^[a-z][a-z0-9]*([.-][a-z0-9]+)*$'\nAND \"ResourceKey\" !~ '[[:space:]]' AND strpos(\"ResourceKey\", '.') > 0 AND \"EffectId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"SourceId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"ActorId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                        });
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Quotas.QuotaMaintenanceWorkRecord", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("DueAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastFailureCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReservationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResourceKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("UploadOperationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("OrganizationId", "Id");
+
+                    b.HasIndex("OrganizationId", "ReservationId");
+
+                    b.HasIndex("OrganizationId", "ResourceKey")
+                        .IsUnique()
+                        .HasFilter("\"Kind\" = 3 AND \"State\" IN (0, 1, 2)");
+
+                    b.HasIndex("OrganizationId", "ResourceKey", "UploadOperationId");
+
+                    b.HasIndex("OrganizationId", "Kind", "ResourceKey", "ReservationId")
+                        .IsUnique()
+                        .HasFilter("\"ReservationId\" IS NOT NULL");
+
+                    b.HasIndex("State", "DueAtUtc", "LeaseUntilUtc", "OrganizationId", "Id");
+
+                    b.ToTable("quota_maintenance_work", "infrastructure", t =>
+                        {
+                            t.HasCheckConstraint("CK_quota_maintenance_work_identity", "\"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"Id\" <> '00000000-0000-0000-0000-000000000000'::uuid\nAND \"ResourceKey\" ~ '^[a-z][a-z0-9]*([.-][a-z0-9]+)*$'\nAND \"ResourceKey\" !~ '[[:space:]]' AND strpos(\"ResourceKey\", '.') > 0");
+
+                            t.HasCheckConstraint("CK_quota_maintenance_work_reference", "\"Kind\" IN (1, 2, 3) AND ((\"Kind\" = 1 AND \"ReservationId\" IS NOT NULL AND \"ReservationId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"UploadOperationId\" IS NULL) OR (\"Kind\" = 2 AND \"ReservationId\" IS NOT NULL AND \"ReservationId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"UploadOperationId\" IS NOT NULL AND \"UploadOperationId\" <> '00000000-0000-0000-0000-000000000000'::uuid) OR (\"Kind\" = 3 AND \"ReservationId\" IS NULL AND \"UploadOperationId\" IS NULL))");
+
+                            t.HasCheckConstraint("CK_quota_maintenance_work_schedule", "isfinite(\"DueAtUtc\") AND isfinite(\"CreatedAtUtc\")\nAND (\"LastFailureCode\" IS NULL OR (\"LastFailureCode\" ~ '^[a-z][a-z0-9_]{0,79}$'\n    AND \"LastFailureCode\" !~ '[[:space:]]'))");
+
+                            t.HasCheckConstraint("CK_quota_maintenance_work_state", "\"State\" IN (0, 1, 2, 3) AND \"Attempts\" >= 0\nAND ((\"State\" = 1 AND \"LeaseId\" IS NOT NULL AND \"LeaseId\" <>'00000000-0000-0000-0000-000000000000'::uuid AND \"LeaseUntilUtc\" IS NOT NULL AND isfinite(\"LeaseUntilUtc\"))\nOR (\"State\" <> 1 AND \"LeaseId\" IS NULL AND \"LeaseUntilUtc\" IS NULL))");
                         });
                 });
 
@@ -1338,6 +1419,25 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.HasOne("Trykatch.Infrastructure.Quotas.OrganizationUsageRecord", null)
                         .WithMany()
                         .HasForeignKey("OrganizationId", "ResourceKey", "SourceEffectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Trykatch.Infrastructure.Quotas.QuotaMaintenanceWorkRecord", b =>
+                {
+                    b.HasOne("Trykatch.Infrastructure.Quotas.OrganizationQuotaReservationRecord", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "ReservationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Trykatch.Infrastructure.Quotas.OrganizationEntitlementRecord", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "ResourceKey")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Trykatch.Infrastructure.Quotas.ModuleUploadOperationRecord", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "ResourceKey", "UploadOperationId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618

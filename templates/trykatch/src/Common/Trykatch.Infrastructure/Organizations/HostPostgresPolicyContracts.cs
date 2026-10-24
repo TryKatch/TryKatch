@@ -125,6 +125,14 @@ internal static class HostPostgresPolicyContracts
             new("email_deliveries_append", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
             new("email_deliveries_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])
         ],
+        ["infrastructure.quota_maintenance_work"] =
+        [
+            new("quota_maintenance_work_append", "a", "",
+                $"({Organization} AND {CacheActor} AND (\"State\" = 0) AND (\"Attempts\" = 0) AND (\"LeaseId\" IS NULL) AND (\"LeaseUntilUtc\" IS NULL) AND (\"LastFailureCode\" IS NULL))",
+                ["trykatch_org_runtime"]),
+            new("quota_maintenance_work_read", "r", Coordinator, Roles: ["trykatch_work_coordinator"]),
+            new("quota_maintenance_work_update", "w", Coordinator, Coordinator, ["trykatch_work_coordinator"])
+        ],
         ["infrastructure.module_work_items"] =
         [
             new("module_work_items_append", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
