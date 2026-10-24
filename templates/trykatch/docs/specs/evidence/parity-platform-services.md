@@ -1,6 +1,6 @@
 # Platform services parity evidence
 
-Status: S1 scoped organization caching is implemented, reviewed and merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134), develop commit `6140050`. Final exact-head CI on `e7703d6` passed. S2 publication, cursor and durable-session foundations are implemented locally; recipient delivery and later slices remain in progress. This is not a release claim.
+Status: S1 merged in [PR #134](https://github.com/TryKatch/TryKatch/pull/134) as `6140050`; S2 merged in [PR #135](https://github.com/TryKatch/TryKatch/pull/135) as `b919234` after successful exact-head CI and dependency review. S3 receipt/HTTP authority, failure/crash recovery and renamed packed products are locally qualified below. Integrated S3 review, exact-head CI and merge remain pending. This is not a release claim.
 
 ## S1 — Scoped organization cache
 
