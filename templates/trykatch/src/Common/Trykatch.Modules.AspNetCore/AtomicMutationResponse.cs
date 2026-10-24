@@ -24,6 +24,8 @@ public static class AtomicMutationResponse
         IHttpResponseBodyFeature clientBody = context.Features.Get<IHttpResponseBodyFeature>()
             ?? throw new InvalidOperationException("The HTTP response body feature is unavailable.");
         await using StagedResponseBodyFeature staged = new(maximumBytes);
+        ModuleAtomicMutationResponseLimit? previousLimit = context.Features.Get<ModuleAtomicMutationResponseLimit>();
+        context.Features.Set(new ModuleAtomicMutationResponseLimit(maximumBytes));
         context.Features.Set<IHttpResponseBodyFeature>(staged);
         try
         {
@@ -43,6 +45,7 @@ public static class AtomicMutationResponse
         finally
         {
             context.Features.Set(clientBody);
+            context.Features.Set(previousLimit);
         }
     }
 
@@ -174,3 +177,5 @@ public static class AtomicMutationResponse
             new("The mutation response exceeded the configured atomic response limit.");
     }
 }
+
+internal sealed record ModuleAtomicMutationResponseLimit(int MaximumBytes);

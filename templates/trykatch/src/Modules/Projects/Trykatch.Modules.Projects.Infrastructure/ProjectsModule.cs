@@ -185,6 +185,7 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
         services.AddScoped<ModuleRealtimeAudiencePolicyBinding>(provider => new(ProjectsRealtime.ReadPolicy,
             provider.GetRequiredService<ProjectsReadAudiencePolicy>()));
         services.AddScoped<IProjectStore, ProjectStore>();
+        services.AddScoped<ProjectMutationAuthorization>();
         services.AddSingleton<IApplicationModelContributor, ProjectsModelContributor>();
         services.AddScoped<IWorkspaceOverviewMetricProvider, ProjectsOverviewMetricProvider>();
         services.AddSingleton<IValidator<CreateProjectCommand>, CreateProjectValidator>();
