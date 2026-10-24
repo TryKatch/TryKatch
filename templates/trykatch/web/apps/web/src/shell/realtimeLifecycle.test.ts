@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { authenticationAntiforgery, getWorkspaceCurrentQueryKey, realtimeGetHistory, realtimeGetState, setAntiforgeryToken } from '@trykatch/api-client'
 import { clearOrganizationDataForReset, clearOrganizationQueryState, createWorkspaceRealtimeLifecycle } from './realtimeLifecycle'
@@ -147,5 +147,27 @@ describe('workspace realtime lifecycle', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(client.getQueryData(['projects', 'active'])).toEqual(['replacement-workspace'])
+  })
+
+  it('refetches mounted organization queries after a workspace reset', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    let workspace = 'alpha'
+    const observer = new QueryObserver(client, {
+      queryKey: ['projects', 'active'], queryFn: async () => [`${workspace}-project`],
+    })
+    const unsubscribe = observer.subscribe(() => undefined)
+    try {
+      await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(['alpha-project']))
+      workspace = 'beta'
+
+      await clearOrganizationDataForReset(client, () => true, false)
+      await client.invalidateQueries({ queryKey: ['projects'], refetchType: 'all' })
+
+      expect(observer.getCurrentResult().data).toEqual(['beta-project'])
+      expect(client.getQueryData(['projects', 'active'])).toEqual(['beta-project'])
+    } finally {
+      unsubscribe()
+      client.clear()
+    }
   })
 })

@@ -25,7 +25,9 @@ export async function clearOrganizationDataForReset(queryClient: QueryClient, is
   if (!isCurrent()) return
   await queryClient.cancelQueries({ predicate })
   if (!isCurrent()) return
-  queryClient.removeQueries({ predicate })
+  // Preserve mounted observers so their owned queries can refetch in the new workspace.
+  // Removing active queries leaves those observers attached to detached, stale query objects.
+  await queryClient.resetQueries({ predicate })
   if (!isCurrent()) return
   await queryClient.invalidateQueries({ queryKey: ['access'] })
   if (refreshWorkspace && isCurrent()) await queryClient.invalidateQueries({ queryKey: getWorkspaceCurrentQueryKey() })
