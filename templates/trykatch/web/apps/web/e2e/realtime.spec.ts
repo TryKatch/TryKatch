@@ -62,7 +62,8 @@ test.describe('packaged application realtime acceptance', () => {
   test.skip(!realtimeAcceptanceEnabled, 'Set TRYKATCH_ACCEPTANCE_REALTIME=true to run against the packaged application.')
 
   test('reconciles project changes, revocation, and workspace switches across real sessions', async ({ browser }) => {
-    test.setTimeout(180_000)
+    // Multiple workspace transitions can cross the existing one-minute request windows.
+    test.setTimeout(300_000)
     expect(acceptanceBaseUrl, 'TRYKATCH_ACCEPTANCE_BASE_URL').toBeTruthy()
     expect(platformAdminEmail, 'TRYKATCH_ACCEPTANCE_ADMIN_EMAIL').toBeTruthy()
     expect(platformAdminPassword, 'TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD').toBeTruthy()
@@ -193,32 +194,29 @@ test.describe('packaged application realtime acceptance', () => {
       }, { timeout: 90_000 }).toBe(true)
       await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.revoked) })).toHaveCount(0)
 
+      const ownerConnectionsBeforeBeta = ownerTransport.opened
       await selectWorkspace(ownerContext.request, beta.organization.id)
       await refreshCurrentWorkspace(ownerPage, beta.organization.id)
+      await waitForWorkspaceSubscription(ownerTransport, ownerConnectionsBeforeBeta, 'Beta')
+      const notificationsBeforeBeta = ownerTransport.projectNotifications
       await createProject(ownerContext.request, projectNames.beta)
-      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.beta) })).toBeVisible()
+      await expect.poll(() => ownerTransport.projectNotifications, {
+        timeout: 30_000, message: 'the current Beta lifecycle should receive a real notification after publication',
+      }).toBeGreaterThan(notificationsBeforeBeta)
+      // Delivery includes the outbox, event worker and relay; subsequent HTTP repair can be throttled.
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.beta) })).toBeVisible({ timeout: 90_000 })
       await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toHaveCount(0)
       await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toHaveCount(0)
 
       const ownerConnectionsBeforeAlpha = ownerTransport.opened
       await selectWorkspace(ownerContext.request, alpha.organization.id)
       await refreshCurrentWorkspace(ownerPage, alpha.organization.id)
-      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toBeVisible()
-      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toBeVisible()
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toBeVisible({ timeout: 90_000 })
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toBeVisible({ timeout: 90_000 })
       await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.beta) })).toHaveCount(0)
       moduleAbsenceFixture = { ownerEmail, organizationId: alpha.organization.id }
 
-      try {
-        await expect.poll(() => ownerTransport.lastSubscribedConnection, {
-          // Bootstrap can hit the one-minute request window, then resume on its 15-second repair.
-          timeout: 90_000, message: 'the replacement Alpha socket should finish authorized subscription before publication',
-        }).toBeGreaterThan(ownerConnectionsBeforeAlpha)
-      } catch (error) {
-        await test.info().attach('realtime-transport-summary', {
-          body: JSON.stringify(ownerTransport), contentType: 'application/json',
-        })
-        throw error
-      }
+      await waitForWorkspaceSubscription(ownerTransport, ownerConnectionsBeforeAlpha, 'Alpha')
       const notificationsBeforeAlpha = ownerTransport.projectNotifications
       await createProject(ownerContext.request, projectNames.alpha)
       await expect.poll(() => ownerTransport.projectNotifications, {
@@ -433,6 +431,20 @@ function observeWebSockets(page: Page) {
     })
   })
   return observed
+}
+
+async function waitForWorkspaceSubscription(transport: ReturnType<typeof observeWebSockets>, previousConnections: number, workspace: string) {
+  try {
+    await expect.poll(() => transport.lastSubscribedConnection, {
+      // Bootstrap can hit the one-minute request window, then resume on its 15-second repair.
+      timeout: 90_000, message: `the replacement ${workspace} socket should finish authorized subscription before publication`,
+    }).toBeGreaterThan(previousConnections)
+  } catch (error) {
+    await test.info().attach('realtime-transport-summary', {
+      body: JSON.stringify(transport), contentType: 'application/json',
+    })
+    throw error
+  }
 }
 
 function hubMessages(payload: string | { toString(encoding: 'utf8'): string }) {
