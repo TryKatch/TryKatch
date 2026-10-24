@@ -271,6 +271,123 @@ describe('workspace realtime lifecycle', () => {
     }
   })
 
+  it('settles an inactive retained domain 403 during bootstrap and retries it after recovery', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    let fail = false
+    const queryKey = ['projects', 'retained']
+    const observer = new QueryObserver(client, {
+      queryKey, staleTime: Infinity,
+      queryFn: async () => { if (fail) throw Object.assign(new Error('forbidden'), { status: 403 }); return ['recovered'] },
+    })
+    const unsubscribe = observer.subscribe(() => undefined)
+    await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(['recovered']))
+    unsubscribe()
+    fail = true
+    client.setQueryData(queryKey, ['stale-domain-data'])
+    const lifecycle = createWorkspaceRealtimeLifecycle(client)
+    try {
+      await lifecycle.start()
+
+      expect(client.getQueryData(queryKey)).toBeUndefined()
+      expect(signalr.connection.invoke).toHaveBeenCalledWith('ReplaceSubscriptions', expect.any(Array))
+      expect(signalr.connection.stop).not.toHaveBeenCalled()
+
+      await lifecycle.wake()
+      const recoveryEvent = {
+        moduleId: 'projects', eventKey: 'projects.created', schemaVersion: 1, eventId: 'recovery-event',
+        audience: { kind: 0, policy: { ownerModuleId: 'projects', policyKey: 'projects.read', policyVersion: 1 } },
+      }
+      fail = false
+      vi.mocked(realtimeGetHistory).mockResolvedValue({
+        items: [recoveryEvent], generation: 'server-generation', cursor: 'after-recovery-event', hasMore: false,
+      })
+      await lifecycle.wake()
+      expect(client.getQueryData(queryKey)).toEqual(['recovered'])
+    } finally {
+      lifecycle.stop()
+      client.clear()
+    }
+  })
+
+  it('clears a domain 403 during notification application without losing realtime authority', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    let fail = false
+    const queryKey = ['projects', 'active']
+    const observer = new QueryObserver(client, {
+      queryKey, staleTime: Infinity,
+      queryFn: async () => { if (fail) throw Object.assign(new Error('forbidden'), { status: 403 }); return ['recovered'] },
+    })
+    const unsubscribe = observer.subscribe(() => undefined)
+    await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(['recovered']))
+    const lifecycle = createWorkspaceRealtimeLifecycle(client)
+    const event = {
+      moduleId: 'projects', eventKey: 'projects.created', schemaVersion: 1, eventId: 'denied-event',
+      audience: { kind: 0, policy: { ownerModuleId: 'projects', policyKey: 'projects.read', policyVersion: 1 } },
+    }
+    try {
+      await lifecycle.start()
+      await vi.waitFor(() => expect(signalr.connection.invoke).toHaveBeenCalled())
+      vi.mocked(realtimeGetHistory).mockClear().mockResolvedValue({
+        items: [event], generation: 'server-generation', cursor: 'after-denied-event', hasMore: false,
+      })
+      fail = true
+
+      await expect(lifecycle.wake()).resolves.toBeUndefined()
+
+      expect(observer.getCurrentResult().data).toBeUndefined()
+      expect(observer.getCurrentResult()).toMatchObject({ isError: true, isLoading: false })
+      expect(observer.getCurrentResult().error).toMatchObject({ status: 403 })
+      expect(signalr.connection.stop).not.toHaveBeenCalled()
+      expect(vi.mocked(realtimeGetHistory).mock.calls[0][0]?.cursor).toBe('next')
+      vi.mocked(realtimeGetHistory).mockResolvedValue({ items: [], generation: 'server-generation', cursor: 'after-denied-event', hasMore: false })
+      await lifecycle.wake()
+      expect(vi.mocked(realtimeGetHistory).mock.calls[1][0]?.cursor).toBe('after-denied-event')
+    } finally {
+      lifecycle.stop()
+      unsubscribe()
+      client.clear()
+    }
+  })
+
+  it('does not let a domain 403 hide a sibling transient failure or advance its history cursor', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    let denied = false
+    let unavailable = false
+    const deniedKey = ['projects', 'denied']
+    const transientKey = ['projects', 'transient']
+    const observers = [
+      new QueryObserver(client, { queryKey: deniedKey, staleTime: Infinity, queryFn: async () => { if (denied) throw Object.assign(new Error('forbidden'), { status: 403 }); return ['denied-data'] } }),
+      new QueryObserver(client, { queryKey: transientKey, staleTime: Infinity, queryFn: async () => { if (unavailable) throw Object.assign(new Error('unavailable'), { status: 500 }); return ['transient-data'] } }),
+    ]
+    const unsubscribe = observers.map((observer) => observer.subscribe(() => undefined))
+    await vi.waitFor(() => expect(observers.map((observer) => observer.getCurrentResult().data)).toEqual([['denied-data'], ['transient-data']]))
+    const lifecycle = createWorkspaceRealtimeLifecycle(client)
+    const event = {
+      moduleId: 'projects', eventKey: 'projects.created', schemaVersion: 1, eventId: 'mixed-failure-event',
+      audience: { kind: 0, policy: { ownerModuleId: 'projects', policyKey: 'projects.read', policyVersion: 1 } },
+    }
+    try {
+      await lifecycle.start()
+      await vi.waitFor(() => expect(signalr.connection.invoke).toHaveBeenCalled())
+      vi.mocked(realtimeGetHistory).mockClear().mockResolvedValue({
+        items: [event], generation: 'server-generation', cursor: 'after-mixed-event', hasMore: false,
+      })
+      denied = true
+      unavailable = true
+
+      await expect(lifecycle.wake()).rejects.toMatchObject({ status: 500 })
+
+      expect(observers[0].getCurrentResult().data).toBeUndefined()
+      expect(observers[1].getCurrentResult().data).toEqual(['transient-data'])
+      expect(vi.mocked(realtimeGetHistory).mock.calls[0][0]?.cursor).toBe('next')
+      expect(signalr.connection.stop).not.toHaveBeenCalled()
+    } finally {
+      lifecycle.stop()
+      unsubscribe.forEach((stop) => stop())
+      client.clear()
+    }
+  })
+
   it('does not interpret an unrelated conflict as lost workspace authority', async () => {
     const client = new QueryClient()
     const lifecycle = createWorkspaceRealtimeLifecycle(client)

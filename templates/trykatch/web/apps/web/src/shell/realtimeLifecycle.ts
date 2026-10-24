@@ -65,7 +65,13 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
   const isCurrent = () => active
 
   async function getAntiforgeryToken() {
-    const response = await authenticationAntiforgery({ signal: lifetime.signal })
+    let response
+    try {
+      response = await authenticationAntiforgery({ signal: lifetime.signal })
+    } catch (error) {
+      handleAuthorityError(error)
+      throw error
+    }
     if (!isCurrent()) throw new DOMException('Realtime lifecycle stopped', 'AbortError')
     setAntiforgeryToken(response.token)
     return response.token
@@ -92,7 +98,7 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
     ])
   }
 
-  function handleError(error: unknown) {
+  function handleAuthorityError(error: unknown) {
     const status = errorStatus(error)
     const problem = error && typeof error === 'object' ? (error as { problem?: { title?: unknown } }).problem : undefined
     // Organization middleware can reject a cleared workspace before the realtime reader runs.
@@ -103,7 +109,23 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
     const unique = new Map(keys.map((key) => [JSON.stringify(key), key]))
     for (const key of unique.values()) {
       if (!guard()) return
-      await queryClient.invalidateQueries({ queryKey: [...key], refetchType: 'all' }, { throwOnError: true })
+      await queryClient.invalidateQueries({ queryKey: [...key], refetchType: 'none' })
+      if (!guard()) return
+      const queries = queryClient.getQueryCache().findAll({ queryKey: [...key] })
+      for (const query of queries) {
+        if (!guard()) return
+        try {
+          await queryClient.refetchQueries({ queryKey: query.queryKey, exact: true, type: 'all' }, { throwOnError: true })
+        } catch (error) {
+          if (errorStatus(error) !== 403) throw error
+          if (!guard()) return
+          // A domain-specific denial clears only stale result data. Keep the settled
+          // error and fetch history visible while allowing a later event to retry it.
+          if (queryClient.getQueryCache().find({ queryKey: query.queryKey, exact: true }) === query) {
+            query.setState({ data: undefined, dataUpdatedAt: 0, isInvalidated: true })
+          }
+        }
+      }
     }
   }
 
@@ -124,7 +146,7 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
     if (!isCurrent() || !liveEnabled || reconnectTimer !== undefined) return
     reconnectTimer = setTimeout(() => {
       reconnectTimer = undefined
-      void connect().catch(handleError)
+      void connect().catch(handleAuthorityError)
     }, reconnectDelay)
     reconnectDelay = Math.min(reconnectDelay * 2, 30_000)
   }
@@ -148,15 +170,15 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
       .build()
     candidate.on('invalidate', (notification: RealtimeNotification) => {
       if (!isCurrent() || !notification) return
-      void reconciler.wake().catch(handleError)
+      void reconciler.wake().catch(() => undefined)
     })
     candidate.onreconnected(() => {
-      void replaceSubscriptions(candidate).then(() => reconciler.wake()).catch(handleError)
+      void replaceSubscriptions(candidate).then(() => reconciler.wake().catch(() => undefined)).catch(handleAuthorityError)
     })
     candidate.onclose(() => {
       if (connection === candidate) connection = undefined
       if (!isCurrent() || !liveEnabled) return
-      void reconciler.wake().catch(handleError)
+      void reconciler.wake().catch(() => undefined)
       scheduleReconnect()
     })
     connection = candidate
@@ -167,11 +189,11 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
       if (!isCurrent() || !liveEnabled) { await candidate.stop(); if (connection === candidate) connection = undefined; return }
       connection = candidate
       reconnectDelay = 1_000
-      void reconciler.wake().catch(handleError)
+      void reconciler.wake().catch(() => undefined)
     } catch (error) {
       if (connection === candidate) connection = undefined
       await candidate.stop().catch(() => undefined)
-      handleError(error)
+      handleAuthorityError(error)
       if (isCurrent()) scheduleReconnect()
     } finally {
       connectionStarting = false
@@ -180,8 +202,14 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
   }
 
   reconciler = createRealtimeReconciler({
-    fetchState: (signal) => realtimeGetState({ signal }),
-    fetchHistory: (cursor, signal) => realtimeGetHistory(cursor === null ? undefined : { cursor }, { signal }),
+    fetchState: async (signal) => {
+      try { return await realtimeGetState({ signal }) }
+      catch (error) { handleAuthorityError(error); throw error }
+    },
+    fetchHistory: async (cursor, signal) => {
+      try { return await realtimeGetHistory(cursor === null ? undefined : { cursor }, { signal }) }
+      catch (error) { handleAuthorityError(error); throw error }
+    },
     refetchAll,
     apply,
     onReset: async (_state, _previousGeneration, guard) => {
@@ -194,7 +222,7 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
     onState: (state: RealtimeState, guard) => {
       if (!guard()) return
       liveEnabled = state.enabled
-      if (state.enabled) void connect().catch(handleError)
+      if (state.enabled) void connect().catch(handleAuthorityError)
       else {
         if (reconnectTimer !== undefined) clearTimeout(reconnectTimer)
         reconnectTimer = undefined
@@ -203,7 +231,6 @@ export function createWorkspaceRealtimeLifecycle(queryClient: QueryClient) {
         if (current) void current.stop().catch(() => undefined)
       }
     },
-    onError: handleError,
   })
 
   return {
