@@ -50,6 +50,23 @@ compose() {
     "$@"
 }
 
+assert_current_service_images() {
+  local service container_id image_reference actual_image expected_image containers
+  for service in "$@"; do
+    containers=$(compose ps --all --quiet "$service")
+    [[ -n $containers ]] || { printf 'No container exists for rebuilt service %s.\n' "$service" >&2; return 1; }
+    for container_id in $containers; do
+      image_reference=$(docker inspect --format '{{.Config.Image}}' "$container_id")
+      actual_image=$(docker inspect --format '{{.Image}}' "$container_id")
+      expected_image=$(docker image inspect --format '{{.Id}}' "$image_reference")
+      [[ $actual_image == "$expected_image" ]] || {
+        printf 'Service %s retained a container from an older image.\n' "$service" >&2
+        return 1
+      }
+    done
+  done
+}
+
 collect_artifacts() {
   if [[ -z $artifact_root ]]; then
     return
@@ -500,6 +517,8 @@ EOF
   TRYKATCH_PLAYWRIGHT_OUTPUT_DIR="$generated_root/web/apps/web/test-results/realtime-vite" \
   pnpm --dir "$generated_root/web/apps/web" exec playwright test e2e/realtime.spec.ts --reporter=line
   test -s "$realtime_state_file"
+  old_realtime_api_containers=$(compose ps --all --quiet api)
+  [[ -n $old_realtime_api_containers ]]
   compose stop api
   test -z "$(compose ps --status running -q api)"
   history_before=$(compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only \
@@ -509,7 +528,18 @@ EOF
   # Remove dependents first through the normal validated lifecycle.
   "$test_root/tools/trykatch" module disable documents --root "$generated_root"
   "$test_root/tools/trykatch" module disable projects --root "$generated_root"
-  compose up --detach --build --wait --wait-timeout 120 --scale api=2 api web
+  # Explicitly deploy new immutable hosts. Some Compose versions restart stopped
+  # API containers after a build without replacing their old image.
+  compose up --detach --build --force-recreate --wait --wait-timeout 120 --scale api=2 api web migrator
+  assert_current_service_images api web migrator
+  for container_id in $(compose ps --all --quiet api); do
+    for old_container_id in $old_realtime_api_containers; do
+      [[ $container_id != "$old_container_id" ]] || {
+        printf 'Module removal retained an old API container.\n' >&2
+        exit 1
+      }
+    done
+  done
   wait_for_api
   history_after=$(compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only \
     --command 'SELECT count(*) FROM app.realtime_history WHERE "ModuleId" = $module$projects$module$;' | tr -d '[:space:]')

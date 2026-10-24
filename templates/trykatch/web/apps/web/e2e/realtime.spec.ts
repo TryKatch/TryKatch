@@ -180,7 +180,9 @@ test.describe('packaged application realtime acceptance', () => {
       expect((await missingWorkspace.json() as { title: string }).title).toBe('Workspace context required')
       expect((await afterRateLimit(() => ownerContext.request.get('/api/v1/auth/session'))).status()).toBe(200)
       await expect.poll(() => ownerTransport.closed, { timeout: 30_000 }).toBeGreaterThan(closedBeforeClear)
-      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toHaveCount(0, { timeout: 30_000 })
+      // A browser repair can receive 429 before workspace resolution; allow the existing
+      // one-minute rate window plus the periodic repair, then require the old rows to disappear.
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toHaveCount(0, { timeout: 90_000 })
       await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toHaveCount(0)
     } finally {
       await Promise.all([
