@@ -55,6 +55,7 @@ public sealed partial class ModuleExecutionManifestTests
     [DataRow("nonboolean-default")]
     [DataRow("unknown-property")]
     [DataRow("malformed-key")]
+    [DataRow("trailing-newline-key")]
     [DataRow("key-too-long")]
     [DataRow("foreign-owner")]
     [DataRow("duplicate-key")]
@@ -76,7 +77,7 @@ public sealed partial class ModuleExecutionManifestTests
         ModuleDoctorReport report = workspace.Tool.Generate();
 
         report.IsHealthy.ShouldBeFalse();
-        if (mutation is "malformed-key" or "key-too-long" or "foreign-owner" or "duplicate-key"
+        if (mutation is "malformed-key" or "trailing-newline-key" or "key-too-long" or "foreign-owner" or "duplicate-key"
             or "null-feature-list" or "null-feature" or "too-many" or "blank-name" or "name-too-long"
             or "blank-description" or "description-too-long")
             report.Errors.ShouldContain(error => error.Contains("feature", StringComparison.OrdinalIgnoreCase));
@@ -133,6 +134,7 @@ public sealed partial class ModuleExecutionManifestTests
             case "nonboolean-default": feature["defaultEnabled"] = "enabled"; break;
             case "unknown-property": feature["unknown"] = true; break;
             case "malformed-key": feature["key"] = "Orders.Reads"; break;
+            case "trailing-newline-key": feature["key"] = "orders.reads\n"; break;
             case "key-too-long": feature["key"] = "orders." + new string('a', 114); break;
             case "foreign-owner": feature["key"] = "reports.reads"; break;
             case "duplicate-key": features.Add(feature.DeepClone()); break;

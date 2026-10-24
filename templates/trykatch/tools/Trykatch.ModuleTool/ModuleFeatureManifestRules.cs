@@ -9,7 +9,7 @@ internal static class ModuleFeatureManifestRules
     private const int MaximumNameLength = 160;
     private const int MaximumDescriptionLength = 1000;
     private static readonly Regex StableKey = new(
-        "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+        "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*\\z",
         RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
 
     public static void Validate(

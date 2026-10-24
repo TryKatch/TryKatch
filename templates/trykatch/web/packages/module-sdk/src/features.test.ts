@@ -53,6 +53,7 @@ describe('WebModuleCatalog feature metadata', () => {
     ['more than 100 features', Array.from({ length: 101 }, (_, index) => feature(`projects.f${index}`))],
     ['a key over 120 characters', [feature(`projects.${'a'.repeat(112)}`)]],
     ['an invalid key', [feature('Projects.reads')]],
+    ['a key with a trailing line break', [feature('projects.reads\n')]],
     ['a key outside its module namespace', [feature('documents.reads')]],
     ['a blank name', [feature('projects.reads', { name: '  ' })]],
     ['a name over 160 characters', [feature('projects.reads', { name: 'n'.repeat(161) })]],

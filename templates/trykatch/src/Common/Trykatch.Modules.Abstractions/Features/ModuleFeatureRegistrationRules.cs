@@ -5,9 +5,9 @@ namespace Trykatch.Modules;
 /// <summary>Validates explicit feature declarations and generated manifest expectations.</summary>
 public static class ModuleFeatureRegistrationRules
 {
-    private static readonly Regex StableModuleId = new("^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+    private static readonly Regex StableModuleId = new("^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\z",
         RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
-    private static readonly Regex StableKey = new("^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+    private static readonly Regex StableKey = new("^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*\\z",
         RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
 
     public static void Validate(IReadOnlyCollection<ModuleDescriptor> modules)

@@ -36,6 +36,7 @@ public sealed class ModuleFeatureContractTests
 
     [TestMethod]
     [DataRow("malformed-key")]
+    [DataRow("trailing-newline-key")]
     [DataRow("foreign-owner")]
     [DataRow("duplicate-key")]
     [DataRow("null-entry")]
@@ -50,6 +51,7 @@ public sealed class ModuleFeatureContractTests
         ModuleFeatureDescriptor[] features = mutation switch
         {
             "malformed-key" => [new("Projects.Reads", "Reads", "View projects.", true)],
+            "trailing-newline-key" => [Feature("projects.reads\n")],
             "foreign-owner" => [new("reports.reads", "Reads", "View projects.", true)],
             "duplicate-key" => [new("projects.reads", "Reads", "View projects.", true), new("projects.reads", "Reads", "View projects.", false)],
             "null-entry" => [null!],
