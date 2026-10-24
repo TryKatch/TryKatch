@@ -48,15 +48,15 @@ Paths below are relative to templates/trykatch unless stated otherwise.
 
 ## Task 0: Canonical request identity
 
-- [ ] Add `ModuleRequestFingerprintTests` and canonical golden vectors; reproduce missing implementation/failing assertions. Cover reorder/numeric equivalence, arrays, duplicate names, path/query/media differences, UTF-8/depth/chunked/body/key bounds and request rewind.
-- [ ] Extract the existing canonical algorithm without changing its output; preserve OutboxPayloadHash wrapper and add direct compatibility vectors/affected outbox hash regression filter. Implement bounded fingerprint preparation, leaving non-enrolled requests untouched.
-- [ ] Run only named unit filters through the S3 wrapper, inspect0fail/0skip, commit neutral focused changes.
+- [x] Add `ModuleRequestFingerprintTests` and canonical golden vectors; reproduce missing implementation/failing assertions. Cover reorder/numeric equivalence, arrays, duplicate names, path/query/media differences, UTF-8/depth/chunked/body/key bounds and request rewind.
+- [x] Extract the existing canonical algorithm without changing its output; preserve OutboxPayloadHash wrapper and add direct compatibility vectors/affected outbox hash regression filter. Implement bounded fingerprint preparation, leaving non-enrolled requests untouched.
+- [x] Run only named unit filters through the S3 wrapper, inspect0fail/0skip, commit neutral focused changes.
 
 ## Task 1: Staged response capture and neutral contracts
 
-- [ ] Define bounded policy/neutral reservation/receipt records and validation. Add `ModuleIdempotencyTests` for invalid policies/identity/receipt limits.
-- [ ] Extend `AtomicMutationResponseTests` and `AtomicMutationResponseIntegrationTests`: actual executed IResult/BodyWriter bytes reach capture before finalization; no feature incurs no snapshot; capture failure/overflow/cancel prevents commit/publication; start/complete remain staged.
-- [ ] Observe RED, implement feature/snapshot hook, then GREEN these exact cases and existing atomic-response cases. Commit.
+- [x] Define bounded policy/neutral reservation/receipt records and validation. Add `ModuleIdempotencyTests` for invalid policies/identity/receipt limits.
+- [x] Extend `AtomicMutationResponseTests` and `AtomicMutationResponseIntegrationTests`: actual executed IResult/BodyWriter bytes reach capture before finalization; no feature incurs no snapshot; capture failure/overflow/cancel prevents commit/publication; start/complete remain staged.
+- [x] Observe RED, implement feature/snapshot hook, then GREEN these exact cases and existing atomic-response cases. Commit.
 
 ## Task 2: Authoritative receipt store and schema
 
@@ -87,3 +87,7 @@ Paths below are relative to templates/trykatch unless stated otherwise.
 
 - S2 predecessor merged asb919234 after exact-head9f6c5e7 all20CIjobs, dependency review and Vercel green. This clean worktree contains only documentation checkpointf68577c before S3 work; tracked predecessor merge tree exactly matches its tested head. No full local baseline rerun is needed.
 - Ruling: the existing approved roadmap and standing continuous implementation/merge instruction supply execution authorization. This document refines S3 mechanisms rather than changing business scope; no new approval menu is introduced. Sol/Luna ownership and single final review override generic per-task reviewer defaults.
+
+- Task0/1 checkpoint: normal restore succeeds. Initial behavioral RED has13failed/4passed identity/contract cases; after implementation and fixture corrections, combined unit GREEN has52passed/0failed/0skipped, including existing OutboxContext/ModuleJobScheduler and transport idempotency regressions. Root compared extracted canonical algorithm to its predecessor body: identical apart from symbol names. Root-owned compile-only corrections are preserved separately and do not count as behavioral RED.
+- Capture RED has six expected missing-hook failures plus two hash-test setup errors (empty Header.Append removed the header; missing PathBase in the comparison request). Those fixtures are corrected without weakening assertions. Actual TestServer RED with the hook removed has1failed/1passed; restored hook GREEN has2passed. Host architecture12passed. Logs: identity-contracts-red.log, atomic-capture-red.log, atomic-http-capture-red/green.log, identity-capture-green.log, foundation-architecture.log in the local S3 scratch. No skips.
+- Capture runs after late enrollment and BodyWriter flush, before transaction finalization. It checks its own limit before snapshot allocation, rejects explicit streaming/SendFile, seals staged bytes against late mutation and rechecks cancellation after capture. Normal unenrolled atomic behavior retains its existing tests. This is foundation evidence only: no PostgreSQL receipt, HTTP opt-in, resource replay gate, crash recovery, packaged product or S3 PR/merge claim yet.

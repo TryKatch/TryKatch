@@ -29,6 +29,12 @@ public static class AtomicMutationResponse
         {
             await next(context);
             await staged.FlushAsync(context.RequestAborted);
+            if (context.Features.Get<IModuleMutationResponseCaptureFeature>() is { } capture)
+            {
+                StagedMutationResponse snapshot = staged.Capture(context.Response, capture.MaximumResponseBytes);
+                await capture.CaptureAsync(snapshot, context.RequestAborted);
+                context.RequestAborted.ThrowIfCancellationRequested();
+            }
             await finalizeTransaction(context.RequestAborted);
             context.Features.Set(clientBody);
             await staged.CopyToAsync(clientBody.Stream, context.RequestAborted);
@@ -44,16 +50,19 @@ public static class AtomicMutationResponse
     {
         private readonly BoundedResponseStream stream = new(maximumBytes);
         private PipeWriter? writer;
+        private bool streamingRequested;
+        private bool fileRequested;
 
         public Stream Stream => stream;
         public PipeWriter Writer => writer ??= PipeWriter.Create(stream, new StreamPipeWriterOptions(leaveOpen: true));
         public bool CompleteRequested { get; private set; }
 
-        public void DisableBuffering() { }
+        public void DisableBuffering() => streamingRequested = true;
         public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public async Task SendFileAsync(string path, long offset, long? count, CancellationToken cancellationToken = default)
         {
+            fileRequested = true;
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
             await using FileStream file = File.OpenRead(path);
             file.Position = offset;
@@ -80,6 +89,19 @@ public static class AtomicMutationResponse
             await stream.FlushAsync(cancellationToken);
         }
 
+        public StagedMutationResponse Capture(HttpResponse response, int maximumResponseBytes)
+        {
+            if (streamingRequested || fileRequested)
+                throw new NotSupportedException("Streaming and file responses cannot be captured for mutation replay.");
+            if (maximumResponseBytes < 1 || maximumResponseBytes > maximumBytes || stream.Length > maximumResponseBytes)
+                throw new InvalidOperationException("The response exceeds its configured mutation replay limit.");
+            if (response.Headers.Location.Count > 1)
+                throw new InvalidOperationException("A mutation replay cannot capture multiple Location headers.");
+            stream.Seal();
+            string? location = response.Headers.Location.Count == 0 ? null : response.Headers.Location.ToString();
+            return new(response.StatusCode, response.ContentType, location, stream.ToArray());
+        }
+
         public async Task CopyToAsync(Stream destination, CancellationToken cancellationToken)
         {
             stream.Position = 0;
@@ -95,6 +117,10 @@ public static class AtomicMutationResponse
 
     private sealed class BoundedResponseStream(int maximumBytes) : MemoryStream
     {
+        private bool sealedForCapture;
+
+        public void Seal() => sealedForCapture = true;
+
         public override void Write(byte[] buffer, int offset, int count)
         {
             EnsureCapacity(count);
@@ -127,13 +153,21 @@ public static class AtomicMutationResponse
 
         public override void SetLength(long value)
         {
+            EnsureWritable();
             if (value > maximumBytes) throw TooLarge();
             base.SetLength(value);
         }
 
         private void EnsureCapacity(int writeLength)
         {
+            EnsureWritable();
             if (Position + writeLength > maximumBytes) throw TooLarge();
+        }
+
+        private void EnsureWritable()
+        {
+            if (sealedForCapture)
+                throw new InvalidOperationException("The staged mutation response is sealed for capture.");
         }
 
         private static InvalidOperationException TooLarge() =>
