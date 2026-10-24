@@ -1126,6 +1126,9 @@ formData.append(`file`, uploadDocumentForm.file);
 if(uploadDocumentForm.documentType !== undefined && uploadDocumentForm.documentType !== null) {
  formData.append(`documentType`, uploadDocumentForm.documentType);
  }
+if(uploadDocumentForm.operationId !== undefined && uploadDocumentForm.operationId !== null) {
+ formData.append(`operationId`, uploadDocumentForm.operationId);
+ }
 
   return customFetch<DocumentDto>(getDocumentsUploadUrl(),
   {
@@ -1142,7 +1145,7 @@ if(uploadDocumentForm.documentType !== undefined && uploadDocumentForm.documentT
 
 export const getDocumentsUploadMutationKey = () => ['documentsUpload'] as const;
 
-export const getDocumentsUploadMutationOptions = <TError = HttpValidationProblemDetails,
+export const getDocumentsUploadMutationOptions = <TError = HttpValidationProblemDetails | void | ProblemDetails,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof documentsUpload>>, TError,DocumentsUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof documentsUpload>>, TError,DocumentsUploadMutationVariables, TContext> => {
 
@@ -1171,13 +1174,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DocumentsUploadMutationResult = NonNullable<Awaited<ReturnType<typeof documentsUpload>>>
     export type DocumentsUploadMutationBody = UploadDocumentForm
-    export type DocumentsUploadMutationError = HttpValidationProblemDetails
+    export type DocumentsUploadMutationError = HttpValidationProblemDetails | void | ProblemDetails
     export type DocumentsUploadMutationVariables = {data: UploadDocumentForm}
 
     /**
  * @summary Upload documents
  */
-export const useDocumentsUpload = <TError = HttpValidationProblemDetails,
+export const useDocumentsUpload = <TError = HttpValidationProblemDetails | void | ProblemDetails,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof documentsUpload>>, TError,DocumentsUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof documentsUpload>>,

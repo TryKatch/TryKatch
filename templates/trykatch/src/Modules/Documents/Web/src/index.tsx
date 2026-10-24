@@ -19,6 +19,7 @@ const maximumFileBytes = 25 * 1024 * 1024
 const documentTypeLabel = (value: string) => documentTypes.find((type) => type.value === value)?.label ?? 'Other'
 
 interface OrganizationAccess { organizationId: string; permissions: string[] }
+interface UploadIntent { operationId: string; organizationId: string; file: File; title: string; description: string; documentType: string }
 type LoadResult<T> = { value: T; failure?: never } | { value?: never; failure: string }
 
 async function loadResult<T>(load: () => Promise<T>): Promise<LoadResult<T>> {
@@ -56,6 +57,7 @@ export function DocumentsPage() {
   const [fileError, setFileError] = useState<string>()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [fileInputKey, setFileInputKey] = useState(0)
+  const uploadIntent = useRef<UploadIntent | undefined>(undefined)
   const formId = useId()
   const access = useQuery({
     queryKey: ['access'],
@@ -79,6 +81,7 @@ export function DocumentsPage() {
     currentAuthority.current = { organizationId, canManage }
     return () => { currentAuthority.current.canManage = false }
   }, [organizationId, canManage])
+  useEffect(() => { uploadIntent.current = undefined }, [organizationId])
   const requireManage = () => {
     if (!currentAuthority.current.canManage || currentAuthority.current.organizationId !== organizationId)
       throw new Error(t('Access unavailable'))
@@ -89,7 +92,7 @@ export function DocumentsPage() {
     enabled: canRead,
   })
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (upload?: UploadIntent) => {
       requireManage()
       if (editing) {
         return customFetch<DocumentDto>(`/api/v1/documents/${editing.id}`, {
@@ -98,12 +101,15 @@ export function DocumentsPage() {
           body: JSON.stringify({ title, description, documentType }),
         })
       }
-      if (!file) throw new Error(t('Choose a file to upload.'))
+      if (!upload) throw new Error(t('Choose a file to upload.'))
+      if (upload.organizationId !== currentAuthority.current.organizationId)
+        throw new Error(t('Access unavailable'))
       const form = new FormData()
-      form.append('title', title)
-      form.append('description', description)
-      form.append('documentType', documentType)
-      form.append('file', file)
+      form.append('title', upload.title)
+      form.append('description', upload.description)
+      form.append('documentType', upload.documentType)
+      form.append('file', upload.file)
+      form.append('operationId', upload.operationId)
       return customFetch<DocumentDto>('/api/v1/documents/', { method: 'POST', body: form })
     },
     onSuccess: async () => {
@@ -121,6 +127,7 @@ export function DocumentsPage() {
     },
   })
   const openUpload = () => {
+    uploadIntent.current = undefined
     setFieldErrors({})
     save.reset()
     setEditing(null)
@@ -132,6 +139,7 @@ export function DocumentsPage() {
     setFileInputKey((key) => key + 1)
   }
   const openEdit = (document: DocumentDto) => {
+    uploadIntent.current = undefined
     setFieldErrors({})
     save.reset()
     setEditing(document)
@@ -142,6 +150,7 @@ export function DocumentsPage() {
     setFileError(undefined)
   }
   const closeEditor = () => {
+    uploadIntent.current = undefined
     setFieldErrors({})
     setEditing(undefined)
     setTitle('')
@@ -216,7 +225,20 @@ export function DocumentsPage() {
         }
         setFieldErrors({})
         if (!editing && !file) { setFileError('Choose a file to upload.'); return }
-        if (!fileError) save.mutate()
+        if (editing) {
+          if (!fileError) save.mutate()
+          return
+        }
+        if (!fileError && file && organizationId) {
+          const canonical = result.data
+          const previous = uploadIntent.current
+          if (!previous || previous.organizationId !== organizationId || previous.file !== file
+            || previous.title !== canonical.title || previous.description !== canonical.description
+            || previous.documentType !== canonical.documentType) {
+            uploadIntent.current = { operationId: crypto.randomUUID(), organizationId, file, ...canonical }
+          }
+          save.mutate(uploadIntent.current)
+        }
       }} className="dialog-form document-editor-form" aria-busy={save.isPending}>
         <fieldset disabled={save.isPending} className="document-editor-fields">
           {!editing && <div className="document-file-field">

@@ -20,7 +20,7 @@ describe('generated Documents client', () => {
     expect(JSON.parse(options.body as string)).toEqual({ title: 'Updated', description: 'New description' })
   })
 
-  it('sends upload fields as multipart form data without overriding its boundary', async () => {
+  it.each([undefined, '11111111-1111-4111-8111-111111111111'])('sends upload fields and optional operation %s without overriding the multipart boundary', async (operationId) => {
     setAntiforgeryToken('csrf-token')
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'document-id' }), {
       status: 201, headers: { 'Content-Type': 'application/json' },
@@ -28,7 +28,7 @@ describe('generated Documents client', () => {
     vi.stubGlobal('fetch', fetchMock)
     const file = new File(['runbook'], 'recovery-runbook.pdf', { type: 'application/pdf' })
 
-    await documentsUpload({ title: 'Runbook', description: 'Recovery steps', file })
+    await documentsUpload({ title: 'Runbook', description: 'Recovery steps', file, operationId })
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = options.body as FormData
@@ -36,6 +36,7 @@ describe('generated Documents client', () => {
     expect(body).toBeInstanceOf(FormData)
     expect(body.get('title')).toBe('Runbook')
     expect(body.get('description')).toBe('Recovery steps')
+    expect(body.get('operationId')).toBe(operationId ?? null)
     const uploadedFile = body.get('file') as File
     expect(uploadedFile).toBeInstanceOf(File)
     expect(uploadedFile.name).toBe('recovery-runbook.pdf')

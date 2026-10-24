@@ -12,6 +12,7 @@ const document: DocumentDto = { id: '00000000-0000-0000-0000-000000000020', titl
 const list = http.get('*/api/v1/documents/', () => HttpResponse.json([document]))
 let uploadStarted = false
 let uploadsCompleted = 0
+let uploadOperationIds: string[] = []
 let pauseWorkspaceRefresh = false
 let workspaceRefreshStarted = false
 let finishWorkspaceRefresh: (() => void) | undefined
@@ -124,6 +125,42 @@ export const UploadDraftDuringWorkspaceRefresh: Story = {
     await expect(within(resumed).getByText(file.name)).toBeInTheDocument()
     await userEvent.click(within(resumed).getByRole('button', { name: 'Upload document' }))
     await waitFor(() => expect(uploadsCompleted).toBe(1))
+  },
+}
+export const UploadOperationRetry: Story = {
+  beforeEach: () => { uploadOperationIds = [] },
+  parameters: { msw: { handlers: { api: [list, http.post('*/api/v1/documents/', async ({ request }) => {
+    const form = await request.formData()
+    uploadOperationIds.push(String(form.get('operationId')))
+    if (uploadOperationIds.length < 3)
+      return HttpResponse.json({ title: 'Storage is temporarily unavailable' }, { status: 503 })
+    return HttpResponse.json(document)
+  })] } } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const body = within(canvasElement.ownerDocument.body)
+    await userEvent.click(await canvas.findByRole('button', { name: 'Upload document' }))
+    const dialog = body.getByRole('dialog', { name: 'Upload document' })
+    await userEvent.upload(within(dialog).getByLabelText('File'), new File(['example'], 'invoice.pdf', { type: 'application/pdf' }))
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Document type' }), 'invoice')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Description' }), ' Retry this upload')
+    const submit = within(dialog).getByRole('button', { name: 'Upload document' })
+    await userEvent.click(submit)
+    await waitFor(() => expect(uploadOperationIds).toHaveLength(1))
+    await waitFor(() => expect(submit).toBeEnabled())
+    await userEvent.click(submit)
+    await waitFor(() => expect(uploadOperationIds).toHaveLength(2))
+    await expect(uploadOperationIds[1]).toBe(uploadOperationIds[0])
+    await waitFor(() => expect(submit).toBeEnabled())
+
+    const description = within(dialog).getByRole('textbox', { name: 'Description' })
+    await userEvent.clear(description)
+    await userEvent.type(description, ' Updated after the uncertain retry')
+    await userEvent.click(submit)
+    await waitFor(() => expect(uploadOperationIds).toHaveLength(3))
+    await expect(uploadOperationIds[2]).not.toBe(uploadOperationIds[0])
+    await waitFor(() => expect(body.queryByRole('dialog', { name: 'Upload document' })).not.toBeInTheDocument())
+    await expect(canvas.getByText('Delivery invoice')).toBeInTheDocument()
   },
 }
 export const Dark: Story = { globals: { theme: 'dark' } }

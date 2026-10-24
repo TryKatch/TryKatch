@@ -140,6 +140,52 @@ describe('DocumentsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it('reuses an upload operation UUID for an uncertain retry and creates a new one after metadata changes', async () => {
+    const firstOperationId = '11111111-1111-4111-8111-111111111111'
+    const changedOperationId = '22222222-2222-4222-8222-222222222222'
+    const operationIds: ReturnType<typeof crypto.randomUUID>[] = [
+      firstOperationId,
+      changedOperationId,
+    ]
+    const randomUUID = vi.spyOn(crypto, 'randomUUID').mockImplementation(() => operationIds.shift()!)
+    mockedFetch.mockImplementation(async (url, options) => {
+      if (url === '/api/v1/access') return accessResponse(['documents.read', 'documents.manage']) as never
+      if (options?.method === 'POST') throw new Error('response lost after upload')
+      return [] as never
+    })
+
+    renderDocuments()
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Upload document' }))[0])
+    const dialog = screen.getByRole('dialog', { name: 'Upload document' })
+    const file = new File(['invoice bytes'], 'invoice.pdf', { type: 'application/pdf' })
+    fireEvent.change(within(dialog).getByLabelText('File'), { target: { files: [file] } })
+    const title = within(dialog).getByRole('textbox', { name: 'Document title' })
+    fireEvent.change(title, { target: { value: '  Quarterly invoice  ' } })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Description' }), { target: { value: '  First attempt  ' } })
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Document type' }), { target: { value: 'invoice' } })
+
+    fireEvent.submit(dialog.querySelector('form')!)
+    await screen.findByText('response lost after upload')
+    fireEvent.change(within(dialog).getByLabelText('File'), { target: { files: [] } })
+    fireEvent.submit(dialog.querySelector('form')!)
+    await waitFor(() => expect(mockedFetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(2))
+
+    const uploads = () => mockedFetch.mock.calls.filter(([, options]) => options?.method === 'POST')
+      .map(([, options]) => options?.body as FormData)
+    expect(uploads()[0].get('operationId')).toBe(firstOperationId)
+    expect(uploads()[1].get('operationId')).toBe(firstOperationId)
+    expect(uploads()[0].get('file')).toBe(file)
+    expect(uploads()[0].get('title')).toBe('Quarterly invoice')
+    expect(uploads()[0].get('description')).toBe('First attempt')
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Description' }), { target: { value: '  Updated notes  ' } })
+    fireEvent.submit(dialog.querySelector('form')!)
+    await waitFor(() => expect(mockedFetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(3))
+    expect(uploads()[2].get('operationId')).toBe(changedOperationId)
+    expect(randomUUID).toHaveBeenCalledTimes(2)
+    randomUUID.mockRestore()
+  })
+
   it('rejects empty, oversized and unsupported files before sending any request', async () => {
     mockedFetch.mockImplementation(async (url) => url === '/api/v1/access'
       ? accessResponse(['documents.read', 'documents.manage']) as never : [] as never)

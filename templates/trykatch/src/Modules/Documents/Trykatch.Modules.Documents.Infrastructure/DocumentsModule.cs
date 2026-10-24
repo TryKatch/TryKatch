@@ -25,7 +25,8 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
             new("documents.storage-bytes", "Document storage",
                 "Logical uploaded bytes in Active, Archived and pending-deletion documents.", ModuleQuotaUnit.Bytes)
             {
-                InventorySource = new("documents", "documents.inventory", 1)
+                InventorySource = new("documents", "documents.inventory", 1),
+                UploadPolicy = new("documents", "documents.upload", 1, "documents.manage")
             }
         ],
         DefaultDataOwnership = ModuleDataOwnership.Organization,

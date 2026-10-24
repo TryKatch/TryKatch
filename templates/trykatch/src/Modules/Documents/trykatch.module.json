@@ -16,7 +16,8 @@
     "name": "Document storage",
     "description": "Logical uploaded bytes in Active, Archived and pending-deletion documents.",
     "unit": "bytes",
-    "inventorySource": { "sourceKey": "documents.inventory", "sourceVersion": 1 }
+    "inventorySource": { "sourceKey": "documents.inventory", "sourceVersion": 1 },
+    "uploadPolicy": { "policyKey": "documents.upload", "policyVersion": 1, "requiredPermission": "documents.manage" }
   }],
   "dataOwnership": {
     "default": "organization",

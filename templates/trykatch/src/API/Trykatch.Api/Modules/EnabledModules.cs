@@ -22,7 +22,7 @@ public static class EnabledModules
         ]);
         ModuleQuotaRegistrationRules.ValidateManifest(All,
         [
-            new("documents", new("documents.storage-bytes", "Document storage", "Logical uploaded bytes in Active, Archived and pending-deletion documents.", ModuleQuotaUnit.Bytes) { InventorySource = new("documents", "documents.inventory", 1), }),
+            new("documents", new("documents.storage-bytes", "Document storage", "Logical uploaded bytes in Active, Archived and pending-deletion documents.", ModuleQuotaUnit.Bytes) { UploadPolicy = new("documents", "documents.upload", 1, "documents.manage"), InventorySource = new("documents", "documents.inventory", 1), }),
         ]);
     }
     public static IReadOnlyList<InstalledDataResource> InstalledDataResources { get; } =

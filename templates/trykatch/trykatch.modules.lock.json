@@ -6,7 +6,7 @@
       "id": "documents",
       "version": "1.3.0",
       "enabled": true,
-      "manifestSha256": "74f56d527519119ec2af02da8330ccdbde52aa9d489fc6417457c6accefc2b5f",
+      "manifestSha256": "78d4bc371ff26fe0e37ea7f6a970dbe692ed1e6ff293af66bb98274136c24dd5",
       "manifestDigestMode": "template-normalized-sha256",
       "distribution": {
         "kind": "workspace",
