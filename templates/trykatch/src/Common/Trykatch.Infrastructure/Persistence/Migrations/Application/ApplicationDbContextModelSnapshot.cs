@@ -941,7 +941,10 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
 
                     b.HasIndex("OrganizationId", "Name");
 
-                    b.ToTable("projects", "app");
+                    b.ToTable("projects", "app", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 #pragma warning restore 612, 618
         }

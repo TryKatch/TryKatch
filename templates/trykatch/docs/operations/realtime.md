@@ -12,6 +12,8 @@ Existing cookies without a durable session row require sign-in again. The regist
 
 Projects installs one `projects.created` consumer and an exact finite system grant. Its history append and inbox receipt commit together through the existing event worker. Consequently an application with this consumer needs an explicit `ConnectionStrings:trykatch-work`, even when general jobs and live push are disabled. Default AppHost and regular/backend Compose already provide the dedicated coordinator role. Missing/blank configuration fails startup; no owner/organization credential fallback is used. OpenAPI generation validates registrations without requiring the coordinator or backplane to connect.
 
+Projects' `app.projects` DDL is owned by its immutable module SQL migration ledger. Its EF mapping remains available for queries but records the relation as excluded from EF DDL generation in the canonical migration snapshot; this does not relax the host's strict live-schema drift checks. Put future Projects schema changes in new forward-only SQL ledger entries. Keep the existing applied baseline unchanged.
+
 ## Select a mode
 
 | Mode | Behavior |

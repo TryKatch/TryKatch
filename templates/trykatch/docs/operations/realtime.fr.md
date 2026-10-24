@@ -12,6 +12,8 @@ Les anciens cookies sans ligne de session durable exigent une nouvelle connexion
 
 Projects installe un consommateur `projects.created` et une délégation système finie. L’ajout à l’historique et l’accusé de traitement inbox sont validés dans la même transaction du worker existant. Ce consommateur exige donc une connexion explicite `ConnectionStrings:trykatch-work`, même avec les tâches générales et les notifications désactivées. AppHost et les variantes Compose standard/backend fournissent déjà le rôle coordinateur dédié. Une configuration absente ou vide bloque le démarrage ; aucun identifiant propriétaire ou organisation n’est utilisé comme secours. La génération OpenAPI valide les inscriptions sans connexion au coordinateur ou au backplane.
 
+Le DDL de `app.projects` appartient au registre immuable de migrations SQL du module Projects. Le mapping EF reste disponible pour les requêtes, mais marque cette relation comme exclue de la génération DDL dans l’instantané canonique des migrations EF ; cela n’assouplit pas le contrôle strict de dérive du schéma réel par l’hôte. Ajoutez les changements futurs du schéma Projects comme nouvelles entrées SQL évolutives. Ne modifiez pas le baseline déjà appliqué ni aucune migration déjà appliquée.
+
 ## Modes et configuration
 
 | Mode | Comportement |
