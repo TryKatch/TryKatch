@@ -462,6 +462,7 @@ public sealed class AccountSecurityStepUpTests
         public const string LegacyRecoveryCode = "ABCD2-EFGH3";
         public TestClock Clock => clock;
         public IServiceProvider Services => factory.Services;
+        public Microsoft.AspNetCore.TestHost.WebSocketClient CreateWebSocketClient() => factory.Server.CreateWebSocketClient();
         public string OwnerConnection => ownerConnection;
 
         public async Task RestartAsync(IReadOnlyDictionary<string, string?> overrides, string environment = "Production", Action<IServiceCollection>? configureServices = null)

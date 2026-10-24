@@ -5,6 +5,7 @@
     <OpenApiDocumentsDirectory Condition="'$(SelectedUi)' == 'none'">$(BaseIntermediateOutputPath)openapi</OpenApiDocumentsDirectory>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Trykatch.IntegrationTests" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />

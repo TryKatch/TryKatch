@@ -59,7 +59,7 @@ internal static class ApiHostingExtensions
             builder.Configuration,
             builder.Environment.IsDevelopment(),
             isOpenApiGeneration);
-        builder.Services.AddRealtime(builder.Configuration);
+        builder.Services.AddRealtime(builder.Configuration, isOpenApiGeneration);
 #if TRYKATCH_EMAIL
         builder.Services.AddQueuedEmailDelivery(isOpenApiGeneration);
 #endif
@@ -224,6 +224,7 @@ internal static class ApiHostingExtensions
         app.UseMiddleware<OrganizationScopeMiddleware>();
         app.UseMiddleware<OrganizationTransactionMiddleware>();
         app.UseAuthorization();
+        app.UseMiddleware<RealtimeTransportSecurityMiddleware>();
         app.UseAntiforgery();
 
         if (app.Environment.IsDevelopment())
@@ -243,6 +244,7 @@ internal static class ApiHostingExtensions
 
         app.MapControllers();
         app.MapRealtimeHistory();
+        app.MapRealtimeHub();
         app.MapOrganizationModuleEndpoints();
         app.MapPlatformModuleEndpoints();
         app.MapDefaultEndpoints();
