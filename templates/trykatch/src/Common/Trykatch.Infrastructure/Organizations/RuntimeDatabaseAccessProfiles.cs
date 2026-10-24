@@ -94,6 +94,9 @@ public static class RuntimeDatabaseAccessProfiles
                 return None;
             return (kind, relation) switch
             {
+                (RuntimeDatabaseRoleKind.Organization, "infrastructure.email_deliveries") => Insert,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.email_deliveries") => SelectUpdate,
+                (RuntimeDatabaseRoleKind.Identity, "identity.email_deliveries") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "infrastructure.module_work_items") => Insert,
                 (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_schedule_cursors") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_work_controls") => SelectInsert,

@@ -29,7 +29,7 @@ public sealed class ModuleJobMigrationIntegrationTests
         await AssertQuartzSchemaAndPrivilegesAsync(connectionString);
     }
 
-    private static async Task<(int Exit, string Output, string Error)> InvokeMigratorAsync(string connectionString)
+    internal static async Task<(int Exit, string Output, string Error)> InvokeMigratorAsync(string connectionString)
     {
         DirectoryInfo? root = new(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "Trykatch.slnx"))) root = root.Parent;

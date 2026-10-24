@@ -19,6 +19,7 @@ using Trykatch.Infrastructure.Persistence.Migrations.Platform;
 using Trykatch.Infrastructure.Persistence.Migrations.Application;
 using Trykatch.Modules;
 using Trykatch.Modules.Documents.Infrastructure;
+using Trykatch.Identity.Persistence.Migrations;
 
 namespace Trykatch.IntegrationTests;
 
@@ -158,7 +159,7 @@ public sealed class PostgresIsolationInspectionTests
     public async Task RejectsUndeclaredQuotedRelationsInEveryManagedSchema()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
-        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"UndeclaredQuoted\" (id uuid)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"UndeclaredQuoted\" (id uuid)");
 
         InvalidOperationException preflight = await Should.ThrowAsync<InvalidOperationException>(() =>
             InstalledSchemaCatalog.ValidateDeclaredObjectsAsync(database.ConnectionString,
@@ -206,6 +207,8 @@ public sealed class PostgresIsolationInspectionTests
             CREATE ROLE {platform} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             CREATE ROLE {identity} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             CREATE ROLE {outbox} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            GRANT USAGE ON SCHEMA identity TO {identity};
+            GRANT SELECT, INSERT, UPDATE ON identity.email_deliveries TO {identity};
             GRANT USAGE ON SCHEMA infrastructure TO {outbox};
             GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO {outbox};
             GRANT USAGE ON SCHEMA platform TO {outbox};
@@ -222,7 +225,7 @@ public sealed class PostgresIsolationInspectionTests
         {
             RuntimeDatabaseRoles roles = new(database.RuntimeRole, platform, identity, outbox);
             (await PostgresIsolationInspector.InspectAsync(
-                database.ConnectionString, roles, [new ProjectsModule().Descriptor])).IsValid.ShouldBeTrue();
+                database.ConnectionString, roles, [new ProjectsModule().Descriptor])).Errors.ShouldBeEmpty();
 
             await database.ExecuteAsync($"GRANT USAGE ON SCHEMA app TO {platform}; GRANT SELECT ON app.projects TO {platform}");
 
@@ -540,7 +543,7 @@ public sealed class PostgresIsolationInspectionTests
         await using (NpgsqlCommand before = new("SELECT has_table_privilege('trykatch_outbox_worker', 'infrastructure.module_work_items', 'SELECT')", owner))
             (await before.ExecuteScalarAsync()).ShouldBe(false);
 
-        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
         await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
             new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
         RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
@@ -583,7 +586,7 @@ public sealed class PostgresIsolationInspectionTests
     public async Task OperationalCompletionMarkerEnforcesOrganizationAndActorScope()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
-        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
         await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
             new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
         RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
@@ -682,7 +685,7 @@ public sealed class PostgresIsolationInspectionTests
     public async Task OperationalInspectorRejectsMissingPolicyAndOverbroadGrant()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
-        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
         await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
             new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
         RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
@@ -703,7 +706,7 @@ public sealed class PostgresIsolationInspectionTests
     public async Task OperationalInboxEnforcesCurrentScopeActorAndConsumerDeduplication()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
-        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
         await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
             new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
         RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
@@ -811,6 +814,7 @@ public sealed class PostgresIsolationInspectionTests
                 REVOKE TEMPORARY ON DATABASE {result.databaseName} FROM PUBLIC;
                 CREATE SCHEMA app;
                 CREATE SCHEMA platform;
+                CREATE SCHEMA identity;
                 REVOKE ALL ON SCHEMA public FROM PUBLIC;
                 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
                 CREATE TABLE app.projects ("Id" uuid PRIMARY KEY, "OrganizationId" uuid NOT NULL);
@@ -890,6 +894,12 @@ public sealed class PostgresIsolationInspectionTests
             MigrationOperation[] durableJobOperations = new AddDurableModuleJobs().UpOperations.ToArray();
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(durableJobOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationEmailDelivery().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddIdentityEmailDelivery().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             await result.ExecuteAsync($"""
                 GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
                 GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
@@ -898,6 +908,8 @@ public sealed class PostgresIsolationInspectionTests
                 GRANT SELECT, INSERT, UPDATE ON infrastructure.module_work_items TO trykatch_work_coordinator;
                 GRANT SELECT, UPDATE ON infrastructure.module_event_deliveries TO trykatch_work_coordinator;
                 GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO trykatch_outbox_worker;
+                GRANT INSERT ON infrastructure.email_deliveries TO {result.RuntimeRole};
+                GRANT USAGE ON SCHEMA identity TO trykatch_identity_runtime;
                 """);
             await GrantDurableJobAccessAsync(result);
             return result;
@@ -915,6 +927,8 @@ public sealed class PostgresIsolationInspectionTests
             string[] relations = [
                 "infrastructure.module_schedule_cursors",
                 "infrastructure.module_work_controls",
+                "infrastructure.email_deliveries",
+                "identity.email_deliveries",
                 .. QuartzSchemaContract.Tables.Select(table => "infrastructure." + table)
             ];
 
