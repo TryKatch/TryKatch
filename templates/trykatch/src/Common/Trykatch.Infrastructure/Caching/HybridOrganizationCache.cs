@@ -34,6 +34,7 @@ internal sealed class HybridOrganizationCache(
         cancellationToken.ThrowIfCancellationRequested();
         string logicalHash = ValidateAndHash(key);
         Guid oldGeneration = await generations.InvalidateAsync(logicalHash, cancellationToken).ConfigureAwait(false);
+        OrganizationCacheTelemetry.Invalidation(options.Value.Mode);
 
         if (options.Value.Mode == OrganizationCacheMode.Disabled) return;
 
@@ -49,11 +50,21 @@ internal sealed class HybridOrganizationCache(
     {
         OrganizationCacheOptions configuration = options.Value;
         if (configuration.Mode == OrganizationCacheMode.Disabled)
+        {
+            OrganizationCacheTelemetry.Read(configuration.Mode, eligible: false);
+            OrganizationCacheTelemetry.Source(configuration.Mode);
             return await factory(cancellationToken).ConfigureAwait(false);
+        }
 
         CacheReadGeneration read = await generations.ReadAsync(logicalHash, cancellationToken).ConfigureAwait(false);
         if (!read.CanCache)
+        {
+            OrganizationCacheTelemetry.Read(configuration.Mode, eligible: false);
+            OrganizationCacheTelemetry.Source(configuration.Mode);
             return await factory(cancellationToken).ConfigureAwait(false);
+        }
+
+        OrganizationCacheTelemetry.Read(configuration.Mode, eligible: true);
 
         string physicalKey = CacheKeyPolicy.PhysicalKey(logicalHash, read.Generation);
         JsonSerializerOptions serializerOptions = payloadSerializerOptions ??= generations.CreatePayloadSerializerOptions();
@@ -73,7 +84,7 @@ internal sealed class HybridOrganizationCache(
         {
             payload = await cache.GetOrCreateAsync<FactoryState<T>, byte[]>(
                 physicalKey,
-                new(factory, configuration.FactoryTimeout, generations.CanPublishSourceResult, serializerOptions),
+                new(factory, configuration.FactoryTimeout, generations.CanPublishSourceResult, serializerOptions, configuration.Mode),
                 static async (state, _) => await CreatePayloadAsync(state).ConfigureAwait(false),
                 entryOptions,
                 tags: null,
@@ -92,6 +103,8 @@ internal sealed class HybridOrganizationCache(
             return cachedValue!;
         }
 
+        OrganizationCacheTelemetry.Corrupt(configuration.Mode);
+        OrganizationCacheTelemetry.Source(configuration.Mode);
         byte[] detachedPayload = await CreateDetachedPayloadAsync(factory, configuration.FactoryTimeout, serializerOptions).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return DecodeSourceResult<T>(detachedPayload, serializerOptions);
@@ -120,12 +133,17 @@ internal sealed class HybridOrganizationCache(
     private static async Task<byte[]> CreatePayloadAsync<T>(FactoryState<T> state)
     {
         using CancellationTokenSource timeout = new(state.Timeout);
+        OrganizationCacheTelemetry.Source(state.Mode);
         T value = await state.Factory(timeout.Token).ConfigureAwait(false);
         timeout.Token.ThrowIfCancellationRequested();
         bool canPublish = state.CanPublish();
         byte[] payload = CachePayloadCodec.Encode(value, state.SerializerOptions);
         if (!canPublish || payload.Length > OrganizationCacheOptions.MaximumPayloadBytes)
+        {
+            if (!canPublish) OrganizationCacheTelemetry.Dirty(state.Mode);
+            else OrganizationCacheTelemetry.Oversized(state.Mode);
             throw new UncachedSourcePayloadException(payload);
+        }
         return payload;
     }
 
@@ -146,7 +164,7 @@ internal sealed class HybridOrganizationCache(
     }
 
     private sealed record FactoryState<T>(
-        Func<CancellationToken, Task<T>> Factory, TimeSpan Timeout, Func<bool> CanPublish, JsonSerializerOptions SerializerOptions);
+        Func<CancellationToken, Task<T>> Factory, TimeSpan Timeout, Func<bool> CanPublish, JsonSerializerOptions SerializerOptions, OrganizationCacheMode Mode);
 
     private sealed class UncachedSourcePayloadException(byte[] payload) : Exception("Organization cache source value is not eligible for storage.")
     {

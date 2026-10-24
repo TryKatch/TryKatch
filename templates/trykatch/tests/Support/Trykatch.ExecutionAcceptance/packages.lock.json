@@ -213,6 +213,25 @@
           "Microsoft.EntityFrameworkCore": "[10.0.11, )"
         }
       },
+      "trykatch.modules.projects.application": {
+        "type": "Project",
+        "dependencies": {
+          "FluentValidation": "[12.1.1, )",
+          "Trykatch.Application": "[1.0.0, )",
+          "Trykatch.Modules.Projects.Domain": "[1.0.0, )",
+          "Trykatch.Modules.Projects.IntegrationEvents": "[1.0.0, )"
+        }
+      },
+      "trykatch.modules.projects.domain": {
+        "type": "Project",
+        "dependencies": {
+          "Trykatch.Domain": "[1.0.0, )",
+          "Trykatch.Modules.Abstractions": "[1.0.0, )"
+        }
+      },
+      "trykatch.modules.projects.integrationevents": {
+        "type": "Project"
+      },
       "AWSSDK.S3": {
         "type": "CentralTransitive",
         "requested": "[4.0.102.5, )",

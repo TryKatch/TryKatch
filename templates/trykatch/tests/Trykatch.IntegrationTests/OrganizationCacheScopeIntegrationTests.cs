@@ -147,6 +147,15 @@ public sealed partial class OrganizationCacheScopeIntegrationTests
 
     private static ServiceProvider BuildProvider(
         string ownerConnection, IReadOnlyDictionary<string, string?> cacheSettings, params IModule[] modules)
+        => BuildProvider(ownerConnection, cacheSettings, true, modules);
+
+    private static ServiceProvider BuildProvider(
+        string ownerConnection, IReadOnlyDictionary<string, string?> cacheSettings, bool isOpenApiGeneration, params IModule[] modules)
+        => BuildProvider(ownerConnection, cacheSettings, isOpenApiGeneration, null, modules);
+
+    private static ServiceProvider BuildProvider(
+        string ownerConnection, IReadOnlyDictionary<string, string?> cacheSettings, bool isOpenApiGeneration,
+        Action<IServiceCollection>? configureServices, params IModule[] modules)
     {
         NpgsqlConnectionStringBuilder owner = new(ownerConnection);
         Dictionary<string, string?> settings = new()
@@ -169,7 +178,8 @@ public sealed partial class OrganizationCacheScopeIntegrationTests
         services.AddLogging();
         services.AddApplication();
         services.AddModules(configuration, modules);
-        services.AddInfrastructure(configuration, isOpenApiGeneration: true);
+        services.AddInfrastructure(configuration, isOpenApiGeneration);
+        configureServices?.Invoke(services);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
 

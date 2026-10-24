@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,35 +16,56 @@ using Trykatch.Modules.Projects.Infrastructure;
 
 namespace Trykatch.ExecutionAcceptance;
 
-internal static class Program
+internal static partial class Program
 {
     private const string CreateProjectOperation = "projects.create";
 
     public static async Task<int> Main(string[] args)
     {
-        if (args.Length != 1 || args[0] is not ("producer" or "worker"))
+        if (args.Length != 1 || args[0] is not ("producer" or "worker" or "cache-reader"))
         {
-            Console.Error.WriteLine("Expected process mode: producer or worker.");
+            Console.Error.WriteLine("Expected process mode: producer, worker, or cache-reader.");
             return 2;
         }
 
+        bool cacheReader = args[0] == "cache-reader";
         try
         {
             HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-            ConfigureHost(builder);
+            if (cacheReader)
+                // Match the generic worker's lazy service validation while retaining scoped
+                // dependency checks. AddApplication also registers API-only management flows;
+                // the reader resolves the real membership/Projects/cache graph on every command.
+                builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions
+                {
+                    ValidateScopes = true, ValidateOnBuild = false
+                }));
+            ConfigureHost(builder, cacheReader);
             using IHost host = builder.Build();
-            return args[0] == "producer"
-                ? await ProduceAsync(host.Services)
-                : await RunWorkerAsync(host);
+            return args[0] switch
+            {
+                "producer" => await ProduceAsync(host.Services),
+                "worker" => await RunWorkerAsync(host),
+                _ => await RunCacheReaderAsync(host.Services)
+            };
         }
         catch (Exception exception)
         {
-            Console.Error.WriteLine($"EXECUTION_ACCEPTANCE_FAILED {exception.GetType().Name}: {exception.Message}");
+            if (cacheReader && exception is AggregateException aggregate)
+                foreach (Exception failure in aggregate.Flatten().InnerExceptions.Take(8))
+                {
+                    System.Text.RegularExpressions.Match missing = System.Text.RegularExpressions.Regex.Match(
+                        failure.Message, @"Unable to resolve service for type '([A-Za-z0-9_.]{1,200})'");
+                    if (missing.Success) Console.Error.WriteLine("CACHE_READER_MISSING_SERVICE " + missing.Groups[1].Value);
+                }
+            Console.Error.WriteLine(cacheReader
+                ? $"EXECUTION_ACCEPTANCE_FAILED {exception.GetType().Name}"
+                : $"EXECUTION_ACCEPTANCE_FAILED {exception.GetType().Name}: {exception.Message}");
             return 1;
         }
     }
 
-    private static void ConfigureHost(HostApplicationBuilder builder)
+    private static void ConfigureHost(HostApplicationBuilder builder, bool enableSourceQueryCounter)
     {
         builder.Logging.ClearProviders();
         IConfiguration configuration = builder.Configuration;
@@ -57,6 +77,12 @@ internal static class Program
             new AcceptanceModule()
         ]);
         builder.Services.AddInfrastructure(configuration);
+        if (enableSourceQueryCounter)
+        {
+            builder.Services.AddSingleton<CacheAcceptanceSourceQueryCounter>();
+            builder.Services.ConfigureDbContext<ApplicationDbContext>((provider, options) =>
+                options.AddInterceptors(provider.GetRequiredService<CacheAcceptanceSourceQueryCounter>()));
+        }
     }
 
     private static async Task<int> ProduceAsync(IServiceProvider services)

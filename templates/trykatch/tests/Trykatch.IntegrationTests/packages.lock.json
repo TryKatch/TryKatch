@@ -1264,7 +1264,8 @@
           "Trykatch.Application": "[1.0.0, )",
           "Trykatch.Infrastructure": "[1.0.0, )",
           "Trykatch.Modules.Documents": "[1.0.0, )",
-          "Trykatch.Modules.Projects": "[1.0.0, )"
+          "Trykatch.Modules.Projects": "[1.0.0, )",
+          "Trykatch.Modules.Projects.Application": "[1.0.0, )"
         }
       },
       "trykatch.identity": {

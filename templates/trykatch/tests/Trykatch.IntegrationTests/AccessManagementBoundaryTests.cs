@@ -808,7 +808,11 @@ public sealed partial class AccessManagementBoundaryTests
             return await database.AuditIntents.CountAsync(intent => intent.Operation == "organization.ai.updated");
         }
 
-        public static async Task<AccessHost> StartAsync(IInvitationNotifier? invitationNotifier = null, bool queuedEmail = false, Action<IServiceCollection>? configureServices = null)
+        public static async Task<AccessHost> StartAsync(
+            IInvitationNotifier? invitationNotifier = null,
+            bool queuedEmail = false,
+            Action<IServiceCollection>? configureServices = null,
+            IReadOnlyDictionary<string, string?>? additionalSettings = null)
         {
             string? configuredPostgres = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
             PostgreSqlContainer? postgres = string.IsNullOrWhiteSpace(configuredPostgres)
@@ -828,7 +832,8 @@ public sealed partial class AccessManagementBoundaryTests
             }
             try
             {
-                return new(postgres, await CreateFactoryAsync(ownerConnection, invitationNotifier, queuedEmail, configureServices), ownerConnection, configuredPostgres, databaseName);
+                return new(postgres, await CreateFactoryAsync(ownerConnection, invitationNotifier, queuedEmail,
+                    configureServices, additionalSettings), ownerConnection, configuredPostgres, databaseName);
             }
             catch
             {
@@ -838,7 +843,12 @@ public sealed partial class AccessManagementBoundaryTests
             }
         }
 
-        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(string ownerConnection, IInvitationNotifier? invitationNotifier, bool queuedEmail, Action<IServiceCollection>? configureServices)
+        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(
+            string ownerConnection,
+            IInvitationNotifier? invitationNotifier,
+            bool queuedEmail,
+            Action<IServiceCollection>? configureServices,
+            IReadOnlyDictionary<string, string?>? additionalSettings)
         {
             var connections = await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(ownerConnection);
             await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ownerConnection).Options);
@@ -884,6 +894,9 @@ public sealed partial class AccessManagementBoundaryTests
                 ["DevelopmentDemo:Enabled"] = "false"
             };
             if (queuedEmail) settings["Application:PublicUrl"] = "https://app.trykatch.test";
+            if (additionalSettings is not null)
+                foreach ((string key, string? value) in additionalSettings)
+                    settings[key] = value;
             WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>().WithWebHostBuilder(webHost =>
             {
                 webHost.UseEnvironment("Development");
