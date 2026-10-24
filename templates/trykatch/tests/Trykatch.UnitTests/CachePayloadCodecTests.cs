@@ -3,12 +3,24 @@ using System.Text;
 using System.Text.Json;
 using Shouldly;
 using Trykatch.Infrastructure.Caching;
+using Trykatch.Modules.Projects.Domain;
 
 namespace Trykatch.UnitTests;
 
 [TestClass]
 public sealed class CachePayloadCodecTests
 {
+    [TestMethod]
+    public void EntityPayloadIsRejectedEvenWhenNestedBehindAnObjectProperty()
+    {
+        Project entity = Project.Create(Guid.NewGuid(), "private entity payload", null, Guid.NewGuid());
+
+        NotSupportedException failure = Should.Throw<NotSupportedException>(() =>
+            CachePayloadCodec.Encode(new EntityContainer(entity)));
+
+        failure.Message.ShouldNotContain(entity.Name);
+    }
+
     [TestMethod]
     public void EncodeWritesVersionAndTypeBoundHeaderBeforeTypedJson()
     {
@@ -116,6 +128,8 @@ public sealed class CachePayloadCodecTests
         public List<string> Values { get; set; } = [];
         public NestedDto? Child { get; set; }
     }
+
+    private sealed record EntityContainer(object Value);
 
     private sealed class NestedDto
     {

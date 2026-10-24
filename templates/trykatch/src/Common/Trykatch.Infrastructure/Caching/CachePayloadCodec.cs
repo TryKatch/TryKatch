@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Caching;
 
@@ -9,7 +11,18 @@ internal static class CachePayloadCodec
     private const byte FormatVersion = 1;
     private const int TypeHashLength = 32;
     private const int HeaderLength = sizeof(byte) + TypeHashLength;
-    private static readonly JsonSerializerOptions SerializerOptions = new() { MaxDepth = 16 };
+    private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
+
+    private static JsonSerializerOptions CreateSerializerOptions()
+    {
+        DefaultJsonTypeInfoResolver resolver = new();
+        resolver.Modifiers.Add(typeInfo =>
+        {
+            if (typeof(IOrganizationOwned).IsAssignableFrom(typeInfo.Type))
+                throw new NotSupportedException("Organization cache payloads must contain detached read DTOs.");
+        });
+        return new() { MaxDepth = 16, TypeInfoResolver = resolver };
+    }
 
     public static byte[] Encode<T>(T value)
     {
