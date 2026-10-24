@@ -8,6 +8,31 @@ namespace Trykatch.IntegrationTests;
 public sealed class ProcessExecutionTests
 {
     [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    public async Task AReadyWorkerThatExitsBeforeRequestedShutdownFailsQualification(int exitCode)
+    {
+        if (OperatingSystem.IsWindows()) Assert.Inconclusive("The exited worker fixture uses the Unix shell.");
+        ProcessStartInfo start = new("/bin/sh")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        start.ArgumentList.Add("-c");
+        start.ArgumentList.Add($"printf 'unexpected worker exit\\n' >&2; exit {exitCode}");
+        Process process = Process.Start(start)!;
+        await process.WaitForExitAsync();
+        await using WorkerProcess worker = new(process, new("worker-ready", process.Id, "exited-worker",
+            "exited-scheduler", "organization", "outbox", "work"));
+
+        InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(() => worker.StopAsync());
+
+        exception.Message.ShouldContain("exited-worker");
+        exception.Message.ShouldContain("unexpected worker exit");
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task AnInterruptedChildAndItsDescendantExitBeforeTheCallerRegainsControl(bool cancel)

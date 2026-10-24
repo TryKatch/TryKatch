@@ -1244,6 +1244,15 @@
           "Trykatch.Modules.Abstractions": "[1.0.0, )"
         }
       },
+      "trykatch.executionacceptance": {
+        "type": "Project",
+        "dependencies": {
+          "Trykatch.Application": "[1.0.0, )",
+          "Trykatch.Infrastructure": "[1.0.0, )",
+          "Trykatch.Modules.Documents": "[1.0.0, )",
+          "Trykatch.Modules.Projects": "[1.0.0, )"
+        }
+      },
       "trykatch.identity": {
         "type": "Project",
         "dependencies": {
@@ -1314,12 +1323,24 @@
           "Microsoft.EntityFrameworkCore": "[10.0.11, )"
         }
       },
+      "trykatch.modules.projects.application": {
+        "type": "Project",
+        "dependencies": {
+          "FluentValidation": "[12.1.1, )",
+          "Trykatch.Application": "[1.0.0, )",
+          "Trykatch.Modules.Projects.Domain": "[1.0.0, )",
+          "Trykatch.Modules.Projects.IntegrationEvents": "[1.0.0, )"
+        }
+      },
       "trykatch.modules.projects.domain": {
         "type": "Project",
         "dependencies": {
           "Trykatch.Domain": "[1.0.0, )",
           "Trykatch.Modules.Abstractions": "[1.0.0, )"
         }
+      },
+      "trykatch.modules.projects.integrationevents": {
+        "type": "Project"
       },
       "trykatch.servicedefaults": {
         "type": "Project",

@@ -100,6 +100,12 @@ Disabled consumers are paused with retained records. On re-enable, compatible wo
 
 Legacy compatibility is explicit: retain `OutboxContractName.For` mappings for Projects/Documents and preserve existing payloads/IDs/replay generations. Nullable new context metadata does not license inventing an organization or actor for an old payload. A legacy message without safely provable scope may finish under its original logging-only adapter or become a visible compatibility outcome; it cannot produce new business side effects. Explicit export DTOs for Webhooks are a different allowlist from internal consumers and from assistant tools.
 
+### Installed Projects creation contract
+
+Projects 1.1 declares `projects.create`/1 as a real `UserCommand`, with `projects.manage`, the `projects` resource policy and the existing `CreateProjectCommand` validation. Its internal module adapter calls the existing creation use case; declaration alone does not make an operation executable or register a publicly submitted job.
+
+Successful creation retains the unchanged legacy `ProjectChanged` record and adds `ProjectCreated(OrganizationId, ProjectId, ActorId)` as `projects.created`/1. The new event carries opaque identifiers, not project name/description. Business state, audit and both outbox rows share the existing organization transaction. Legacy replay keeps its original wire identity and contextless semantics; no old row is promoted into the new consumer protocol. A no-consumer deployment still uses the configured outbox transport.
+
 ## 6. Jobs and schedules — E4
 
 Public job submission belongs under `Trykatch.Modules.Abstractions/Jobs/`. Modules submit intent from the current trusted request context; autonomous and event-derived submission is host-only.

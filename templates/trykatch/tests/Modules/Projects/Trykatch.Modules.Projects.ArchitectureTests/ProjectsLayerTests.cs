@@ -58,9 +58,9 @@ public sealed class ProjectsLayerTests
     public void IntegrationEventsOwnOnlyStableNamedContracts()
     {
         System.Type[] contracts = Events.ExportedTypes.ToArray();
-        contracts.ShouldHaveSingleItem().ShouldBe(typeof(ProjectChanged));
+        contracts.OrderBy(contract => contract.Name).ShouldBe(new[] { typeof(ProjectChanged), typeof(ProjectCreated) }.OrderBy(contract => contract.Name));
         contracts.ShouldAllBe(contract => contract.Namespace == "Trykatch.Modules.Projects.IntegrationEvents");
-        contracts.ShouldAllBe(contract => contract.Name.EndsWith("Changed", StringComparison.Ordinal));
+        contracts.Select(contract => contract.Name).ShouldContain("ProjectCreated");
     }
 
     [TestMethod]

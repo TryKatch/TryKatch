@@ -38,6 +38,7 @@
     <Project Path="tests/Trykatch.ArchitectureTests/Trykatch.ArchitectureTests.csproj" />
     <Project Path="tests/Trykatch.IntegrationTests/Trykatch.IntegrationTests.csproj" />
     <Project Path="tests/Trykatch.UnitTests/Trykatch.UnitTests.csproj" />
+    <Project Path="tests/Support/Trykatch.ExecutionAcceptance/Trykatch.ExecutionAcceptance.csproj" />
   </Folder>
   <Folder Name="/tests/Modules/Projects/">
     <Project Path="tests/Modules/Projects/Trykatch.Modules.Projects.ArchitectureTests/Trykatch.Modules.Projects.ArchitectureTests.csproj" />

@@ -85,7 +85,9 @@ Apply all roadmap constraints. Paths below are relative to `templates/trykatch/`
 
 ## Phase exit
 
-- [ ] A synthetic organization operation and a real installed module event survive process restart and competing workers with correct audit and isolation evidence.
-- [ ] Old event IDs, existing outbox replay and default applications remain compatible. New unconfigured capabilities fail closed or report explicit unavailability.
-- [ ] Every operational relation is declared, migrated and checked under real role grants; no coordinator can bypass organization RLS.
-- [ ] Record the complete Phase 1 evidence in proposed `docs/specs/evidence/parity-execution.md`; link it from the coverage ledger. E1/E2/E3 evidence is recorded separately; E4 and E5 evidence are recorded separately; this consolidated Phase 1 exit remains open.
+Local qualification and integrated review are recorded in [consolidated evidence](../../../templates/trykatch/docs/specs/evidence/parity-execution.md). Exact-head CI/merge is a separate pull-request gate. These checks do not accept later parity phases or the final release.
+
+- [x] A synthetic organization operation and a real installed module event survive process restart and competing workers with correct audit and isolation evidence.
+- [x] Old event IDs, existing outbox replay and default applications remain compatible. New unconfigured capabilities fail closed or report explicit unavailability.
+- [x] Every operational relation is declared, migrated and checked under real role grants; no coordinator can bypass organization RLS.
+- [x] Record the complete Phase 1 evidence in proposed `docs/specs/evidence/parity-execution.md`; link it from the coverage ledger. E1/E2/E3 evidence is recorded separately; E4 and E5 evidence are recorded separately; the consolidated Phase 1 exit records the additional installed event and process proof.
