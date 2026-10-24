@@ -270,18 +270,38 @@ done
 [[ $(docker inspect --format '{{.Id}}' "$proxy_name") == "$web_container_id" ]] ||
   fail 'the web container changed during upstream recovery'
 
-docker network disconnect "$network_name" "$stale_name"
-docker network connect --ip 172.31.251.20 --alias api "$network_name" "$stale_name"
+docker rm --force "$stale_name" >/dev/null
+stale_created=false
+docker run --detach \
+  --name "$stale_name" \
+  --network "$network_name" \
+  --network-alias api \
+  --ip 172.31.251.20 \
+  --read-only \
+  --tmpfs /tmp \
+  --tmpfs /var/cache/nginx \
+  --tmpfs /var/run \
+  --mount "type=bind,source=$application_root/web/apps/web/proxy-test/stale-nginx.conf,target=/etc/nginx/conf.d/default.conf,readonly" \
+  "$container_image" >/dev/null
+stale_created=true
+
 dns_records=''
 for _ in $(seq 1 20); do
-  dns_records=$(docker exec "$proxy_name" nslookup api 2>/dev/null || true)
+  dns_records=$(docker exec "$proxy_name" nslookup api. 127.0.0.11 2>/dev/null || true)
   if grep -Fq '172.31.251.20' <<<"$dns_records" && grep -Fq '172.31.251.21' <<<"$dns_records"; then
     break
   fi
   sleep 0.5
 done
-grep -Fq '172.31.251.20' <<<"$dns_records" && grep -Fq '172.31.251.21' <<<"$dns_records" ||
-  fail 'the runtime DNS fixture did not expose both upstream peers for the non-idempotent retry check'
+if ! grep -Fq '172.31.251.20' <<<"$dns_records" || ! grep -Fq '172.31.251.21' <<<"$dns_records"; then
+  stale_network=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{printf "%s ip=%s aliases=%v" $name $network.IPAddress $network.Aliases}}{{end}}' "$stale_name" 2>&1 || true)
+  replacement_network=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{printf "%s ip=%s aliases=%v" $name $network.IPAddress $network.Aliases}}{{end}}' "$replacement_name" 2>&1 || true)
+  fail "the runtime DNS fixture did not expose both upstream peers for the non-idempotent retry check; answer=${dns_records//$'\n'/; }; stale=$stale_network; replacement=$replacement_network"
+fi
+stale_network=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{printf "%s ip=%s aliases=%v" $name $network.IPAddress $network.Aliases}}{{end}}' "$stale_name")
+replacement_network=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{printf "%s ip=%s aliases=%v" $name $network.IPAddress $network.Aliases}}{{end}}' "$replacement_name")
+printf 'API DNS peers: %s\n' "${dns_records//$'\n'/; }"
+printf 'Stale probe endpoint: %s\nReplacement endpoint: %s\n' "$stale_network" "$replacement_network"
 sleep 5.5
 
 post_path_sentinel='reset-path-secret-7284'
@@ -302,8 +322,8 @@ if grep -Fq "$post_path_sentinel" <<<"$proxy_logs$replacement_logs$stale_logs" |
   fail 'proxy or upstream logs contain a sensitive POST path, query or body'
 fi
 
-docker network disconnect "$network_name" "$stale_name"
 docker stop "$replacement_name" >/dev/null
+docker stop "$stale_name" >/dev/null
 failure_path_sentinel='failed-path-secret-3619'
 failure_query_sentinel='failed-query-secret-7154'
 failure_status=$(curl --connect-timeout 2 --max-time 5 --silent --output /dev/null --write-out '%{http_code}' \

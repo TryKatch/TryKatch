@@ -14,7 +14,9 @@ internal static class ModuleEmailManifestRules
     internal static void Validate(IReadOnlyCollection<ModuleWorkspace.LoadedModule> modules, List<string> errors)
     {
         ModuleWorkspace.LoadedModule[] enabled = modules.Where(module => module.Registration.Enabled).ToArray();
-        Dictionary<string, ModuleWorkspace.LoadedModule> installed = enabled.ToDictionary(module => module.Manifest.Id, StringComparer.Ordinal);
+        Dictionary<string, ModuleWorkspace.LoadedModule> installed = new(StringComparer.Ordinal);
+        foreach (ModuleWorkspace.LoadedModule module in enabled)
+            installed.TryAdd(module.Manifest.Id, module);
         HashSet<string> permissions = enabled.SelectMany(module => module.Manifest.Contributions.Permissions).ToHashSet(StringComparer.Ordinal);
         Dictionary<TemplateIdentity, (string Owner, ModuleEmailTemplateManifest Value)> templates = [];
         Dictionary<PolicyIdentity, (string Owner, ModuleEmailDisclosurePolicyManifest Value)> policies = [];

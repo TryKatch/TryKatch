@@ -38,7 +38,8 @@ export const DeliveryRecords: Story = {
 }
 
 export const BoundaryStateAndPagination: Story = {
-  parameters: { msw: { handlers: { api: [http.get('*/api/v1/platform/email-deliveries', ({ request }) => {
+  parameters: { msw: { handlers: { api: [http.get('*/api/v1/platform/email-deliveries', async ({ request }) => {
+    await delay(100)
     const params = new URL(request.url).searchParams
     expect(params.get('pageSize')).toBe('50')
     if (params.get('boundary') === 'identity' && params.get('state') === 'terminal') {
@@ -61,14 +62,17 @@ export const BoundaryStateAndPagination: Story = {
     await userEvent.type(canvas.getByRole('textbox', { name: 'Organization ID' }), 'org-2')
     await userEvent.type(canvas.getByRole('textbox', { name: 'Delivery ID' }), 'delivery-2')
     await userEvent.click(canvas.getByRole('button', { name: 'Apply filters' }))
-    await userEvent.click(canvas.getAllByRole('button', { name: 'Next' })[0])
+    const deliverySection = within(canvas.getByRole('region', { name: 'Delivery records' }))
+    const nextDeliveriesPage = await deliverySection.findByRole('button', { name: 'Next' })
+    await expect(nextDeliveriesPage).toBeEnabled()
+    await userEvent.click(nextDeliveriesPage)
     await expect(await canvas.findByText('Page 2 of 2')).toBeVisible()
     await userEvent.click(await canvas.findByRole('combobox', { name: 'Filter by status' }))
     await userEvent.click(within(canvasElement.ownerDocument.body).getByRole('option', { name: 'terminal' }))
     await userEvent.click(await canvas.findByRole('combobox', { name: 'Boundary' }))
     await userEvent.click(within(canvasElement.ownerDocument.body).getByRole('option', { name: 'Identity' }))
     await expect(canvas.queryByRole('textbox', { name: 'Organization ID' })).not.toBeInTheDocument()
-    const table = within(canvas.getByRole('table', { name: 'Email delivery records' }))
+    const table = within(await canvas.findByRole('table', { name: 'Email delivery records' }))
     await expect(await table.findByText('delivery-2')).toBeVisible()
     await expect(table.getByText('Identity')).toBeVisible()
     await expect(table.getByText('terminal')).toBeVisible()
