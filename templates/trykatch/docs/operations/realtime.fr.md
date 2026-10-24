@@ -12,7 +12,7 @@ Les anciens cookies sans ligne de session durable exigent une nouvelle connexion
 
 Projects installe un consommateur `projects.created` et une délégation système finie. L’ajout à l’historique et l’accusé de traitement inbox sont validés dans la même transaction du worker existant. Ce consommateur exige donc une connexion explicite `ConnectionStrings:trykatch-work`, même avec les tâches générales et les notifications désactivées. AppHost et les variantes Compose standard/backend fournissent déjà le rôle coordinateur dédié. Une configuration absente ou vide bloque le démarrage ; aucun identifiant propriétaire ou organisation n’est utilisé comme secours. La génération OpenAPI valide les inscriptions sans connexion au coordinateur ou au backplane.
 
-Le DDL de `app.projects` appartient au registre immuable de migrations SQL du module Projects. Le mapping EF reste disponible pour les requêtes, mais marque cette relation comme exclue de la génération DDL dans l’instantané canonique des migrations EF ; cela n’assouplit pas le contrôle strict de dérive du schéma réel par l’hôte. Ajoutez les changements futurs du schéma Projects comme nouvelles entrées SQL évolutives. Ne modifiez pas le baseline déjà appliqué ni aucune migration déjà appliquée.
+Le checkpoint évolutif `20261024094642_RespectProjectsSqlMigrationOwnership` enregistre cette propriété SQL sans opération DDL. Le DDL de `app.projects` appartient au registre immuable de migrations SQL du module Projects. Le mapping EF reste disponible pour les requêtes, mais marque cette relation comme exclue de la génération DDL dans l’instantané canonique des migrations EF ; cela n’assouplit pas le contrôle strict de dérive du schéma réel par l’hôte. Ajoutez les changements futurs du schéma Projects comme nouvelles entrées SQL évolutives. Ne modifiez pas le baseline déjà appliqué ni aucune migration déjà appliquée.
 
 ## Modes et configuration
 
@@ -43,6 +43,8 @@ Chaque API ne relaie que ses connexions locales et revérifie chaque destinatair
 Le hub `/api/v1/realtime/hub` accepte uniquement WebSockets. La négociation utilise les cookies HttpOnly habituels et `X-CSRF-TOKEN`, comme les autres écritures du navigateur. Aucun jeton dans l’URL, groupe arbitraire ou identifiant d’organisation choisi par le client n’est accepté. Ne stockez pas de jetons dans le stockage local du navigateur.
 
 Chaque proxy doit conserver le Host externe **avec son port** et l’Origin original, puis transmettre Upgrade/Connection via HTTP/1.1. Le proxy Vite `/api` et nginx fournis gèrent ces upgrades ; tous les intermédiaires supplémentaires doivent aussi le faire. Ne faites confiance qu’au proxy immédiat explicitement configuré. Le serveur exige une seule Origin HTTP(S) correspondant exactement à `Application:PublicUrl`, ou au schéma/Host de la requête après contrôle du proxy si cette URL est absente. Ne reflétez jamais l’Origin pour contourner un refus.
+
+Le conteneur web sonde `127.0.0.1:8080/healthz`, correspondant à l’écoute IPv4 de nginx ; `localhost` peut sélectionner IPv6 `::1`.
 
 Négociation et upgrade doivent atteindre le même processus API, même avec Redis ([documentation SignalR](https://learn.microsoft.com/en-us/aspnet/core/signalr/scale?view=aspnetcore-10.0#sticky-sessions)). nginx utilise `ip_hash` ; les autres répartiteurs exigent une affinité équivalente. Des adresses clientes partagées peuvent concentrer la charge ; un changement d’adresse/réplique peut imposer une reconnexion et une réparation HTTP.
 

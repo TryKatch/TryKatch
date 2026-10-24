@@ -139,7 +139,7 @@ Quartz is a host adapter, not a second business ledger. A transactionally commit
 
 Select HybridCache over a host interface and optional Valkey-backed L2. Read-through cache failure falls back to authoritative reads. Exclude sessions, security stamps, permissions, keys, invitation/reset/MFA tokens, mutable aggregates and sensitive disclosure decisions from cache. HybridCache L1 invalidation/stampede control is per instance; durable invalidation plus authoritative rechecks are mandatory where access changes.
 
-Select same-origin cookie-authenticated SignalR with Origin/antiforgery-aware negotiation and validated audience policies. Database history/inbox is authoritative; a Valkey backplane is lossy and not an outbox. Multi-replica delivery requires its configured backplane and HTTP reconciliation; a broken backplane degrades live delivery without fabricating success or bypassing audience checks. No standalone SSE endpoint is required for the first parity slice.
+Select same-origin cookie-authenticated SignalR with Origin/antiforgery-aware negotiation and validated audience policies. Database history/inbox is authoritative; a Valkey backplane is lossy and not an outbox. Distributed mode requires its configured backplane; nonlocal messages can be lost during its outage and recover through HTTP reconciliation. The owner relay behavior is refined below. A broken backplane never fabricates success or bypasses audience checks. No standalone SSE endpoint is required for the first parity slice.
 
 
 ### S2 implementation refinement

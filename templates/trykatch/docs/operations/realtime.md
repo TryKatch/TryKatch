@@ -12,7 +12,7 @@ Existing cookies without a durable session row require sign-in again. The regist
 
 Projects installs one `projects.created` consumer and an exact finite system grant. Its history append and inbox receipt commit together through the existing event worker. Consequently an application with this consumer needs an explicit `ConnectionStrings:trykatch-work`, even when general jobs and live push are disabled. Default AppHost and regular/backend Compose already provide the dedicated coordinator role. Missing/blank configuration fails startup; no owner/organization credential fallback is used. OpenAPI generation validates registrations without requiring the coordinator or backplane to connect.
 
-Projects' `app.projects` DDL is owned by its immutable module SQL migration ledger. Its EF mapping remains available for queries but records the relation as excluded from EF DDL generation in the canonical migration snapshot; this does not relax the host's strict live-schema drift checks. Put future Projects schema changes in new forward-only SQL ledger entries. Keep the existing applied baseline unchanged.
+Forward checkpoint `20261024094642_RespectProjectsSqlMigrationOwnership` records this SQL ownership without DDL operations. Projects' `app.projects` DDL is owned by its immutable module SQL migration ledger. Its EF mapping remains available for queries but records the relation as excluded from EF DDL generation in the canonical migration snapshot; this does not relax the host's strict live-schema drift checks. Put future Projects schema changes in new forward-only SQL ledger entries. Keep the existing applied baseline unchanged.
 
 ## Select a mode
 
@@ -43,6 +43,8 @@ Each API polls and delivers only to its own local connections, repeating recipie
 The hub is `/api/v1/realtime/hub`; it accepts WebSockets only. Negotiation uses the same HttpOnly application/workspace cookies and `X-CSRF-TOKEN` as existing unsafe browser requests. Query access tokens, arbitrary group membership and client-selected organization IDs are not supported. Browser credentials/tokens must not be copied into local storage.
 
 Preserve the external Host **including its port** and the original Origin through every proxy. Forward WebSocket Upgrade/Connection headers over HTTP/1.1. The supplied Vite `/api` proxy and deployment nginx support upgrades. With multiple proxy hops, every hop needs that configuration. Trust only the immediate proxy through the existing explicit known-proxy settings; clients must not supply trusted forwarded protocol/host values. The server requires one exact HTTP(S) Origin matching `Application:PublicUrl`, or its trusted request scheme/host when no public URL is configured. Do not fix a rejected Origin by reflecting it or weakening the allowlist.
+
+The web container probes `127.0.0.1:8080/healthz`, matching its IPv4 nginx listener; `localhost` may select IPv6 `::1`.
 
 Negotiation and upgrade must reach the same API process, including with Redis ([SignalR hosting guidance](https://learn.microsoft.com/en-us/aspnet/core/signalr/scale?view=aspnetcore-10.0#sticky-sessions)). Supplied nginx uses `ip_hash`; other load balancers need equivalent affinity. Shared client addresses can concentrate load, and changed peers/addresses can require reconnect and HTTP repair.
 

@@ -7,6 +7,8 @@
 **Tech Stack:** Existing stack; SignalR and reviewed distributed cache/backplane adapters selected in P0.1, with no vendor types in module contracts.
 **Spec:** [Design](../specs/2026-10-23-feature-parity-design.md); [roadmap](2026-10-23-feature-parity-plan.md).
 
+**Status:** S1 merged in PR #134 after exact-head CI and dependency review. S2 implementation and local qualification follow the [refined S2 plan](2026-10-24-parity-s2-authorized-realtime.md); local targeted, browser/proxy, packaged-product, retained-module restart and integrated-review fixes are complete; exact-head PR/CI/merge remains pending. S3–S6 remain planned.
+
 ## Global Constraints
 
 Apply all roadmap constraints. Paths are relative to `templates/trykatch/`; new files are proposals. S1/S3 can start after P0; S2 requires E2/E3 for current audience and committed pushes. Module enablement, feature availability, entitlement and permission remain distinct.
@@ -25,22 +27,22 @@ Apply all roadmap constraints. Paths are relative to `templates/trykatch/`; new 
 
 **Interfaces:** Implement the spec's `IOrganizationCache` with a typed key descriptor distinguishing organization-wide and current-actor values. Adapter TTL/invalidation and observable metrics are host policies.
 
-- [ ] Test `EqualKeysInDifferentOrganizationsDoNotCollide`, `ActorPrivateKeyIsPartitioned`, `ConcurrentMissUsesBoundedFactoryWork`, expiry and post-commit invalidation; assert each returns only its own DTO.
-- [ ] Select the existing framework cache primitive plus D5's reviewed distributed adapter. Keys include application/environment/organization/actor as required; avoid raw secrets/PII in keys. Configure local-only development behavior explicitly.
-- [ ] Test two API replicas observing invalidation, disconnected cache fallback and stale authorization prevention. Never cache live EF entities or use cached permission data beyond the current security contract; invalidate affected domain DTOs after successful writes.
-- [ ] Verify: unit `OrganizationCacheTests`, integration `OrganizationCacheIntegrationTests` with isolated adapter fixture; common exit. Cache failure may fall back to authoritative reads, but must not fabricate an entitlement/permission.
+- [x] Test `EqualKeysInDifferentOrganizationsDoNotCollide`, `ActorPrivateKeyIsPartitioned`, `ConcurrentMissUsesBoundedFactoryWork`, expiry and post-commit invalidation; assert each returns only its own DTO.
+- [x] Select the existing framework cache primitive plus D5's reviewed distributed adapter. Keys include application/environment/organization/actor as required; avoid raw secrets/PII in keys. Configure local-only development behavior explicitly.
+- [x] Test two API replicas observing invalidation, disconnected cache fallback and stale authorization prevention. Never cache live EF entities or use cached permission data beyond the current security contract; invalidate affected domain DTOs after successful writes.
+- [x] Verify: unit `OrganizationCacheTests`, integration `OrganizationCacheIntegrationTests` with isolated adapter fixture; common exit. Cache failure may fall back to authoritative reads, but must not fabricate an entitlement/permission.
 
 ## S2: Add authorized realtime delivery and browser reconciliation
 
 **Files:** Create `src/Common/Trykatch.Modules.Abstractions/Realtime/ModuleRealtimeContracts.cs`, `src/API/Trykatch.Api/Realtime/ModuleRealtimeHub.cs`, `RealtimeAudienceAuthorizer.cs`, `src/Common/Trykatch.Infrastructure/Realtime/ModuleRealtimePublisher.cs`, `web/packages/module-sdk/src/realtime.ts`; modify API composition and `web/apps/web/src/shell/AppShell.tsx` for session-aware connection lifecycle. Add unit `RealtimeAudienceTests.cs`, integration `ModuleRealtimeIntegrationTests.cs`, SDK tests and proposed `web/apps/web/e2e/realtime.spec.ts`.
 
-**Interfaces:** Implement `IModuleRealtimePublisher.PublishAsync(ModuleRealtimeNotification notification, CancellationToken ct)`. Audience types are host-defined organization/user/resource references, not arbitrary group names. Publish small versioned invalidations or authorized message references with sequence/cursor metadata.
+**Interfaces:** Implement `IModuleRealtimePublisher.PublishAsync(ModuleRealtimeNotification notification, CancellationToken ct)`. Audience types are host-defined organization/user/resource references, not arbitrary group names. Publish small versioned invalidation references; HTTP history alone carries protected continuations. Pushes only wake authoritative reconciliation.
 
-- [ ] Test unauthenticated connect, untrusted Origin, arbitrary group join, organization A requesting B's user/channel, access revoked after connect, workspace switch and module disable. Assert no new unauthorized event reaches the client after the current-authority check.
-- [ ] Authenticate via existing same-origin cookies; protect negotiation/subscription against cross-site requests with Origin and antiforgery-aware host controls. Restore current authority for connect/subscribe/delivery, using registered resource policies for private channels.
-- [ ] Deliver after durable commit using E3. Handle reconnect, duplicates and missed pushes with HTTP cursor/history reconciliation; React invalidates its generated-query keys. A backplane outage cannot make a committed message disappear from history.
-- [ ] Test two replicas, session revocation, out-of-order notifications, reconnect gap and slow-client backpressure. Keep sensitive event payloads off generic groups. Provide an SSE adapter only if a selected product requires that protocol; the audience contract remains the same.
-- [ ] Verify: `RealtimeAudienceTests`, `ModuleRealtimeIntegrationTests`, focused SDK/component tests and `playwright test e2e/realtime.spec.ts`; affected existing auth tests, generated clients and common exit.
+- [x] Test unauthenticated connect, untrusted Origin, arbitrary group join, organization A requesting B's user/channel, access revoked after connect, workspace switch and module disable. Assert no new unauthorized event reaches the client after the current-authority check.
+- [x] Authenticate via existing same-origin cookies; protect negotiation/subscription against cross-site requests with Origin and antiforgery-aware host controls. Restore current authority for connect/subscribe/delivery, using registered resource policies for private channels.
+- [x] Deliver after durable commit using E3. Handle reconnect, duplicates and missed pushes with HTTP cursor/history reconciliation; React invalidates its generated-query keys. A backplane outage cannot make a committed message disappear from history.
+- [x] Test two replicas, session revocation, out-of-order notifications, reconnect gap and slow-client backpressure. Keep sensitive event payloads off generic groups. Provide an SSE adapter only if a selected product requires that protocol; the audience contract remains the same.
+- [x] Verify: `RealtimeAudienceTests`, `RealtimeHistoryHttpTests`, `RealtimeProjectsAuthorizationTests`, `RealtimeSocketAuthorityTests`, `RealtimeProcessAcceptanceTests`, `ProjectsRealtimeProcessAcceptanceTests`, focused SDK/component tests and `playwright test e2e/realtime.spec.ts`; affected existing auth tests, generated clients and common exit.
 
 ## S3: Add transaction-aware mutation idempotency
 
