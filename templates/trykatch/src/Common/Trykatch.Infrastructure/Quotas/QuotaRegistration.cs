@@ -13,19 +13,21 @@ internal static class QuotaRegistration
         services.AddSingleton(provider => QuotaOptions.CreateSettings(configuration, provider.GetRequiredService<ModuleCatalog>()));
         services.AddHostedService<QuotaStartupValidator>();
         services.AddScoped<QuotaPublicationAuthority>();
+        services.AddScoped<QuotaWorkflowRegistry>();
         services.AddScoped<IOrganizationEntitlementProjectionPublisher, HostEntitlementPublisher>();
         services.AddScoped<OrganizationQuotaService>();
         services.AddScoped<IOrganizationQuota>(provider => provider.GetRequiredService<OrganizationQuotaService>());
         services.AddScoped<IOrganizationEntitlementReader>(provider => provider.GetRequiredService<OrganizationQuotaService>());
     }
 
-    private sealed class QuotaStartupValidator(QuotaSettings settings) : IHostedService
+    private sealed class QuotaStartupValidator(QuotaSettings settings, IServiceScopeFactory scopes) : IHostedService
     {
-        public Task StartAsync(CancellationToken cancellationToken)
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             _ = settings.Hash;
-            return Task.CompletedTask;
+            await using AsyncServiceScope scope = scopes.CreateAsyncScope();
+            _ = scope.ServiceProvider.GetRequiredService<QuotaWorkflowRegistry>();
         }
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

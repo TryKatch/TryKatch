@@ -271,7 +271,7 @@ function ProjectDocumentsExtension() {
 export const documentsModule = defineWebModule({
   id: 'documents',
   name: 'Documents',
-  version: '1.2.0',
+  version: '1.3.0',
   description: 'Organization-isolated object storage proof module.',
   requires: ['projects'],
   optionalDependencies: [],

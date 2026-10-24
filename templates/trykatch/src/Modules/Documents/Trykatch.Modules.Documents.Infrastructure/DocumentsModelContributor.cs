@@ -22,6 +22,9 @@ public sealed class DocumentsModelContributor : IApplicationModelContributor
             entity.Property(document => document.Sha256).HasMaxLength(64).IsFixedLength();
             entity.Property(document => document.ObjectKey).HasMaxLength(500);
             entity.Property(document => document.DeletionReason).HasMaxLength(500);
+            entity.HasIndex(document => new { document.OrganizationId, document.UploadOperationId })
+                .IsUnique()
+                .HasFilter("\"UploadOperationId\" IS NOT NULL");
             entity.Ignore(document => document.LifecycleState);
             entity.HasIndex(document => new { document.OrganizationId, document.CreatedAt });
             entity.HasIndex(document => new { document.OrganizationId, document.ObjectKey }).IsUnique();

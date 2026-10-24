@@ -4,9 +4,9 @@
   "modules": [
     {
       "id": "documents",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "enabled": true,
-      "manifestSha256": "ef908e336d963f42bc976af882a3e4322232a6367260d372df47d6f791f7dd2c",
+      "manifestSha256": "74f56d527519119ec2af02da8330ccdbde52aa9d489fc6417457c6accefc2b5f",
       "manifestDigestMode": "template-normalized-sha256",
       "distribution": {
         "kind": "workspace",

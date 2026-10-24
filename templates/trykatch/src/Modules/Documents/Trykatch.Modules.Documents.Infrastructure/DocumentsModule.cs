@@ -13,7 +13,7 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
     public string ModuleId => Descriptor.Id;
 
     public ModuleDescriptor Descriptor { get; } = new(
-        "documents", "Documents", "1.2.0",
+        "documents", "Documents", "1.3.0",
         "Organization-isolated file uploads backed by private S3-compatible object storage.",
         ["projects"], [],
         ModuleCapabilities.Api | ModuleCapabilities.Web | ModuleCapabilities.Data
@@ -24,6 +24,9 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
         [
             new("documents.storage-bytes", "Document storage",
                 "Logical uploaded bytes in Active, Archived and pending-deletion documents.", ModuleQuotaUnit.Bytes)
+            {
+                InventorySource = new("documents", "documents.inventory", 1)
+            }
         ],
         DefaultDataOwnership = ModuleDataOwnership.Organization,
         DataResources =
@@ -88,6 +91,15 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
               ADD COLUMN "DocumentType" character varying(32) NOT NULL DEFAULT 'other',
               ADD CONSTRAINT "CK_documents_DocumentType"
                 CHECK ("DocumentType" IN ('invoice', 'contract', 'certificate', 'report', 'other'));
+            """),
+        new("202610242300_upload_operation_identity", """
+            ALTER TABLE app.documents
+              ADD COLUMN "UploadOperationId" uuid NULL,
+              ADD CONSTRAINT "CK_documents_UploadOperationId_NonEmpty"
+                CHECK ("UploadOperationId" IS NULL OR "UploadOperationId" <> '00000000-0000-0000-0000-000000000000'::uuid);
+            CREATE UNIQUE INDEX "IX_documents_OrganizationId_UploadOperationId"
+              ON app.documents ("OrganizationId", "UploadOperationId")
+              WHERE "UploadOperationId" IS NOT NULL;
             """)
     ];
 
@@ -98,5 +110,9 @@ public sealed class DocumentsModule : IModule, IModuleMigrationContributor
         services.AddSingleton<IOrganizationEndpointContributor, DocumentsEndpoints>();
         services.AddScoped<IDocumentStore, DocumentStore>();
         services.AddScoped<DocumentsUseCases>();
+        services.AddScoped<DocumentQuotaInventorySource>();
+        services.AddScoped<ModuleQuotaInventorySourceBinding>(provider => new(
+            new("documents", "documents.inventory", 1),
+            provider.GetRequiredService<DocumentQuotaInventorySource>()));
     }
 }
