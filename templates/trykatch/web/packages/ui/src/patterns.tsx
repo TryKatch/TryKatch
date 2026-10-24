@@ -330,7 +330,7 @@ export function DataTable<T>({
         </div>
       </div>
     </div>
-    <div className="table-wrap"><table aria-label={ariaLabel}><thead><tr>{renderExpandedRow && <th className="data-table-disclosure-heading"><span className="sr-only">{labels.details}</span></th>}{displayedColumns.map((column) => <th key={column.id} style={{ width: column.width }} className={column.align === 'right' ? 'is-right' : undefined} aria-sort={sort?.id === column.id ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}>{column.sortValue ? <button type="button" onClick={() => changeSort(column)}>{column.header}<span aria-hidden="true">{sort?.id === column.id ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button> : column.header}</th>)}</tr></thead><tbody>{visibleRows.map((row) => {
+    <div className="table-wrap" role="group" aria-label={ariaLabel} tabIndex={0}><table aria-label={ariaLabel}><thead><tr>{renderExpandedRow && <th className="data-table-disclosure-heading"><span className="sr-only">{labels.details}</span></th>}{displayedColumns.map((column) => <th key={column.id} style={{ width: column.width }} className={column.align === 'right' ? 'is-right' : undefined} aria-sort={sort?.id === column.id ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}>{column.sortValue ? <button type="button" onClick={() => changeSort(column)}>{column.header}<span aria-hidden="true">{sort?.id === column.id ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button> : column.header}</th>)}</tr></thead><tbody>{visibleRows.map((row) => {
       const rowId = getRowId(row)
       const isExpanded = expandedRowId === rowId
       const expansionId = `${searchId}-${rowId}-details`

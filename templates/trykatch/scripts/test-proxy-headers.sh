@@ -302,7 +302,33 @@ stale_network=$(docker inspect --format '{{range $name, $network := .NetworkSett
 replacement_network=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{printf "%s ip=%s aliases=%v" $name $network.IPAddress $network.Aliases}}{{end}}' "$replacement_name")
 printf 'API DNS peers: %s\n' "${dns_records//$'\n'/; }"
 printf 'Stale probe endpoint: %s\nReplacement endpoint: %s\n' "$stale_network" "$replacement_network"
-sleep 5.5
+
+# Docker DNS readiness is not nginx upstream readiness. Observe both real peers
+# through the proxy before testing affinity against the now-stable topology.
+# Distinct trusted client prefixes exercise ip_hash without changing its policy.
+proxy_peers=''
+for _ in $(seq 1 30); do
+  proxy_peers=$(docker run --rm \
+    --network "$network_name" \
+    --ip 172.31.251.30 \
+    --entrypoint sh \
+    "$container_image" -ec '
+      for prefix in 1 2 3 4 5 6 7 8; do
+        wget -T 2 -qO- \
+          --header="X-Forwarded-For: 203.0.$prefix.10" \
+          --header="X-Forwarded-Proto: https" \
+          http://web:8080/api/proxy-affinity-contract
+      done
+    ' | awk '!seen[$0]++') || true
+  if grep -Fxq '172.31.251.20' <<<"$proxy_peers" && grep -Fxq '172.31.251.21' <<<"$proxy_peers"; then
+    break
+  fi
+  sleep 0.5
+done
+if ! grep -Fxq '172.31.251.20' <<<"$proxy_peers" || ! grep -Fxq '172.31.251.21' <<<"$proxy_peers"; then
+  fail "the proxy did not serve both API peers before the affinity check: ${proxy_peers//$'\n'/; }"
+fi
+printf 'Proxy-resolved API peers: %s\n' "${proxy_peers//$'\n'/; }"
 
 affinity_peer=''
 for _ in $(seq 1 12); do
@@ -312,7 +338,7 @@ for _ in $(seq 1 12); do
     fail "the affinity probe did not reach one of the two actual API peers: $observed_peer"
   if [[ -z $affinity_peer ]]; then affinity_peer=$observed_peer; fi
   [[ $observed_peer == "$affinity_peer" ]] || \
-    fail 'one client changed API peers between requests; SignalR negotiation and upgrade require affinity'
+    fail "one client changed API peers between requests ($affinity_peer -> $observed_peer); SignalR negotiation and upgrade require affinity"
 done
 
 post_path_sentinel='reset-path-secret-7284'
