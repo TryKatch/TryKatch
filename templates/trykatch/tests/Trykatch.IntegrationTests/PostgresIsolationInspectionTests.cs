@@ -900,11 +900,15 @@ public sealed class PostgresIsolationInspectionTests
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
                          new AddIdentityEmailDelivery().UpOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationCacheInvalidations().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             await result.ExecuteAsync($"""
                 GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
                 GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.module_event_inbox TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.module_work_completions TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.cache_invalidations TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON infrastructure.module_work_items TO trykatch_work_coordinator;
                 GRANT SELECT, UPDATE ON infrastructure.module_event_deliveries TO trykatch_work_coordinator;
                 GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO trykatch_outbox_worker;
@@ -925,6 +929,7 @@ public sealed class PostgresIsolationInspectionTests
             Dictionary<string, DataResourceDescriptor> resources = OperationalDataResources.All
                 .ToDictionary(resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
             string[] relations = [
+                "app.cache_invalidations",
                 "infrastructure.module_schedule_cursors",
                 "infrastructure.module_work_controls",
                 "infrastructure.email_deliveries",
