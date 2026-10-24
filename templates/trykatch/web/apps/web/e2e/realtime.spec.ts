@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type APIResponse, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type APIResponse, type Frame, type Page, type Request, type Response } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
@@ -13,11 +13,57 @@ const realtimeStatePath = process.env.TRYKATCH_ACCEPTANCE_REALTIME_STATE
 
 let moduleAbsenceFixture: { ownerEmail: string; organizationId: string } | undefined
 
+test('workspace refresh ignores a response from the document being reloaded', async ({ page }) => {
+  test.setTimeout(60_000)
+  let requestCount = 0
+  let releaseStaleResponse!: () => void
+  let signalStaleRequest!: () => void
+  const staleRequestStarted = new Promise<void>((resolve) => { signalStaleRequest = resolve })
+  const staleResponseGate = new Promise<void>((resolve) => { releaseStaleResponse = resolve })
+
+  await page.route('**/workspace-refresh-fixture', (route) => route.fulfill({
+    contentType: 'text/html',
+    body: '<!doctype html><script>window.refreshFixture = { focusCount: 0, allowRefresh: false }; const refresh = () => fetch("/api/v1/workspace/current").catch(() => fetch("/api/v1/workspace/current")); addEventListener("visibilitychange", () => { refreshFixture.focusCount++; if (refreshFixture.allowRefresh) refresh(); }); addEventListener("load", refresh);</script>',
+  }))
+  await page.route('**/api/v1/workspace/current', async (route) => {
+    requestCount += 1
+    if (requestCount === 1) {
+      signalStaleRequest()
+      await staleResponseGate
+      await route.fulfill({ json: { organizationId: 'stale-organization' } })
+      return
+    }
+    if (requestCount === 2) return route.abort('aborted')
+    if (requestCount === 4) return route.fulfill({ status: 429, json: { title: 'Too many requests' } })
+    if (requestCount === 7) return route.fulfill({ status: 503, json: { title: 'Unavailable' } })
+    await route.fulfill({ json: { organizationId: requestCount === 6 ? 'other-organization' : 'current-organization' } })
+  })
+
+  await page.goto('/workspace-refresh-fixture')
+  await staleRequestStarted
+  page.once('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) releaseStaleResponse()
+  })
+
+  await refreshCurrentWorkspace(page, 'current-organization', true)
+  expect(requestCount).toBe(3)
+  const mountedRefresh = refreshCurrentWorkspace(page, 'current-organization')
+  await page.waitForFunction(() => (window as unknown as { refreshFixture: { focusCount: number } }).refreshFixture.focusCount > 0)
+  await page.evaluate(() => { (window as unknown as { refreshFixture: { allowRefresh: boolean } }).refreshFixture.allowRefresh = true })
+  await mountedRefresh
+  expect(requestCount).toBe(5)
+  await expect(refreshCurrentWorkspace(page, 'current-organization')).rejects.toThrow('the refreshed workspace must match the selected organization')
+  expect(requestCount).toBe(6)
+  await expect(refreshCurrentWorkspace(page, 'current-organization')).rejects.toThrow('the current workspace request should succeed')
+  expect(requestCount).toBe(7)
+})
+
 test.describe('packaged application realtime acceptance', () => {
   test.skip(!realtimeAcceptanceEnabled, 'Set TRYKATCH_ACCEPTANCE_REALTIME=true to run against the packaged application.')
 
   test('reconciles project changes, revocation, and workspace switches across real sessions', async ({ browser }) => {
-    test.setTimeout(180_000)
+    // Multiple workspace transitions can cross the existing one-minute request windows.
+    test.setTimeout(300_000)
     expect(acceptanceBaseUrl, 'TRYKATCH_ACCEPTANCE_BASE_URL').toBeTruthy()
     expect(platformAdminEmail, 'TRYKATCH_ACCEPTANCE_ADMIN_EMAIL').toBeTruthy()
     expect(platformAdminPassword, 'TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD').toBeTruthy()
@@ -148,24 +194,29 @@ test.describe('packaged application realtime acceptance', () => {
       }, { timeout: 90_000 }).toBe(true)
       await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.revoked) })).toHaveCount(0)
 
+      const ownerConnectionsBeforeBeta = ownerTransport.opened
       await selectWorkspace(ownerContext.request, beta.organization.id)
       await refreshCurrentWorkspace(ownerPage, beta.organization.id)
+      await waitForWorkspaceSubscription(ownerTransport, ownerConnectionsBeforeBeta, 'Beta')
+      const notificationsBeforeBeta = ownerTransport.projectNotifications
       await createProject(ownerContext.request, projectNames.beta)
-      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.beta) })).toBeVisible()
+      await expect.poll(() => ownerTransport.projectNotifications, {
+        timeout: 30_000, message: 'the current Beta lifecycle should receive a real notification after publication',
+      }).toBeGreaterThan(notificationsBeforeBeta)
+      // Delivery includes the outbox, event worker and relay; subsequent HTTP repair can be throttled.
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.beta) })).toBeVisible({ timeout: 90_000 })
       await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toHaveCount(0)
       await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toHaveCount(0)
 
       const ownerConnectionsBeforeAlpha = ownerTransport.opened
       await selectWorkspace(ownerContext.request, alpha.organization.id)
       await refreshCurrentWorkspace(ownerPage, alpha.organization.id)
-      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toBeVisible()
-      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toBeVisible()
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toBeVisible({ timeout: 90_000 })
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toBeVisible({ timeout: 90_000 })
       await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.beta) })).toHaveCount(0)
       moduleAbsenceFixture = { ownerEmail, organizationId: alpha.organization.id }
 
-      await expect.poll(() => ownerTransport.lastSubscribedConnection, {
-        timeout: 30_000, message: 'the replacement Alpha socket should finish authorized subscription before publication',
-      }).toBeGreaterThan(ownerConnectionsBeforeAlpha)
+      await waitForWorkspaceSubscription(ownerTransport, ownerConnectionsBeforeAlpha, 'Alpha')
       const notificationsBeforeAlpha = ownerTransport.projectNotifications
       await createProject(ownerContext.request, projectNames.alpha)
       await expect.poll(() => ownerTransport.projectNotifications, {
@@ -245,13 +296,45 @@ async function afterRateLimit(operation: () => Promise<APIResponse>) {
 }
 
 async function refreshCurrentWorkspace(page: Page, organizationId: string, reload = false) {
-  const workspaceResponse = page.waitForResponse(async (response) => {
-    if (new URL(response.url()).pathname !== '/api/v1/workspace/current' || !response.ok()) return false
-    return (await response.json() as CurrentWorkspaceResponse).organizationId === organizationId
-  }, { timeout: 30_000 })
-  if (reload) await page.reload()
-  else await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
-  await workspaceResponse
+  let documentReady = !reload
+  const eligible = new WeakSet<Request>()
+  const completed: Request[] = []
+  let workspaceResponse: Response | null | undefined
+  const navigated = (frame: Frame) => { if (frame === page.mainFrame()) documentReady = true }
+  const requested = (request: Request) => {
+    if (documentReady && request.method() === 'GET'
+      && new URL(request.url()).pathname === '/api/v1/workspace/current'
+      && request.frame() === page.mainFrame()) eligible.add(request)
+  }
+  const finished = (request: Request) => { if (eligible.has(request)) completed.push(request) }
+  // Observe before navigation, but exclude requests initiated by the departing document.
+  page.on('framenavigated', navigated)
+  page.on('request', requested)
+  page.on('requestfinished', finished)
+  try {
+    await page.bringToFront()
+    if (reload) await page.reload()
+    await expect.poll(async () => {
+      while (completed.length) {
+        const response = await completed.shift()!.response()
+        if (response?.status() === 429) continue
+        workspaceResponse = response
+        return true
+      }
+      // A mounted query can remain fresh for 30 seconds. Focus only refetches once stale.
+      await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+      return false
+    }, { timeout: 65_000, intervals: [100, 250, 500, 1_000], message: 'the current document should complete its workspace fetch' }).toBe(true)
+
+    expect(workspaceResponse, 'the current workspace request should receive a response').toBeTruthy()
+    expect(workspaceResponse!.ok(), 'the current workspace request should succeed').toBe(true)
+    expect((await workspaceResponse!.json() as CurrentWorkspaceResponse).organizationId,
+      'the refreshed workspace must match the selected organization').toBe(organizationId)
+  } finally {
+    page.off('framenavigated', navigated)
+    page.off('request', requested)
+    page.off('requestfinished', finished)
+  }
 }
 
 async function createProject(request: APIRequestContext, name: string) {
@@ -309,21 +392,32 @@ async function installRealtimeDisconnectControl(page: Page) {
 }
 
 function observeWebSockets(page: Page) {
-  const observed = { opened: 0, closed: 0, projectNotifications: 0, lastSubscribedConnection: 0 }
+  const events: Array<{ connection: number; phase: string; elapsedMs: number }> = []
+  const started = Date.now()
+  const record = (connection: number, phase: string) => {
+    events.push({ connection, phase, elapsedMs: Date.now() - started })
+    if (events.length > 64) events.shift()
+  }
+  const observed = { opened: 0, closed: 0, projectNotifications: 0, lastSubscribedConnection: 0, events }
   page.on('websocket', (socket) => {
     if (!socket.url().includes('/api/v1/realtime/hub')) return
     const serial = ++observed.opened
+    record(serial, 'opened')
     const subscriptions = new Set<string>()
     socket.on('framesent', ({ payload }) => {
       for (const invocation of hubMessages(payload)) {
-        if (invocation.type === 1 && invocation.target === 'ReplaceSubscriptions' && invocation.invocationId)
+        if (invocation.type === 1 && invocation.target === 'ReplaceSubscriptions' && invocation.invocationId) {
           subscriptions.add(invocation.invocationId)
+          record(serial, 'subscription-sent')
+        }
       }
     })
     socket.on('framereceived', ({ payload }) => {
       for (const invocation of hubMessages(payload)) {
-        if (invocation.type === 3 && invocation.invocationId && subscriptions.delete(invocation.invocationId) && !invocation.error)
-          observed.lastSubscribedConnection = serial
+        if (invocation.type === 3 && invocation.invocationId && subscriptions.delete(invocation.invocationId)) {
+          record(serial, invocation.error ? 'subscription-denied' : 'subscribed')
+          if (!invocation.error) observed.lastSubscribedConnection = serial
+        }
         if (invocation.type === 1 && invocation.target === 'invalidate'
           && invocation.arguments?.some((notification) => notification.moduleId === 'projects'
             && notification.eventKey === 'projects.created'
@@ -332,10 +426,25 @@ function observeWebSockets(page: Page) {
     })
     socket.on('close', () => {
       observed.closed += 1
+      record(serial, 'closed')
       if (observed.lastSubscribedConnection === serial) observed.lastSubscribedConnection = 0
     })
   })
   return observed
+}
+
+async function waitForWorkspaceSubscription(transport: ReturnType<typeof observeWebSockets>, previousConnections: number, workspace: string) {
+  try {
+    await expect.poll(() => transport.lastSubscribedConnection, {
+      // Bootstrap can hit the one-minute request window, then resume on its 15-second repair.
+      timeout: 90_000, message: `the replacement ${workspace} socket should finish authorized subscription before publication`,
+    }).toBeGreaterThan(previousConnections)
+  } catch (error) {
+    await test.info().attach('realtime-transport-summary', {
+      body: JSON.stringify(transport), contentType: 'application/json',
+    })
+    throw error
+  }
 }
 
 function hubMessages(payload: string | { toString(encoding: 'utf8'): string }) {

@@ -8,7 +8,7 @@ const ProjectsPage = lazy(() => import('./ProjectsPage').then((module) => ({ def
 export const projectsModule = defineWebModule({
   id: 'projects',
   name: 'Projects',
-  version: '1.2.0',
+  version: '1.3.0',
   description: 'Organization-scoped project management and lifecycle reference feature.',
   requires: [],
   optionalDependencies: [],

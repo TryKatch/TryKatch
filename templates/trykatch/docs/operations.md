@@ -4,6 +4,9 @@ For optional platform adapters, see [scoped caching](operations/cache.md),
 [module jobs](operations/module-jobs.md), [queued email](operations/queued-email.md),
 and [authorized realtime](operations/realtime.md) ([Français](operations/realtime.fr.md)).
 
+For explicit retry-safe HTTP enrollment, migration and replay limits, see
+[organization mutation idempotency](operations/idempotency.md) ([Français](operations/idempotency.fr.md)).
+
 ## Supported deployment roles
 
 Use `dotnet run --project src/API/Trykatch.AppHost` for local development and bounded integration tests. AppHost run mode and DCP are development-time orchestration; the Aspire Dashboard is local, ephemeral, and not an operational record. ServiceDefaults ships with the API. Although AppHost publish mode can be an input to a future target-specific deployment pipeline, this template has no configured production publisher and does not claim that `aspire publish` is equivalent to the maintained Compose deployment.

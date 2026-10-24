@@ -476,6 +476,7 @@ export const getProjectsCreateUrl = () => {
 }
 
 /**
+ * For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.
  * @summary Create projects
  */
 export const projectsCreate = async (createProjectCommand: CreateProjectCommand, options?: Parameters<typeof customFetch>[1]): Promise<ProjectDto> => {
@@ -666,6 +667,7 @@ export const getProjectsUpdateUrl = (id: string,) => {
 }
 
 /**
+ * For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.
  * @summary Update projects
  */
 export const projectsUpdate = async (id: string,
@@ -755,6 +757,7 @@ export const getProjectsDeleteUrl = (id: string,) => {
 }
 
 /**
+ * For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.
  * @summary Delete projects
  */
 export const projectsDelete = async (id: string,
@@ -844,6 +847,7 @@ export const getProjectsArchiveUrl = (id: string,) => {
 }
 
 /**
+ * For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.
  * @summary Archive projects
  */
 export const projectsArchive = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
@@ -918,6 +922,7 @@ export const getProjectsRestoreUrl = (id: string,) => {
 }
 
 /**
+ * For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.
  * @summary Restore projects
  */
 export const projectsRestore = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {

@@ -48,8 +48,10 @@ internal static class RealtimeHost
                 endpoint => endpoint.UseHttps(certificatePath, certificatePassword)));
 
             bool openApiGeneration = builder.AddApplicationApi();
+            MutationCrashProbe? mutationProbe = MutationCrashProbe.Register(builder.Services, protocolOutput);
             await using WebApplication app = builder.Build();
             await app.InitializeApplicationApiAsync(openApiGeneration);
+            mutationProbe?.UseNetworkCheckpoint(app);
             app.UseApplicationApi();
             await app.StartAsync(CancellationToken.None);
 

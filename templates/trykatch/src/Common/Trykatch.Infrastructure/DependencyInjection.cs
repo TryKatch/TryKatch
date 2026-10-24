@@ -81,6 +81,7 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationContext>(provider => provider.GetRequiredService<OrganizationContext>());
         services.AddScoped<IOrganizationContextInitializer>(provider => provider.GetRequiredService<OrganizationContext>());
         services.AddScoped<IOrganizationAccessResolver, OrganizationAccessResolver>();
+        services.AddScoped<IModuleMutationIdempotencyStore, Idempotency.OrganizationRequestStore>();
         services.AddScoped<PermissionAuthorizer>();
         services.AddScoped<IPermissionAuthorizer>(provider => provider.GetRequiredService<PermissionAuthorizer>());
         services.AddScoped<IModulePermissionAuthorizer>(provider => provider.GetRequiredService<PermissionAuthorizer>());

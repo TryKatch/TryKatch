@@ -23,6 +23,8 @@ Data-capable modules declare their ownership and relations, then explicitly regi
 
 Modules that publish invalidations or contribute browser subscriptions must follow the [realtime module-authoring guidance](assistant/module-authoring.md#add-a-realtime-invalidation) and [authorized realtime operations](operations/realtime.md).
 
+Organization mutation endpoints may opt in to [bounded response replay](operations/idempotency.md) ([Français](operations/idempotency.fr.md)) with separate module-owned request and prereplay authorization gates. Enrollment keeps the module's use case and the host's cookie/antiforgery/transaction boundary; it does not authorize replay by itself.
+
 ## Package lifecycle
 
 - `register` adds reviewed workspace source and leaves it disabled.

@@ -208,6 +208,7 @@ internal static class ApiHostingExtensions
     {
         app.UseForwardedHeaders();
         app.UseExceptionHandler();
+        app.Use((context, next) => AtomicMutationResponse.StageStartingCallbacksAsync(context, _ => next()));
         app.Use(async (context, next) =>
         {
             context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
@@ -226,6 +227,7 @@ internal static class ApiHostingExtensions
         app.UseAuthorization();
         app.UseMiddleware<RealtimeTransportSecurityMiddleware>();
         app.UseAntiforgery();
+        app.UseModuleMutationIdempotency();
 
         if (app.Environment.IsDevelopment())
         {
