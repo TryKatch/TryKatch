@@ -21,7 +21,7 @@ Active certificates must be within their validity period, contain a usable priva
 
 ## Bootstrap across replicas
 
-Platform role/administrator bootstrap and configured OpenIddict client creation use the existing identity administration advisory lock in a ReadCommitted transaction on the Identity runtime profile. Concurrent API startup waits for the preceding bootstrap transaction, then rereads committed roles, users and clients before creating anything. Existing client secrets remain unchanged on rerun. The ordinary EF execution strategy owns retries, and failed tracked changes are cleared before another attempt. This requires no new database role or schema migration.
+Platform role/administrator bootstrap and configured OpenIddict client creation use the existing identity administration advisory lock in a ReadCommitted transaction on the Identity runtime profile. Concurrent API startup waits for the preceding bootstrap transaction, then rereads committed roles, users and clients before creating anything. Existing client secrets remain unchanged on rerun. The ordinary EF execution strategy owns retries; each attempt receives a fresh scope, context and OpenIddict cache so rolled-back clients cannot be mistaken for persisted ones. This requires no new database role or schema migration.
 
 ## Upgrade an existing plaintext ring
 

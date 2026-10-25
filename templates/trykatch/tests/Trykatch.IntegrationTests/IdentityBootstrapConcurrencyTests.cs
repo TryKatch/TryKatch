@@ -1,5 +1,7 @@
+using System.Data.Common;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -89,6 +91,42 @@ public sealed class IdentityBootstrapConcurrencyTests
             ?? throw new InvalidOperationException("The concurrent bootstrap client was not persisted.");
         (await applications.ValidateClientSecretAsync(application, originalSecret)).ShouldBeTrue();
         (await applications.ValidateClientSecretAsync(application, "Changed-client-secret-84!")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task RetriedOpenIddictBootstrapPersistsClientAfterItsCachedCreationRollsBack()
+    {
+        await using IdentitySeedFixture fixture = await IdentitySeedFixture.StartAsync();
+        const string clientId = "bootstrap-retried-client";
+        const string secret = "Retried-client-secret-42!";
+        IConfiguration configuration = fixture.Configuration(clientId: clientId, clientSecret: secret);
+        OneShotCommitInterruption interruption = new();
+        using ServiceProvider provider = IdentitySeedFixture.CreateProvider(configuration, interruption);
+
+        await IdentitySeeder.SeedOpenIddictClientsAsync(provider, configuration);
+
+        interruption.CommitAttempts.ShouldBe(2);
+        (await CountClientAsync(fixture.OwnerConnection, clientId)).ShouldBe(1);
+        using ServiceProvider observer = IdentitySeedFixture.CreateProvider(configuration);
+        using IServiceScope scope = observer.CreateScope();
+        IOpenIddictApplicationManager applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        object application = await applications.FindByClientIdAsync(clientId)
+            ?? throw new InvalidOperationException("The retried bootstrap client was not persisted.");
+        (await applications.ValidateClientSecretAsync(application, secret)).ShouldBeTrue();
+    }
+
+    private sealed class OneShotCommitInterruption : DbTransactionInterceptor
+    {
+        private int commitAttempts;
+        public int CommitAttempts => commitAttempts;
+
+        public override ValueTask<InterceptionResult> TransactionCommittingAsync(DbTransaction transaction,
+            TransactionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref commitAttempts) == 1)
+                throw new TimeoutException("Injected bootstrap commit interruption.");
+            return ValueTask.FromResult(result);
+        }
     }
 
     private static async Task RunBehindHeldIdentityAdministrationLockAsync(
@@ -234,11 +272,13 @@ public sealed class IdentityBootstrapConcurrencyTests
         public IdentityDbContext CreateOwnerContext() =>
             new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(OwnerConnection).Options);
 
-        public static ServiceProvider CreateProvider(IConfiguration configuration)
+        public static ServiceProvider CreateProvider(IConfiguration configuration, IInterceptor? interceptor = null)
         {
             ServiceCollection services = new();
             services.AddLogging();
             services.AddIdentity(configuration, isDevelopment: true);
+            if (interceptor is not null)
+                services.AddDbContext<IdentityDbContext>(options => options.AddInterceptors(interceptor));
             return services.BuildServiceProvider(validateScopes: true);
         }
 

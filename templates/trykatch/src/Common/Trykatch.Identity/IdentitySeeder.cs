@@ -125,25 +125,20 @@ public static class IdentitySeeder
 
     private static async Task WithAdministrationLockAsync(IServiceProvider services, Func<IServiceProvider, Task> seed)
     {
-        using IServiceScope scope = services.CreateScope();
-        IdentityDbContext database = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        await database.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        using IServiceScope strategyScope = services.CreateScope();
+        IdentityDbContext strategyContext = strategyScope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        await strategyContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
+            // OpenIddict caches creations before the outer transaction commits.
+            // Each retry needs fresh managers/caches as well as a fresh EF tracker.
+            using IServiceScope attemptScope = services.CreateScope();
+            IdentityDbContext database = attemptScope.ServiceProvider.GetRequiredService<IdentityDbContext>();
             await using IDbContextTransaction transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
-            try
-            {
-                // Share the existing platform identity administration lock, including
-                // role/user changes, across every replica using the identity profile.
-                await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(734001)");
-                database.ChangeTracker.Clear();
-                await seed(scope.ServiceProvider);
-                await transaction.CommitAsync();
-            }
-            finally
-            {
-                // Failed Identity writes must not survive into an execution-strategy retry.
-                database.ChangeTracker.Clear();
-            }
+            // Share the existing platform identity administration lock, including
+            // role/user changes, across every replica using the identity profile.
+            await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(734001)");
+            await seed(attemptScope.ServiceProvider);
+            await transaction.CommitAsync();
         });
     }
 }
