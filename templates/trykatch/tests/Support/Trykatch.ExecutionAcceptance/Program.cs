@@ -26,10 +26,14 @@ internal static partial class Program
             return await RealtimeHost.RunAsync();
         if (args is ["local-storage"])
             return await LocalStorageHost.RunAsync();
+        if (args is ["quota-producer"])
+            return await QuotaProcessHost.RunAsync(producer: true);
+        if (args is ["quota-worker"])
+            return await QuotaProcessHost.RunAsync(producer: false);
 
         if (args.Length != 1 || args[0] is not ("producer" or "worker" or "cache-reader"))
         {
-            Console.Error.WriteLine("Expected process mode: producer, worker, or cache-reader.");
+            Console.Error.WriteLine("Expected process mode: producer, worker, cache-reader, quota-producer, or quota-worker.");
             return 2;
         }
 

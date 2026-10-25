@@ -1340,6 +1340,7 @@
           "Trykatch.Application": "[1.0.0, )",
           "Trykatch.Infrastructure": "[1.0.0, )",
           "Trykatch.Modules.Documents": "[1.0.0, )",
+          "Trykatch.Modules.Documents.Application": "[1.0.0, )",
           "Trykatch.Modules.Projects": "[1.3.0, )",
           "Trykatch.Modules.Projects.Application": "[1.0.0, )"
         }
@@ -1398,11 +1399,23 @@
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.11, )"
         }
       },
+      "trykatch.modules.documents.application": {
+        "type": "Project",
+        "dependencies": {
+          "FluentValidation": "[12.1.1, )",
+          "Trykatch.Modules.Abstractions": "[1.0.0, )",
+          "Trykatch.Modules.Documents.Domain": "[1.0.0, )",
+          "Trykatch.Modules.Documents.IntegrationEvents": "[1.0.0, )"
+        }
+      },
       "trykatch.modules.documents.domain": {
         "type": "Project",
         "dependencies": {
           "Trykatch.Modules.Abstractions": "[1.0.0, )"
         }
+      },
+      "trykatch.modules.documents.integrationevents": {
+        "type": "Project"
       },
       "Trykatch.Modules.Federation": {
         "type": "Project",
