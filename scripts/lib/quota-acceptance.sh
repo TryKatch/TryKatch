@@ -29,6 +29,8 @@ services:
         condition: service_completed_successfully
   storage-gate:
     image: node:24.7.0-alpine3.22@sha256:be4d5e92ac68483ec71440bf5934865b4b7fcb93588f17a24d411d15f0204e4f
+    # With capabilities dropped, root cannot write another UID's bind mount.
+    user: "$(id -u):$(id -g)"
     command: ["node", "/gate.mjs"]
     environment:
       QUOTA_STORAGE_UPSTREAM: http://object-storage:9000
