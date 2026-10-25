@@ -59,7 +59,7 @@ public sealed class DocumentsUploadUseCaseTests
         fixture.Store.Added.FileName.ShouldBe("minutes.pdf");
         fixture.Store.Added.Sha256.ShouldBe(new string('A', 64));
         fixture.Context.Audits.ShouldContain(audit => audit.Action == "document.uploaded");
-        fixture.Context.Events.Single().ShouldBeOfType<Trykatch.Modules.Documents.IntegrationEvents.DocumentChanged>();
+        fixture.Context.Events.Single().ShouldBeOfType<global::Trykatch.Modules.Documents.IntegrationEvents.DocumentChanged>();
 
         Func<CancellationToken, Task> rollback = fixture.Compensation.Callbacks.Single();
         await rollback(default);
