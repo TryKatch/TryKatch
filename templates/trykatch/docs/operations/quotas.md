@@ -50,4 +50,27 @@ Completion is acknowledged only under the current unexpired lease. A lost worker
 
 The readiness check `quota-maintenance` reports only pending/retrying/paused counts and oldest due age. It is unhealthy until a successful coordination observation, or when coordination is unavailable; retrying/paused work or overdue work beyond 5 minutes degrades it. Future due work does not age from its creation timestamp. Failure logs contain exception types and closed work kinds, without payloads, keys or actor provenance.
 
-Local evidence is recorded in [quota maintenance evidence](../specs/evidence/parity-quota-maintenance.md). Actual OS-process kills/restarts and uncertain storage responses are qualified against PostgreSQL/local storage. Composed RustFS replica journeys, request throttling, safe usage UI, packed generated products and final S5 review/CI remain required. These local checks do not establish whole-product capacity guarantees.
+Local evidence is recorded in [quota maintenance evidence](../specs/evidence/parity-quota-maintenance.md). Actual OS-process kills/restarts and uncertain storage responses are qualified against PostgreSQL/local storage. Composed RustFS replica journeys, safe usage UI, packed generated products and final S5 review/CI remain required. These local checks do not establish whole-product capacity guarantees.
+
+
+## Organization request throttling
+
+Request throttling is separate from storage capacity and is disabled by default. To enable the shared `organization-api` allowance, configure the following on every API replica and restart with matching values:
+
+```json
+{
+  "OrganizationRequestLimits": {
+    "Enabled": true,
+    "PermitLimit": 300,
+    "WindowSeconds": 60
+  }
+}
+```
+
+The opt-in defaults are 300 attempts per 60 seconds. Permit limits must be 1–1,000,000 and windows 1–3,600 seconds. Unknown properties and invalid values fail startup, including when disabled. Deploy matching enabled/limit/window settings across replicas; a disabled replica cannot provide the distributed guarantee. Process restart retains the current database window and count. Admission uses the same captured organization database as authorization; changing its connection configuration requires the normal host restart.
+
+Requests that pass endpoint authorization and cookie verification consume a permit before feature checks, idempotency and business handling. Later validation failure, feature rejection, replay or business rollback does not refund it. Endpoint permission and antiforgery rejections consume no permit. The organization comes from the resolved workspace, never an organization header. Existing actor/IP/authentication/assistant controls still run earlier.
+
+PostgreSQL starts and advances the shared window; one current row per organization/policy is retained in `app.organization_request_limits`. The organization runtime has only scoped SELECT/INSERT/UPDATE; other profiles receive no access, and runtime DELETE is denied. Apply the forward application migration and normal runtime provisioning before enabling the policy. No new connection profile is needed.
+
+An exhausted allowance returns 429 with database-derived `Retry-After` seconds. Unavailable coordination returns 503 (`organization_request_limit_unavailable`); retry after service recovery. Admission uses an independent short transaction with a four-second deadline, 500 ms lock timeout and two-second statement timeout. No process-local or cache allowance substitutes for PostgreSQL. An optional Redis read-cache outage does not reset the allowance. See [request throttling evidence](../specs/evidence/parity-organization-throttling.md) for qualified cases and remaining composed-product gates.

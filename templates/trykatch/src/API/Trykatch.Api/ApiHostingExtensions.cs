@@ -228,6 +228,7 @@ internal static class ApiHostingExtensions
         app.UseAuthorization();
         app.UseMiddleware<RealtimeTransportSecurityMiddleware>();
         app.UseAntiforgery();
+        app.UseMiddleware<OrganizationRateLimitMiddleware>();
         app.UseModuleMutationIdempotency();
 
         if (app.Environment.IsDevelopment())

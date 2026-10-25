@@ -38,6 +38,8 @@ internal static class OperationalDataResources
             typeof(OrganizationQuotaInventoryRecord).FullName, "organization_quota_inventory_read", ModuleDataAccessRule.HostOnly),
         new("organization-usage", "app", "organization_usage", ModuleDataOwnership.Organization,
             typeof(OrganizationUsageRecord).FullName, "organization_usage_read", ModuleDataAccessRule.HostOnly),
+        new("organization-request-limits", "app", "organization_request_limits", ModuleDataOwnership.Organization,
+            typeof(OrganizationRequestLimitRecord).FullName, "organization_request_limits_read", ModuleDataAccessRule.HostOnly),
         new("module-upload-operations", "app", "module_upload_operations", ModuleDataOwnership.Organization,
             typeof(ModuleUploadOperationRecord).FullName, "module_upload_operations_read", ModuleDataAccessRule.HostOnly),
         new("quota-maintenance-work", "infrastructure", "quota_maintenance_work", ModuleDataOwnership.Infrastructure,

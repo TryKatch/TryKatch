@@ -44,4 +44,27 @@ Seul le bail courant non expiré peut acquitter le travail. Un worker perdu peut
 
 La sonde de disponibilité `quota-maintenance` expose uniquement les nombres en attente/en reprise/suspendus et l’âge de la plus ancienne échéance. Elle est unhealthy avant la première observation réussie ou si la coordination est indisponible ; les reprises, suspensions et retards supérieurs à 5 minutes produisent un état degraded. Un travail futur ne vieillit pas depuis sa création. Les journaux contiennent le type d’exception et le type fermé de travail, sans contenu, clé ni provenance d’acteur.
 
-Les preuves locales figurent dans [les preuves de maintenance](../specs/evidence/parity-quota-maintenance.md). Les pertes/redémarrages réels de processus et les réponses de stockage incertaines sont qualifiés avec PostgreSQL et le stockage local. Les parcours RustFS à plusieurs instances, la limitation des requêtes, l’interface de consommation, les produits générés et la revue/CI S5 restent à vérifier. Ces tests de composants ne prouvent pas les garanties du produit composé.
+Les preuves locales figurent dans [les preuves de maintenance](../specs/evidence/parity-quota-maintenance.md). Les pertes/redémarrages réels de processus et les réponses de stockage incertaines sont qualifiés avec PostgreSQL et le stockage local. Les parcours RustFS à plusieurs instances, l’interface de consommation, les produits générés et la revue/CI S5 restent à vérifier. Ces tests de composants ne prouvent pas les garanties du produit composé.
+
+
+## Limitation des requêtes par organisation
+
+Cette limite est distincte de la capacité de stockage et reste désactivée par défaut. Pour activer l’allocation partagée `organization-api`, configurer les mêmes valeurs sur toutes les instances API puis les redémarrer :
+
+```json
+{
+  "OrganizationRequestLimits": {
+    "Enabled": true,
+    "PermitLimit": 300,
+    "WindowSeconds": 60
+  }
+}
+```
+
+L’activation utilise par défaut 300 tentatives par 60 secondes. Les bornes sont de 1 à 1 000 000 tentatives et de 1 à 3 600 secondes. Une propriété inconnue ou une valeur invalide empêche le démarrage, même si la limite est désactivée. Toutes les instances doivent utiliser les mêmes paramètres ; une instance désactivée ne fournit pas la garantie distribuée. Le redémarrage conserve le compteur et la fenêtre en base. L’admission utilise la même base organisation capturée que l’autorisation ; une modification de connexion nécessite le redémarrage normal de l’hôte.
+
+Une requête autorisée par le point d’entrée et vérifiée pour le cookie consomme une tentative avant les fonctionnalités, l’idempotence et le traitement métier. Une validation ultérieure refusée, une fonctionnalité indisponible, une réponse rejouée ou un rollback métier ne rembourse pas cette tentative. Les refus de permission du point d’entrée et les échecs antiforgery ne consomment rien. L’organisation provient de l’espace résolu, jamais d’un en-tête. Les contrôles existants par acteur/IP/authentification/assistant restent prioritaires.
+
+PostgreSQL définit la fenêtre et conserve une seule ligne courante par organisation/politique dans `app.organization_request_limits`. Le rôle organisation dispose uniquement de SELECT/INSERT/UPDATE sous RLS forcée ; les autres profils n’y accèdent pas et DELETE est refusé aux rôles runtime. Appliquer la migration application et le provisionnement normal des rôles avant l’activation. Aucun nouveau profil de connexion n’est ajouté.
+
+L’épuisement retourne 429 avec `Retry-After` calculé en base. La coordination indisponible retourne 503 (`organization_request_limit_unavailable`). La transaction indépendante a un délai global de 4 secondes, un délai de verrou de 500 ms et un délai d’instruction de 2 secondes. Aucun compteur local ou cache ne remplace PostgreSQL. Une panne du cache Redis optionnel ne réinitialise pas l’allocation. Consulter [les preuves de limitation](../specs/evidence/parity-organization-throttling.md) et les étapes restantes du produit composé.

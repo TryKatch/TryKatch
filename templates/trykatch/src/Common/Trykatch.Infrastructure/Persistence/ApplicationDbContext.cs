@@ -115,6 +115,7 @@ public sealed class ApplicationDbContext(
         OrganizationEmailDeliveryMapping.Configure(modelBuilder);
         QuotaRecordMapping.Configure(modelBuilder);
         QuotaMaintenanceWorkRecord.Configure(modelBuilder);
+        OrganizationRequestLimitRecord.Configure(modelBuilder);
         ApplyOrganizationIsolation(modelBuilder);
         ApplicationModelIsolationValidator.Validate(modelBuilder.Model, moduleCatalog?.Descriptors ?? []);
     }

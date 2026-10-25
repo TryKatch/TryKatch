@@ -165,7 +165,7 @@ public sealed class ModuleAntiforgeryTests
         legacyDocuments.RootElement[0].GetProperty("documentType").GetString().ShouldBe("other");
         using HttpResponseMessage upload = await SendAsync(tenant, HttpMethod.Post, "/api/v1/documents",
             token: tenantToken, isMultipart: true, documentType: "invoice");
-        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created, await upload.Content.ReadAsStringAsync());
         using JsonDocument invoice = JsonDocument.Parse(await upload.Content.ReadAsStringAsync());
         invoice.RootElement.GetProperty("documentType").GetString().ShouldBe("invoice");
         Guid documentId = invoice.RootElement.GetProperty("id").GetGuid();

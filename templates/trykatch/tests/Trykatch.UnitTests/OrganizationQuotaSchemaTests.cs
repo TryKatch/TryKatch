@@ -16,6 +16,7 @@ public sealed class OrganizationQuotaSchemaTests
     [DataRow("organization_usage", "OrganizationUsageRecord")]
     [DataRow("organization_quota_inventory", "OrganizationQuotaInventoryRecord")]
     [DataRow("module_upload_operations", "ModuleUploadOperationRecord")]
+    [DataRow("organization_request_limits", "OrganizationRequestLimitRecord")]
     public void QuotaRelationsUseTheExistingOrganizationModelBoundary(string table, string typeName)
     {
         using ApplicationDbContext db = new(new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -37,6 +38,7 @@ public sealed class OrganizationQuotaSchemaTests
     [DataRow("organization_usage")]
     [DataRow("organization_quota_inventory")]
     [DataRow("module_upload_operations")]
+    [DataRow("organization_request_limits")]
     public void QuotaRelationsGrantOnlyTheirExactExistingProfiles(string table)
     {
         string relation = $"app.{table}";

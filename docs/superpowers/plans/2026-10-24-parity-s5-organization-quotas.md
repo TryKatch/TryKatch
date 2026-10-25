@@ -116,10 +116,10 @@
 
 **Interfaces:** Fixed host policy `organization-api`; current organization comes only from resolved context. Add middleware after authorization/antiforgery and before feature/handler/replay effects. Existing earlier actor/IP/auth/assistant limits remain. PostgreSQL admission uses its own short transaction and database time, independent of business rollback.
 
-- [ ] RED: two real API replicas share one allowance, another organization is independent, rollover, denied permissions, replayed attempts, untrusted header, cancellation and DB/cache outage.
-- [ ] Use one bounded row per organization/policy with window start/count and atomic conditional upsert. Default disabled; when explicitly enabled default300 attempts/60seconds, validated limits1–1000000 and windows1–3600seconds. A successful admission counts the attempt even if business work rolls back or a feature/replay later rejects it.
-- [ ] Return429 with authoritative Retry-After on exhaustion;503 on unavailable coordination, never a local fallback. Bound lock/statement waits and sanitize errors.
-- [ ] Run only new limiter and directly affected middleware filters; commit `feat: throttle organization requests across replicas`.
+- [x] RED: two real API replicas share one allowance, another organization is independent, rollover, denied permissions, replayed attempts, untrusted header, cancellation and DB/cache outage.
+- [x] Use one bounded row per organization/policy with window start/count and atomic conditional upsert. Default disabled; when explicitly enabled default300 attempts/60seconds, validated limits1–1000000 and windows1–3600seconds. A successful admission counts the attempt even if business work rolls back or a feature/replay later rejects it.
+- [x] Return429 with authoritative Retry-After on exhaustion;503 on unavailable coordination, never a local fallback. Bound lock/statement waits and sanitize errors.
+- [x] Run only new limiter and directly affected middleware filters; commit `feat: throttle organization requests across replicas`.
 
 ## Task 8: Safe usage UI, qualification, review and merge
 
@@ -238,3 +238,12 @@ Task6 remains in progress: actual operating-system process-loss/restart and rema
 Nine additional actual PostgreSQL cases pass with zero skips: three upload process kills (before PUT, after PUT, after final parent commit), three worker process kills (before sentinel, after sentinel, after hold-release commit) and three uncertain storage mutation responses. Independent observations prove document/audit/outbox/usage atomicity, retained holds until independent sentinel confirmation, current token lease ownership, absent Documents/revoked membership recovery, unchanged sentinel revisions and denied late writes. Recovery processes query the actual five runtime roles and receive no owner connection. Test-only crash gates use existing public seams; no production test hooks or friend access were added. Locked restore succeeds after the explicit support-project Documents Application reference.
 
 The successful selected evidence union is111 unique PostgreSQL cases plus6 health unit checks. Existing malformed-reference constraints, missing-organization inventory, inactive/unsupported placement and exact profiles remain qualified. Task6 is complete; detailed evidence is in `templates/trykatch/docs/specs/evidence/parity-quota-maintenance.md`. Task7 and Task8 (including fresh composed RustFS/two-replica products, safe usage UI, single integrated review, exact-head CI and merge) remain required, followed by S6, phases3–11 and the final main release. No S5 merge or completion is claimed.
+
+
+## Task7 distributed request admission checkpoint
+
+The disabled-by-default organization-api policy now uses one forced-RLS current-window row per organization, exact organization SELECT/INSERT/UPDATE only, database time and an atomic conditional upsert in an independent short transaction. Endpoint authorization and cookie verification precede counting; feature/replay/handler effects follow it. Exhaustion returns429 with authoritative Retry-After; unavailable coordination returns503 without a cache/process allowance fallback. Settings enforce1–1000000 permits and1–3600 seconds, default300/60 when enabled. The request counter captures the same organization database profile as authorization, including across configuration reload.
+
+Qualified evidence:18 new real PostgreSQL/API cases,8 directly affected existing security cases,41 targeted units,2 architecture checks, normal doctor and current API/OpenAPI build. Zero skips in the successful selections. An actual Redis read-probe failure leaves PostgreSQL exhaustion authoritative. Metadata in the generated snapshot also reflects Documents' already-owned upload identity/index while that table remains excluded from host migrations; the forward DDL creates only the counter relation/policies. See `templates/trykatch/docs/specs/evidence/parity-organization-throttling.md`. A transient500 from an existing antiforgery scenario's second classified upload did not reproduce in its diagnostic rerun; retain that observation for final validation, with no causal fix claimed.
+
+Task7 is complete. Task8 safe usage/initialization UI, freshly packed renamed products, separate-process replicas and RustFS/restart/absent-source journeys, single whole-S5 review, exact-head CI and merge remain required. S6, phases3–11 and the final main release remain open.

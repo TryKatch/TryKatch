@@ -61,6 +61,11 @@ public static class DependencyInjection
         services.AddOrganizationCache(configuration, isOpenApiGeneration);
         services.AddFeaturePolicy(configuration);
         services.AddOrganizationQuotas(configuration, isOpenApiGeneration);
+        services.AddSingleton(_ => OrganizationRequestLimitSettings.Create(configuration));
+        services.AddScoped<global::Trykatch.Application.Quotas.IOrganizationRequestAdmission>(provider =>
+            new OrganizationRequestAdmission(provider.GetRequiredService<IOrganizationContext>(),
+                provider.GetRequiredService<OrganizationRequestLimitSettings>(), organizationConnection));
+        services.AddHostedService<OrganizationRequestLimitStartupValidator>();
         services.AddScoped<CacheInvalidationTransactionInterceptor>();
         services.AddScoped<UploadFinalizationTransactionInterceptor>();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));

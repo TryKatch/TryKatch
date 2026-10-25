@@ -1018,6 +1018,9 @@ public sealed class PostgresIsolationInspectionTests
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
                          new AddQuotaUploadRecovery().UpOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationRequestLimits().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             // This catalog-inspection fixture omits the organization directory.
             // Real feature migration tests separately prove its restricting FKs.
             // Retain the actual column/key/index and forced-RLS operations here.
@@ -1046,6 +1049,7 @@ public sealed class PostgresIsolationInspectionTests
                 GRANT SELECT, INSERT, UPDATE ON app.mutation_receipts TO {result.RuntimeRole};
                 GRANT SELECT ON app.organization_entitlements TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON app.organization_quota_reservations, app.organization_quota_inventory, app.module_upload_operations TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.organization_request_limits TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.organization_usage TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON app.realtime_streams TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.realtime_history TO {result.RuntimeRole};
@@ -1079,6 +1083,7 @@ public sealed class PostgresIsolationInspectionTests
                 "app.organization_quota_reservations",
                 "app.organization_quota_inventory",
                 "app.organization_usage",
+                "app.organization_request_limits",
                 "app.module_upload_operations",
                 "infrastructure.quota_maintenance_work",
                 "app.cache_invalidations",

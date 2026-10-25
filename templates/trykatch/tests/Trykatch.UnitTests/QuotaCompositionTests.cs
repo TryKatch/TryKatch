@@ -15,8 +15,9 @@ public sealed class QuotaCompositionTests
     {
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection().Build();
         ServiceCollection services = new();
+        services.AddLogging();
         services.AddSingleton(new ModuleCatalog([]));
-        services.AddOrganizationQuotas(configuration);
+        services.AddOrganizationQuotas(configuration, isOpenApiGeneration: true);
         using ServiceProvider provider = services.BuildServiceProvider();
         QuotaSettings initial = provider.GetRequiredService<QuotaSettings>();
         configuration["Quotas:EnforcementEnabled"] = "true";
@@ -36,8 +37,9 @@ public sealed class QuotaCompositionTests
             ["Quotas:EnforcementEnabled"] = "true", ["Quotas:Revision"] = "0"
         }).Build();
         ServiceCollection services = new();
+        services.AddLogging();
         services.AddSingleton(new ModuleCatalog([]));
-        services.AddOrganizationQuotas(configuration);
+        services.AddOrganizationQuotas(configuration, isOpenApiGeneration: true);
         using ServiceProvider provider = services.BuildServiceProvider();
         Should.Throw<InvalidOperationException>(() => provider.GetServices<IHostedService>().ToArray())
             .Message.ShouldBe("Organization quota configuration is invalid.");
@@ -47,8 +49,9 @@ public sealed class QuotaCompositionTests
     public async Task StartupRejectsDeclaredInventoryWithoutItsRegisteredAdapter()
     {
         ServiceCollection services = new();
+        services.AddLogging();
         services.AddSingleton(new ModuleCatalog([new InventoryModule()]));
-        services.AddOrganizationQuotas(new ConfigurationBuilder().Build());
+        services.AddOrganizationQuotas(new ConfigurationBuilder().Build(), isOpenApiGeneration: true);
         await using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         IHostedService[] validators = provider.GetServices<IHostedService>().ToArray();
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -62,10 +65,11 @@ public sealed class QuotaCompositionTests
     public async Task StartupValidatesWorkflowBindingsInScopeWithoutReadingInventory()
     {
         ServiceCollection services = new();
+        services.AddLogging();
         services.AddSingleton(new ModuleCatalog([new InventoryModule()]));
         services.AddScoped<ModuleQuotaInventorySourceBinding>(_ => new(
             new("inventory", "inventory.source", 1), new UnreadableInventory()));
-        services.AddOrganizationQuotas(new ConfigurationBuilder().Build());
+        services.AddOrganizationQuotas(new ConfigurationBuilder().Build(), isOpenApiGeneration: true);
         await using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         foreach (IHostedService validator in provider.GetServices<IHostedService>())
             await validator.StartAsync(CancellationToken.None);

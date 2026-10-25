@@ -97,6 +97,12 @@ internal static class HostPostgresPolicyContracts
             new("organization_entitlements_platform_insert", "a", "", $"({Organization} AND {CacheActor} AND {PlatformRuntime})", ["trykatch_platform_runtime"]),
             new("organization_entitlements_platform_update", "w", $"({Organization} AND {CacheActor} AND {PlatformRuntime})", $"({Organization} AND {CacheActor} AND {PlatformRuntime})", ["trykatch_platform_runtime"])
         ],
+        ["app.organization_request_limits"] =
+        [
+            new("organization_request_limits_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),
+            new("organization_request_limits_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"]),
+            new("organization_request_limits_update", "w", $"({Organization} AND {CacheActor})", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
         ["app.organization_quota_reservations"] =
         [
             new("organization_quota_reservations_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),

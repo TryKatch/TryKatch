@@ -106,6 +106,7 @@ public static class RuntimeDatabaseAccessProfiles
                 (RuntimeDatabaseRoleKind.Platform, "app.organization_entitlements") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "app.organization_quota_reservations" or "app.organization_quota_inventory" or "app.module_upload_operations") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "app.organization_usage") => SelectInsert,
+                (RuntimeDatabaseRoleKind.Organization, "app.organization_request_limits") => SelectInsertUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "infrastructure.quota_maintenance_work") => Insert,
                 (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.quota_maintenance_work") => SelectUpdate,
                 (RuntimeDatabaseRoleKind.Organization, "infrastructure.email_deliveries") => Insert,

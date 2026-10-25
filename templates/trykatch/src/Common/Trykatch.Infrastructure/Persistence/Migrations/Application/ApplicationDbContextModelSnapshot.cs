@@ -1026,6 +1026,31 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         });
                 });
 
+            modelBuilder.Entity("Trykatch.Infrastructure.Quotas.OrganizationRequestLimitRecord", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Policy")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("WindowStartUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("OrganizationId", "Policy");
+
+                    b.ToTable("organization_request_limits", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_organization_request_limits_identity", "\"OrganizationId\" <> '00000000-0000-0000-0000-000000000000'::uuid AND \"Policy\" = 'organization-api'");
+
+                            t.HasCheckConstraint("CK_organization_request_limits_window", "isfinite(\"WindowStartUtc\") AND \"Attempts\" BETWEEN 1 AND 1000000");
+                        });
+                });
+
             modelBuilder.Entity("Trykatch.Infrastructure.Quotas.OrganizationUsageRecord", b =>
                 {
                     b.Property<Guid>("OrganizationId")
@@ -1303,12 +1328,19 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("UploadOperationId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OrganizationId", "CreatedAt");
 
                     b.HasIndex("OrganizationId", "ObjectKey")
                         .IsUnique();
+
+                    b.HasIndex("OrganizationId", "UploadOperationId")
+                        .IsUnique()
+                        .HasFilter("\"UploadOperationId\" IS NOT NULL");
 
                     b.ToTable("documents", "app", t =>
                         {

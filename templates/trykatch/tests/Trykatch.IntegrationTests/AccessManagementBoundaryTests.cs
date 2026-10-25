@@ -776,7 +776,7 @@ public sealed partial class AccessManagementBoundaryTests
         }
     }
 
-    private sealed class AccessHost(PostgreSqlContainer? postgres, WebApplicationFactory<Program> factory, string ownerConnection, string? maintenanceConnection, string? databaseName) : IAsyncDisposable
+    private sealed class AccessHost(PostgreSqlContainer? postgres, WebApplicationFactory<Program> factory, string ownerConnection, string? maintenanceConnection, string? databaseName, bool ownsDatabase = true) : IAsyncDisposable
     {
         public const string AdministratorEmail = "authority-admin@trykatch.test";
         private const string Password = "Local-only!Authority-Password-42";
@@ -848,38 +848,42 @@ public sealed partial class AccessManagementBoundaryTests
             IInvitationNotifier? invitationNotifier,
             bool queuedEmail,
             Action<IServiceCollection>? configureServices,
-            IReadOnlyDictionary<string, string?>? additionalSettings)
+            IReadOnlyDictionary<string, string?>? additionalSettings,
+            bool initializeDatabase = true)
         {
             var connections = await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(ownerConnection);
-            await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ownerConnection).Options);
-            await identity.Database.MigrateAsync();
-            await using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(ownerConnection).Options);
-            await platform.Database.MigrateAsync();
-            ProjectsModule projects = new();
-            DocumentsModule documents = new();
-            ModuleCatalog catalog = new([projects, documents]);
-            await using ApplicationDbContext application = new(
-                new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(ownerConnection).Options,
-                [new ProjectsModelContributor(), new DocumentsModelContributor()], moduleCatalog: catalog);
-            await application.Database.MigrateAsync();
-            await using NpgsqlConnection connection = new(ownerConnection);
-            await connection.OpenAsync();
-            foreach (ModuleMigration migration in documents.Migrations)
-            {
-                await using NpgsqlCommand command = new(migration.Sql, connection);
-                await command.ExecuteNonQueryAsync();
-            }
-            await InstalledSchemaCatalog.SynchronizeAsync(ownerConnection, catalog.Descriptors.SelectMany(module =>
-                module.DataResources.Select(resource => new InstalledDataResource(module.Id, resource))));
-            await RuntimeRoleProvisioner.ProvisionAsync(ownerConnection, new RuntimeDatabaseRoles(
-                PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.PlatformRole,
-                PostgresRuntimeRoleFixture.IdentityRole, PostgresRuntimeRoleFixture.OutboxRole,
-                PostgresRuntimeRoleFixture.WorkCoordinatorRole));
             string workCoordinatorConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
             {
                 Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
                 Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
             }.ConnectionString;
+            if (initializeDatabase)
+            {
+                await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ownerConnection).Options);
+                await identity.Database.MigrateAsync();
+                await using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(ownerConnection).Options);
+                await platform.Database.MigrateAsync();
+                ProjectsModule projects = new();
+                DocumentsModule documents = new();
+                ModuleCatalog catalog = new([projects, documents]);
+                await using ApplicationDbContext application = new(
+                    new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(ownerConnection).Options,
+                    [new ProjectsModelContributor(), new DocumentsModelContributor()], moduleCatalog: catalog);
+                await application.Database.MigrateAsync();
+                await using NpgsqlConnection connection = new(ownerConnection);
+                await connection.OpenAsync();
+                foreach (ModuleMigration migration in documents.Migrations)
+                {
+                    await using NpgsqlCommand command = new(migration.Sql, connection);
+                    await command.ExecuteNonQueryAsync();
+                }
+                await InstalledSchemaCatalog.SynchronizeAsync(ownerConnection, catalog.Descriptors.SelectMany(module =>
+                    module.DataResources.Select(resource => new InstalledDataResource(module.Id, resource))));
+                await RuntimeRoleProvisioner.ProvisionAsync(ownerConnection, new RuntimeDatabaseRoles(
+                    PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.PlatformRole,
+                    PostgresRuntimeRoleFixture.IdentityRole, PostgresRuntimeRoleFixture.OutboxRole,
+                    PostgresRuntimeRoleFixture.WorkCoordinatorRole));
+            }
 
             Dictionary<string, string?> settings = new()
             {
@@ -922,6 +926,11 @@ public sealed partial class AccessManagementBoundaryTests
         {
             BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false, HandleCookies = true
         });
+
+        public async Task<AccessHost> CreateReplicaAsync(IReadOnlyDictionary<string, string?> additionalSettings) =>
+            new(null, await CreateFactoryAsync(ownerConnection, null, queuedEmail: false, configureServices: null,
+                    additionalSettings: additionalSettings, initializeDatabase: false),
+                ownerConnection, null, null, ownsDatabase: false);
 
         public async Task<ManagementBarrier> BlockManagementAsync(Guid? organizationId = null)
         {
@@ -1104,6 +1113,7 @@ public sealed partial class AccessManagementBoundaryTests
         public async ValueTask DisposeAsync()
         {
             await factory.DisposeAsync();
+            if (!ownsDatabase) return;
             if (postgres is not null) await postgres.DisposeAsync();
             else await DropDatabaseAsync(maintenanceConnection!, databaseName!);
         }
