@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
 using Trykatch.Application.Authorization;
 using Trykatch.Application.Quotas;
@@ -244,6 +246,91 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
         resource.Committed.ShouldBeNull();
         await scope.CommitAsync();
         (await fixture.CountUsageInventoryWorkAsync(user.OrganizationId)).ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task QuotaUsageInspectionPausesIncompleteInventoryWithoutItsSourceAndResumesWhenRestored()
+    {
+        ProjectsSeededUser user = await fixture.SeedProjectsUserAsync([Permissions.OrganizationsRead]);
+        await fixture.SeedQuotaProjectionAsync(user.OrganizationId, 64, inventoryComplete: false);
+        await fixture.SeedQuotaUsageAsync(user.OrganizationId, 9);
+        await using (UploadAdmissionEnvironment absent = CreateUsageWithoutInventoryEnvironment())
+        await using (MutationScope scope = await ExecutionFixture.BeginUploadMutationScopeAsync(absent.Services, user))
+        {
+            var resource = (await scope.Services.GetRequiredService<IOrganizationQuotaUsageReader>().GetAsync()).Value!.Resources.Single();
+            resource.State.ShouldBe("Paused");
+            resource.Committed.ShouldBeNull();
+            resource.Reserved.ShouldBe("0");
+            resource.Installed.ShouldBeTrue();
+            await scope.CommitAsync();
+        }
+        (await fixture.CountUsageInventoryWorkAsync(user.OrganizationId)).ShouldBe(0);
+        await using UploadAdmissionEnvironment restored = fixture.CreateUploadAdmissionEnvironment();
+        await using (MutationScope initializing = await ExecutionFixture.BeginUploadMutationScopeAsync(restored.Services, user))
+        {
+            var current = (await initializing.Services.GetRequiredService<IOrganizationQuotaUsageReader>().GetAsync()).Value!.Resources.Single();
+            current.State.ShouldBe("Initializing");
+            current.Committed.ShouldBeNull();
+            await initializing.CommitAsync();
+        }
+        (await fixture.ReconcileQuotaInventoryPageAsync(user.OrganizationId, DocumentsQuotaResource)).State
+            .ShouldBe(QuotaInventoryReconciliationState.Complete);
+        await using MutationScope ready = await ExecutionFixture.BeginUploadMutationScopeAsync(restored.Services, user);
+        var resumed = (await ready.Services.GetRequiredService<IOrganizationQuotaUsageReader>().GetAsync()).Value!.Resources.Single();
+        resumed.State.ShouldBe("Ready");
+        resumed.Committed.ShouldBe("9");
+        (await fixture.SumQuotaUsageAsync(user.OrganizationId)).ShouldBe(9);
+    }
+
+    [TestMethod]
+    public async Task QuotaEngineCannotAdmitFiniteUsageWithIncompleteInventoryAndNoSource()
+    {
+        ProjectsSeededUser user = await fixture.SeedProjectsUserAsync([Permissions.OrganizationsRead]);
+        await fixture.SeedQuotaProjectionAsync(user.OrganizationId, 64, inventoryComplete: false);
+        await using UploadAdmissionEnvironment absent = CreateUsageWithoutInventoryEnvironment();
+        await using MutationScope scope = await ExecutionFixture.BeginUploadMutationScopeAsync(absent.Services, user);
+        var result = await scope.Services.GetRequiredService<IOrganizationQuota>().ReserveAsync(DocumentsQuotaResource, 1, Guid.NewGuid());
+        result.Disposition.ShouldBe(QuotaReservationDisposition.Unavailable);
+        result.FailureCode.ShouldBe("quota_inventory_initializing");
+        result.Reservation.ShouldBeNull();
+        await scope.CommitAsync();
+        (await fixture.CountQuotaRowsAsync("organization_quota_reservations", user.OrganizationId)).ShouldBe(0);
+    }
+
+    [TestMethod]
+    public async Task UploadReservationCannotAdmitFiniteUsageWithIncompleteInventoryAndNoSource()
+    {
+        ProjectsSeededUser user = await fixture.SeedProjectsUserAsync([Permissions.OrganizationsRead, "documents.manage"]);
+        await fixture.SeedQuotaProjectionAsync(user.OrganizationId, 64, inventoryComplete: false);
+        await using UploadAdmissionEnvironment absent = CreateUsageWithoutInventoryEnvironment();
+        await using MutationScope scope = await ExecutionFixture.BeginUploadMutationScopeAsync(absent.Services, user);
+        var result = await scope.Services.GetRequiredService<IModuleUploadAdmission>().ReserveAsync(CreateUploadRequest());
+        result.Disposition.ShouldBe(ModuleUploadReserveDisposition.Unavailable);
+        result.FailureCode.ShouldBe("quota_inventory_initializing");
+        result.Receipt.ShouldBeNull();
+        await scope.CommitAsync();
+        (await fixture.CountQuotaRowsAsync("organization_quota_reservations", user.OrganizationId)).ShouldBe(0);
+        (await fixture.CountQuotaRowsAsync("module_upload_operations", user.OrganizationId)).ShouldBe(0);
+    }
+
+    private static UploadAdmissionEnvironment CreateUsageWithoutInventoryEnvironment() => fixture.CreateUploadAdmissionEnvironment(services =>
+    {
+        ModuleCatalog original = (ModuleCatalog)services.Single(registration => registration.ServiceType == typeof(ModuleCatalog)).ImplementationInstance!;
+        IModule[] modules = original.Modules.Select(module => module.Descriptor.Id == "documents"
+            ? new UsageWithoutInventoryModule(module) : module).ToArray();
+        services.RemoveAll<ModuleCatalog>();
+        services.AddSingleton(new ModuleCatalog(modules));
+        services.RemoveAll<ModuleQuotaInventorySourceBinding>();
+    });
+
+    private sealed class UsageWithoutInventoryModule(IModule inner) : IModule
+    {
+        public ModuleDescriptor Descriptor { get; } = inner.Descriptor with
+        {
+            QuotaResources = inner.Descriptor.QuotaResources.Select(resource => resource with { InventorySource = null }).ToArray()
+        };
+
+        public void Register(IServiceCollection services, IConfiguration configuration) => inner.Register(services, configuration);
     }
 
     [TestMethod]
