@@ -9,7 +9,10 @@ configure_quota_acceptance() {
   quota_policy_file="$test_root/quota-policy.json"
   mkdir -p "$quota_control_dir" "$quota_ingress_dir"
   write_quota_policy 1 true false
-  printf '\ninclude /run/quota-ingress/*.conf;\n' >>"$test_root/acceptance-tls.conf"
+  # /var/run is a production tmpfs (and aliases /run); keep this directory
+  # outside that mount so paired listeners remain visible after container start.
+  # Parse after default.conf defines the shared safe access-log format.
+  printf 'include /etc/nginx/quota-ingress/*.conf;\n' >"$test_root/quota-ingress-include.conf"
   cat >"$compose_quota_override" <<EOF
 services:
   storage-init:
@@ -50,7 +53,8 @@ services:
       - "127.0.0.1:8444:8444"
       - "127.0.0.1:8445:8445"
     volumes:
-      - "$quota_ingress_dir:/run/quota-ingress:ro"
+      - "$quota_ingress_dir:/etc/nginx/quota-ingress:ro"
+      - "$test_root/quota-ingress-include.conf:/etc/nginx/conf.d/zz-quota-ingress.conf:ro"
   api:
     environment:
       Storage__ServiceUrl: http://storage-gate:9000
@@ -161,14 +165,14 @@ EOF
   compose exec -T web nginx -s reload
   assert_current_service_images api web migrator
   for port in 8444 8445; do
-    local ready=false attempt
+    local ready=false attempt last_status=000
     for ((attempt=1; attempt<=60; attempt++)); do
-      if curl --fail --insecure --silent "https://127.0.0.1:$port/api/v1/auth/antiforgery" >/dev/null; then
+      if last_status=$(curl --fail --insecure --silent --max-time 3 --output /dev/null --write-out '%{http_code}' "https://127.0.0.1:$port/api/v1/auth/antiforgery"); then
         ready=true; break
       fi
       sleep 1
     done
-    [[ $ready == true ]] || { printf 'Paired API %s unavailable.\n' "$port" >&2; return 1; }
+    [[ $ready == true ]] || { printf 'Paired API %s unavailable (last HTTP status %s).\n' "$port" "$last_status" >&2; return 1; }
   done
 }
 

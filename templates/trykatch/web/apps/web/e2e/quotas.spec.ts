@@ -42,9 +42,10 @@ interface DocumentRecord {
   lifecycle: { status: string }
 }
 
+// Authentication is real; retain explicit Settings screenshots without recording cookie/token traffic.
+test.use({ trace: 'off' })
+
 test.describe('generated production organization quota acceptance', () => {
-  // Authentication is real; retain explicit Settings screenshots without recording cookie/token traffic.
-  test.use({ trace: 'off' })
   test('quota setup: create four organizations with one shared owner', async ({ browser }) => {
     gate('setup')
     test.setTimeout(900_000)
@@ -105,7 +106,7 @@ test.describe('generated production organization quota acceptance', () => {
       const winnerPayload = responseA.status() === 201 ? payloadA : payloadB
       const winnerOperationId = responseA.status() === 201 ? operationA : operationB
       const winner = await winnerResponse.json() as DocumentRecord
-      await expectProblem(loserResponse, 'quota_exhausted')
+      await expectCapacityDenied(loserResponse)
 
       const downloaded = await download(context.request, baseUrl!, winner.id)
       expect(downloaded).toEqual(Buffer.from(winnerPayload))
@@ -116,7 +117,7 @@ test.describe('generated production organization quota acceptance', () => {
       const page = await context.newPage()
       try {
         await openUsage(page)
-        await expect(page.getByRole('tabpanel', { name: 'Usage' }).getByText('64 bytes').first()).toBeVisible()
+        await expectUsageCard(page, true)
       } finally { await page.close() }
 
       state.race = {
@@ -142,8 +143,7 @@ test.describe('generated production organization quota acceptance', () => {
       const operationId = randomUUID()
       const payload = exactPayload('quota-failed')
       const response = await upload(context.request, baseUrl!, await antiforgeryToken(context.request), title, payload, operationId)
-      expect(response.status()).toBeGreaterThanOrEqual(400)
-      expect(response.status()).not.toBe(201)
+      expect(response.status()).toBe(500)
       await expectUsage(context.request, { committed: '0', reserved: '0', reconciliationHeld: '0' })
       const activeDocuments = await json<DocumentRecord[]>(context.request, '/api/v1/documents/?lifecycle=active')
       expect(activeDocuments.some((document) => document.title === title)).toBe(false)
@@ -239,7 +239,7 @@ test.describe('generated production organization quota acceptance', () => {
         await openUsage(page)
         const panel = page.getByRole('tabpanel', { name: 'Usage' })
         await expect(panel.getByText(/^(Paused|En pause)$/)).toBeVisible()
-        await expect(panel.getByText('64 bytes').first()).toBeVisible()
+        await expectUsageCard(page, false)
       } finally { await page.close() }
     } finally { await context.close() }
   })
@@ -270,6 +270,7 @@ test.describe('generated production organization quota acceptance', () => {
       try {
         await page.setViewportSize({ width: 1440, height: 900 })
         await openUsage(page)
+        await expectUsageCard(page, true)
         const desktop = await page.screenshot()
         await test.info().attach('quota-settings-desktop.png', { body: desktop, contentType: 'image/png' })
         await page.setViewportSize({ width: 320, height: 800 })
@@ -277,7 +278,8 @@ test.describe('generated production organization quota acceptance', () => {
         await page.getByRole('tab', { name: 'Usage' }).click()
         const mobile = await page.screenshot()
         await test.info().attach('quota-settings-mobile.png', { body: mobile, contentType: 'image/png' })
-        await expect(page.getByRole('tabpanel', { name: 'Usage' }).getByText('64 bytes').first()).toBeVisible()
+        await expectUsageCard(page, true)
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       } finally { await page.close() }
     } finally { await context.close() }
   })
@@ -435,9 +437,9 @@ async function getDocument(request: APIRequestContext, id: string, lifecycle: 'a
   return document!
 }
 
-async function expectProblem(response: APIResponse, title: string) {
-  const problem = await response.json() as { title?: string }
-  expect(problem.title).toBe(title)
+async function expectCapacityDenied(response: APIResponse) {
+  const problem = await response.json() as { code?: string }
+  expect(problem.code).toBe('quota_exhausted')
   expect(JSON.stringify(problem)).not.toMatch(/select|exception|stack|database|connection string/i)
 }
 
@@ -462,6 +464,15 @@ async function openUsage(page: Page) {
   await page.getByRole('tab', { name: /^(Usage|Utilisation)$/ }).click()
   await expect(page.getByRole('tabpanel', { name: /^(Usage|Utilisation)$/ })).toBeVisible()
   await expect(page.getByRole('tabpanel', { name: /^(Usage|Utilisation)$/ }).getByRole('heading', { name: 'Document storage' })).toBeVisible()
+}
+
+async function expectUsageCard(page: Page, finite: boolean) {
+  const card = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Document storage', exact: true }) })
+  for (const [label, amount] of finite
+    ? [['Committed', '64 bytes'], ['Used', '64 bytes'], ['Remaining', '0 bytes']]
+    : [['Committed', '64 bytes']]) {
+    await expect(card.getByText(label, { exact: true }).locator('..').locator('dd')).toHaveText(amount)
+  }
 }
 
 async function writeState(path: string, state: QuotaState) {
