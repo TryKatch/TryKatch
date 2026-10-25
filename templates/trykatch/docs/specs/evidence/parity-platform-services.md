@@ -56,7 +56,7 @@ The approved platform-services roadmap remains the source for later scope. This 
 | S2 | Authorized realtime delivery, audience checks, and browser reconciliation | Verified and merged in PR #135 as `b919234`; qualification below. |
 | S3 | Transaction-aware mutation idempotency | Verified and merged in PR #136 as `a3f19df`; qualification below. |
 | S4 | Installed-feature availability and runtime policy evaluation | Verified and merged in PR #137 as `d1c54d0`; final acceptance below. |
-| S5 | Entitlement projection, quota reservation, and organization throttling | Neutral contracts and declaration metadata locally qualified; durable runtime and composed acceptance remain incomplete. |
+| S5 | Entitlement projection, quota reservation, and organization throttling | Tasks0–7 and usage API/UI locally qualified; packed and composed final qualification plus PR/exact-head CI/merge remain open. See [usage qualification](parity-quota-usage.md). |
 | S6 | Permission reconciliation for existing organizations | Planned; no S6 implementation evidence here. |
 
 ### Serialization safety follow-up
