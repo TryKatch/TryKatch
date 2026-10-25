@@ -90,6 +90,8 @@ export * from './organizationAiConnectionResult';
 export * from './organizationDto';
 export * from './organizationFeatureSnapshot';
 export * from './organizationFeatureSnapshotValues';
+export * from './organizationQuotaUsage';
+export * from './organizationQuotaUsageResource';
 export * from './organizationsListParams';
 export * from './outboxFailure';
 export * from './outboxListFailuresParams';

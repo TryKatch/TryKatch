@@ -29,6 +29,7 @@ internal static class QuotaRegistration
         services.AddHealthChecks().AddCheck<QuotaMaintenanceHealthCheck>("quota-maintenance", tags: ["ready"]);
         services.AddScoped<IOrganizationEntitlementProjectionPublisher, HostEntitlementPublisher>();
         services.AddScoped<OrganizationQuotaService>();
+        services.AddScoped<IOrganizationQuotaUsageReader, OrganizationQuotaUsageReader>();
         services.AddScoped<IOrganizationQuota>(provider => provider.GetRequiredService<OrganizationQuotaService>());
         services.AddScoped<IOrganizationEntitlementReader>(provider => provider.GetRequiredService<OrganizationQuotaService>());
         services.AddScoped<IOrganizationUsageLedger>(provider => provider.GetRequiredService<OrganizationQuotaService>());

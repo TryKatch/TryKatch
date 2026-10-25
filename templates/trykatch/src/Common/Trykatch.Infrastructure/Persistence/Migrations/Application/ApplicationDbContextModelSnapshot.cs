@@ -888,6 +888,10 @@ namespace Trykatch.Infrastructure.Persistence.Migrations.Application
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
                     b.Property<DateTimeOffset>("EffectiveAtUtc")
                         .HasColumnType("timestamp with time zone");
 

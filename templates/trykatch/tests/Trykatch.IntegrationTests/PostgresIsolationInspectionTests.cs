@@ -1021,6 +1021,9 @@ public sealed class PostgresIsolationInspectionTests
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
                          new AddOrganizationRequestLimits().UpOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new RetainQuotaResourceDisplayNames().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             // This catalog-inspection fixture omits the organization directory.
             // Real feature migration tests separately prove its restricting FKs.
             // Retain the actual column/key/index and forced-RLS operations here.

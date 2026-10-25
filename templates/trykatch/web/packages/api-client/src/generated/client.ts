@@ -81,6 +81,7 @@ import type {
   OrganizationAiConnectionResult,
   OrganizationDto,
   OrganizationFeatureSnapshot,
+  OrganizationQuotaUsage,
   OrganizationsListParams,
   OutboxListFailuresParams,
   OutboxListModuleDeliveriesParams,
@@ -9656,6 +9657,107 @@ export const usePlatformAccessActivate = <TError = unknown,
       > => {
       return useMutation(getPlatformAccessActivateMutationOptions(options), queryClient);
     }
+
+export const getQuotasCurrentUsageUrl = () => {
+
+
+
+
+  return `/api/v1/quotas/usage`
+}
+
+/**
+ * @summary Current usage quotas
+ */
+export const quotasCurrentUsage = async ( options?: Parameters<typeof customFetch>[1]): Promise<OrganizationQuotaUsage> => {
+
+  return customFetch<OrganizationQuotaUsage>(getQuotasCurrentUsageUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getQuotasCurrentUsageQueryKey = () => {
+    return [
+    `/api/v1/quotas/usage`
+    ] as const;
+    }
+
+
+export const getQuotasCurrentUsageQueryOptions = <TData = Awaited<ReturnType<typeof quotasCurrentUsage>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof quotasCurrentUsage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getQuotasCurrentUsageQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof quotasCurrentUsage>>> = ({ signal }) => quotasCurrentUsage({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof quotasCurrentUsage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type QuotasCurrentUsageQueryResult = NonNullable<Awaited<ReturnType<typeof quotasCurrentUsage>>>
+export type QuotasCurrentUsageQueryError = unknown
+
+
+export function useQuotasCurrentUsage<TData = Awaited<ReturnType<typeof quotasCurrentUsage>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof quotasCurrentUsage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof quotasCurrentUsage>>,
+          TError,
+          Awaited<ReturnType<typeof quotasCurrentUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useQuotasCurrentUsage<TData = Awaited<ReturnType<typeof quotasCurrentUsage>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof quotasCurrentUsage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof quotasCurrentUsage>>,
+          TError,
+          Awaited<ReturnType<typeof quotasCurrentUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useQuotasCurrentUsage<TData = Awaited<ReturnType<typeof quotasCurrentUsage>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof quotasCurrentUsage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Current usage quotas
+ */
+
+export function useQuotasCurrentUsage<TData = Awaited<ReturnType<typeof quotasCurrentUsage>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof quotasCurrentUsage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getQuotasCurrentUsageQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getWorkspaceSelectUrl = () => {
 

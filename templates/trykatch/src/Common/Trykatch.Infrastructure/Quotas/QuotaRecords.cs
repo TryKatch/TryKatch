@@ -13,6 +13,8 @@ internal sealed class OrganizationEntitlementRecord : IOrganizationOwned
     public Guid OrganizationId { get; set; }
     public string ResourceKey { get; set; } = string.Empty;
     public string OwnerModuleId { get; set; } = string.Empty;
+    // Display metadata only; owner, unit and operator publication remain the authority.
+    public string? DisplayName { get; set; }
     public ModuleQuotaUnit Unit { get; set; }
     public OrganizationEntitlementMode Mode { get; set; }
     public long? Limit { get; set; }
@@ -123,6 +125,7 @@ internal static class QuotaRecordMapping
             });
             entity.HasKey(row => new { row.OrganizationId, row.ResourceKey });
             entity.Property(row => row.OwnerModuleId).HasMaxLength(80);
+            entity.Property(row => row.DisplayName).HasMaxLength(160);
             entity.Property(row => row.Source).HasMaxLength(160);
             entity.Property(row => row.SourceHash).HasMaxLength(64);
             entity.Property(row => row.Version).ValueGeneratedNever().IsConcurrencyToken();

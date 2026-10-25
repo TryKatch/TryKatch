@@ -89,18 +89,18 @@ internal sealed class HostEntitlementPublisher(QuotaPublicationAuthority authori
 
         Dictionary<string, Projection> retained = new(StringComparer.Ordinal);
         await using (NpgsqlCommand rows = Command(connection, transaction, """
-            SELECT "ResourceKey", "OwnerModuleId", "Unit", "Source", "SourceRevision", "SourceHash"
+            SELECT "ResourceKey", "OwnerModuleId", "Unit", "Source", "SourceRevision", "SourceHash", "DisplayName"
             FROM app.organization_entitlements WHERE "OrganizationId" = @organization ORDER BY "ResourceKey" LIMIT 10001
             """, frame.OrganizationId))
         await using (NpgsqlDataReader reader = await rows.ExecuteReaderAsync(token))
             while (await reader.ReadAsync(token))
                 retained.Add(reader.GetString(0), new(reader.GetString(1), (ModuleQuotaUnit)reader.GetInt32(2),
-                    reader.GetString(3), reader.GetInt64(4), reader.GetString(5)));
+                    reader.GetString(3), reader.GetInt64(4), reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6)));
         if (retained.Count > 10_000 || latest is null && retained.Count != 0
             || latest is not null && retained.Values.Any(row => row.Source != Source || row.Revision != latest.Revision || row.Hash != latest.Hash))
             throw new OrganizationQuotaUnavailableException();
         Dictionary<string, Resource> current = catalog.Descriptors.SelectMany(module => module.QuotaResources
-            .Select(resource => new KeyValuePair<string, Resource>(resource.Key, new(module.Id, resource.Unit))))
+            .Select(resource => new KeyValuePair<string, Resource>(resource.Key, new(module.Id, resource.Unit, resource.Name))))
             .ToDictionary(StringComparer.Ordinal);
         foreach ((string key, Resource resource) in current)
             if (retained.TryGetValue(key, out Projection? row) && (row.Owner != resource.Owner || row.Unit != resource.Unit))
@@ -111,30 +111,45 @@ internal sealed class HostEntitlementPublisher(QuotaPublicationAuthority authori
             throw new OrganizationQuotaUnavailableException();
         bool newRevision = latest is null || latest.Revision < settings.Revision;
         Dictionary<string, Resource> batch = newRevision
-            ? retained.ToDictionary(pair => pair.Key, pair => new Resource(pair.Value.Owner, pair.Value.Unit), StringComparer.Ordinal)
+            ? retained.ToDictionary(pair => pair.Key, pair => new Resource(pair.Value.Owner, pair.Value.Unit, pair.Value.Name), StringComparer.Ordinal)
             : new(StringComparer.Ordinal);
         foreach ((string key, Resource resource) in current)
             if (newRevision || !retained.ContainsKey(key)) batch[key] = resource;
         if (batch.Count > 10_000) throw new OrganizationQuotaUnavailableException();
         DateTimeOffset now = new(timeProvider.GetUtcNow().UtcTicks / 10 * 10, TimeSpan.Zero);
-        foreach ((string key, Resource resource) in batch.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        Dictionary<string, Resource> displayUpdates = current.Where(pair => retained.TryGetValue(pair.Key, out Projection? row)
+                && row.Name != pair.Value.Name && !batch.ContainsKey(pair.Key)).ToDictionary(StringComparer.Ordinal);
+        foreach ((string key, Resource resource) in batch.Concat(displayUpdates).OrderBy(pair => pair.Key, StringComparer.Ordinal))
         {
             await TakeLockAsync(connection, transaction, frame.OrganizationId,
                 QuotaResourceLock.ResourceKey(frame.OrganizationId, key), token);
+            if (displayUpdates.ContainsKey(key))
+            {
+                // Refresh cosmetic catalog metadata without rewriting the immutable allowance version or history.
+                await using NpgsqlCommand display = Command(connection, transaction, """
+                    UPDATE app.organization_entitlements SET "DisplayName" = @name
+                    WHERE "OrganizationId" = @organization AND "ResourceKey" = @resource
+                    """, frame.OrganizationId);
+                display.Parameters.AddWithValue("resource", key);
+                display.Parameters.AddWithValue("name", resource.Name!);
+                await display.ExecuteNonQueryAsync(token);
+                continue;
+            }
             QuotaAllowance allowance = !settings.EnforcementEnabled ? new(OrganizationEntitlementMode.Disabled, null)
                 : settings.Allowances.GetValueOrDefault(key) ?? new(OrganizationEntitlementMode.Unconfigured, null);
             await using NpgsqlCommand write = Command(connection, transaction, """
                 INSERT INTO app.organization_entitlements
-                    ("OrganizationId", "ResourceKey", "OwnerModuleId", "Unit", "Mode", "Limit", "Version",
+                    ("OrganizationId", "ResourceKey", "OwnerModuleId", "DisplayName", "Unit", "Mode", "Limit", "Version",
                      "Source", "SourceRevision", "SourceHash", "EffectiveAtUtc")
-                VALUES (@organization, @resource, @owner, @unit, @mode, @limit, @version, @source, @revision, @hash, @now)
+                VALUES (@organization, @resource, @owner, @name, @unit, @mode, @limit, @version, @source, @revision, @hash, @now)
                 ON CONFLICT ("OrganizationId", "ResourceKey") DO UPDATE SET
-                    "Mode" = EXCLUDED."Mode", "Limit" = EXCLUDED."Limit", "Version" = EXCLUDED."Version",
+                    "DisplayName" = EXCLUDED."DisplayName", "Mode" = EXCLUDED."Mode", "Limit" = EXCLUDED."Limit", "Version" = EXCLUDED."Version",
                     "Source" = EXCLUDED."Source", "SourceRevision" = EXCLUDED."SourceRevision",
                     "SourceHash" = EXCLUDED."SourceHash", "EffectiveAtUtc" = EXCLUDED."EffectiveAtUtc"
                 """, frame.OrganizationId);
             write.Parameters.AddWithValue("resource", key);
             write.Parameters.AddWithValue("owner", resource.Owner);
+            write.Parameters.AddWithValue("name", NpgsqlDbType.Varchar, (object?)resource.Name ?? DBNull.Value);
             write.Parameters.AddWithValue("unit", (int)resource.Unit);
             write.Parameters.AddWithValue("mode", (int)allowance.Mode);
             write.Parameters.AddWithValue("limit", NpgsqlDbType.Bigint, (object?)allowance.Limit ?? DBNull.Value);
@@ -200,6 +215,6 @@ internal sealed class HostEntitlementPublisher(QuotaPublicationAuthority authori
         return command;
     }
 
-    private sealed record Projection(string Owner, ModuleQuotaUnit Unit, string Source, long Revision, string Hash);
-    private sealed record Resource(string Owner, ModuleQuotaUnit Unit);
+    private sealed record Projection(string Owner, ModuleQuotaUnit Unit, string Source, long Revision, string Hash, string? Name);
+    private sealed record Resource(string Owner, ModuleQuotaUnit Unit, string? Name);
 }

@@ -96,6 +96,8 @@ The host implements separate PostgreSQL request admission after trusted organiza
 
 The existing Organization Settings surface reads safe current-organization usage under `organizations.read/manage`, with Int64-safe values, mode/source/version, committed/reserved/reconciliation-held totals and explicit initializing/unavailable/paused states. It cannot edit its allowance and exposes no object keys or raw actor provenance. No new assistant write tool is added.
 
+The host reader verifies a fresh human membership and the original enlisted transaction; endpoint OR permission authorization precedes request counting. One SQL statement reads projection, inventory and aggregate amounts. Unknown inventory remains unknown, while expired/fencing holds remain charged until confirmed release. Inspection can append a closed inventory intent in the caller transaction; it does not scan module data or commit the parent. Nullable display metadata preserves readable names for retained resources without changing allowance versions/history. Legacy absent resources with no recorded label use their public resource identity. See [usage inspection evidence](../specs/evidence/parity-quota-usage.md).
+
 Qualify real PostgreSQL/profile behavior, real storage, crashes/restarts and two API replicas; then fresh renamed React/backend-only packages, actual browser UI, module absence/restoration, the single integrated review and final-head CI. Primitive tests, mock stories and source assertions alone do not establish those guarantees. No live deployment, provider migration, commercial policy or main release is performed by this ADR.
 
 ## Alternatives and consequences
