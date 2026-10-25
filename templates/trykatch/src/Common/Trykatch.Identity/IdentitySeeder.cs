@@ -1,20 +1,28 @@
+using System.Data;
 using OpenIddict.Abstractions;
 using Trykatch.Application.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Trykatch.Identity;
 
 public static class IdentitySeeder
 {
-    public static async Task SeedPlatformAdministratorAsync(IServiceProvider services, IConfiguration configuration)
+    public static Task SeedPlatformAdministratorAsync(IServiceProvider services, IConfiguration configuration) =>
+        WithAdministrationLockAsync(services, scoped => SeedPlatformAdministratorCoreAsync(scoped, configuration));
+
+    public static Task SeedOpenIddictClientsAsync(IServiceProvider services, IConfiguration configuration) =>
+        WithAdministrationLockAsync(services, scoped => SeedOpenIddictClientsCoreAsync(scoped, configuration));
+
+    private static async Task SeedPlatformAdministratorCoreAsync(IServiceProvider services, IConfiguration configuration)
     {
         string? email = configuration["Bootstrap:PlatformAdminEmail"];
         string? password = configuration["Bootstrap:PlatformAdminPassword"];
-        using IServiceScope scope = services.CreateScope();
-        UserManager<ApplicationUser> users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        RoleManager<IdentityRole<Guid>> roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        UserManager<ApplicationUser> users = services.GetRequiredService<UserManager<ApplicationUser>>();
+        RoleManager<IdentityRole<Guid>> roles = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         foreach (PlatformRoleDefinition definition in PlatformRoles.All)
         {
             if (await roles.RoleExistsAsync(definition.Key)) continue;
@@ -58,10 +66,9 @@ public static class IdentitySeeder
         }
     }
 
-    public static async Task SeedOpenIddictClientsAsync(IServiceProvider services, IConfiguration configuration)
+    private static async Task SeedOpenIddictClientsCoreAsync(IServiceProvider services, IConfiguration configuration)
     {
-        using IServiceScope scope = services.CreateScope();
-        IOpenIddictApplicationManager applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        IOpenIddictApplicationManager applications = services.GetRequiredService<IOpenIddictApplicationManager>();
         foreach (IConfigurationSection client in configuration.GetSection("OpenIddict:Clients").GetChildren())
         {
             string? clientId = client["ClientId"];
@@ -114,5 +121,29 @@ public static class IdentitySeeder
 
             await applications.CreateAsync(descriptor);
         }
+    }
+
+    private static async Task WithAdministrationLockAsync(IServiceProvider services, Func<IServiceProvider, Task> seed)
+    {
+        using IServiceScope scope = services.CreateScope();
+        IdentityDbContext database = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        await database.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using IDbContextTransaction transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+            try
+            {
+                // Share the existing platform identity administration lock, including
+                // role/user changes, across every replica using the identity profile.
+                await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(734001)");
+                database.ChangeTracker.Clear();
+                await seed(scope.ServiceProvider);
+                await transaction.CommitAsync();
+            }
+            finally
+            {
+                // Failed Identity writes must not survive into an execution-strategy retry.
+                database.ChangeTracker.Clear();
+            }
+        });
     }
 }

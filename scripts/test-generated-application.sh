@@ -572,7 +572,12 @@ fi
 
 compose config --quiet
 compose_started=true
-compose up --detach --build postgres migrator api web
+if [[ $quotas_enabled == true ]]; then
+  # Cold-start both processes against the same empty Identity database too.
+  compose up --detach --build --scale api=2 postgres migrator api web
+else
+  compose up --detach --build postgres migrator api web
+fi
 wait_for_web
 
 pnpm --dir "$generated_root/web" install --frozen-lockfile

@@ -19,6 +19,10 @@ Environment variables replace `:` with `__`. Existing OpenIddict `Path`/`Passwor
 
 Active certificates must be within their validity period, contain a usable private key, and permit the purpose when Key Usage is present. All identity certificates require RSA ≥2048 bits, including OpenIddict signing. ECDSA signing certificates are rejected during configuration validation; a separately reviewed signing-key/algorithm adapter is required to support them. Retained decryption certificates may be expired, but must retain usable private keys. These are provisioned cryptographic credentials, not HTTPS certificates: this loader does not apply web-PKI hostname/chain trust to a deliberately provisioned PFX. SMTP still uses normal TLS chain/hostname validation. Changes require restart; no hot reload is promised. Linux/Windows use ephemeral imports; macOS uses temporary keychain imports without persistent-key flags, disposed with the host.
 
+## Bootstrap across replicas
+
+Platform role/administrator bootstrap and configured OpenIddict client creation use the existing identity administration advisory lock in a ReadCommitted transaction on the Identity runtime profile. Concurrent API startup waits for the preceding bootstrap transaction, then rereads committed roles, users and clients before creating anything. Existing client secrets remain unchanged on rerun. The ordinary EF execution strategy owns retries, and failed tracked changes are cleared before another attempt. This requires no new database role or schema migration.
+
 ## Upgrade an existing plaintext ring
 
 `ProtectKeysWithCertificate` protects new keys, not existing records. An EF migration or merely restarting with a certificate cannot retrofit a plaintext ring. This release changes no database schema and requires no new EF migration. Run ordinary schema migrations first when needed, using the owner/migrator credential. Never grant the API the migrator connection.
