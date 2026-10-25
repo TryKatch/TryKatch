@@ -12,8 +12,8 @@ using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Quotas;
 
-/// <summary>Durable transaction-only holds. Uploads require their closed composite lifecycle.</summary>
-internal sealed class OrganizationQuotaService(
+/// <summary>Caller-owned quota holds, entitlements and confirmed removals. Uploads use their closed composite lifecycle.</summary>
+internal sealed partial class OrganizationQuotaService(
     ApplicationDbContext application,
     OrganizationControlPlaneDbContext control,
     IOrganizationContext organization,
@@ -21,10 +21,10 @@ internal sealed class OrganizationQuotaService(
     IOrganizationDataPlacement placement,
     ModuleCatalog catalog,
     ModuleWorkExecutionContext work,
-    ModuleOperationRegistry operations,
     TimeProvider timeProvider,
     QuotaPublicationAuthority publication,
-    IOrganizationEntitlementProjectionPublisher publisher) : IOrganizationQuota, IOrganizationEntitlementReader
+    IOrganizationEntitlementProjectionPublisher publisher,
+    QuotaWorkflowRegistry workflows) : IOrganizationQuota, IOrganizationEntitlementReader, IOrganizationUsageLedger
 {
     private static readonly TimeSpan OperationTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ReservationLifetime = TimeSpan.FromMinutes(15);
@@ -230,7 +230,7 @@ internal sealed class OrganizationQuotaService(
         }
         catch (OrganizationMembershipRequiredException)
         {
-            if (!QuotaSystemAuthority.IsAllowed(work, operations, organization.OrganizationId,
+            if (!QuotaSystemAuthority.IsAllowed(work, catalog, organization.OrganizationId,
                     organization.ActorId, owner, resourceKey)) return false;
             return await control.Organizations.AsNoTracking()
                 .AnyAsync(row => row.Id == organization.OrganizationId && row.IsActive, token);

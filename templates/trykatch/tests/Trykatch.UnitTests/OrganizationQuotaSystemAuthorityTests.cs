@@ -24,7 +24,7 @@ public sealed class OrganizationQuotaSystemAuthorityTests
     {
         AuthorityFixture fixture = CreateFixture(allowedQuotaResources: [ResourceKey]);
 
-        QuotaSystemAuthority.IsAllowed(fixture.Work, fixture.Operations, OrganizationId, AuditActorId,
+        QuotaSystemAuthority.IsAllowed(fixture.Work, fixture.Catalog, OrganizationId, AuditActorId,
             OwnerModuleId, ResourceKey).ShouldBeTrue();
     }
 
@@ -34,7 +34,7 @@ public sealed class OrganizationQuotaSystemAuthorityTests
         AuthorityFixture fixture = CreateFixture(allowedQuotaResources: []);
 
         fixture.Grant.AllowedResourceKeys.ShouldContain(BusinessResourceKey);
-        QuotaSystemAuthority.IsAllowed(fixture.Work, fixture.Operations, OrganizationId, AuditActorId,
+        QuotaSystemAuthority.IsAllowed(fixture.Work, fixture.Catalog, OrganizationId, AuditActorId,
             OwnerModuleId, ResourceKey).ShouldBeFalse();
     }
 
@@ -44,17 +44,17 @@ public sealed class OrganizationQuotaSystemAuthorityTests
         AuthorityFixture fixture = CreateFixture(allowedQuotaResources: [ResourceKey]);
         ModuleWorkExecutionContext uninitialized = new();
 
-        QuotaSystemAuthority.IsAllowed(uninitialized, fixture.Operations, OrganizationId, AuditActorId,
+        QuotaSystemAuthority.IsAllowed(uninitialized, fixture.Catalog, OrganizationId, AuditActorId,
             OwnerModuleId, ResourceKey).ShouldBeFalse();
 
         ModuleWorkExecutionContext missingIdentity = new();
         missingIdentity.Initialize(null!, fixture.Operation);
-        QuotaSystemAuthority.IsAllowed(missingIdentity, fixture.Operations, OrganizationId, AuditActorId,
+        QuotaSystemAuthority.IsAllowed(missingIdentity, fixture.Catalog, OrganizationId, AuditActorId,
             OwnerModuleId, ResourceKey).ShouldBeFalse();
 
         ModuleWorkExecutionContext missingOperation = new();
         missingOperation.Initialize(fixture.Identity, null!);
-        QuotaSystemAuthority.IsAllowed(missingOperation, fixture.Operations, OrganizationId, AuditActorId,
+        QuotaSystemAuthority.IsAllowed(missingOperation, fixture.Catalog, OrganizationId, AuditActorId,
             OwnerModuleId, ResourceKey).ShouldBeFalse();
     }
 
@@ -74,7 +74,7 @@ public sealed class OrganizationQuotaSystemAuthorityTests
         };
         ModuleWorkExecutionContext work = Work(stale, fixture.Operation);
 
-        QuotaSystemAuthority.IsAllowed(work, fixture.Operations, OrganizationId, AuditActorId,
+        QuotaSystemAuthority.IsAllowed(work, fixture.Catalog, OrganizationId, AuditActorId,
             OwnerModuleId, ResourceKey).ShouldBeFalse();
     }
 
@@ -96,7 +96,7 @@ public sealed class OrganizationQuotaSystemAuthorityTests
         };
         ModuleWorkExecutionContext work = Work(identity, fixture.Operation);
 
-        QuotaSystemAuthority.IsAllowed(work, fixture.Operations, expectedOrganization, expectedActor,
+        QuotaSystemAuthority.IsAllowed(work, fixture.Catalog, expectedOrganization, expectedActor,
             OwnerModuleId, ResourceKey).ShouldBeFalse();
     }
 
@@ -109,17 +109,17 @@ public sealed class OrganizationQuotaSystemAuthorityTests
         string owner = mutation == "owner" ? "projects" : OwnerModuleId;
         string resource = mutation == "resource" ? "documents.other" : ResourceKey;
 
-        QuotaSystemAuthority.IsAllowed(fixture.Work, fixture.Operations, OrganizationId, AuditActorId,
+        QuotaSystemAuthority.IsAllowed(fixture.Work, fixture.Catalog, OrganizationId, AuditActorId,
             owner, resource).ShouldBeFalse();
     }
 
     [TestMethod]
-    public void ClonedOperationDescriptorIsNotCurrentRegistryProvenance()
+    public void ClonedOperationDescriptorIsNotCurrentCatalogProvenance()
     {
         AuthorityFixture fixture = CreateFixture(allowedQuotaResources: [ResourceKey]);
         ModuleWorkExecutionContext work = Work(fixture.Identity, fixture.Operation with { });
 
-        QuotaSystemAuthority.IsAllowed(work, fixture.Operations, OrganizationId, AuditActorId,
+        QuotaSystemAuthority.IsAllowed(work, fixture.Catalog, OrganizationId, AuditActorId,
             OwnerModuleId, ResourceKey).ShouldBeFalse();
     }
 
@@ -150,15 +150,11 @@ public sealed class OrganizationQuotaSystemAuthorityTests
             SystemGrants = [grant]
         };
         ModuleCatalog catalog = new([new StubModule(descriptor)]);
-        ModuleOperationRegistry operations = new(catalog, [new NoOpHandler()], [new NoOpPolicy()]);
-        operations.TryGet(OwnerModuleId, OperationKey, 1, out ModuleOperationRegistration? registration).ShouldBeTrue();
-        registration.ShouldNotBeNull();
 
         ModuleExecutionIdentity identity = new(
             OrganizationId, AuditActorId, OriginActorId, null, ModuleExecutionKind.ScheduledSystem,
             GrantKey, 1, null, ModuleOperationRegistry.CatalogVersion, null);
-        return new(operations, registration!.Descriptor, registration.SystemGrant!, identity,
-            Work(identity, registration.Descriptor));
+        return new(catalog, operation, grant, identity, Work(identity, operation));
     }
 
     private static ModuleWorkExecutionContext Work(ModuleExecutionIdentity identity, ModuleOperationDescriptor operation)
@@ -169,26 +165,11 @@ public sealed class OrganizationQuotaSystemAuthorityTests
     }
 
     private sealed record AuthorityFixture(
-        ModuleOperationRegistry Operations,
+        ModuleCatalog Catalog,
         ModuleOperationDescriptor Operation,
         ModuleSystemGrantDescriptor Grant,
         ModuleExecutionIdentity Identity,
         ModuleWorkExecutionContext Work);
-
-    private sealed class NoOpHandler : IModuleOperationHandler
-    {
-        public string ModuleId => OwnerModuleId;
-        public string OperationKey => OrganizationQuotaSystemAuthorityTests.OperationKey;
-        public int OperationVersion => 1;
-        public Task HandleAsync(ModuleOperationContext context, System.Text.Json.JsonElement payload, CancellationToken cancellationToken) => Task.CompletedTask;
-    }
-
-    private sealed class NoOpPolicy : IModuleOperationResourcePolicy
-    {
-        public string ModuleId => OwnerModuleId;
-        public string PolicyKey => BusinessResourceKey;
-        public Task<bool> AuthorizeAsync(ModuleOperationContext context, System.Text.Json.JsonElement payload, CancellationToken cancellationToken) => Task.FromResult(true);
-    }
 
     private sealed class StubModule(ModuleDescriptor descriptor) : IModule
     {

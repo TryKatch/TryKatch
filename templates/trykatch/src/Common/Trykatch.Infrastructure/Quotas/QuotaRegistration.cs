@@ -25,6 +25,7 @@ internal static class QuotaRegistration
         services.AddScoped<OrganizationQuotaService>();
         services.AddScoped<IOrganizationQuota>(provider => provider.GetRequiredService<OrganizationQuotaService>());
         services.AddScoped<IOrganizationEntitlementReader>(provider => provider.GetRequiredService<OrganizationQuotaService>());
+        services.AddScoped<IOrganizationUsageLedger>(provider => provider.GetRequiredService<OrganizationQuotaService>());
     }
 
     private sealed class QuotaStartupValidator(QuotaSettings settings, IServiceScopeFactory scopes) : IHostedService

@@ -14,7 +14,10 @@ public sealed record ModuleUsageRemovalContext(
     long RequestedUnits,
     Guid OperationId);
 
-/// <summary>Module-owned confirmation hook; it does not directly mutate the host usage ledger.</summary>
+/// <summary>
+/// Module-owned, read-only confirmation of durable permanent-removal evidence and applicable business
+/// authorization. Registration grants no caller permission. It does not mutate the host usage ledger.
+/// </summary>
 public interface IModuleUsageRemovalPolicy
 {
     Task<bool> ConfirmAsync(
@@ -40,7 +43,11 @@ public sealed record OrganizationUsageRemovalResult(
     OrganizationUsageRemovalDisposition Disposition,
     string? FailureCode = null);
 
-/// <summary>Host-owned append-only logical usage effects; callers supply no organization or actor authority.</summary>
+/// <summary>
+/// Host-owned append-only logical usage effects in the caller's existing enlisted ReadCommitted
+/// organization transaction. It never commits that transaction. Callers supply no organization or actor
+/// authority; the installed owner policy must confirm permanent removal. Failed persistence requires rollback.
+/// </summary>
 public interface IOrganizationUsageLedger
 {
     Task<OrganizationUsageRemovalResult> RecordRemovalAsync(
