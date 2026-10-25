@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const packageIds = ['Trykatch.Cli', 'Trykatch.Templates'];
-export const qualificationGates = ['template-matrix', 'federation', 'blueprint-backend', 'blueprint-web', 'generated-production', 'generated-email-production'];
+export const qualificationGates = ['template-matrix', 'federation', 'blueprint-backend', 'blueprint-web', 'generated-production', 'generated-email-production', 'generated-quota-production'];
 
 function validateIdentity(version, commit) {
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$/.test(version)) throw new Error('Invalid release version.');

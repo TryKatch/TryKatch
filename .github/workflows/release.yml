@@ -91,9 +91,13 @@ jobs:
         run: bash scripts/test-generated-application.sh
         env:
           TRYKATCH_ACCEPTANCE_EMAIL: 'true'
+      - name: Qualify quota admission and recovery across production API replicas
+        run: bash scripts/test-generated-application.sh
+        env:
+          TRYKATCH_ACCEPTANCE_QUOTAS: 'true'
       - name: Seal digests only after every required candidate gate succeeds
         run: |
-          node scripts/release-artifacts.mjs seal artifacts/packages artifacts/qualification.json "$TRYKATCH_QUALIFICATION_VERSION" "$GITHUB_SHA" "$GITHUB_RUN_ID" template-matrix federation blueprint-backend blueprint-web generated-production generated-email-production
+          node scripts/release-artifacts.mjs seal artifacts/packages artifacts/qualification.json "$TRYKATCH_QUALIFICATION_VERSION" "$GITHUB_SHA" "$GITHUB_RUN_ID" template-matrix federation blueprint-backend blueprint-web generated-production generated-email-production generated-quota-production
           cd artifacts
           sha256sum packages/*.nupkg > SHA256SUMS
       - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0

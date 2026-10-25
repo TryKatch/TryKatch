@@ -82,6 +82,9 @@ assert_scope 'templates/trykatch/.dockerignore' deployment true
 assert_scope 'templates/trykatch/.dockerignore' qualification true
 assert_scope 'templates/trykatch/deploy/observability/tempo.yml' qualification false
 assert_scope 'scripts/test-generated-application.sh' qualification true
+assert_scope 'scripts/lib/quota-acceptance.sh' qualification true
+assert_scope 'scripts/lib/quota-storage-gate.mjs' qualification true
+assert_scope 'scripts/assert-quota-policy-output.mjs' qualification true
 assert_scope 'scripts/test-apphost-launch-profile.sh' packaging true
 assert_scope 'scripts/test-apphost-launch-profile.sh' qualification true
 assert_scope 'scripts/test-apphost-launch-profile.sh' template true
