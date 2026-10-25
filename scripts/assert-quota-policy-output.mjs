@@ -5,6 +5,9 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 export const requiredTestCases = [
+  'ConcurrentColdPlatformAdministratorSeedingCreatesEachRoleAndAdministratorOnce',
+  'ConcurrentOpenIddictClientSeedingPersistsOneClientAndPreservesItsOriginalSecret',
+  'RetriedOpenIddictBootstrapPersistsClientAfterItsCachedCreationRollsBack',
   'QuotaUsageInspectionAllowsEitherReadOrManageAndPreservesInt64AndOrganizationIsolation',
   'QuotaUsageInspectionDeniesMissingPermissionBeforePublishingOrQueuing',
   'QuotaUsageInspectionRechecksMembershipAndActualOrganizationFrame',
@@ -49,7 +52,7 @@ export const requiredTestCases = [
   'LostSuccessfulCreateResponseIsRecoveredByReadAndConditionalRetry',
   'EnabledBucketVersioningRetainsProvisionalBytesAfterSentinelReplacement',
 ]
-export const requiredTestCaseCount = 47
+export const requiredTestCaseCount = 50
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const templateRoot = path.join(repositoryRoot, 'templates/trykatch')
