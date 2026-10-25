@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Shouldly;
@@ -21,9 +22,10 @@ public sealed partial class AccessManagementBoundaryTests
     [TestMethod]
     public async Task UploadRetryReturnsCurrentLifecycleDtoAndRecordsEffectsOnce()
     {
-        await using UploadHost uploadHost = await UploadHost.StartAsync();
+        await using UploadHost uploadHost = await UploadHost.StartAsync(new SubMicrosecondTimeProvider());
         using HttpClient administrator = await uploadHost.Host.SignInAsync(AccessHost.AdministratorEmail);
         using HttpClient owner = await uploadHost.Host.CreateOrganizationOwnerAsync(administrator);
+        await InitializeDocumentInventoryAsync(owner);
         Guid organizationId = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/access")).GetProperty("organizationId").GetGuid();
         Guid actorId = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/auth/session")).GetProperty("userId").GetGuid();
         Guid operationId = Guid.NewGuid();
@@ -31,7 +33,7 @@ public sealed partial class AccessManagementBoundaryTests
         JsonElement created = await UploadAsync(owner, operationId, FirstPdf, "Lifecycle document", "Created description");
         created.GetProperty("metadata").GetProperty("sizeBytes").GetInt64().ShouldBe(FirstPdf.Length);
         JsonElement retried = await UploadAsync(owner, operationId, FirstPdf, "Lifecycle document", "Created description");
-        retried.GetRawText().ShouldBe(created.GetRawText());
+        AssertRetryMatchesPersistedDocument(created, retried);
         Guid documentId = created.GetProperty("id").GetGuid();
 
         JsonElement edited = await SendJsonAsync(owner, HttpMethod.Put, $"{DocumentsEndpoint}/{documentId}", new
@@ -68,6 +70,7 @@ public sealed partial class AccessManagementBoundaryTests
         await using UploadHost uploadHost = await UploadHost.StartAsync();
         using HttpClient administrator = await uploadHost.Host.SignInAsync(AccessHost.AdministratorEmail);
         using HttpClient owner = await uploadHost.Host.CreateOrganizationOwnerAsync(administrator);
+        await InitializeDocumentInventoryAsync(owner);
 
         foreach (string[] invalidValues in new[]
         {
@@ -100,6 +103,7 @@ public sealed partial class AccessManagementBoundaryTests
         await using UploadHost uploadHost = await UploadHost.StartAsync();
         using HttpClient administrator = await uploadHost.Host.SignInAsync(AccessHost.AdministratorEmail);
         using HttpClient owner = await uploadHost.Host.CreateOrganizationOwnerAsync(administrator);
+        await InitializeDocumentInventoryAsync(owner);
         Guid operationId = Guid.NewGuid();
         FirstPdf.Length.ShouldBe(SecondPdf.Length);
         JsonElement created = await UploadAsync(owner, operationId, FirstPdf, "Original title", "Original description");
@@ -121,9 +125,10 @@ public sealed partial class AccessManagementBoundaryTests
     [TestMethod]
     public async Task ManageOnlyPermissionCanUploadButActorMismatchConflictsAndRevokedAccessIsForbidden()
     {
-        await using UploadHost uploadHost = await UploadHost.StartAsync();
+        await using UploadHost uploadHost = await UploadHost.StartAsync(new SubMicrosecondTimeProvider());
         using HttpClient administrator = await uploadHost.Host.SignInAsync(AccessHost.AdministratorEmail);
         using HttpClient owner = await uploadHost.Host.CreateOrganizationOwnerAsync(administrator);
+        await InitializeDocumentInventoryAsync(owner);
         JsonElement role = await AccessHost.SuccessAsync(owner, HttpMethod.Post, "/api/v1/roles", new
         {
             id = (Guid?)null, name = "Documents uploader", description = "Manage without viewing", permissions = DocumentsManageOnlyPermissions
@@ -143,7 +148,7 @@ public sealed partial class AccessManagementBoundaryTests
         created.GetProperty("id").GetGuid().ShouldNotBe(Guid.Empty);
         created.TryGetProperty("objectKey", out _).ShouldBeFalse();
         JsonElement managerRetry = await UploadAsync(manager, operationId, FirstPdf, managerTitle, managerDescription);
-        managerRetry.GetRawText().ShouldBe(created.GetRawText());
+        AssertRetryMatchesPersistedDocument(created, managerRetry);
         using HttpResponseMessage otherActor = await UploadResponseAsync(owner, operationId, FirstPdf, managerTitle, managerDescription);
         otherActor.StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
@@ -162,6 +167,7 @@ public sealed partial class AccessManagementBoundaryTests
         await using UploadHost uploadHost = await UploadHost.StartAsync();
         using HttpClient administrator = await uploadHost.Host.SignInAsync(AccessHost.AdministratorEmail);
         using HttpClient owner = await uploadHost.Host.CreateOrganizationOwnerAsync(administrator);
+        await InitializeDocumentInventoryAsync(owner);
         Guid organizationId = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/access")).GetProperty("organizationId").GetGuid();
         Guid operationId = Guid.NewGuid();
 
@@ -207,6 +213,30 @@ public sealed partial class AccessManagementBoundaryTests
             (await ScalarAsync(connection, "SELECT count(*) FROM app.module_upload_operations WHERE \"OrganizationId\"=@organization AND \"OperationId\"=@operation AND \"State\"=3", ("organization", organizationId), ("operation", operationId))).ShouldBe(1L);
             (await ScalarAsync(connection, "SELECT count(*) FROM app.organization_quota_reservations WHERE \"OrganizationId\"=@organization AND \"OperationId\"=@operation AND \"State\"=2", ("organization", organizationId), ("operation", operationId))).ShouldBe(1L);
         }
+    }
+
+    private static async Task InitializeDocumentInventoryAsync(HttpClient owner)
+    {
+        // Complete the real hosted inventory before exercising the upload DTO lifecycle.
+        for (int attempt = 0; attempt < 200; attempt++)
+        {
+            JsonElement usage = await owner.GetFromJsonAsync<JsonElement>("/api/v1/quotas/usage");
+            JsonElement storage = usage.GetProperty("resources").EnumerateArray()
+                .Single(resource => resource.GetProperty("resourceKey").GetString() == "documents.storage-bytes");
+            if (storage.GetProperty("state").GetString() == "Ready") return;
+            await Task.Delay(50);
+        }
+        Assert.Fail("The hosted document quota inventory did not complete.");
+    }
+
+    private static void AssertRetryMatchesPersistedDocument(JsonElement created, JsonElement retried)
+    {
+        JsonObject expected = JsonNode.Parse(created.GetRawText())!.AsObject();
+        DateTimeOffset createdAt = created.GetProperty("createdAt").GetDateTimeOffset();
+        // Npgsql persists timestamps at PostgreSQL's microsecond precision.
+        expected["createdAt"] = createdAt.AddTicks(-(createdAt.Ticks % TimeSpan.TicksPerMicrosecond));
+        JsonElement.DeepEquals(retried, JsonSerializer.SerializeToElement(expected)).ShouldBeTrue(
+            "Every retry field must match the original DTO at the database's timestamp precision.");
     }
 
     private static async Task<JsonElement> UploadAsync(HttpClient client, Guid? operationId, byte[] bytes, string title,
@@ -277,12 +307,15 @@ public sealed partial class AccessManagementBoundaryTests
     {
         public AccessHost Host { get; } = host;
 
-        public static async Task<UploadHost> StartAsync()
+        public static async Task<UploadHost> StartAsync(TimeProvider? clock = null)
         {
             string storageRoot = Path.Combine(Path.GetTempPath(), $"trykatch-document-http-{Guid.NewGuid():N}");
             AccessHost host = await AccessHost.StartAsync(additionalSettings: new Dictionary<string, string?>
             {
                 ["Storage:LocalPath"] = storageRoot
+            }, configureServices: services =>
+            {
+                if (clock is not null) services.AddSingleton(clock);
             });
             return new(host, storageRoot);
         }
@@ -291,6 +324,15 @@ public sealed partial class AccessManagementBoundaryTests
         {
             await Host.DisposeAsync();
             if (Directory.Exists(storageRoot)) Directory.Delete(storageRoot, recursive: true);
+        }
+    }
+
+    private sealed class SubMicrosecondTimeProvider : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow()
+        {
+            DateTimeOffset now = System.GetUtcNow();
+            return now.AddTicks(7 - now.Ticks % TimeSpan.TicksPerMicrosecond);
         }
     }
 }
