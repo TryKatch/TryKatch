@@ -9,9 +9,14 @@ trap 'rm -rf "$test_root"' EXIT
 template_hive="$test_root/template-hive"
 template_manifest="$repository_root/templates/trykatch/.template.config/template.json"
 template_profile=${TRYKATCH_TEMPLATE_PROFILE:-full}
+quota_artifact_root=${TRYKATCH_TEMPLATE_ARTIFACTS:-}
+if [[ -n $quota_artifact_root && $quota_artifact_root != /* ]]; then
+  printf 'TRYKATCH_TEMPLATE_ARTIFACTS must be an absolute directory path.\n' >&2
+  exit 2
+fi
 case "$template_profile" in
-  full|features) ;;
-  *) printf 'TRYKATCH_TEMPLATE_PROFILE must be full or features.\n' >&2; exit 2 ;;
+  full|features|quotas) ;;
+  *) printf 'TRYKATCH_TEMPLATE_PROFILE must be full, features or quotas.\n' >&2; exit 2 ;;
 esac
 
 fail() {
@@ -189,7 +194,7 @@ generate_and_build() {
     dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" -c "$configuration" --no-build \
       --filter PreviewNine
   fi
-  if [[ $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ]]; then
+  if [[ $template_profile != quotas && ( $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ) ]]; then
     local feature_facts="$test_root/$namespace_name.feature-facts.json"
     local feature_results="$test_root/$namespace_name.feature-results"
     # Several real HTTP cases share a partial test class; select their method names too.
@@ -199,6 +204,52 @@ generate_and_build() {
       -c "$configuration" --no-build --no-restore \
       --filter "$feature_filter" --logger 'trx;LogFileName=feature-policy.trx' --results-directory "$feature_results"
     node "$repository_root/scripts/assert-feature-policy-output.mjs" "$output" "$namespace_name" "$feature_facts" "$feature_results/feature-policy.trx"
+  fi
+  if [[ ( $template_profile == quotas && ( $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ) ) \
+     || ( $template_profile == full && ( $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ) ) ]]; then
+    local quota_facts="$test_root/$namespace_name.quota-facts.json"
+    local quota_results="$test_root/$namespace_name.quota-results"
+    local quota_filter
+    quota_filter=$(node --input-type=module - "$repository_root/scripts/assert-quota-policy-output.mjs" <<'NODE'
+import { pathToFileURL } from 'node:url'
+const { requiredTestCases } = await import(pathToFileURL(process.argv[2]))
+console.log(requiredTestCases.map(name => `FullyQualifiedName~${name}`).join('|'))
+NODE
+    )
+    "$test_root/tools/trykatch" module facts documents --root "$output" >"$quota_facts"
+    dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" \
+      -c "$configuration" --no-build --no-restore \
+      --filter "$quota_filter" --logger 'trx;LogFileName=quota-policy.trx' --results-directory "$quota_results"
+    node "$repository_root/scripts/assert-quota-policy-output.mjs" \
+      "$output" "$namespace_name" "$quota_facts" "$quota_results/quota-policy.trx"
+    if [[ -n $quota_artifact_root ]]; then
+      local retained_dir="$quota_artifact_root/$namespace_name"
+      local quota_openapi
+      local artifact
+      if [[ -f "$output/web/package.json" ]]; then
+        quota_openapi="$output/web/packages/api-client/openapi/$namespace_name.Api.json"
+      else
+        quota_openapi="$output/src/API/$namespace_name.Api/obj/openapi/$namespace_name.Api.json"
+      fi
+      if ! mkdir -p "$retained_dir"; then
+        fail "could not create quota artifact directory '$retained_dir'"
+      fi
+      for artifact in \
+        "$quota_results/quota-policy.trx" \
+        "$quota_openapi" \
+        "$quota_facts" \
+        "$output/docs/generated/assistant-contract.json"; do
+        if [[ ! -f $artifact ]]; then
+          fail "requested quota artifact is missing: '$artifact'"
+        fi
+      done
+      if ! cp "$quota_results/quota-policy.trx" "$retained_dir/quota-policy.trx" ||
+        ! cp "$quota_openapi" "$retained_dir/openapi.json" ||
+        ! cp "$quota_facts" "$retained_dir/module-facts.json" ||
+        ! cp "$output/docs/generated/assistant-contract.json" "$retained_dir/assistant-contract.json"; then
+        fail "could not retain quota qualification artifacts in '$retained_dir'"
+      fi
+    fi
   fi
   # Each generated solution can produce several gigabytes of runtime assets.
   # Retain the generated source for assertions, but release build intermediates
@@ -210,6 +261,13 @@ if [[ $template_profile == features ]]; then
   generate_and_build Horizon
   generate_and_build Acme.Tools-Portal --ui none
   printf 'Renamed React and backend-only feature policy qualification passed.\n'
+  exit 0
+fi
+
+if [[ $template_profile == quotas ]]; then
+  generate_and_build Horizon
+  generate_and_build Acme.Tools-Portal --ui none
+  printf 'Renamed React and backend-only quota qualification passed.\n'
   exit 0
 fi
 
