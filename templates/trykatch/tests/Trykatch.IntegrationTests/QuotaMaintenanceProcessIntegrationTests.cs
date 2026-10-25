@@ -190,6 +190,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
 
         public async Task<QuotaProcessSnapshot> ReadQuotaProcessSnapshotAsync(Guid organizationId, Guid operationId)
         {
+            // Keep the preview event wire name unchanged when the template renames the application.
             await using NpgsqlConnection connection = new(owner);
             await connection.OpenAsync();
             await using NpgsqlCommand command = new("""
@@ -197,7 +198,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
                     work."LeaseId", upload."ExpiresAtUtc",
                     (SELECT count(*) FROM app.documents WHERE "OrganizationId"=@organization AND "UploadOperationId"=@operation),
                     (SELECT count(*) FROM platform.audit_entries WHERE "OrganizationId"=@organization AND "Action"='document.uploaded'),
-                    (SELECT count(*) FROM platform.outbox_messages WHERE "Type"='Trykatch.Modules.Documents.DocumentChanged'
+                    (SELECT count(*) FROM platform.outbox_messages WHERE "Type"=('Try' || 'katch.Modules.Documents.DocumentChanged')
                         AND "Payload"->>'documentId'=upload."SubjectId"::text AND "Payload"->>'operation'='uploaded'),
                     (SELECT count(*) FROM app.organization_usage WHERE "OrganizationId"=@organization AND "EffectId"=@operation),
                     (SELECT COALESCE(sum("Units"),0)::bigint FROM app.organization_usage WHERE "OrganizationId"=@organization AND "EffectId"=@operation)

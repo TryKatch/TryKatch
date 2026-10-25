@@ -217,39 +217,63 @@ console.log(requiredTestCases.map(name => `FullyQualifiedName~${name}`).join('|'
 NODE
     )
     "$test_root/tools/trykatch" module facts documents --root "$output" >"$quota_facts"
+    local quota_test_status=0
     dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" \
       -c "$configuration" --no-build --no-restore \
-      --filter "$quota_filter" --logger 'trx;LogFileName=quota-policy.trx' --results-directory "$quota_results"
-    node "$repository_root/scripts/assert-quota-policy-output.mjs" \
-      "$output" "$namespace_name" "$quota_facts" "$quota_results/quota-policy.trx"
+      --filter "$quota_filter" --logger 'trx;LogFileName=quota-policy.trx' --results-directory "$quota_results" ||
+      quota_test_status=$?
     if [[ -n $quota_artifact_root ]]; then
       local retained_dir="$quota_artifact_root/$namespace_name"
       local quota_openapi
       local artifact
+      local retention_failed=0
       if [[ -f "$output/web/package.json" ]]; then
         quota_openapi="$output/web/packages/api-client/openapi/$namespace_name.Api.json"
       else
         quota_openapi="$output/src/API/$namespace_name.Api/obj/openapi/$namespace_name.Api.json"
       fi
       if ! mkdir -p "$retained_dir"; then
-        fail "could not create quota artifact directory '$retained_dir'"
-      fi
-      for artifact in \
-        "$quota_results/quota-policy.trx" \
-        "$quota_openapi" \
-        "$quota_facts" \
-        "$output/docs/generated/assistant-contract.json"; do
-        if [[ ! -f $artifact ]]; then
-          fail "requested quota artifact is missing: '$artifact'"
+        retention_failed=1
+        printf 'Template contract failed: could not create quota artifact directory %s\n' "$retained_dir" >&2
+      else
+        for artifact in \
+          "$quota_results/quota-policy.trx" \
+          "$quota_openapi" \
+          "$quota_facts" \
+          "$output/docs/generated/assistant-contract.json"; do
+          if [[ ! -f $artifact ]]; then
+            retention_failed=1
+            printf 'Template contract failed: requested quota artifact is missing: %s\n' "$artifact" >&2
+          fi
+        done
+        if [[ -f "$quota_results/quota-policy.trx" ]] && ! cp "$quota_results/quota-policy.trx" "$retained_dir/quota-policy.trx"; then
+          retention_failed=1
+          printf 'Template contract failed: could not retain quota TRX in %s\n' "$retained_dir" >&2
         fi
-      done
-      if ! cp "$quota_results/quota-policy.trx" "$retained_dir/quota-policy.trx" ||
-        ! cp "$quota_openapi" "$retained_dir/openapi.json" ||
-        ! cp "$quota_facts" "$retained_dir/module-facts.json" ||
-        ! cp "$output/docs/generated/assistant-contract.json" "$retained_dir/assistant-contract.json"; then
-        fail "could not retain quota qualification artifacts in '$retained_dir'"
+        if [[ -f $quota_openapi ]] && ! cp "$quota_openapi" "$retained_dir/openapi.json"; then
+          retention_failed=1
+          printf 'Template contract failed: could not retain quota OpenAPI in %s\n' "$retained_dir" >&2
+        fi
+        if [[ -f $quota_facts ]] && ! cp "$quota_facts" "$retained_dir/module-facts.json"; then
+          retention_failed=1
+          printf 'Template contract failed: could not retain quota module facts in %s\n' "$retained_dir" >&2
+        fi
+        if [[ -f "$output/docs/generated/assistant-contract.json" ]] &&
+          ! cp "$output/docs/generated/assistant-contract.json" "$retained_dir/assistant-contract.json"; then
+          retention_failed=1
+          printf 'Template contract failed: could not retain quota assistant contract in %s\n' "$retained_dir" >&2
+        fi
+      fi
+      if (( retention_failed != 0 && quota_test_status == 0 )); then
+        fail "could not retain all quota qualification artifacts for '$namespace_name'"
       fi
     fi
+    if (( quota_test_status != 0 )); then
+      printf 'Quota qualification tests failed for %s with exit code %d.\n' "$namespace_name" "$quota_test_status" >&2
+      exit "$quota_test_status"
+    fi
+    node "$repository_root/scripts/assert-quota-policy-output.mjs" \
+      "$output" "$namespace_name" "$quota_facts" "$quota_results/quota-policy.trx"
   fi
   # Each generated solution can produce several gigabytes of runtime assets.
   # Retain the generated source for assertions, but release build intermediates

@@ -16,6 +16,8 @@ public sealed partial class AccessManagementBoundaryTests
     private static readonly byte[] FirstPdf = "%PDF-1.7 first payload"u8.ToArray();
     private static readonly byte[] SecondPdf = "%PDF-1.7 other payload"u8.ToArray();
 
+    // SQL literals below split the stable preview event name so template renaming preserves the wire contract.
+
     [TestMethod]
     public async Task UploadRetryReturnsCurrentLifecycleDtoAndRecordsEffectsOnce()
     {
@@ -56,7 +58,7 @@ public sealed partial class AccessManagementBoundaryTests
         (await ScalarAsync(connection, "SELECT count(*) FROM app.organization_quota_reservations WHERE \"OrganizationId\"=@organization AND \"OperationId\"=@operation AND \"State\"=1", ("organization", organizationId), ("operation", operationId))).ShouldBe(1L);
         (await ScalarAsync(connection, "SELECT count(*) FROM app.organization_usage WHERE \"OrganizationId\"=@organization AND \"EffectId\"=@operation AND \"SourceId\"=@document AND \"Units\"=@units", ("organization", organizationId), ("operation", operationId), ("document", documentId), ("units", FirstPdf.Length))).ShouldBe(1L);
         (await ScalarAsync(connection, "SELECT count(*) FROM platform.audit_entries WHERE \"OrganizationId\"=@organization AND \"ActorId\"=@actor AND \"Action\"='document.uploaded' AND \"SubjectId\"=@document", ("organization", organizationId), ("actor", actorId), ("document", documentId.ToString()))).ShouldBe(1L);
-        (await ScalarAsync(connection, "SELECT count(*) FROM platform.outbox_messages WHERE \"Type\"='Trykatch.Modules.Documents.DocumentChanged' AND \"Payload\"::jsonb->>'documentId'=@document AND \"Payload\"::jsonb->>'operation'='uploaded'", ("document", documentId.ToString()))).ShouldBe(1L);
+        (await ScalarAsync(connection, "SELECT count(*) FROM platform.outbox_messages WHERE \"Type\"=('Try' || 'katch.Modules.Documents.DocumentChanged') AND \"Payload\"::jsonb->>'documentId'=@document AND \"Payload\"::jsonb->>'operation'='uploaded'", ("document", documentId.ToString()))).ShouldBe(1L);
         created.TryGetProperty("objectKey", out _).ShouldBeFalse();
     }
 
@@ -89,7 +91,7 @@ public sealed partial class AccessManagementBoundaryTests
         (await ScalarAsync(connection, "SELECT count(*) FROM app.documents WHERE \"OrganizationId\"=@organization AND \"UploadOperationId\"='00000000-0000-0000-0000-000000000000'::uuid", ("organization", organizationId))).ShouldBe(0L);
         (await ScalarAsync(connection, "SELECT count(*) FROM app.organization_usage WHERE \"OrganizationId\"=@organization", ("organization", organizationId))).ShouldBe(2L);
         (await ScalarAsync(connection, "SELECT count(*) FROM platform.audit_entries WHERE \"OrganizationId\"=@organization AND \"Action\"='document.uploaded'", ("organization", organizationId))).ShouldBe(2L);
-        (await ScalarAsync(connection, "SELECT count(*) FROM platform.outbox_messages WHERE \"Type\"='Trykatch.Modules.Documents.DocumentChanged' AND \"Payload\"::jsonb->>'operation'='uploaded'")).ShouldBe(2L);
+        (await ScalarAsync(connection, "SELECT count(*) FROM platform.outbox_messages WHERE \"Type\"=('Try' || 'katch.Modules.Documents.DocumentChanged') AND \"Payload\"::jsonb->>'operation'='uploaded'")).ShouldBe(2L);
     }
 
     [TestMethod]
@@ -200,7 +202,7 @@ public sealed partial class AccessManagementBoundaryTests
             await connection.OpenAsync();
             (await ScalarAsync(connection, "SELECT count(*) FROM app.documents WHERE \"OrganizationId\"=@organization", ("organization", organizationId))).ShouldBe(0L);
             (await ScalarAsync(connection, "SELECT count(*) FROM platform.audit_entries WHERE \"OrganizationId\"=@organization AND \"Action\"='document.uploaded'", ("organization", organizationId))).ShouldBe(0L);
-            (await ScalarAsync(connection, "SELECT count(*) FROM platform.outbox_messages WHERE \"Type\"='Trykatch.Modules.Documents.DocumentChanged' AND \"Payload\"::jsonb->>'operation'='uploaded'")).ShouldBe(0L);
+            (await ScalarAsync(connection, "SELECT count(*) FROM platform.outbox_messages WHERE \"Type\"=('Try' || 'katch.Modules.Documents.DocumentChanged') AND \"Payload\"::jsonb->>'operation'='uploaded'")).ShouldBe(0L);
             (await ScalarAsync(connection, "SELECT count(*) FROM app.organization_usage WHERE \"OrganizationId\"=@organization", ("organization", organizationId))).ShouldBe(0L);
             (await ScalarAsync(connection, "SELECT count(*) FROM app.module_upload_operations WHERE \"OrganizationId\"=@organization AND \"OperationId\"=@operation AND \"State\"=3", ("organization", organizationId), ("operation", operationId))).ShouldBe(1L);
             (await ScalarAsync(connection, "SELECT count(*) FROM app.organization_quota_reservations WHERE \"OrganizationId\"=@organization AND \"OperationId\"=@operation AND \"State\"=2", ("organization", organizationId), ("operation", operationId))).ShouldBe(1L);
