@@ -8,7 +8,7 @@ namespace Trykatch.Infrastructure.Quotas;
 
 internal static class QuotaRegistration
 {
-    internal static void AddOrganizationQuotas(this IServiceCollection services, IConfiguration configuration)
+    internal static void AddOrganizationQuotas(this IServiceCollection services, IConfiguration configuration, bool isOpenApiGeneration)
     {
         services.AddSingleton(provider => QuotaOptions.CreateSettings(configuration, provider.GetRequiredService<ModuleCatalog>()));
         services.AddHostedService<QuotaStartupValidator>();
@@ -21,6 +21,12 @@ internal static class QuotaRegistration
         services.AddScoped<QuotaMaintenanceAuthority>();
         services.AddScoped<QuotaMaintenanceScopeFactory>();
         services.AddScoped<QuotaInventoryReconciler>();
+        services.AddSingleton<QuotaMaintenanceStore>();
+        services.AddScoped<QuotaMaintenanceExecutor>();
+        services.AddSingleton<QuotaMaintenanceProcessor>();
+        services.AddSingleton<QuotaMaintenanceWorkerState>();
+        if (!isOpenApiGeneration) services.AddHostedService<QuotaMaintenanceWorker>();
+        services.AddHealthChecks().AddCheck<QuotaMaintenanceHealthCheck>("quota-maintenance", tags: ["ready"]);
         services.AddScoped<IOrganizationEntitlementProjectionPublisher, HostEntitlementPublisher>();
         services.AddScoped<OrganizationQuotaService>();
         services.AddScoped<IOrganizationQuota>(provider => provider.GetRequiredService<OrganizationQuotaService>());

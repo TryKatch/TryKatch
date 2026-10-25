@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Trykatch.Application.Authorization;
@@ -82,6 +83,28 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
             await scope.CommitAsync(CancellationToken.None);
             await Should.ThrowAsync<InvalidOperationException>(() => scope.ValidateAsync(CancellationToken.None));
         }
+    }
+
+    [TestMethod]
+    public async Task QuotaMaintenanceAuthorityRejectsReboundTransactionLifetime()
+    {
+        ProjectsSeededUser user = await fixture.SeedProjectsUserAsync([Permissions.ProjectsManage]);
+        await using QuotaMaintenanceScope? scope = await fixture.OpenQuotaMaintenanceScopeAsync(user.OrganizationId);
+        scope.ShouldNotBeNull();
+        ApplicationDbContext application = scope.Services.GetRequiredService<ApplicationDbContext>();
+        OrganizationControlPlaneDbContext control = scope.Services.GetRequiredService<OrganizationControlPlaneDbContext>();
+        IDbContextTransaction old = control.Database.CurrentTransaction!;
+        Guid originalLifetime = old.TransactionId;
+        await old.RollbackAsync();
+        await application.Database.CurrentTransaction!.DisposeAsync();
+        await old.DisposeAsync();
+        await using IOrganizationDataScope replacement = await scope.Services.GetRequiredService<IOrganizationDataScopeFactory>()
+            .BeginAsync(user.OrganizationId, QuotaMaintenanceAuthority.ActorId, CancellationToken.None);
+        _ = await OrganizationTransactionEnlistment.EnlistAsync(control, application,
+            user.OrganizationId, QuotaMaintenanceAuthority.ActorId, CancellationToken.None);
+        control.Database.CurrentTransaction!.TransactionId.ShouldNotBe(originalLifetime);
+
+        await Should.ThrowAsync<InvalidOperationException>(() => scope.ValidateAsync(CancellationToken.None));
     }
 
     private sealed partial class ExecutionFixture

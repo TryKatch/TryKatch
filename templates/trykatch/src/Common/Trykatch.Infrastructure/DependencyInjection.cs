@@ -60,7 +60,7 @@ public static class DependencyInjection
         services.AddScoped<CacheGenerationStore>();
         services.AddOrganizationCache(configuration, isOpenApiGeneration);
         services.AddFeaturePolicy(configuration);
-        services.AddOrganizationQuotas(configuration);
+        services.AddOrganizationQuotas(configuration, isOpenApiGeneration);
         services.AddScoped<CacheInvalidationTransactionInterceptor>();
         services.AddScoped<UploadFinalizationTransactionInterceptor>();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));

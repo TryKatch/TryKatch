@@ -128,6 +128,13 @@ internal sealed partial class OrganizationQuotaService(
                 VALUES ({reservation.OrganizationId}, {reservation.Id}, {resourceKey}, {reservation.ActorId}, {units},
                         {operationId}, {projection.Version}, 1, 0, {now}, {reservation.ExpiresAtUtc}, NULL)
                 """, token);
+            await application.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO infrastructure.quota_maintenance_work
+                    ("OrganizationId", "Id", "Kind", "ResourceKey", "ReservationId", "UploadOperationId", "State",
+                     "DueAtUtc", "CreatedAtUtc", "Attempts", "LeaseId", "LeaseUntilUtc", "LastFailureCode")
+                VALUES ({reservation.OrganizationId}, {Guid.CreateVersion7()}, 1, {resourceKey}, {reservation.Id}, NULL,
+                    0, {reservation.ExpiresAtUtc}, {now}, 0, NULL, NULL, NULL)
+                """, token);
             return new(QuotaReservationDisposition.Reserved, ToContract(reservation));
         }
         catch (OrganizationQuotaUnavailableException)
