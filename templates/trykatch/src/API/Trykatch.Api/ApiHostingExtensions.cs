@@ -107,6 +107,15 @@ internal static class ApiHostingExtensions
             options.AddPolicy(
                 "PlatformAdministrator",
                 policy => policy.RequireClaim("platform_admin", "true"));
+            options.AddPolicy("OrganizationUsageRead", new AuthorizationPolicyBuilder(
+                    AuthenticationSchemes.ApplicationCookie,
+                    OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context => context.Resource is HttpContext http
+                    && http.RequestServices.GetRequiredService<global::Trykatch.Application.Organizations.IOrganizationContext>() is { IsResolved: true } organization
+                    && (organization.Permissions.Contains(global::Trykatch.Application.Authorization.Permissions.OrganizationsRead)
+                        || organization.Permissions.Contains(global::Trykatch.Application.Authorization.Permissions.OrganizationsManage)))
+                .Build());
         });
         builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
@@ -228,6 +237,7 @@ internal static class ApiHostingExtensions
         app.UseAuthorization();
         app.UseMiddleware<RealtimeTransportSecurityMiddleware>();
         app.UseAntiforgery();
+        app.UseMiddleware<OrganizationRateLimitMiddleware>();
         app.UseModuleMutationIdempotency();
 
         if (app.Environment.IsDevelopment())

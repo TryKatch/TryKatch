@@ -10,6 +10,7 @@ using Trykatch.Infrastructure.Caching;
 using Trykatch.Infrastructure.Idempotency;
 using Trykatch.Infrastructure.Realtime;
 using Trykatch.Infrastructure.Mailing;
+using Trykatch.Infrastructure.Quotas;
 using Trykatch.Domain.Organizations;
 using Trykatch.Modules;
 
@@ -112,6 +113,9 @@ public sealed class ApplicationDbContext(
         RealtimeStream.Configure(modelBuilder);
         RealtimeHistoryRecord.Configure(modelBuilder);
         OrganizationEmailDeliveryMapping.Configure(modelBuilder);
+        QuotaRecordMapping.Configure(modelBuilder);
+        QuotaMaintenanceWorkRecord.Configure(modelBuilder);
+        OrganizationRequestLimitRecord.Configure(modelBuilder);
         ApplyOrganizationIsolation(modelBuilder);
         ApplicationModelIsolationValidator.Validate(modelBuilder.Model, moduleCatalog?.Descriptors ?? []);
     }

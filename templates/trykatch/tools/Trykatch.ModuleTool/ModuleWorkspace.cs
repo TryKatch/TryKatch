@@ -304,6 +304,7 @@ public sealed partial class ModuleWorkspace
         ModuleEmailManifestRules.Validate(modules, errors);
         ModuleRealtimeManifestRules.Validate(modules, errors);
         ModuleFeatureManifestRules.Validate(modules, errors);
+        ModuleQuotaManifestRules.Validate(modules, errors);
         ValidateEnabledGraph(modules, errors);
         ValidateGlobalContributions(modules.Where(module => module.Registration.Enabled), errors);
     }
@@ -718,6 +719,45 @@ public sealed partial class ModuleWorkspace
                     .Append(JsonSerializer.Serialize(feature.Name)).Append(", ")
                     .Append(JsonSerializer.Serialize(feature.Description)).Append(", ")
                     .Append(feature.DefaultEnabled ? "true" : "false").AppendLine(")),");
+            }
+        }
+        output.AppendLine("        ]);");
+        output.AppendLine("        ModuleQuotaRegistrationRules.ValidateManifest(All,");
+        output.AppendLine("        [");
+        foreach (LoadedModule module in enabled.OrderBy(item => item.Manifest.Id, StringComparer.Ordinal))
+        {
+            foreach (ModuleQuotaResourceManifest resource in (module.Manifest.QuotaResources ?? [])
+                         .Where(resource => resource is not null)
+                         .Select(resource => resource!)
+                         .OrderBy(resource => resource.Key, StringComparer.Ordinal))
+            {
+                string unit = resource.Unit switch
+                {
+                    "bytes" => "ModuleQuotaUnit.Bytes",
+                    "count" => "ModuleQuotaUnit.Count",
+                    _ => throw new InvalidOperationException($"Unsupported quota resource unit '{resource.Unit}'.")
+                };
+                output.Append("            new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", new(")
+                    .Append(JsonSerializer.Serialize(resource.Key)).Append(", ")
+                    .Append(JsonSerializer.Serialize(resource.Name)).Append(", ")
+                    .Append(JsonSerializer.Serialize(resource.Description)).Append(", ")
+                    .Append(unit).Append(')');
+                if (resource.UploadPolicy is not null || resource.InventorySource is not null || resource.RemovalPolicy is not null)
+                {
+                    output.Append(" { ");
+                    if (resource.UploadPolicy is { } upload)
+                        output.Append("UploadPolicy = new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", ")
+                            .Append(JsonSerializer.Serialize(upload.PolicyKey)).Append(", ").Append(upload.PolicyVersion)
+                            .Append(", ").Append(JsonSerializer.Serialize(upload.RequiredPermission)).Append("), ");
+                    if (resource.InventorySource is { } source)
+                        output.Append("InventorySource = new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", ")
+                            .Append(JsonSerializer.Serialize(source.SourceKey)).Append(", ").Append(source.SourceVersion).Append("), ");
+                    if (resource.RemovalPolicy is { } removal)
+                        output.Append("RemovalPolicy = new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", ")
+                            .Append(JsonSerializer.Serialize(removal.PolicyKey)).Append(", ").Append(removal.PolicyVersion).Append("), ");
+                    output.Append('}');
+                }
+                output.AppendLine("),");
             }
         }
         output.AppendLine("        ]);");
@@ -1157,6 +1197,7 @@ public sealed class ModuleManifest
     public ModuleContributions Contributions { get; init; } = new();
     public ModuleExecutionManifest Execution { get; init; } = new();
     public List<ModuleFeatureManifest?>? Features { get; init; } = [];
+    public List<ModuleQuotaResourceManifest?>? QuotaResources { get; init; } = [];
 }
 
 public sealed class ModuleFeatureManifest
@@ -1169,6 +1210,47 @@ public sealed class ModuleFeatureManifest
     public string Description { get; init; } = string.Empty;
     [JsonRequired]
     public bool DefaultEnabled { get; init; }
+}
+
+public sealed class ModuleQuotaResourceManifest
+{
+    [JsonRequired]
+    public string Key { get; init; } = string.Empty;
+    [JsonRequired]
+    public string Name { get; init; } = string.Empty;
+    [JsonRequired]
+    public string Description { get; init; } = string.Empty;
+    [JsonRequired]
+    public string Unit { get; init; } = string.Empty;
+    public ModuleQuotaUploadPolicyManifest? UploadPolicy { get; init; }
+    public ModuleQuotaInventorySourceManifest? InventorySource { get; init; }
+    public ModuleQuotaRemovalPolicyManifest? RemovalPolicy { get; init; }
+}
+
+public sealed class ModuleQuotaUploadPolicyManifest
+{
+    [JsonRequired]
+    public string PolicyKey { get; init; } = string.Empty;
+    [JsonRequired]
+    public int PolicyVersion { get; init; }
+    [JsonRequired]
+    public string RequiredPermission { get; init; } = string.Empty;
+}
+
+public sealed class ModuleQuotaInventorySourceManifest
+{
+    [JsonRequired]
+    public string SourceKey { get; init; } = string.Empty;
+    [JsonRequired]
+    public int SourceVersion { get; init; }
+}
+
+public sealed class ModuleQuotaRemovalPolicyManifest
+{
+    [JsonRequired]
+    public string PolicyKey { get; init; } = string.Empty;
+    [JsonRequired]
+    public int PolicyVersion { get; init; }
 }
 
 public sealed class ModuleExecutionManifest
@@ -1206,6 +1288,7 @@ public sealed class ModuleSystemGrantManifest
     public List<string> AllowedResourceKeys { get; init; } = [];
     public List<ModuleEmailDisclosurePolicyRefManifest> AllowedEmailDisclosurePolicies { get; init; } = [];
     public List<ModuleRealtimePolicyRefManifest?>? AllowedRealtimePolicies { get; init; } = [];
+    public List<string?>? AllowedQuotaResources { get; init; } = [];
 }
 
 public sealed class ModuleRealtimeAudiencePolicyManifest

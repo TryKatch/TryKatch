@@ -10,8 +10,14 @@ internal static class SystemWorkGrantValidator
         ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(identity);
 
-        ModuleOperationDescriptor operation = registration.Descriptor;
-        ModuleSystemGrantDescriptor? grant = registration.SystemGrant;
+        return TryValidate(registration.Descriptor, registration.SystemGrant, identity);
+    }
+
+    internal static bool TryValidate(ModuleOperationDescriptor operation, ModuleSystemGrantDescriptor? grant,
+        ModuleExecutionIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(identity);
         if (grant is null
             || identity.CatalogVersion != ModuleOperationRegistry.CatalogVersion
             || identity.OrganizationId == Guid.Empty

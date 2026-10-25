@@ -49,7 +49,7 @@ classify_path() {
     scripts/test-vercel-deployment.sh)
       web=true
       ;;
-    scripts/test-generated-application.sh|scripts/test-business-blueprint.sh|scripts/test-first-feature.sh)
+    scripts/test-generated-application.sh|scripts/test-business-blueprint.sh|scripts/test-first-feature.sh|scripts/lib/quota-*|scripts/assert-quota-policy-output*)
       backend=true
       web=true
       deployment=true

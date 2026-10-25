@@ -122,6 +122,21 @@ The Web SDK exposes the current organization's feature state through `useModuleF
 
 Bind workspace route and navigation contributions with `requiredFeature` alongside `requiredPermission`. Archive contributions use independent `readFeature` and `manageFeature` keys. The catalog validates references against installed declarations and rejects organization-feature bindings on platform surfaces. On the server, `RequireModuleFeature` belongs to an endpoint inside its owning module's secured organization group; it does not replace permission checks or the evaluator inside the use case.
 
+## Declare organization quota resources
+
+Use the optional manifest `quotaResources` list and matching `ModuleDescriptor.QuotaResources` for stable module-owned accounting resources. Each entry requires an owner-prefixed key (maximum120characters), name (160), description (1000) and explicit unit: manifest `bytes`/`count`, runtime `ModuleQuotaUnit.Bytes`/`Count`. A module may declare at most100resources. Omitted metadata is an empty list for existing modules. Module doctor and generated API/migrator registries reject malformed declarations and descriptor drift; `module facts` includes the validated metadata, including declarations retained for disabled installations.
+
+```json
+"quotaResources": [{
+  "key": "documents.storage-bytes",
+  "name": "Document storage",
+  "description": "Logical uploaded bytes in Active, Archived and pending-deletion documents.",
+  "unit": "bytes"
+}]
+```
+
+A declaration supplies accounting identity, not permission, feature availability or an enforced allowance. Disabled modules are omitted from the runtime registry. A system-work grant must separately list any quota authority in manifest `allowedQuotaResources` and runtime `AllowedQuotaResources`; its default is empty, and its business-data resource set grants no quota authority. Each quota grant must reference a resource declared by that same module. These contracts are the S5 foundation; durable reservation, publication, inventory and upload adapters require their own runtime qualification before finite enforcement.
+
 ## Lifecycle commands
 
 Run these commands from the generated solution root. The packaged tool command is `trykatch`; `dotnet run` works before installing it globally.

@@ -144,16 +144,22 @@ export const TemplatePreviewFailure: Story = {
 
 export const French: Story = {
   globals: { theme: 'light', locale: 'fr' },
+  parameters: { msw: { handlers: { api: [deliveries(), http.get('*/api/v1/platform/email-deliveries/templates', async () => {
+    await delay(250)
+    return HttpResponse.json({ items: [template], page: 1, pageSize: 50, totalCount: 1 })
+  })] } } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(await canvas.findByRole('heading', { name: 'Envoi des e-mails' })).toBeVisible()
     await expect(await canvas.findByRole('heading', { name: 'Enregistrements d’envoi' })).toBeVisible()
     await expect(canvas.getByRole('combobox', { name: 'Périmètre' })).toBeVisible()
     const records = within(await canvas.findByRole('table', { name: 'Enregistrements d’envoi' }))
+    await records.findByText('delivery-1')
+    const templateTable = within(await canvas.findByRole('table', { name: 'Modèles d’e-mail' }))
+    await templateTable.findByText('organization.invitation')
     await expect(canvas.getAllByRole('searchbox', { name: 'Rechercher dans le tableau' })).toHaveLength(2)
     await expect(canvas.getAllByText('Colonnes')).toHaveLength(2)
     await expect(records.getByText('Organisation')).toBeVisible()
-    const templateTable = within(await canvas.findByRole('table', { name: 'Modèles d’e-mail' }))
     await expect(templateTable.getByRole('columnheader', { name: 'Modèle' })).toBeVisible()
   },
 }

@@ -26,6 +26,8 @@ The published API has automatic bucket creation disabled. Supply these values th
 
 ## Compose and generated applications
 
+See [conditional object storage](conditional-object-storage.md) for the managed upload namespace, permanent cancellation sentinels, captured destination fingerprints and local filesystem qualification requirements.
+
 The maintained production Compose configuration remains external-provider based. Set `TRYKATCH_STORAGE_SERVICE_URL`, `TRYKATCH_STORAGE_ACCESS_KEY`, `TRYKATCH_STORAGE_SECRET_KEY`, `TRYKATCH_STORAGE_BUCKET`, and `TRYKATCH_STORAGE_REGION` as described in `.env.example`. Compose does not start RustFS and does not create the configured bucket. Protect `.env` and provide bucket-scoped credentials through the deployment's secret handling process. The application continues to use the existing AWS SDK S3 adapter and `IObjectStorage` contract; no provider-specific application API or object-key format is introduced.
 
 Newly generated products use the RustFS AppHost development service by default when storage is enabled. Existing generated products are not updated automatically when the template changes. A maintainer upgrading an existing generated application must plan any data move separately: copy and verify stored objects in the target service, then verify and repoint that application's `Storage:ServiceUrl` before changing existing document records or routing requests to the new store. Keep the old MinIO volume until the copied data and application behavior have been verified and its owner explicitly approves disposal. This template update performs no live data migration, volume deletion, or credential publication.

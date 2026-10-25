@@ -13,6 +13,8 @@ compose_realtime_origin_override="$test_root/compose.realtime-origin.yml"
 email_enabled=${TRYKATCH_ACCEPTANCE_EMAIL:-false}
 realtime_enabled=${TRYKATCH_ACCEPTANCE_REALTIME:-false}
 features_enabled=${TRYKATCH_ACCEPTANCE_FEATURES:-false}
+quotas_enabled=${TRYKATCH_ACCEPTANCE_QUOTAS:-false}
+compose_quota_override="$test_root/compose.quotas.yml"
 email_state_file="$test_root/email-state.json"
 realtime_state_file="$test_root/realtime-state.json"
 feature_state_file="$test_root/feature-state.json"
@@ -34,6 +36,7 @@ email_operator_password=${TRYKATCH_ACCEPTANCE_EMAIL_OPERATOR_PASSWORD:-}
 compose_started=false
 vite_pid=
 feature_browser_pid=
+quota_browser_pid=
 
 compose() {
   local files=(--file "$generated_root/compose.yml")
@@ -46,6 +49,9 @@ compose() {
   fi
   if [[ -f $compose_realtime_origin_override ]]; then
     files+=(--file "$compose_realtime_origin_override")
+  fi
+  if [[ $quotas_enabled == true ]]; then
+    files+=(--file "$compose_quota_override")
   fi
   docker compose \
     --project-name "$compose_project" \
@@ -87,6 +93,10 @@ collect_artifacts() {
 
 cleanup() {
   local exit_code=$?
+  if [[ -n $quota_browser_pid ]]; then
+    kill "$quota_browser_pid" >/dev/null 2>&1 || true
+    wait "$quota_browser_pid" >/dev/null 2>&1 || true
+  fi
   if [[ -n $feature_browser_pid ]]; then
     kill "$feature_browser_pid" >/dev/null 2>&1 || true
     wait "$feature_browser_pid" >/dev/null 2>&1 || true
@@ -363,9 +373,14 @@ case "$features_enabled" in
   true|false) ;;
   *) printf 'TRYKATCH_ACCEPTANCE_FEATURES must be true or false.\n' >&2; exit 2 ;;
 esac
+case "$quotas_enabled" in
+  true|false) ;;
+  *) printf 'TRYKATCH_ACCEPTANCE_QUOTAS must be true or false.\n' >&2; exit 2 ;;
+esac
 if [[ $email_enabled == true && $realtime_enabled == true ]] \
-  || [[ $features_enabled == true && ( $email_enabled == true || $realtime_enabled == true ) ]]; then
-  printf 'Select email, realtime or feature acceptance separately.\n' >&2
+  || [[ $features_enabled == true && ( $email_enabled == true || $realtime_enabled == true ) ]] \
+  || [[ $quotas_enabled == true && ( $email_enabled == true || $realtime_enabled == true || $features_enabled == true ) ]]; then
+  printf 'Select email, realtime, feature or quota acceptance separately.\n' >&2
   exit 2
 fi
 
@@ -550,12 +565,26 @@ services:
 EOF
 fi
 
+if [[ $quotas_enabled == true ]]; then
+  source "$repository_root/scripts/lib/quota-acceptance.sh"
+  configure_quota_acceptance
+fi
+
 compose config --quiet
 compose_started=true
-compose up --detach --build postgres migrator api web
+if [[ $quotas_enabled == true ]]; then
+  # Cold-start both processes against the same empty Identity database too.
+  compose up --detach --build --scale api=2 postgres migrator api web
+else
+  compose up --detach --build postgres migrator api web
+fi
 wait_for_web
 
 pnpm --dir "$generated_root/web" install --frozen-lockfile
+if [[ $quotas_enabled == true ]]; then
+  run_quota_acceptance
+  exit 0
+fi
 if [[ $realtime_enabled == true ]]; then
   compose up --detach --wait --wait-timeout 120 --scale api=2 api
   test "$(compose ps --status running -q api | wc -l | tr -d ' ')" = 2

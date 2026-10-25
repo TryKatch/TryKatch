@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { customFetch, organizationSettingsAiGet, organizationSettingsAiUpdate, organizationSettingsAiTest, type OrganizationAiConfiguration } from '@trykatch/api-client'
 import { Badge, Button, FloatingInput, FloatingSelect, PageHeader, Skeleton, Surface } from '@trykatch/ui'
-import { Bot, KeyRound, ShieldCheck } from 'lucide-react'
-import { useState } from 'react'
+import { Bot, ChartNoAxesColumn, KeyRound, ShieldCheck } from 'lucide-react'
+import { useRef, useState, type KeyboardEvent } from 'react'
 import { z } from 'zod'
 import { useI18n } from '../i18n/I18nProvider'
+import { OrganizationUsagePanel } from './OrganizationUsagePanel'
 
 type ProviderFields = { provider: string; model: string; endpoint: string; timeoutMs: number }
 const providerSchema = z.object({ provider: z.enum(['openai', 'deepseek', 'chat-completions', 'ollama']), model: z.string().trim().min(1).max(120), endpoint: z.string().max(500), timeoutMs: z.number().int().min(1000).max(60_000) })
@@ -19,6 +20,21 @@ export function OrganizationSettingsPage() {
   const canManage = access.data?.permissions.includes('organizations.manage') ?? false
   const canRead = canManage || (access.data?.permissions.includes('organizations.read') ?? false)
   const settings = useQuery({ queryKey: ['organization-ai-settings'], queryFn: ({ signal }) => organizationSettingsAiGet({ signal }), enabled: canRead, retry: false })
+  const [activeTab, setActiveTab] = useState<'ai' | 'usage'>('ai')
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const selectTab = (tab: 'ai' | 'usage', focus = false) => {
+    setActiveTab(tab)
+    if (focus) tabRefs.current[tab === 'ai' ? 0 : 1]?.focus()
+  }
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      const current = event.currentTarget === tabRefs.current[0] ? 0 : 1
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + 2) % 2
+      const tab = next === 0 ? 'ai' : 'usage'
+      selectTab(tab, true)
+    }
+  }
   const [draft, setDraft] = useState<boolean>()
   const [fields, setFields] = useState<ProviderFields>()
   const [apiKey, setApiKey] = useState('')
@@ -59,9 +75,10 @@ export function OrganizationSettingsPage() {
   return <>
     <PageHeader eyebrow={t('Administration')} title={t('Settings')} description={t('Manage configuration for this organization.')} />
     <div className="user-management-tabs organization-settings-tabs" role="tablist" aria-label={t('Organization settings')}>
-      <button id="ai-settings-tab" role="tab" aria-selected aria-controls="ai-settings-panel" className="active"><Bot size={16} aria-hidden="true" /> {t('AI Configuration')}</button>
+      <button ref={element => { tabRefs.current[0] = element }} id="ai-settings-tab" role="tab" aria-selected={activeTab === 'ai'} aria-controls="ai-settings-panel" tabIndex={activeTab === 'ai' ? 0 : -1} className={activeTab === 'ai' ? 'active' : ''} onClick={() => selectTab('ai')} onKeyDown={onTabKeyDown}><Bot size={16} aria-hidden="true" /> {t('AI Configuration')}</button>
+      <button ref={element => { tabRefs.current[1] = element }} id="usage-settings-tab" role="tab" aria-selected={activeTab === 'usage'} aria-controls="usage-settings-panel" tabIndex={activeTab === 'usage' ? 0 : -1} className={activeTab === 'usage' ? 'active' : ''} onClick={() => selectTab('usage')} onKeyDown={onTabKeyDown}><ChartNoAxesColumn size={16} aria-hidden="true" /> {t('Usage')}</button>
     </div>
-    <Surface className="organization-settings-panel"><section id="ai-settings-panel" role="tabpanel" aria-labelledby="ai-settings-tab">
+    <Surface className="organization-settings-panel" hidden={activeTab !== 'ai'}><section id="ai-settings-panel" role="tabpanel" aria-labelledby="ai-settings-tab">
       {access.isPending || (canRead && settings.isPending) ? <div role="status" aria-label={t('Loading…')}><Skeleton /><Skeleton /></div>
         : access.isError ? <><p role="alert">{t('Settings access could not be checked.')}</p><Button onClick={() => void access.refetch()}>{t('Retry')}</Button></>
         : !canRead ? <p>{t('You do not have permission to view organization settings.')}</p>
@@ -129,5 +146,6 @@ export function OrganizationSettingsPage() {
           </form>
         })()}
     </section></Surface>
+    <OrganizationUsagePanel enabled={activeTab === 'usage'} accessPending={access.isPending} accessError={access.isError} authorized={canRead} onRetryAccess={() => void access.refetch()} />
   </>
 }

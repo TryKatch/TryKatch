@@ -223,6 +223,9 @@ public sealed class PostgresIsolationInspectionTests
             GRANT SELECT ON platform.outbox_recovery_events TO {platform};
             GRANT SELECT, INSERT, UPDATE ON platform.feature_environment_controls, platform.organization_feature_overrides TO {platform};
             GRANT SELECT, INSERT ON platform.feature_control_history TO {platform};
+            GRANT SELECT, INSERT ON platform.entitlement_publication_history TO {platform};
+            GRANT USAGE ON SCHEMA app TO {platform};
+            GRANT SELECT, INSERT, UPDATE ON app.organization_entitlements TO {platform};
             """);
         try
         {
@@ -280,8 +283,10 @@ public sealed class PostgresIsolationInspectionTests
         await using PlatformDbContext owner = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(database.ConnectionString).Options);
         // This behavior test replaces the inspector's minimal stub with the full control-plane model.
         await database.ExecuteAsync("DROP TABLE platform.audit_intents");
-        await database.ExecuteAsync("DROP TABLE platform.feature_control_history, platform.organization_feature_overrides, platform.feature_environment_controls");
+        await database.ExecuteAsync("DROP TABLE platform.entitlement_publication_history, platform.feature_control_history, platform.organization_feature_overrides, platform.feature_environment_controls");
         await database.ExecuteAsync(owner.Database.GenerateCreateScript());
+        foreach (SqlOperation operation in new AddEntitlementPublicationHistory().UpOperations.OfType<SqlOperation>())
+            await database.ExecuteAsync(operation.Sql);
         foreach (SqlOperation operation in new ScopeControlPlaneAccess().UpOperations.OfType<SqlOperation>())
         {
             string testRoles = operation.Sql
@@ -489,6 +494,90 @@ public sealed class PostgresIsolationInspectionTests
         tampered.IsValid.ShouldBeFalse();
         tampered.Errors.ShouldContain(error => error.Contains("differs from its approved", StringComparison.Ordinal));
     }
+
+    [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsChangedQuotaGuardFunctionBody(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, target => $"""
+            CREATE OR REPLACE FUNCTION app.{target.Function}()
+            RETURNS trigger LANGUAGE plpgsql
+            AS $function$ BEGIN RETURN NEW; END $function$;
+            """);
+    }
+
+    [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsQuotaGuardSecurityDefiner(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, target =>
+            $"ALTER FUNCTION app.{target.Function}() SECURITY DEFINER;");
+    }
+
+    [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsDisabledQuotaGuardTrigger(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, target =>
+            $"ALTER TABLE app.{target.Table} DISABLE TRIGGER {target.Trigger};");
+    }
+
+    [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsDroppedQuotaGuardTrigger(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, target =>
+            $"DROP TRIGGER {target.Trigger} ON app.{target.Table};");
+    }
+
+    [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsQuotaGuardExecuteGrantedToOrganizationRuntime(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, (target, database) =>
+            $"GRANT EXECUTE ON FUNCTION app.{target.Function}() TO {database.RuntimeRole};");
+    }
+
+    private static async Task RejectsQuotaGuardTamperingAsync(
+        string guard,
+        Func<QuotaGuardTarget, string> mutation) =>
+        await RejectsQuotaGuardTamperingAsync(guard, (target, _) => mutation(target));
+
+    private static async Task RejectsQuotaGuardTamperingAsync(
+        string guard,
+        Func<QuotaGuardTarget, InspectionDatabase, string> mutation)
+    {
+        QuotaGuardTarget target = guard switch
+        {
+            "entitlement" => new("guard_entitlement_identity", "organization_entitlements", "guard_entitlement_identity"),
+            "reservation" => new("guard_quota_reservation_transition", "organization_quota_reservations", "guard_quota_reservation_transition"),
+            "upload" => new("guard_upload_transition", "module_upload_operations", "guard_upload_transition"),
+            _ => throw new ArgumentOutOfRangeException(nameof(guard), guard, "Unknown quota guard.")
+        };
+
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync(mutation(target, database));
+
+        PostgresIsolationInspection inspection = await database.InspectAsync();
+
+        inspection.IsValid.ShouldBeFalse();
+        inspection.Errors.ShouldContain(error =>
+            error.Contains(target.Function, StringComparison.Ordinal)
+            || error.Contains(target.Trigger, StringComparison.Ordinal)
+            || error.Contains("EXECUTE", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed record QuotaGuardTarget(string Function, string Table, string Trigger);
 
     [TestMethod]
     public async Task RejectsPublicSequencePrivilegesInCustomSchemas()
@@ -923,6 +1012,18 @@ public sealed class PostgresIsolationInspectionTests
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
                          new AddMutationReceipts().UpOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationQuotas().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddQuotaUploadRecovery().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationRequestLimits().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new RetainQuotaResourceDisplayNames().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
             // This catalog-inspection fixture omits the organization directory.
             // Real feature migration tests separately prove its restricting FKs.
             // Retain the actual column/key/index and forced-RLS operations here.
@@ -931,13 +1032,28 @@ public sealed class PostgresIsolationInspectionTests
                 table.ForeignKeys.Clear();
             foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(featureOperations, operational.Model))
                 await result.ExecuteAsync(command.CommandText);
+            await using (PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>()
+                .UseNpgsql(result.connectionString).Options))
+            {
+                MigrationOperation[] publicationHistoryOperations = new AddEntitlementPublicationHistory().UpOperations.ToArray();
+                foreach (CreateTableOperation table in publicationHistoryOperations.OfType<CreateTableOperation>())
+                    table.ForeignKeys.Clear();
+                foreach (var command in platform.GetService<IMigrationsSqlGenerator>()
+                             .Generate(publicationHistoryOperations, platform.Model))
+                    await result.ExecuteAsync(command.CommandText);
+            }
             await result.ExecuteAsync($"""
                 GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
                 GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
+                GRANT INSERT ON infrastructure.quota_maintenance_work TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.module_event_inbox TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.module_work_completions TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON app.cache_invalidations TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON app.mutation_receipts TO {result.RuntimeRole};
+                GRANT SELECT ON app.organization_entitlements TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.organization_quota_reservations, app.organization_quota_inventory, app.module_upload_operations TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.organization_request_limits TO {result.RuntimeRole};
+                GRANT SELECT, INSERT ON app.organization_usage TO {result.RuntimeRole};
                 GRANT SELECT, INSERT, UPDATE ON app.realtime_streams TO {result.RuntimeRole};
                 GRANT SELECT, INSERT ON app.realtime_history TO {result.RuntimeRole};
                 GRANT SELECT ON platform.feature_environment_controls, platform.organization_feature_overrides TO {result.RuntimeRole};
@@ -964,7 +1080,15 @@ public sealed class PostgresIsolationInspectionTests
                 "platform.feature_environment_controls",
                 "platform.organization_feature_overrides",
                 "platform.feature_control_history",
+                "platform.entitlement_publication_history",
                 "app.mutation_receipts",
+                "app.organization_entitlements",
+                "app.organization_quota_reservations",
+                "app.organization_quota_inventory",
+                "app.organization_usage",
+                "app.organization_request_limits",
+                "app.module_upload_operations",
+                "infrastructure.quota_maintenance_work",
                 "app.cache_invalidations",
                 "app.realtime_streams",
                 "app.realtime_history",

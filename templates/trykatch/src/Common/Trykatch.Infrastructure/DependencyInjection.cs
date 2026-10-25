@@ -3,6 +3,7 @@ using Trykatch.Application.Realtime;
 using Trykatch.Application.Eventing;
 using Trykatch.Infrastructure.Execution;
 using Trykatch.Infrastructure.Features;
+using Trykatch.Infrastructure.Quotas;
 using Trykatch.Infrastructure.Caching;
 using Trykatch.Infrastructure.Realtime;
 using Trykatch.Infrastructure.Jobs;
@@ -59,18 +60,27 @@ public static class DependencyInjection
         services.AddScoped<CacheGenerationStore>();
         services.AddOrganizationCache(configuration, isOpenApiGeneration);
         services.AddFeaturePolicy(configuration);
+        services.AddOrganizationQuotas(configuration, isOpenApiGeneration);
+        services.AddSingleton(_ => OrganizationRequestLimitSettings.Create(configuration));
+        services.AddScoped<global::Trykatch.Application.Quotas.IOrganizationRequestAdmission>(provider =>
+            new OrganizationRequestAdmission(provider.GetRequiredService<IOrganizationContext>(),
+                provider.GetRequiredService<OrganizationRequestLimitSettings>(), organizationConnection));
+        services.AddHostedService<OrganizationRequestLimitStartupValidator>();
         services.AddScoped<CacheInvalidationTransactionInterceptor>();
+        services.AddScoped<UploadFinalizationTransactionInterceptor>();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));
         services.AddDbContext<OrganizationControlPlaneDbContext>((provider, options) => options
             .UseNpgsql(organizationConnection)
-            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>()));
+            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>(),
+                provider.GetRequiredService<UploadFinalizationTransactionInterceptor>()));
         // Organization-scoped requests use explicit transactions on both contexts so
         // PostgreSQL transaction-local RLS variables cannot leak between pooled
         // connections. Retrying an entire HTTP transaction could replay downstream
         // side effects, therefore these contexts deliberately avoid EF retries.
         services.AddDbContext<ApplicationDbContext>((provider, options) => options
             .UseNpgsql(organizationConnection)
-            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>()));
+            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>(),
+                provider.GetRequiredService<UploadFinalizationTransactionInterceptor>()));
         services.AddOptions<OutboxRecoveryOptions>()
             .BindConfiguration(OutboxRecoveryOptions.SectionName)
             .ValidateOnStart();

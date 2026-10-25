@@ -41,6 +41,13 @@ test('publication cannot seal a candidate without production queued-email qualif
   assert.throws(() => sealManifest(directory, manifest, version, commit, runId, withoutEmail), /Every required/);
 });
 
+test('publication requires composed production quota qualification', t => {
+  const { directory, manifest } = fixture(t);
+  assert.ok(qualificationGates.includes('generated-quota-production'));
+  const withoutQuotas = qualificationGates.filter(gate => gate !== 'generated-quota-production');
+  assert.throws(() => sealManifest(directory, manifest, version, commit, runId, withoutQuotas), /Every required/);
+});
+
 test('altered bytes or rebuilt packages cannot pass the recorded digest', t => {
   const { directory, manifest } = fixture(t);
   writeFileSync(join(directory, `Trykatch.Cli.${version}.nupkg`), 'tampered package');

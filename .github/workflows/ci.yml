@@ -42,6 +42,7 @@ jobs:
           node scripts/ci/test-blueprint-dialog-refresh.mjs
           node --test scripts/ci/test-release-artifacts.mjs scripts/ci/test-email-log-privacy.mjs
           node --test scripts/ci/test-generated-reproducibility.mjs
+          node --test scripts/assert-quota-policy-output.test.mjs scripts/lib/quota-storage-gate.test.mjs
           bash scripts/ci/check-docs-required.sh "$BASE_SHA" "$HEAD_SHA"
           bash scripts/ci/detect-changes.sh "$BASE_SHA" "$HEAD_SHA" | tee -a "$GITHUB_OUTPUT"
 
@@ -316,7 +317,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.qualification == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -324,12 +325,19 @@ jobs:
           - email: 'false'
             realtime: 'false'
             features: 'true'
+            quotas: 'false'
           - email: 'true'
             realtime: 'false'
             features: 'false'
+            quotas: 'false'
           - email: 'false'
             realtime: 'true'
             features: 'false'
+            quotas: 'false'
+          - email: 'false'
+            realtime: 'false'
+            features: 'false'
+            quotas: 'true'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
@@ -352,10 +360,11 @@ jobs:
           TRYKATCH_ACCEPTANCE_EMAIL: ${{ matrix.email }}
           TRYKATCH_ACCEPTANCE_REALTIME: ${{ matrix.realtime }}
           TRYKATCH_ACCEPTANCE_FEATURES: ${{ matrix.features }}
+          TRYKATCH_ACCEPTANCE_QUOTAS: ${{ matrix.quotas }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: generated-application-acceptance-email-${{ matrix.email }}-realtime-${{ matrix.realtime }}
+          name: generated-application-acceptance-email-${{ matrix.email }}-realtime-${{ matrix.realtime }}-quotas-${{ matrix.quotas }}
           path: artifacts/generated-application
           if-no-files-found: error
           retention-days: 14

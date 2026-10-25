@@ -780,6 +780,25 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "x-codeSamples": [
@@ -5735,6 +5754,44 @@
         ]
       }
     },
+    "/api/v1/quotas/usage": {
+      "get": {
+        "tags": [
+          "Quotas"
+        ],
+        "summary": "Current usage quotas",
+        "operationId": "Quotas_CurrentUsage",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationQuotaUsage"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationQuotaUsage"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationQuotaUsage"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/quotas/usage', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/workspace/select": {
       "post": {
         "tags": [
@@ -7880,6 +7937,94 @@
           }
         }
       },
+      "OrganizationQuotaUsage": {
+        "required": [
+          "resources"
+        ],
+        "type": "object",
+        "properties": {
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationQuotaUsageResource"
+            }
+          }
+        }
+      },
+      "OrganizationQuotaUsageResource": {
+        "required": [
+          "resourceKey",
+          "name",
+          "unit",
+          "mode",
+          "limit",
+          "version",
+          "source",
+          "committed",
+          "reserved",
+          "reconciliationHeld",
+          "state",
+          "installed"
+        ],
+        "type": "object",
+        "properties": {
+          "resourceKey": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "limit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "source": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "committed": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reserved": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reconciliationHeld": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean"
+          }
+        }
+      },
       "OutboxFailure": {
         "required": [
           "messageId",
@@ -9232,6 +9377,13 @@
               "null",
               "string"
             ]
+          },
+          "operationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -9421,6 +9573,9 @@
       "name": "PlatformAccessActivation"
     },
     {
+      "name": "Quotas"
+    },
+    {
       "name": "WorkspaceContext"
     },
     {
@@ -9443,7 +9598,7 @@
     {
       "id": "documents",
       "name": "Documents",
-      "version": "1.1.0",
+      "version": "1.3.0",
       "capabilities": [
         "Api",
         "Web",
