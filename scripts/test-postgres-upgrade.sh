@@ -12,7 +12,7 @@ ef11_migrator_dll=${EF11_MIGRATOR_DLL:-$repository_root/templates/trykatch/src/A
 postgres18_image=${POSTGRES18_IMAGE:-postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f}
 postgres19_image=${POSTGRES19_IMAGE:-postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67}
 
-for executable in docker dotnet; do
+for executable in docker dotnet psql; do
   command -v "$executable" >/dev/null || { printf 'Required executable not found: %s\n' "$executable" >&2; exit 1; }
 done
 [[ -n "$ef10_migrator_dll" && -f "$ef10_migrator_dll" ]] || {
@@ -27,11 +27,11 @@ ef11_deps_json=${ef11_migrator_dll%.dll}.deps.json
   exit 1
 }
 [[ -f "$ef11_deps_json" ]] || { printf 'Candidate migrator .deps.json not found beside %s.\n' "$ef11_migrator_dll" >&2; exit 1; }
-rg -q '"Microsoft\.EntityFrameworkCore/10\.' "$ef10_deps_json" || {
+grep -Fq '"Microsoft.EntityFrameworkCore/10.' "$ef10_deps_json" || {
   printf 'EF10_MIGRATOR_DLL does not declare Entity Framework Core major version 10: %s\n' "$ef10_migrator_dll" >&2
   exit 1
 }
-rg -q '"Microsoft\.EntityFrameworkCore/11\.' "$ef11_deps_json" || {
+grep -Fq '"Microsoft.EntityFrameworkCore/11.' "$ef11_deps_json" || {
   printf 'EF11_MIGRATOR_DLL does not declare Entity Framework Core major version 11: %s\n' "$ef11_migrator_dll" >&2
   exit 1
 }

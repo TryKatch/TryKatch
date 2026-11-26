@@ -119,14 +119,14 @@ public sealed class ShipmentBlueprintAcceptanceTests
             using HttpResponseMessage response = await SendAsync(tenant, HttpMethod.Post, "/api/v1/shipment_receptions",
                 new { shipmentReference = "SHIP-2026-001", receivedWeight = "95.25", dispatchedWeight = "100.00", documentsVerified = verified }, tenantToken);
             response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
-            return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
+            return JsonElement.Parse(await response.Content.ReadAsStringAsync());
         }
         async Task<JsonElement> ActionAsync(JsonElement record, string action, object body, HttpStatusCode expected)
         {
             using HttpResponseMessage response = await SendAsync(tenant, HttpMethod.Post,
                 $"/api/v1/shipment_receptions/{record.GetProperty("id").GetGuid()}/actions/{action}", body, tenantToken);
             response.StatusCode.ShouldBe(expected, await response.Content.ReadAsStringAsync());
-            return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
+            return JsonElement.Parse(await response.Content.ReadAsStringAsync());
         }
 
         JsonElement draft = await CreateShipmentAsync(false);
