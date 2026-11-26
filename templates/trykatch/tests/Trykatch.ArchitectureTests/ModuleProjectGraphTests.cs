@@ -169,9 +169,9 @@ public sealed class ModuleProjectGraphTests
         string appHost = File.ReadAllText(Path.Combine(
             Workspace,
             "src/API/Trykatch.AppHost/ApplicationHostingExtensions.cs"));
-        appHost.ShouldContain("quay.io/minio/minio");
+        appHost.ShouldContain("rustfs/rustfs");
         appHost.ShouldContain("Storage__ServiceUrl");
-        appHost.ShouldContain("WithHttpHealthCheck(\"/minio/health/ready\", endpointName: \"s3\")");
+        appHost.ShouldContain("WithHttpHealthCheck(\"/health/ready\", endpointName: \"s3\")");
 
         string endpoints = File.ReadAllText(Path.Combine(
             Workspace,

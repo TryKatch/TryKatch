@@ -1,13 +1,15 @@
 ---
 title: Envoi de documents
-description: Comprendre le module Documents de référence, la ressource MinIO locale et la frontière du stockage en production.
+description: Comprendre le module Documents de référence, la ressource RustFS locale et la frontière du stockage en production.
 ---
 
 Projects et Documents sont tous deux activés dans l’application de départ, mais ils illustrent des formes de modules différentes. Projects représente un CRUD ordinaire appartenant à une organisation. Documents est un flux de fichiers full-stack : le navigateur envoie un fichier à l’API autorisée, PostgreSQL conserve les métadonnées recherchables et le stockage objet privé conserve les octets.
 
 ## Développement local
 
-`trykatch start` démarre MinIO avec Aspire lorsque l’application a été générée avec l’option par défaut `--storage true`. Aspire lie les ports de développement dynamiques de MinIO à l’interface locale et ne les publie pas comme points d’accès externes ; le navigateur ne reçoit jamais leurs identifiants.
+`trykatch start` démarre RustFS avec Aspire lorsque l’application a été générée avec l’option par défaut `--storage true`. Aspire lie les ports de développement dynamiques à l’interface locale et conserve les identifiants de stockage côté serveur.
+
+RustFS utilise son propre volume de développement. Si vous adoptez cette configuration AppHost dans un projet qui utilise déjà MinIO, copiez les fichiers à conserver via S3 avant de changer le point d’accès de l’application.
 
 1. Démarrez Docker Desktop ou un autre moteur de conteneurs pris en charge par Aspire.
 2. Exécutez `trykatch start` depuis la racine de l’application générée.
@@ -34,8 +36,6 @@ L’archivage et la demande de suppression conservent les octets parce que le fl
 
 ## Production
 
-Documents dépend du contrat neutre `IObjectStorage`. MinIO est uniquement l’adaptateur de développement démarré par Aspire ; les couches Domain et Application du module ne référencent ni MinIO ni un SDK S3. L’adaptateur d’infrastructure fourni fonctionne avec les points d’accès compatibles S3, et un autre fournisseur peut le remplacer en implémentant le même contrat sans modifier le module Documents.
-
-L’image communautaire MinIO épinglée est uniquement un outil de développement local. Les avis de sécurité MinIO actuels orientent les utilisateurs de production vers des versions corrigées et prises en charge ; Trykatch ne présente donc pas le conteneur MinIO local comme une recommandation de stockage en production.
+Documents dépend du contrat neutre `IObjectStorage`. L’adaptateur d’infrastructure fonctionne avec les points d’accès compatibles S3 et peut être remplacé en implémentant le même contrat. Utilisez un service compatible S3 corrigé et pris en charge en production.
 
 Configurez l’API de production avec `Storage__ServiceUrl`, `Storage__AccessKey`, `Storage__SecretKey`, `Storage__Bucket` et `Storage__Region`. Créez le compartiment privé à l’avance, définissez `Storage__CreateBucket` sur `false`, limitez l’identité de l’application à ce seul compartiment, utilisez TLS, activez le chiffrement et la gestion des versions selon votre politique de données, puis surveillez la capacité et les échecs d’opérations objet.

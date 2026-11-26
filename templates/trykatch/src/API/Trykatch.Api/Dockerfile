@@ -6,7 +6,7 @@ RUN dotnet restore src/API/Trykatch.Api/Trykatch.Api.csproj --locked-mode \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.11@sha256:011bb5f30180717b1c8b65822ff2c99bcb96bc65af0164589751b83c7b4949f7 AS final
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y curl=8.5.0-2ubuntu10.13 \
+    && apt-get install --no-install-recommends -y curl=8.5.0-2ubuntu10.16 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build --chown=$APP_UID:$APP_UID /app .

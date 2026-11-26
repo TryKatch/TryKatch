@@ -14,25 +14,24 @@ namespace Trykatch.IntegrationTests;
 public sealed class ObjectStorageIntegrationTests
 {
     private const string Image =
-        "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e";
+        "rustfs/rustfs:1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c";
 
     [TestMethod]
-    public async Task S3CompatibleAdapterStoresAndReadsAnObjectFromMinio()
+    public async Task S3CompatibleAdapterStoresAndReadsAnObject()
     {
-        await using IContainer minio = new ContainerBuilder(Image)
-            .WithEnvironment("MINIO_ROOT_USER", "trykatch-test")
-            .WithEnvironment("MINIO_ROOT_PASSWORD", "trykatch-test-secret")
+        await using IContainer objectStore = new ContainerBuilder(Image)
+            .WithEnvironment("RUSTFS_ACCESS_KEY", "trykatch-test")
+            .WithEnvironment("RUSTFS_SECRET_KEY", "trykatch-test-secret")
             .WithPortBinding(9000, assignRandomHostPort: true)
-            .WithCommand("server", "/data")
             .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request =>
-                request.ForPort(9000).ForPath("/minio/health/ready")))
+                request.ForPort(9000).ForPath("/health/ready")))
             .Build();
-        await minio.StartAsync();
+        await objectStore.StartAsync();
 
         IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Storage:ServiceUrl"] = $"http://127.0.0.1:{minio.GetMappedPublicPort(9000)}",
+                ["Storage:ServiceUrl"] = $"http://127.0.0.1:{objectStore.GetMappedPublicPort(9000)}",
                 ["Storage:AccessKey"] = "trykatch-test",
                 ["Storage:SecretKey"] = "trykatch-test-secret",
                 ["Storage:Bucket"] = "documents-test",

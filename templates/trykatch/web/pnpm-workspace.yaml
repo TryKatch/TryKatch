@@ -3,7 +3,11 @@ packages:
   - packages/*
   - ../src/Modules/*/Web
 overrides:
+  brace-expansion@5: 5.0.11
   js-yaml: 4.3.2
+  markdown-it@14: 14.3.3
+  seroval@1: 1.6.8
+  source-map-js@1: 1.2.2
 allowBuilds:
   esbuild: true
   msw: true

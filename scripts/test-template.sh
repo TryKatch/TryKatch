@@ -170,8 +170,8 @@ generate_and_build() {
 }
 
 generate_and_build Horizon
-grep -Fq 'quay.io/minio/minio' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
-  fail 'default storage-enabled template output omits the MinIO Aspire resource'
+grep -Fq 'rustfs/rustfs' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output omits the RustFS Aspire resource'
 test -d "$test_root/Horizon/web"
 test ! -e "$test_root/Horizon/web/apps/web/src/views/LandingPage.tsx" ||
   fail 'generated React application includes the Trykatch marketing landing page'
@@ -306,11 +306,11 @@ fi
 grep -Fq 'ports: ["8080:8080"]' "$test_root/Acme.Tools.Portal/compose.yml"
 generate_and_build Email.Sample --ui none --email
 generate_and_build Storage.Sample --ui none --storage
-grep -Fq 'quay.io/minio/minio' "$test_root/Storage.Sample/src/API/Storage.Sample.AppHost/ApplicationHostingExtensions.cs" ||
-  fail 'explicit storage-enabled template output omits the MinIO Aspire resource'
+grep -Fq 'rustfs/rustfs' "$test_root/Storage.Sample/src/API/Storage.Sample.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'explicit storage-enabled template output omits the RustFS Aspire resource'
 dotnet new trykatch -n NoStorage -o "$test_root/NoStorage" --storage false --allow-scripts yes --debug:custom-hive "$template_hive"
-if grep -Fq 'quay.io/minio/minio' "$test_root/NoStorage/src/API/NoStorage.AppHost/ApplicationHostingExtensions.cs"; then
-  fail 'storage-disabled template output unexpectedly registers MinIO'
+if grep -Fq 'rustfs/rustfs' "$test_root/NoStorage/src/API/NoStorage.AppHost/ApplicationHostingExtensions.cs"; then
+  fail 'storage-disabled template output unexpectedly registers RustFS'
 fi
 generate_and_build Documents.Sample --ui none --documents
 generate_and_build Images.Sample --ui none --images

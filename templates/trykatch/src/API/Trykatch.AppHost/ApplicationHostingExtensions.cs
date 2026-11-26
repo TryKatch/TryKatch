@@ -177,29 +177,29 @@ internal static class ApplicationHostingExtensions
     {
 #if TRYKATCH_STORAGE
         IResourceBuilder<ParameterResource> accessKey =
-            builder.AddParameter("minio-access-key", "trykatch-local", secret: true);
+            builder.AddParameter("rustfs-access-key", "trykatch-local", secret: true);
         IResourceBuilder<ParameterResource> secretKey =
-            builder.AddParameter("minio-secret-key", "local-minio-secret-only", secret: true);
-        IResourceBuilder<ContainerResource> minio = builder
+            builder.AddParameter("rustfs-secret-key", "local-storage-secret-only", secret: true);
+        IResourceBuilder<ContainerResource> storage = builder
             .AddContainer(
-                "minio",
-                "quay.io/minio/minio",
-                "RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
-            .WithArgs("server", "/data", "--console-address", ":9001")
-            .WithEnvironment("MINIO_ROOT_USER", accessKey)
-            .WithEnvironment("MINIO_ROOT_PASSWORD", secretKey)
-            .WithVolume("trykatch-app-slug-minio-data", "/data")
+                "rustfs",
+                "rustfs/rustfs",
+                "1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c")
+            .WithEnvironment("RUSTFS_ACCESS_KEY", accessKey)
+            .WithEnvironment("RUSTFS_SECRET_KEY", secretKey)
+            .WithEnvironment("RUSTFS_CONSOLE_ENABLE", "true")
+            .WithVolume("trykatch-app-slug-rustfs-data", "/data")
             .WithHttpEndpoint(targetPort: 9000, name: "s3")
             .WithHttpEndpoint(targetPort: 9001, name: "console")
-            .WithHttpHealthCheck("/minio/health/ready", endpointName: "s3");
+            .WithHttpHealthCheck("/health/ready", endpointName: "s3");
 
-        api.WithEnvironment("Storage__ServiceUrl", minio.GetEndpoint("s3"))
+        api.WithEnvironment("Storage__ServiceUrl", storage.GetEndpoint("s3"))
             .WithEnvironment("Storage__AccessKey", accessKey)
             .WithEnvironment("Storage__SecretKey", secretKey)
             .WithEnvironment("Storage__Bucket", "trykatch-documents")
             .WithEnvironment("Storage__Region", "us-east-1")
             .WithEnvironment("Storage__CreateBucket", "true")
-            .WaitFor(minio);
+            .WaitFor(storage);
 #endif
     }
 
