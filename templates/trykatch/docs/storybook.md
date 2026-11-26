@@ -24,7 +24,7 @@ Start with **Welcome → Catalogue guide**, then **Forms → Native controls** a
 
 **Forms → Floating fields** documents shared `FloatingInput` and `FloatingTextarea`: empty, filled, focus/typing, invalid, disabled, read-only, numeric/date and translated/themed states. Role, project and document metadata forms reuse these controls. Floating labels remain associated HTML labels, not placeholders; date/time labels always float. Native file pickers and selects keep visible labels. Pass translated `label`, `description` and `error` values to the shared controls. Do not manually recreate floating-label CSS in feature pages.
 
-Organization role, project and document metadata forms use Zod 4.5.4 before submission. FluentValidation 12.1.1 independently validates organization roles, project create/update commands and document metadata on the backend. File safety, permission grants, uniqueness and business invariants remain server responsibilities. Other existing forms may still use native/custom validation; this does not claim universal Zod adoption.
+Organization role, project and document metadata forms use Zod 4.6.6 before submission. FluentValidation 12.1.1 independently validates organization roles, project create/update commands and document metadata on the backend. File safety, permission grants, uniqueness and business invariants remain server responsibilities. Other existing forms may still use native/custom validation; this does not claim universal Zod adoption.
 
 Shipped AI skills and `AGENTS.md` require consulting Storybook before frontend work and maintaining stories for changed visual behavior.
 

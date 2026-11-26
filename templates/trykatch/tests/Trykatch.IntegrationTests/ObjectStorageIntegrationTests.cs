@@ -19,7 +19,7 @@ public sealed class ObjectStorageIntegrationTests
     private const string AccessKey = "trykatch-object-storage-test";
     private const string SecretKey = "trykatch-object-storage-test-secret";
     private const string Image =
-        "docker.io/rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b";
+        "rustfs/rustfs:1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c";
 
     [TestMethod]
     public async Task S3AdapterStoresReadsDeletesAndRejectsUnauthorizedRequests()

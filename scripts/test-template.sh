@@ -310,7 +310,7 @@ fi
 generate_and_build Horizon
 grep -Fq 'rustfs/rustfs' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
   fail 'default storage-enabled template output omits the RustFS Aspire resource'
-grep -Fq '1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+grep -Fq '1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
   fail 'default storage-enabled template output does not pin the reviewed RustFS image'
 grep -Fq '.WithEnvironment("RUSTFS_ACCESS_KEY", accessKey)' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
   fail 'default storage-enabled template output does not pass the local access key to RustFS'

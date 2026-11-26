@@ -4,11 +4,11 @@ The optional Documents capability stores file bytes through the host's S3-compat
 
 ## AppHost run mode
 
-When `--storage` is enabled, `dotnet run --project src/API/<App>.AppHost` starts the API and a local RustFS 1.0.3 container. The image is pinned to `rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b`. RustFS exposes S3 and console endpoints through AppHost; the API receives the S3 endpoint and uses the development bucket `trykatch-documents` with automatic bucket creation enabled.
+When `--storage` is enabled, `dotnet run --project src/API/<App>.AppHost` starts the API and a local RustFS 1.0.7 container. The image is pinned to `rustfs/rustfs:1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c`. RustFS exposes S3 and console endpoints through AppHost; the API receives the S3 endpoint and uses the development bucket `trykatch-documents` with automatic bucket creation enabled.
 
 AppHost retains the existing local secret parameter names `minio-access-key` and `minio-secret-key` so existing Aspire secret values remain usable; it passes those values to RustFS as `RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY`. Keep these local development secrets private and use unique credentials for any RustFS instance reachable beyond the developer's machine. RustFS persists data in the new `trykatch-app-slug-object-storage-data` volume. The former `trykatch-app-slug-minio-data` volume is not mounted, renamed, copied, or removed by this change.
 
-The pinned image and the local setup are development defaults, not a production readiness or high-availability claim. See the [RustFS container documentation](https://docs.rustfs.com/en/installation/container/docker) and [RustFS 1.0.3 release](https://github.com/rustfs/rustfs/releases/tag/1.0.3).
+The pinned image and the local setup are development defaults, not a production readiness or high-availability claim. See the [RustFS container documentation](https://docs.rustfs.com/en/installation/container/docker) and [RustFS 1.0.7 release](https://github.com/rustfs/rustfs/releases/tag/1.0.7).
 
 ## AppHost publish mode
 

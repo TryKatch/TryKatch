@@ -339,7 +339,7 @@ internal static class ApplicationHostingExtensions
             .AddContainer(
                 "object-storage",
                 "rustfs/rustfs",
-                "1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b")
+                "1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c")
             .WithArgs("/data")
             .WithEnvironment("RUSTFS_ACCESS_KEY", accessKey)
             .WithEnvironment("RUSTFS_SECRET_KEY", secretKey)

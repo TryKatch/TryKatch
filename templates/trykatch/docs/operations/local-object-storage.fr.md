@@ -4,11 +4,11 @@ La capacité Documents facultative stocke les octets des fichiers via l'adaptate
 
 ## Mode d'exécution AppHost
 
-Lorsque `--storage` est activé, `dotnet run --project src/API/<App>.AppHost` démarre l'API et un conteneur RustFS 1.0.3 local. L'image est épinglée sur `rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b`. RustFS expose les points de terminaison S3 et console via AppHost ; l'API reçoit le point de terminaison S3 et utilise le bucket de développement `trykatch-documents`, avec création automatique du bucket activée.
+Lorsque `--storage` est activé, `dotnet run --project src/API/<App>.AppHost` démarre l'API et un conteneur RustFS 1.0.7 local. L'image est épinglée sur `rustfs/rustfs:1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c`. RustFS expose les points de terminaison S3 et console via AppHost ; l'API reçoit le point de terminaison S3 et utilise le bucket de développement `trykatch-documents`, avec création automatique du bucket activée.
 
 AppHost conserve les noms de paramètres secrets locaux existants `minio-access-key` et `minio-secret-key` afin que les valeurs Aspire secrètes déjà présentes restent utilisables ; il transmet ces valeurs à RustFS dans `RUSTFS_ACCESS_KEY` et `RUSTFS_SECRET_KEY`. Gardez ces secrets locaux de développement confidentiels et utilisez des identifiants uniques pour toute instance RustFS accessible au-delà de la machine de développement. RustFS conserve les données dans le nouveau volume `trykatch-app-slug-object-storage-data`. L'ancien volume `trykatch-app-slug-minio-data` n'est ni monté, renommé, copié ni supprimé par cette modification.
 
-L'image épinglée et la configuration locale sont des valeurs par défaut de développement, et ne constituent pas une déclaration de préparation à la production ou de haute disponibilité. Consultez la [documentation RustFS sur les conteneurs](https://docs.rustfs.com/en/installation/container/docker) et la [version RustFS 1.0.3](https://github.com/rustfs/rustfs/releases/tag/1.0.3).
+L'image épinglée et la configuration locale sont des valeurs par défaut de développement, et ne constituent pas une déclaration de préparation à la production ou de haute disponibilité. Consultez la [documentation RustFS sur les conteneurs](https://docs.rustfs.com/en/installation/container/docker) et la [version RustFS 1.0.7](https://github.com/rustfs/rustfs/releases/tag/1.0.7).
 
 ## Mode de publication AppHost
 

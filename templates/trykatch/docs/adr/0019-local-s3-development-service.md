@@ -22,3 +22,7 @@ Use a new `trykatch-app-slug-object-storage-data` volume. Never mount an existin
 The real S3 adapter must create a bucket, PUT and byte-exact GET an object across a container restart, DELETE it and observe its absence. Wrong credentials and anonymous reads must be rejected by the actual server. Generated application qualification must exercise its existing Documents flow against the pinned service; source assertions alone are insufficient. Verify the image on supported amd64 and arm64 development/CI platforms and verify that AppHost publishing contains only external S3 parameters.
 
 This is a single-node development convenience. It does not qualify production availability, backup/restore, large multipart transfers, encryption, or arbitrary S3 extensions. Production service selection, policies, TLS, credential rotation and migration remain deployment decisions. No live data or deployment was changed. Concrete checks and remaining limitations are recorded in the [E4 evidence](../specs/evidence/parity-execution-e4.md).
+
+## Preview.34 image update
+
+The local service now uses RustFS 1.0.7. The [operations guide](../operations/local-object-storage.md) records the current image digest. The original qualification evidence above applies to version 1.0.3.

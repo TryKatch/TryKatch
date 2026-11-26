@@ -1,11 +1,15 @@
 allowBuilds:
   esbuild: true
+overrides:
+  # Preserve the docs security floor while staying on the current Astro release.
+  'astro@7.3.3>sharp': '-'
+  'astro@7.3.3>unstorage': 1.17.5
+  'devalue@5': 5.9.4
+  'unstorage@1.17.5>lru-cache': 11.5.2
+  'source-map-js@1': 1.2.2
+  'undici@8': 8.12.3
+  'vite@8': 8.3.5
+  'zod@4': 4.6.7
 minimumReleaseAgeExclude:
   - '@astrojs/markdown-satteri@0.4.1'
   - astro@7.3.2
-overrides:
-  # Static assets use Astro's passthrough image service.
-  'astro@7.3.3>sharp': '-'
-  # Retain the existing cache graph; review these pins with the next Astro upgrade.
-  'astro@7.3.3>unstorage': 1.17.5
-  'unstorage@1.17.5>lru-cache': 11.5.2

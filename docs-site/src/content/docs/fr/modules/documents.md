@@ -7,7 +7,7 @@ Projects et Documents sont tous deux activés dans l’application de départ, m
 
 ## Développement local
 
-`trykatch start` démarre un conteneur RustFS 1.0.3 compatible S3 avec Aspire lorsque l’application a été générée avec l’option par défaut `--storage true`. L’image Apache-2.0 est épinglée sur `rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b`. Aspire lie ses ports de développement dynamiques à l’interface locale et ne les publie pas comme points d’accès externes ; le navigateur ne reçoit jamais les identifiants de stockage.
+`trykatch start` démarre un conteneur RustFS 1.0.7 compatible S3 avec Aspire lorsque l’application a été générée avec l’option par défaut `--storage true`. L’image Apache-2.0 est épinglée sur `rustfs/rustfs:1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c`. Aspire lie ses ports de développement dynamiques à l’interface locale et ne les publie pas comme points d’accès externes ; le navigateur ne reçoit jamais les identifiants de stockage.
 
 1. Démarrez Docker Desktop ou un autre moteur de conteneurs pris en charge par Aspire.
 2. Exécutez `trykatch start` depuis la racine de l’application générée.

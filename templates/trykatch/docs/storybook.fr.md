@@ -24,7 +24,7 @@ Commencez par **Welcome → Catalogue guide**, puis **Forms → Native controls*
 
 **Forms → Floating fields** documente `FloatingInput` et `FloatingTextarea` : vide, rempli, focus/saisie, invalide, désactivé, lecture seule, nombre/date et langues/thèmes. Les rôles, projets et métadonnées de documents réutilisent ces contrôles. Les libellés sont associés aux champs ; ceux des dates/heures flottent toujours. Les fichiers et listes natives gardent leurs libellés visibles. Fournissez des valeurs traduites pour `label`, `description` et `error`, sans recréer les styles dans chaque page.
 
-Les formulaires de rôles d’organisation, projets et métadonnées de documents utilisent Zod 4.5.4 avant l’envoi. FluentValidation 12.1.1 valide indépendamment les commandes correspondantes côté serveur. Sécurité des fichiers, autorisations, unicité et invariants métier restent côté serveur. Les autres formulaires peuvent encore utiliser une validation native/personnalisée ; Zod n’est pas encore universel.
+Les formulaires de rôles d’organisation, projets et métadonnées de documents utilisent Zod 4.6.6 avant l’envoi. FluentValidation 12.1.1 valide indépendamment les commandes correspondantes côté serveur. Sécurité des fichiers, autorisations, unicité et invariants métier restent côté serveur. Les autres formulaires peuvent encore utiliser une validation native/personnalisée ; Zod n’est pas encore universel.
 
 Les skills livrées et `AGENTS.md` demandent de consulter Storybook avant chaque tâche frontend et de maintenir les stories du comportement modifié.
 

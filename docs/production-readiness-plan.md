@@ -6,7 +6,7 @@ Move Trykatch from a production-oriented pre-release template to a stable templa
 
 ## Current baseline
 
-The target for the CLI and template packages is **0.1.0-preview.34**. It adds an opt-in minimal starter, serializes production migrations and upgrades the template to .NET 11 and PostgreSQL 19. See the [previous release notes](releases/0.1.0-preview.33.md) for preview.33.
+The target for the CLI and template packages is **0.1.0-preview.34**. It adds an opt-in minimal starter, serializes production migrations and upgrades the template to .NET 11 and PostgreSQL 19. See the [preview.34 release notes](releases/0.1.0-preview.34.md).
 
 Published **0.1.0-preview.29** introduced the branded Storybook foundation and compact floating controls. Its [qualification and publication](https://github.com/TryKatch/TryKatch/actions/runs/35318206885) succeeded and both coordinated NuGet packages became publicly available. Preview.30 addresses the subsequently reported host-form label regression; it does not close the remaining complete-catalogue or stable-readiness gates.
 

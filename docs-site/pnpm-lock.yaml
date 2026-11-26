@@ -7,7 +7,12 @@ settings:
 overrides:
   astro@7.3.3>sharp: '-'
   astro@7.3.3>unstorage: 1.17.5
+  devalue@5: 5.9.4
   unstorage@1.17.5>lru-cache: 11.5.2
+  source-map-js@1: 1.2.2
+  undici@8: 8.12.3
+  vite@8: 8.3.5
+  zod@4: 4.6.7
 
 importers:
 
@@ -1727,7 +1732,7 @@ packages:
   vitefu@1.1.3:
     resolution: {integrity: sha512-ub4okH7Z5KLjb6hDyjqrGXqWtWvoYdU3IGm/NorpgHncKoLTCfRIbvlhBm7r0YstIaQRYlp4yEbFqDcKSzXSSg==}
     peerDependencies:
-      vite: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
+      vite: 8.3.5
     peerDependenciesMeta:
       vite:
         optional: true

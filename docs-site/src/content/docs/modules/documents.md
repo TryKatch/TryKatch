@@ -7,7 +7,7 @@ Projects and Documents are both enabled in the starter, but they demonstrate dif
 
 ## Local development
 
-`trykatch start` starts a local RustFS 1.0.3 S3-compatible container with Aspire when the application was generated with the default `--storage true` option. The Apache-2.0 image is pinned to `rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b`. Aspire binds its dynamic development ports to loopback and does not advertise them as external endpoints; the browser never receives storage credentials.
+`trykatch start` starts a local RustFS 1.0.7 S3-compatible container with Aspire when the application was generated with the default `--storage true` option. The Apache-2.0 image is pinned to `rustfs/rustfs:1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c`. Aspire binds its dynamic development ports to loopback and does not advertise them as external endpoints; the browser never receives storage credentials.
 
 1. Start Docker Desktop or another Aspire-supported container runtime.
 2. Run `trykatch start` from the generated application root.
