@@ -30,7 +30,7 @@ public sealed class OrganizationRateLimitMiddleware(RequestDelegate next)
             try
             {
                 if (validation is { IsValid: false }) throw new AntiforgeryValidationException("Request verification failed.");
-                if (validation is null) await antiforgery.ValidateRequestAsync(context);
+                await antiforgery.ValidateRequestAsync(context);
             }
             catch (AntiforgeryValidationException)
             {
