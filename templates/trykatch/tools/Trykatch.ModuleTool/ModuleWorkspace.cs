@@ -300,6 +300,11 @@ public sealed partial class ModuleWorkspace
             ValidateContributions(manifest, errors);
         }
 
+        ModuleExecutionManifestRules.Validate(modules, errors);
+        ModuleEmailManifestRules.Validate(modules, errors);
+        ModuleRealtimeManifestRules.Validate(modules, errors);
+        ModuleFeatureManifestRules.Validate(modules, errors);
+        ModuleQuotaManifestRules.Validate(modules, errors);
         ValidateEnabledGraph(modules, errors);
         ValidateGlobalContributions(modules.Where(module => module.Registration.Enabled), errors);
     }
@@ -698,6 +703,65 @@ public sealed partial class ModuleWorkspace
             output.Append("        new ").Append(type).AppendLine("(),");
         }
         output.AppendLine("    ];");
+        output.AppendLine("    static EnabledModules()");
+        output.AppendLine("    {");
+        output.AppendLine("        ModuleFeatureRegistrationRules.ValidateManifest(All,");
+        output.AppendLine("        [");
+        foreach (LoadedModule module in enabled.OrderBy(item => item.Manifest.Id, StringComparer.Ordinal))
+        {
+            foreach (ModuleFeatureManifest feature in (module.Manifest.Features ?? [])
+                         .Where(feature => feature is not null)
+                         .Select(feature => feature!)
+                         .OrderBy(feature => feature.Key, StringComparer.Ordinal))
+            {
+                output.Append("            new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", new(")
+                    .Append(JsonSerializer.Serialize(feature.Key)).Append(", ")
+                    .Append(JsonSerializer.Serialize(feature.Name)).Append(", ")
+                    .Append(JsonSerializer.Serialize(feature.Description)).Append(", ")
+                    .Append(feature.DefaultEnabled ? "true" : "false").AppendLine(")),");
+            }
+        }
+        output.AppendLine("        ]);");
+        output.AppendLine("        ModuleQuotaRegistrationRules.ValidateManifest(All,");
+        output.AppendLine("        [");
+        foreach (LoadedModule module in enabled.OrderBy(item => item.Manifest.Id, StringComparer.Ordinal))
+        {
+            foreach (ModuleQuotaResourceManifest resource in (module.Manifest.QuotaResources ?? [])
+                         .Where(resource => resource is not null)
+                         .Select(resource => resource!)
+                         .OrderBy(resource => resource.Key, StringComparer.Ordinal))
+            {
+                string unit = resource.Unit switch
+                {
+                    "bytes" => "ModuleQuotaUnit.Bytes",
+                    "count" => "ModuleQuotaUnit.Count",
+                    _ => throw new InvalidOperationException($"Unsupported quota resource unit '{resource.Unit}'.")
+                };
+                output.Append("            new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", new(")
+                    .Append(JsonSerializer.Serialize(resource.Key)).Append(", ")
+                    .Append(JsonSerializer.Serialize(resource.Name)).Append(", ")
+                    .Append(JsonSerializer.Serialize(resource.Description)).Append(", ")
+                    .Append(unit).Append(')');
+                if (resource.UploadPolicy is not null || resource.InventorySource is not null || resource.RemovalPolicy is not null)
+                {
+                    output.Append(" { ");
+                    if (resource.UploadPolicy is { } upload)
+                        output.Append("UploadPolicy = new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", ")
+                            .Append(JsonSerializer.Serialize(upload.PolicyKey)).Append(", ").Append(upload.PolicyVersion)
+                            .Append(", ").Append(JsonSerializer.Serialize(upload.RequiredPermission)).Append("), ");
+                    if (resource.InventorySource is { } source)
+                        output.Append("InventorySource = new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", ")
+                            .Append(JsonSerializer.Serialize(source.SourceKey)).Append(", ").Append(source.SourceVersion).Append("), ");
+                    if (resource.RemovalPolicy is { } removal)
+                        output.Append("RemovalPolicy = new(").Append(JsonSerializer.Serialize(module.Manifest.Id)).Append(", ")
+                            .Append(JsonSerializer.Serialize(removal.PolicyKey)).Append(", ").Append(removal.PolicyVersion).Append("), ");
+                    output.Append('}');
+                }
+                output.AppendLine("),");
+            }
+        }
+        output.AppendLine("        ]);");
+        output.AppendLine("    }");
         output.AppendLine("    public static IReadOnlyList<InstalledDataResource> InstalledDataResources { get; } =");
         output.AppendLine("    [");
         // Synchronization is append-only. Enabled modules enroll newly created
@@ -744,6 +808,7 @@ public sealed partial class ModuleWorkspace
         StringBuilder output = new();
         output.AppendLine("// Generated by the module tool. Do not edit by hand.");
         output.Append("import { WebModuleCatalog } from '").Append(moduleSdkSpecifier).AppendLine("'");
+        output.Append("import type { InstalledModuleFeature } from '").Append(moduleSdkSpecifier).AppendLine("'");
         foreach (LoadedModule module in enabled)
         {
             output.Append("import { ").Append(module.Manifest.Entrypoints.Web.Export).Append(" } from '")
@@ -751,10 +816,28 @@ public sealed partial class ModuleWorkspace
         }
         output.AppendLine("import { workspaceOverrides } from './module-overrides'");
         output.AppendLine();
+        output.AppendLine("const EXPECTED_FEATURES: readonly InstalledModuleFeature[] = [");
+        foreach (LoadedModule module in enabled.OrderBy(item => item.Manifest.Id, StringComparer.Ordinal))
+        {
+            foreach (ModuleFeatureManifest feature in (module.Manifest.Features ?? [])
+                         .Where(feature => feature is not null)
+                         .Select(feature => feature!)
+                         .OrderBy(feature => feature.Key, StringComparer.Ordinal))
+            {
+                output.Append("  { moduleId: ").Append(JsonSerializer.Serialize(module.Manifest.Id))
+                    .Append(", feature: { key: ").Append(JsonSerializer.Serialize(feature.Key))
+                    .Append(", name: ").Append(JsonSerializer.Serialize(feature.Name))
+                    .Append(", description: ").Append(JsonSerializer.Serialize(feature.Description))
+                    .Append(", defaultEnabled: ").Append(feature.DefaultEnabled ? "true" : "false")
+                    .AppendLine(" } },");
+            }
+        }
+        output.AppendLine("]");
+        output.AppendLine();
         output.AppendLine("export const workspaceModules = new WebModuleCatalog([");
         foreach (LoadedModule module in enabled)
             output.Append("  ").Append(module.Manifest.Entrypoints.Web.Export).AppendLine(",");
-        output.AppendLine("], workspaceOverrides)");
+        output.AppendLine("], workspaceOverrides, EXPECTED_FEATURES)");
         return output.ToString();
     }
 
@@ -850,7 +933,9 @@ public sealed partial class ModuleWorkspace
         }
         catch (JsonException exception)
         {
-            errors.Add($"Invalid {subject} JSON: {exception.Message}");
+            errors.Add(exception.Path?.Contains("realtime", StringComparison.OrdinalIgnoreCase) == true
+                ? $"Invalid {subject} realtime metadata JSON."
+                : $"Invalid {subject} JSON: {exception.Message}");
             return default;
         }
     }
@@ -994,11 +1079,8 @@ public sealed partial class ModuleWorkspace
             : string.Empty;
         if (!string.IsNullOrWhiteSpace(applicationNamespace))
         {
-            contents = contents.Replace(applicationNamespace, templateNamespace, StringComparison.Ordinal);
-            contents = contents.Replace(
-                applicationNamespace.ToLowerInvariant(),
-                templateNpmScope,
-                StringComparison.Ordinal);
+            contents = NormalizeApplicationToken(contents, applicationNamespace, templateNamespace);
+            contents = NormalizeApplicationToken(contents, applicationNamespace.ToLowerInvariant(), templateNpmScope);
 
             string webSpecifier = manifest.Entrypoints.Web.Specifier;
             int scopeEnd = webSpecifier.IndexOf('/', StringComparison.Ordinal);
@@ -1014,6 +1096,19 @@ public sealed partial class ModuleWorkspace
             }
         }
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contents))).ToLowerInvariant();
+    }
+
+    private static string NormalizeApplicationToken(string contents, string token, string canonical)
+    {
+        if (token == canonical) return contents;
+        if (!canonical.Contains(token, StringComparison.OrdinalIgnoreCase))
+            return contents.Replace(token, canonical, StringComparison.Ordinal);
+
+        // Names such as Katch overlap the unchanged npm scope and the normalized .NET namespace.
+        // Match the entire canonical spelling first to preserve those existing occurrences.
+        string pattern = $"(?i:{Regex.Escape(canonical)})|{Regex.Escape(token)}";
+        return Regex.Replace(contents, pattern, match => match.Value == token ? canonical : match.Value,
+            RegexOptions.CultureInvariant);
     }
 
     [GeneratedRegex("^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", RegexOptions.CultureInvariant)]
@@ -1110,6 +1205,219 @@ public sealed class ModuleManifest
     public ModuleArtifacts Artifacts { get; init; } = new();
     public ModuleEntrypoints Entrypoints { get; init; } = new();
     public ModuleContributions Contributions { get; init; } = new();
+    public ModuleExecutionManifest Execution { get; init; } = new();
+    public List<ModuleFeatureManifest?>? Features { get; init; } = [];
+    public List<ModuleQuotaResourceManifest?>? QuotaResources { get; init; } = [];
+}
+
+public sealed class ModuleFeatureManifest
+{
+    [JsonRequired]
+    public string Key { get; init; } = string.Empty;
+    [JsonRequired]
+    public string Name { get; init; } = string.Empty;
+    [JsonRequired]
+    public string Description { get; init; } = string.Empty;
+    [JsonRequired]
+    public bool DefaultEnabled { get; init; }
+}
+
+public sealed class ModuleQuotaResourceManifest
+{
+    [JsonRequired]
+    public string Key { get; init; } = string.Empty;
+    [JsonRequired]
+    public string Name { get; init; } = string.Empty;
+    [JsonRequired]
+    public string Description { get; init; } = string.Empty;
+    [JsonRequired]
+    public string Unit { get; init; } = string.Empty;
+    public ModuleQuotaUploadPolicyManifest? UploadPolicy { get; init; }
+    public ModuleQuotaInventorySourceManifest? InventorySource { get; init; }
+    public ModuleQuotaRemovalPolicyManifest? RemovalPolicy { get; init; }
+}
+
+public sealed class ModuleQuotaUploadPolicyManifest
+{
+    [JsonRequired]
+    public string PolicyKey { get; init; } = string.Empty;
+    [JsonRequired]
+    public int PolicyVersion { get; init; }
+    [JsonRequired]
+    public string RequiredPermission { get; init; } = string.Empty;
+}
+
+public sealed class ModuleQuotaInventorySourceManifest
+{
+    [JsonRequired]
+    public string SourceKey { get; init; } = string.Empty;
+    [JsonRequired]
+    public int SourceVersion { get; init; }
+}
+
+public sealed class ModuleQuotaRemovalPolicyManifest
+{
+    [JsonRequired]
+    public string PolicyKey { get; init; } = string.Empty;
+    [JsonRequired]
+    public int PolicyVersion { get; init; }
+}
+
+public sealed class ModuleExecutionManifest
+{
+    public List<ModuleOperationManifest> Operations { get; init; } = [];
+    public List<ModuleSystemGrantManifest> SystemGrants { get; init; } = [];
+    public List<ModuleIntegrationEventManifest> IntegrationEvents { get; init; } = [];
+    public List<ModuleEventConsumerManifest> EventConsumers { get; init; } = [];
+    public List<ModuleJobManifest> Jobs { get; init; } = [];
+    public List<ModuleRecurringScheduleManifest> RecurringSchedules { get; init; } = [];
+    public List<ModuleEmailTemplateManifest> EmailTemplates { get; init; } = [];
+    public List<ModuleEmailDisclosurePolicyManifest> EmailDisclosurePolicies { get; init; } = [];
+    public List<ModuleRealtimeAudiencePolicyManifest?>? RealtimeAudiencePolicies { get; init; } = [];
+}
+
+public sealed class ModuleOperationManifest
+{
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
+    public string ExecutionKind { get; init; } = string.Empty;
+    public string PayloadSchemaKey { get; init; } = string.Empty;
+    public int PayloadSchemaVersion { get; init; }
+    public List<string> RequiredPermissionKeys { get; init; } = [];
+    public string ResourcePolicyKey { get; init; } = string.Empty;
+    public string? SystemGrantKey { get; init; }
+    public int MaximumPayloadBytes { get; init; }
+}
+
+public sealed class ModuleSystemGrantManifest
+{
+    public string GrantKey { get; init; } = string.Empty;
+    public int GrantVersion { get; init; }
+    public Guid AuditActorId { get; init; }
+    public List<string> AllowedOperationKeys { get; init; } = [];
+    public List<string> AllowedResourceKeys { get; init; } = [];
+    public List<ModuleEmailDisclosurePolicyRefManifest> AllowedEmailDisclosurePolicies { get; init; } = [];
+    public List<ModuleRealtimePolicyRefManifest?>? AllowedRealtimePolicies { get; init; } = [];
+    public List<string?>? AllowedQuotaResources { get; init; } = [];
+}
+
+public sealed class ModuleRealtimeAudiencePolicyManifest
+{
+    public string PolicyKey { get; init; } = string.Empty;
+    public int PolicyVersion { get; init; }
+    public List<string?>? AllowedAudiences { get; init; } = [];
+    public List<string?>? AllowedResourceKeys { get; init; } = [];
+    public List<string?>? RequiredUserPermissionKeys { get; init; } = [];
+    public List<ModuleRealtimeEventVersionManifest?>? AllowedEvents { get; init; } = [];
+    public List<ModuleRealtimeProducerManifest?>? AllowedSystemProducers { get; init; } = [];
+}
+
+public sealed class ModuleRealtimePolicyRefManifest
+{
+    public string OwnerModuleId { get; init; } = string.Empty;
+    public string PolicyKey { get; init; } = string.Empty;
+    public int PolicyVersion { get; init; }
+}
+
+public sealed class ModuleRealtimeEventVersionManifest
+{
+    public string EventKey { get; init; } = string.Empty;
+    public int SchemaVersion { get; init; }
+}
+
+public sealed class ModuleRealtimeProducerManifest
+{
+    public string ModuleId { get; init; } = string.Empty;
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
+}
+
+public sealed class ModuleEmailTemplateManifest
+{
+    public string TemplateKey { get; init; } = string.Empty;
+    public int TemplateVersion { get; init; }
+    public int MaximumTemplateDataBytes { get; init; }
+}
+
+public sealed class ModuleEmailDisclosurePolicyManifest
+{
+    public string PolicyKey { get; init; } = string.Empty;
+    public int PolicyVersion { get; init; }
+    public List<string> AllowedSourceResourceKeys { get; init; } = [];
+    public List<string> RequiredUserPermissionKeys { get; init; } = [];
+    public List<ModuleEmailTemplateRefManifest> AllowedTemplates { get; init; } = [];
+    public List<ModuleEmailSystemProducerBindingManifest> AllowedSystemProducers { get; init; } = [];
+}
+
+public sealed class ModuleEmailTemplateRefManifest
+{
+    public string OwnerModuleId { get; init; } = string.Empty;
+    public string TemplateKey { get; init; } = string.Empty;
+    public int TemplateVersion { get; init; }
+}
+
+public sealed class ModuleEmailDisclosurePolicyRefManifest
+{
+    public string OwnerModuleId { get; init; } = string.Empty;
+    public string PolicyKey { get; init; } = string.Empty;
+    public int PolicyVersion { get; init; }
+}
+
+public sealed class ModuleEmailSystemProducerBindingManifest
+{
+    public ModuleEmailProducerRefManifest Producer { get; init; } = new();
+    public ModuleEmailTemplateRefManifest Template { get; init; } = new();
+}
+
+public sealed class ModuleEmailProducerRefManifest
+{
+    public string ModuleId { get; init; } = string.Empty;
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
+}
+
+public sealed class ModuleIntegrationEventManifest
+{
+    public string EventKey { get; init; } = string.Empty;
+    public int SchemaVersion { get; init; }
+    public int MaximumPayloadBytes { get; init; }
+}
+
+public sealed class ModuleEventVersionManifest
+{
+    public string EventKey { get; init; } = string.Empty;
+    public int SchemaVersion { get; init; }
+}
+
+public sealed class ModuleEventConsumerManifest
+{
+    public string ConsumerKey { get; init; } = string.Empty;
+    public List<ModuleEventVersionManifest> AcceptedEvents { get; init; } = [];
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
+    public string SystemGrantKey { get; init; } = string.Empty;
+}
+
+public sealed class ModuleJobManifest
+{
+    public string JobKey { get; init; } = string.Empty;
+    public int JobVersion { get; init; }
+    public string OperationKey { get; init; } = string.Empty;
+    public int OperationVersion { get; init; }
+    public string ExecutionKind { get; init; } = string.Empty;
+    public string PayloadSchemaKey { get; init; } = string.Empty;
+    public int PayloadSchemaVersion { get; init; }
+    public int MaximumPayloadBytes { get; init; }
+}
+
+public sealed class ModuleRecurringScheduleManifest
+{
+    public string ScheduleKey { get; init; } = string.Empty;
+    public string JobKey { get; init; } = string.Empty;
+    public int JobVersion { get; init; }
+    public string UtcSchedule { get; init; } = string.Empty;
+    public string MisfirePolicy { get; init; } = string.Empty;
+    public string SystemGrantKey { get; init; } = string.Empty;
 }
 
 public sealed class ModuleDataOwnershipDeclaration

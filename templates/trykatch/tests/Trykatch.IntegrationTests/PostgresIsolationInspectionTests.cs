@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,12 +11,15 @@ using Trykatch.Application;
 using Trykatch.Application.Organizations;
 using Trykatch.Domain.Organizations;
 using Trykatch.Infrastructure;
+using Trykatch.Infrastructure.Jobs;
 using Trykatch.Infrastructure.Modules;
 using Trykatch.Infrastructure.Organizations;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Infrastructure.Persistence.Migrations.Platform;
+using Trykatch.Infrastructure.Persistence.Migrations.Application;
 using Trykatch.Modules;
 using Trykatch.Modules.Documents.Infrastructure;
+using Trykatch.Identity.Persistence.Migrations;
 
 namespace Trykatch.IntegrationTests;
 
@@ -30,6 +35,30 @@ public sealed class PostgresIsolationInspectionTests
         PostgresIsolationInspection inspection = await database.InspectAsync();
 
         inspection.IsValid.ShouldBeTrue(string.Join(Environment.NewLine, inspection.Errors));
+    }
+
+    [TestMethod]
+    public async Task QuartzTablesAreForcedAndDeniedToOrganizationRuntimeRole()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await using NpgsqlConnection connection = new(database.RuntimeConnection);
+        await connection.OpenAsync();
+
+        await using NpgsqlCommand readQuartz = new("SELECT 1 FROM infrastructure.qrtz_job_details LIMIT 1", connection);
+        PostgresException denied = await Should.ThrowAsync<PostgresException>(() => readQuartz.ExecuteScalarAsync());
+        denied.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
+
+        await using NpgsqlConnection administrator = new(database.ConnectionString);
+        await administrator.OpenAsync();
+        await using NpgsqlCommand forcedRls = new($"""
+            SELECT count(*) FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'infrastructure'
+              AND c.relname = ANY(ARRAY[{string.Join(",", QuartzSchemaContract.Tables.Select(table => $"'{table}'"))}])
+              AND c.relrowsecurity AND c.relforcerowsecurity
+            """, administrator);
+        Convert.ToInt32(await forcedRls.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture)
+            .ShouldBe(QuartzSchemaContract.Tables.Length);
     }
 
     [TestMethod]
@@ -130,7 +159,7 @@ public sealed class PostgresIsolationInspectionTests
     public async Task RejectsUndeclaredQuotedRelationsInEveryManagedSchema()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
-        await database.ExecuteAsync("CREATE SCHEMA identity; CREATE TABLE identity.\"UndeclaredQuoted\" (id uuid)");
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE identity.\"UndeclaredQuoted\" (id uuid)");
 
         InvalidOperationException preflight = await Should.ThrowAsync<InvalidOperationException>(() =>
             InstalledSchemaCatalog.ValidateDeclaredObjectsAsync(database.ConnectionString,
@@ -178,6 +207,11 @@ public sealed class PostgresIsolationInspectionTests
             CREATE ROLE {platform} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             CREATE ROLE {identity} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             CREATE ROLE {outbox} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            GRANT USAGE ON SCHEMA identity TO {identity};
+            GRANT SELECT, INSERT, UPDATE ON identity.email_deliveries, identity.account_sessions TO {identity};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON identity."AspNetUsers" TO {identity};
+            GRANT USAGE ON SCHEMA infrastructure TO {outbox};
+            GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO {outbox};
             GRANT USAGE ON SCHEMA platform TO {outbox};
             GRANT SELECT, UPDATE ON platform.outbox_messages TO {outbox};
             GRANT SELECT ON platform.audit_intents TO {outbox};
@@ -187,12 +221,17 @@ public sealed class PostgresIsolationInspectionTests
             GRANT USAGE ON SCHEMA platform TO {platform};
             GRANT SELECT, INSERT ON platform.outbox_replay_requests TO {platform};
             GRANT SELECT ON platform.outbox_recovery_events TO {platform};
+            GRANT SELECT, INSERT, UPDATE ON platform.feature_environment_controls, platform.organization_feature_overrides TO {platform};
+            GRANT SELECT, INSERT ON platform.feature_control_history TO {platform};
+            GRANT SELECT, INSERT ON platform.entitlement_publication_history TO {platform};
+            GRANT USAGE ON SCHEMA app TO {platform};
+            GRANT SELECT, INSERT, UPDATE ON app.organization_entitlements TO {platform};
             """);
         try
         {
             RuntimeDatabaseRoles roles = new(database.RuntimeRole, platform, identity, outbox);
             (await PostgresIsolationInspector.InspectAsync(
-                database.ConnectionString, roles, [new ProjectsModule().Descriptor])).IsValid.ShouldBeTrue();
+                database.ConnectionString, roles, [new ProjectsModule().Descriptor])).Errors.ShouldBeEmpty();
 
             await database.ExecuteAsync($"GRANT USAGE ON SCHEMA app TO {platform}; GRANT SELECT ON app.projects TO {platform}");
 
@@ -244,13 +283,22 @@ public sealed class PostgresIsolationInspectionTests
         await using PlatformDbContext owner = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(database.ConnectionString).Options);
         // This behavior test replaces the inspector's minimal stub with the full control-plane model.
         await database.ExecuteAsync("DROP TABLE platform.audit_intents");
+        await database.ExecuteAsync("DROP TABLE platform.entitlement_publication_history, platform.feature_control_history, platform.organization_feature_overrides, platform.feature_environment_controls");
         await database.ExecuteAsync(owner.Database.GenerateCreateScript());
+        foreach (SqlOperation operation in new AddEntitlementPublicationHistory().UpOperations.OfType<SqlOperation>())
+            await database.ExecuteAsync(operation.Sql);
         foreach (SqlOperation operation in new ScopeControlPlaneAccess().UpOperations.OfType<SqlOperation>())
         {
             string testRoles = operation.Sql
                 .Replace("trykatch_org_runtime", database.RuntimeRole, StringComparison.Ordinal)
                 .Replace("trykatch_platform_runtime", database.OwnerRole, StringComparison.Ordinal);
             await database.ExecuteAsync(testRoles);
+        }
+        foreach (SqlOperation operation in new AddFeatureAvailabilityControls().UpOperations.OfType<SqlOperation>())
+        {
+            await database.ExecuteAsync(operation.Sql
+                .Replace("trykatch_org_runtime", database.RuntimeRole, StringComparison.Ordinal)
+                .Replace("trykatch_platform_runtime", database.OwnerRole, StringComparison.Ordinal));
         }
         await database.ExecuteAsync($"""
             GRANT SELECT ON platform.organizations TO {database.RuntimeRole};
@@ -286,7 +334,7 @@ public sealed class PostgresIsolationInspectionTests
         (await resolver.ResolveAsync(actor, organizationB.Id)).ShouldBeNull();
         await resolver.ResolveAsync(actor, organizationA.Id);
         tenant.Roles.Select(role => role.OrganizationId).Distinct().ToArray().ShouldBe([organizationA.Id]);
-        PostgresException denied = await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlInterpolatedAsync(
+        PostgresException denied = await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlAsync(
             $"INSERT INTO platform.membership_roles (\"MembershipId\", \"RoleId\") VALUES ({membershipA.Id}, {roleB.Id})"));
         denied.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
     }
@@ -448,6 +496,90 @@ public sealed class PostgresIsolationInspectionTests
     }
 
     [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsChangedQuotaGuardFunctionBody(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, target => $"""
+            CREATE OR REPLACE FUNCTION app.{target.Function}()
+            RETURNS trigger LANGUAGE plpgsql
+            AS $function$ BEGIN RETURN NEW; END $function$;
+            """);
+    }
+
+    [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsQuotaGuardSecurityDefiner(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, target =>
+            $"ALTER FUNCTION app.{target.Function}() SECURITY DEFINER;");
+    }
+
+    [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsDisabledQuotaGuardTrigger(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, target =>
+            $"ALTER TABLE app.{target.Table} DISABLE TRIGGER {target.Trigger};");
+    }
+
+    [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsDroppedQuotaGuardTrigger(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, target =>
+            $"DROP TRIGGER {target.Trigger} ON app.{target.Table};");
+    }
+
+    [TestMethod]
+    [DataRow("entitlement")]
+    [DataRow("reservation")]
+    [DataRow("upload")]
+    public async Task RejectsQuotaGuardExecuteGrantedToOrganizationRuntime(string guard)
+    {
+        await RejectsQuotaGuardTamperingAsync(guard, (target, database) =>
+            $"GRANT EXECUTE ON FUNCTION app.{target.Function}() TO {database.RuntimeRole};");
+    }
+
+    private static async Task RejectsQuotaGuardTamperingAsync(
+        string guard,
+        Func<QuotaGuardTarget, string> mutation) =>
+        await RejectsQuotaGuardTamperingAsync(guard, (target, _) => mutation(target));
+
+    private static async Task RejectsQuotaGuardTamperingAsync(
+        string guard,
+        Func<QuotaGuardTarget, InspectionDatabase, string> mutation)
+    {
+        QuotaGuardTarget target = guard switch
+        {
+            "entitlement" => new("guard_entitlement_identity", "organization_entitlements", "guard_entitlement_identity"),
+            "reservation" => new("guard_quota_reservation_transition", "organization_quota_reservations", "guard_quota_reservation_transition"),
+            "upload" => new("guard_upload_transition", "module_upload_operations", "guard_upload_transition"),
+            _ => throw new ArgumentOutOfRangeException(nameof(guard), guard, "Unknown quota guard.")
+        };
+
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync(mutation(target, database));
+
+        PostgresIsolationInspection inspection = await database.InspectAsync();
+
+        inspection.IsValid.ShouldBeFalse();
+        inspection.Errors.ShouldContain(error =>
+            error.Contains(target.Function, StringComparison.Ordinal)
+            || error.Contains(target.Trigger, StringComparison.Ordinal)
+            || error.Contains("EXECUTE", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed record QuotaGuardTarget(string Function, string Table, string Trigger);
+
+    [TestMethod]
     public async Task RejectsPublicSequencePrivilegesInCustomSchemas()
     {
         await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
@@ -497,6 +629,242 @@ public sealed class PostgresIsolationInspectionTests
         inspection.Errors.ShouldContain(error => error.Contains("schema/database CREATE", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public async Task OperationalOwnershipHasNoImplicitGrants()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await using NpgsqlConnection owner = new(database.ConnectionString);
+        await owner.OpenAsync();
+        await using (NpgsqlCommand exists = new("SELECT to_regclass('infrastructure.module_work_items')::text", owner))
+            (await exists.ExecuteScalarAsync()).ShouldBe("infrastructure.module_work_items");
+        await using (NpgsqlCommand completionsExist = new("SELECT to_regclass('app.module_work_completions')::text", owner))
+            (await completionsExist.ExecuteScalarAsync()).ShouldBe("app.module_work_completions");
+        await using (NpgsqlCommand before = new("SELECT has_table_privilege('trykatch_outbox_worker', 'infrastructure.module_work_items', 'SELECT')", owner))
+            (await before.ExecuteScalarAsync()).ShouldBe(false);
+
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
+            new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
+        RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
+        await RuntimeRoleProvisioner.ProvisionAsync(database.ConnectionString, roles);
+        (await PostgresIsolationInspector.InspectAsync(database.ConnectionString, roles,
+            [new ProjectsModule().Descriptor])).Errors.ShouldBeEmpty();
+        await using NpgsqlCommand privileges = new("""
+            SELECT has_table_privilege('trykatch_work_coordinator', 'app.projects', 'SELECT'),
+                   has_table_privilege('trykatch_org_runtime', 'infrastructure.module_work_items', 'SELECT'),
+                   has_table_privilege('trykatch_org_runtime', 'infrastructure.module_work_items', 'INSERT'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_event_inbox', 'DELETE'),
+                   has_table_privilege('trykatch_outbox_worker', 'infrastructure.module_event_deliveries', 'INSERT'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_work_completions', 'SELECT'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_work_completions', 'INSERT'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_work_completions', 'UPDATE'),
+                   has_table_privilege('trykatch_org_runtime', 'app.module_work_completions', 'DELETE'),
+                   has_table_privilege('trykatch_platform_runtime', 'app.module_work_completions', 'SELECT'),
+                   has_table_privilege('trykatch_identity_runtime', 'app.module_work_completions', 'SELECT'),
+                   has_table_privilege('trykatch_outbox_worker', 'app.module_work_completions', 'SELECT'),
+                   has_table_privilege('trykatch_work_coordinator', 'app.module_work_completions', 'SELECT')
+            """, owner);
+        await using NpgsqlDataReader reader = await privileges.ExecuteReaderAsync();
+        (await reader.ReadAsync()).ShouldBeTrue();
+        reader.GetBoolean(0).ShouldBeFalse();
+        reader.GetBoolean(1).ShouldBeFalse();
+        reader.GetBoolean(2).ShouldBeTrue();
+        reader.GetBoolean(3).ShouldBeFalse();
+        reader.GetBoolean(4).ShouldBeTrue();
+        reader.GetBoolean(5).ShouldBeTrue();
+        reader.GetBoolean(6).ShouldBeTrue();
+        reader.GetBoolean(7).ShouldBeFalse();
+        reader.GetBoolean(8).ShouldBeFalse();
+        reader.GetBoolean(9).ShouldBeFalse();
+        reader.GetBoolean(10).ShouldBeFalse();
+        reader.GetBoolean(11).ShouldBeFalse();
+        reader.GetBoolean(12).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task OperationalCompletionMarkerEnforcesOrganizationAndActorScope()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
+            new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
+        RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
+        await RuntimeRoleProvisioner.ProvisionAsync(database.ConnectionString, roles);
+
+        Guid organizationA = Guid.NewGuid();
+        Guid organizationB = Guid.NewGuid();
+        Guid actorA = Guid.NewGuid();
+        Guid workA = Guid.NewGuid();
+        await using (NpgsqlConnection owner = new(database.ConnectionString))
+        {
+            await owner.OpenAsync();
+            await using NpgsqlCommand seed = new("""
+                INSERT INTO app.module_work_completions
+                    ("OrganizationId", "WorkId", "OperationKey", "OperationVersion", "ActorId", "PayloadHash", "CompletedAtUtc")
+                VALUES (@organization, @work, 'kernel.probe', 1, @actor, repeat('a', 64), CURRENT_TIMESTAMP),
+                       (@otherOrganization, @otherWork, 'kernel.probe', 1, @actor, repeat('b', 64), CURRENT_TIMESTAMP)
+                """, owner);
+            seed.Parameters.AddWithValue("organization", organizationA);
+            seed.Parameters.AddWithValue("work", workA);
+            seed.Parameters.AddWithValue("actor", actorA);
+            seed.Parameters.AddWithValue("otherOrganization", organizationB);
+            seed.Parameters.AddWithValue("otherWork", Guid.NewGuid());
+            await seed.ExecuteNonQueryAsync();
+        }
+
+        string organizationConnection = (await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(database.ConnectionString)).Organization;
+        await using NpgsqlConnection connection = new(organizationConnection);
+        await connection.OpenAsync();
+        await using (NpgsqlCommand noScope = new("SELECT count(*) FROM app.module_work_completions", connection))
+            (await noScope.ExecuteScalarAsync()).ShouldBe(0L);
+
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await SetOrganizationActorAsync(connection, transaction, organizationA, actorA);
+            await using NpgsqlCommand visible = new("SELECT count(*) FROM app.module_work_completions", connection, transaction);
+            (await visible.ExecuteScalarAsync()).ShouldBe(1L);
+            await transaction.RollbackAsync();
+        }
+
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await SetOrganizationActorAsync(connection, transaction, organizationA, actorA);
+            await using NpgsqlCommand crossOrganization = CompletionInsert(connection, transaction,
+                organizationB, Guid.NewGuid(), actorA);
+            (await Should.ThrowAsync<PostgresException>(() => crossOrganization.ExecuteNonQueryAsync()))
+                .SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
+            await transaction.RollbackAsync();
+        }
+
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await SetOrganizationActorAsync(connection, transaction, organizationA, actorA);
+            await using NpgsqlCommand wrongActor = CompletionInsert(connection, transaction,
+                organizationA, Guid.NewGuid(), Guid.NewGuid());
+            (await Should.ThrowAsync<PostgresException>(() => wrongActor.ExecuteNonQueryAsync()))
+                .SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
+            await transaction.RollbackAsync();
+        }
+    }
+
+    private static async Task SetOrganizationActorAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid organizationId,
+        Guid actorId)
+    {
+        await using NpgsqlCommand context = new(
+            "SELECT set_config('app.organization_id', @organization, true), set_config('app.actor_id', @actor, true)",
+            connection,
+            transaction);
+        context.Parameters.AddWithValue("organization", organizationId.ToString());
+        context.Parameters.AddWithValue("actor", actorId.ToString());
+        await context.ExecuteNonQueryAsync();
+    }
+
+    private static NpgsqlCommand CompletionInsert(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid organizationId,
+        Guid workId,
+        Guid actorId)
+    {
+        NpgsqlCommand command = new("""
+            INSERT INTO app.module_work_completions
+                ("OrganizationId", "WorkId", "OperationKey", "OperationVersion", "ActorId", "PayloadHash", "CompletedAtUtc")
+            VALUES (@organization, @work, 'kernel.probe', 1, @actor, repeat('c', 64), CURRENT_TIMESTAMP)
+            """, connection, transaction);
+        command.Parameters.AddWithValue("organization", organizationId);
+        command.Parameters.AddWithValue("work", workId);
+        command.Parameters.AddWithValue("actor", actorId);
+        return command;
+    }
+
+    [TestMethod]
+    public async Task OperationalInspectorRejectsMissingPolicyAndOverbroadGrant()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
+            new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
+        RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
+        await RuntimeRoleProvisioner.ProvisionAsync(database.ConnectionString, roles);
+        (await PostgresIsolationInspector.InspectAsync(database.ConnectionString, roles,
+            [new ProjectsModule().Descriptor])).IsValid.ShouldBeTrue();
+        await database.ExecuteAsync("GRANT DELETE ON app.module_event_inbox TO trykatch_org_runtime");
+        PostgresIsolationInspection broad = await PostgresIsolationInspector.InspectAsync(database.ConnectionString, roles,
+            [new ProjectsModule().Descriptor]);
+        broad.Errors.ShouldContain(error => error.Contains("forbidden DELETE", StringComparison.Ordinal));
+        await database.ExecuteAsync("REVOKE DELETE ON app.module_event_inbox FROM trykatch_org_runtime; DROP POLICY module_event_inbox_insert ON app.module_event_inbox");
+        PostgresIsolationInspection missing = await PostgresIsolationInspector.InspectAsync(database.ConnectionString, roles,
+            [new ProjectsModule().Descriptor]);
+        missing.Errors.ShouldContain(error => error.Contains("module_event_inbox_insert", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task OperationalInboxEnforcesCurrentScopeActorAndConsumerDeduplication()
+    {
+        await using InspectionDatabase database = await InspectionDatabase.CreateAsync();
+        await database.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY)");
+        await InstalledSchemaCatalog.SynchronizeAsync(database.ConnectionString,
+            new ProjectsModule().Descriptor.DataResources.Select(resource => new InstalledDataResource("projects", resource)));
+        RuntimeDatabaseRoles roles = new("trykatch_org_runtime", "trykatch_platform_runtime", "trykatch_identity_runtime", "trykatch_outbox_worker");
+        await RuntimeRoleProvisioner.ProvisionAsync(database.ConnectionString, roles);
+        Guid organizationA = Guid.NewGuid();
+        Guid actorA = Guid.NewGuid();
+        Guid message = Guid.NewGuid();
+        await database.ExecuteAsync($"""
+            INSERT INTO app.module_event_inbox ("OrganizationId", "MessageId", "ConsumerKey", "SchemaVersion", "ActorId", "ProcessedAtUtc")
+            VALUES ('{organizationA}', '{message}', 'kernel.probe', 1, '{actorA}', CURRENT_TIMESTAMP)
+            """);
+        string organizationConnection = (await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(database.ConnectionString)).Organization;
+        await using NpgsqlConnection connection = new(organizationConnection);
+        await connection.OpenAsync();
+        await using (NpgsqlCommand missing = new("SELECT count(*) FROM app.module_event_inbox", connection))
+            (await missing.ExecuteScalarAsync()).ShouldBe(0L);
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await using NpgsqlCommand context = new("SELECT set_config('app.organization_id', @organization, true), set_config('app.actor_id', @actor, true)", connection, transaction);
+            context.Parameters.AddWithValue("organization", Guid.NewGuid().ToString());
+            context.Parameters.AddWithValue("actor", actorA.ToString());
+            await context.ExecuteNonQueryAsync();
+            await using NpgsqlCommand hidden = new("SELECT count(*) FROM app.module_event_inbox", connection, transaction);
+            (await hidden.ExecuteScalarAsync()).ShouldBe(0L);
+            await using NpgsqlCommand wrongScope = new($"""
+                INSERT INTO app.module_event_inbox ("OrganizationId", "MessageId", "ConsumerKey", "SchemaVersion", "ActorId", "ProcessedAtUtc")
+                VALUES ('{organizationA}', '{Guid.NewGuid()}', 'kernel.probe', 1, '{actorA}', CURRENT_TIMESTAMP)
+                """, connection, transaction);
+            (await Should.ThrowAsync<PostgresException>(() => wrongScope.ExecuteNonQueryAsync())).SqlState.ShouldBe("42501");
+            await transaction.RollbackAsync();
+        }
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await using NpgsqlCommand context = new("SELECT set_config('app.organization_id', @organization, true), set_config('app.actor_id', @actor, true)", connection, transaction);
+            context.Parameters.AddWithValue("organization", organizationA.ToString());
+            context.Parameters.AddWithValue("actor", actorA.ToString());
+            await context.ExecuteNonQueryAsync();
+            await using NpgsqlCommand duplicate = new($"""
+                INSERT INTO app.module_event_inbox ("OrganizationId", "MessageId", "ConsumerKey", "SchemaVersion", "ActorId", "ProcessedAtUtc")
+                VALUES ('{organizationA}', '{message}', 'kernel.probe', 2, '{actorA}', CURRENT_TIMESTAMP)
+                """, connection, transaction);
+            (await Should.ThrowAsync<PostgresException>(() => duplicate.ExecuteNonQueryAsync())).SqlState.ShouldBe("23505");
+            await transaction.RollbackAsync();
+        }
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync())
+        {
+            await using NpgsqlCommand context = new("SELECT set_config('app.organization_id', @organization, true), set_config('app.actor_id', @actor, true)", connection, transaction);
+            context.Parameters.AddWithValue("organization", organizationA.ToString());
+            context.Parameters.AddWithValue("actor", actorA.ToString());
+            await context.ExecuteNonQueryAsync();
+            await using NpgsqlCommand wrongActor = new($"""
+                INSERT INTO app.module_event_inbox ("OrganizationId", "MessageId", "ConsumerKey", "SchemaVersion", "ActorId", "ProcessedAtUtc")
+                VALUES ('{organizationA}', '{Guid.NewGuid()}', 'kernel.probe', 1, '{Guid.NewGuid()}', CURRENT_TIMESTAMP)
+                """, connection, transaction);
+            (await Should.ThrowAsync<PostgresException>(() => wrongActor.ExecuteNonQueryAsync())).SqlState.ShouldBe("42501");
+            await transaction.RollbackAsync();
+        }
+    }
+
     private sealed class InspectionDatabase : IAsyncDisposable
     {
         private readonly PostgreSqlContainer? container;
@@ -531,7 +899,7 @@ public sealed class PostgresIsolationInspectionTests
             PostgreSqlContainer? container = null;
             if (string.IsNullOrWhiteSpace(administrator))
             {
-                container = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+                container = new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
                 await container.StartAsync();
                 administrator = container.GetConnectionString();
             }
@@ -545,6 +913,7 @@ public sealed class PostgresIsolationInspectionTests
                 REVOKE TEMPORARY ON DATABASE {result.databaseName} FROM PUBLIC;
                 CREATE SCHEMA app;
                 CREATE SCHEMA platform;
+                CREATE SCHEMA identity;
                 REVOKE ALL ON SCHEMA public FROM PUBLIC;
                 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
                 CREATE TABLE app.projects ("Id" uuid PRIMARY KEY, "OrganizationId" uuid NOT NULL);
@@ -609,7 +978,135 @@ public sealed class PostgresIsolationInspectionTests
                 GRANT SELECT ON platform.outbox_replay_requests TO trykatch_outbox_worker;
                 GRANT SELECT, INSERT ON platform.outbox_recovery_events TO trykatch_outbox_worker;
                 """);
+            await using ApplicationDbContext operational = new(new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(result.connectionString).Options);
+            MigrationOperation[] operations = new AddModuleExecutionContracts().UpOperations
+                .Where(operation => operation is not AddColumnOperation).ToArray();
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(operations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            MigrationOperation[] workExecutionOperations = new AddOrganizationWorkExecution().UpOperations
+                .Where(operation => operation is CreateTableOperation or CreateIndexOperation or SqlOperation
+                    || operation is AddColumnOperation { Table: "module_work_items" })
+                .ToArray();
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(workExecutionOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            MigrationOperation[] durableJobOperations = new AddDurableModuleJobs().UpOperations.ToArray();
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(durableJobOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationEmailDelivery().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddIdentityEmailDelivery().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            await result.ExecuteAsync("CREATE SCHEMA IF NOT EXISTS identity; CREATE TABLE IF NOT EXISTS identity.\"AspNetUsers\" (\"Id\" uuid PRIMARY KEY); GRANT SELECT, INSERT, UPDATE, DELETE ON identity.\"AspNetUsers\" TO trykatch_identity_runtime");
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddDurableAccountSessions().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationCacheInvalidations().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationRealtimeHistory().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddMutationReceipts().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationQuotas().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddQuotaUploadRecovery().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new AddOrganizationRequestLimits().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(
+                         new RetainQuotaResourceDisplayNames().UpOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            // This catalog-inspection fixture omits the organization directory.
+            // Real feature migration tests separately prove its restricting FKs.
+            // Retain the actual column/key/index and forced-RLS operations here.
+            MigrationOperation[] featureOperations = new AddFeatureAvailabilityControls().UpOperations.ToArray();
+            foreach (CreateTableOperation table in featureOperations.OfType<CreateTableOperation>())
+                table.ForeignKeys.Clear();
+            foreach (var command in operational.GetService<IMigrationsSqlGenerator>().Generate(featureOperations, operational.Model))
+                await result.ExecuteAsync(command.CommandText);
+            await using (PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>()
+                .UseNpgsql(result.connectionString).Options))
+            {
+                MigrationOperation[] publicationHistoryOperations = new AddEntitlementPublicationHistory().UpOperations.ToArray();
+                foreach (CreateTableOperation table in publicationHistoryOperations.OfType<CreateTableOperation>())
+                    table.ForeignKeys.Clear();
+                foreach (var command in platform.GetService<IMigrationsSqlGenerator>()
+                             .Generate(publicationHistoryOperations, platform.Model))
+                    await result.ExecuteAsync(command.CommandText);
+            }
+            await result.ExecuteAsync($"""
+                GRANT USAGE ON SCHEMA infrastructure TO {result.RuntimeRole}, trykatch_work_coordinator, trykatch_outbox_worker;
+                GRANT INSERT ON infrastructure.module_work_items TO {result.RuntimeRole};
+                GRANT INSERT ON infrastructure.quota_maintenance_work TO {result.RuntimeRole};
+                GRANT SELECT, INSERT ON app.module_event_inbox TO {result.RuntimeRole};
+                GRANT SELECT, INSERT ON app.module_work_completions TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.cache_invalidations TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.mutation_receipts TO {result.RuntimeRole};
+                GRANT SELECT ON app.organization_entitlements TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.organization_quota_reservations, app.organization_quota_inventory, app.module_upload_operations TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.organization_request_limits TO {result.RuntimeRole};
+                GRANT SELECT, INSERT ON app.organization_usage TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON app.realtime_streams TO {result.RuntimeRole};
+                GRANT SELECT, INSERT ON app.realtime_history TO {result.RuntimeRole};
+                GRANT SELECT ON platform.feature_environment_controls, platform.organization_feature_overrides TO {result.RuntimeRole};
+                GRANT SELECT, INSERT, UPDATE ON infrastructure.module_work_items TO trykatch_work_coordinator;
+                GRANT SELECT, UPDATE ON infrastructure.module_event_deliveries TO trykatch_work_coordinator;
+                GRANT SELECT, INSERT ON infrastructure.module_event_deliveries TO trykatch_outbox_worker;
+                GRANT INSERT ON infrastructure.email_deliveries TO {result.RuntimeRole};
+                GRANT USAGE ON SCHEMA identity TO trykatch_identity_runtime;
+                """);
+            await GrantDurableJobAccessAsync(result);
             return result;
+        }
+
+        private static async Task GrantDurableJobAccessAsync(InspectionDatabase database)
+        {
+            RuntimeDatabaseRoles roles = new(
+                "trykatch_org_runtime",
+                "trykatch_platform_runtime",
+                "trykatch_identity_runtime",
+                "trykatch_outbox_worker");
+            Dictionary<string, DataResourceDescriptor> resources = OperationalDataResources.All
+                .ToDictionary(resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
+            string[] relations = [
+                "platform.feature_environment_controls",
+                "platform.organization_feature_overrides",
+                "platform.feature_control_history",
+                "platform.entitlement_publication_history",
+                "app.mutation_receipts",
+                "app.organization_entitlements",
+                "app.organization_quota_reservations",
+                "app.organization_quota_inventory",
+                "app.organization_usage",
+                "app.organization_request_limits",
+                "app.module_upload_operations",
+                "infrastructure.quota_maintenance_work",
+                "app.cache_invalidations",
+                "app.realtime_streams",
+                "app.realtime_history",
+                "infrastructure.module_schedule_cursors",
+                "infrastructure.module_work_controls",
+                "infrastructure.email_deliveries",
+                "identity.email_deliveries",
+                "identity.account_sessions",
+                .. QuartzSchemaContract.Tables.Select(table => "infrastructure." + table)
+            ];
+
+            foreach ((RuntimeDatabaseRoleKind kind, string role) in roles.All)
+            foreach (string relation in relations)
+            {
+                IReadOnlySet<string> permissions = RuntimeDatabaseAccessProfiles.PermissionsFor(kind, relation, resources);
+                if (permissions.Count == 0) continue;
+                await database.ExecuteAsync($"GRANT {string.Join(", ", permissions)} ON {relation} TO {role}");
+            }
         }
 
         public Task<PostgresIsolationInspection> InspectAsync() =>

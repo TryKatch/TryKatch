@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Trykatch.Application.Authorization;
 using Trykatch.Application.Auditing;
 using Trykatch.Application.Common;
@@ -5,6 +7,7 @@ using Trykatch.Application.Organizations;
 using Trykatch.Application.Outbox;
 using Trykatch.Modules.Projects.Domain;
 using Trykatch.Modules.Projects.IntegrationEvents;
+using Trykatch.Modules;
 using FluentValidation;
 
 namespace Trykatch.Modules.Projects.Application;
@@ -45,7 +48,9 @@ public sealed class ProjectUseCases(
     IAuditWriter auditWriter,
     IOutboxWriter outbox,
     IValidator<CreateProjectCommand> createValidator,
-    IValidator<UpdateProjectCommand> updateValidator)
+    IValidator<UpdateProjectCommand> updateValidator,
+    IOrganizationCache cache,
+    IOrganizationFeatureEvaluator featureEvaluator)
 {
     public async Task<Result<PagedResult<ProjectDto>>> ListAsync(int page, int pageSize, string? search, RecordLifecycleFilter lifecycle, CancellationToken cancellationToken)
     {
@@ -53,6 +58,8 @@ public sealed class ProjectUseCases(
         {
             return Result.Failure<PagedResult<ProjectDto>>("forbidden", "Projects cannot be viewed by this membership.");
         }
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Reads, cancellationToken))
+            return Result.Failure<PagedResult<ProjectDto>>("feature_unavailable", "Projects are unavailable in this organization.");
 
         PagedResult<Project> projects = await store.ListAsync(context.OrganizationId, page, pageSize, search, lifecycle, cancellationToken);
         return Result.Success(new PagedResult<ProjectDto>(
@@ -66,10 +73,17 @@ public sealed class ProjectUseCases(
     {
         if (!await authorizer.HasPermissionAsync(Permissions.ProjectsRead, cancellationToken))
             return Result.Failure<ProjectDto>("forbidden", "Projects cannot be viewed by this membership.");
-        Project? project = await store.FindAsync(context.OrganizationId, projectId, cancellationToken);
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Reads, cancellationToken))
+            return Result.Failure<ProjectDto>("feature_unavailable", "Projects are unavailable in this organization.");
+
+        ProjectDto? project = await cache.GetOrCreateAsync(DetailKey(projectId), async factoryCancellationToken =>
+        {
+            Project? found = await store.FindAsync(context.OrganizationId, projectId, factoryCancellationToken);
+            return found is null ? null : ToDto(found);
+        }, cancellationToken);
         return project is null
             ? Result.Failure<ProjectDto>("not_found", "Project was not found.")
-            : Result.Success(ToDto(project));
+            : Result.Success(project);
     }
 
     public async Task<Result<ProjectDto>> CreateAsync(CreateProjectCommand command, CancellationToken cancellationToken)
@@ -78,6 +92,8 @@ public sealed class ProjectUseCases(
         {
             return Result.Failure<ProjectDto>("forbidden", "Projects cannot be changed by this membership.");
         }
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<ProjectDto>("feature_unavailable", "Projects are unavailable in this organization.");
 
         var validation = await createValidator.ValidateAsync(command, cancellationToken);
         if (!validation.IsValid)
@@ -89,7 +105,9 @@ public sealed class ProjectUseCases(
         await store.AddAsync(project, cancellationToken);
         auditWriter.Record(AuditActions.ProjectCreated, new AuditTarget("Project", project.Id.ToString(), project.Name));
         outbox.Enqueue(new ProjectChanged(project.OrganizationId, project.Id, "created", context.ActorId));
+        outbox.Enqueue(new ProjectCreated(project.OrganizationId, project.Id, context.ActorId), "projects.create", 1);
         await store.SaveChangesAsync(cancellationToken);
+        await cache.InvalidateAsync(DetailKey(project.Id), cancellationToken);
         return Result.Success(ToDto(project));
     }
 
@@ -99,6 +117,8 @@ public sealed class ProjectUseCases(
         {
             return Result.Failure<ProjectDto>("forbidden", "Projects cannot be changed by this membership.");
         }
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<ProjectDto>("feature_unavailable", "Projects are unavailable in this organization.");
 
         var validation = await updateValidator.ValidateAsync(command, cancellationToken);
         if (!validation.IsValid)
@@ -117,6 +137,7 @@ public sealed class ProjectUseCases(
         auditWriter.Record(AuditActions.ProjectUpdated, new AuditTarget("Project", project.Id.ToString(), project.Name));
         outbox.Enqueue(new ProjectChanged(project.OrganizationId, project.Id, "updated", context.ActorId));
         await store.SaveChangesAsync(cancellationToken);
+        await cache.InvalidateAsync(DetailKey(project.Id), cancellationToken);
         return Result.Success(ToDto(project));
     }
 
@@ -126,6 +147,8 @@ public sealed class ProjectUseCases(
         {
             return Result.Failure<bool>("forbidden", "Projects cannot be changed by this membership.");
         }
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<bool>("feature_unavailable", "Projects are unavailable in this organization.");
 
         Project? project = await store.FindAsync(context.OrganizationId, projectId, cancellationToken);
         if (project is null)
@@ -138,6 +161,7 @@ public sealed class ProjectUseCases(
         auditWriter.Record(AuditActions.ProjectArchived, new AuditTarget("Project", project.Id.ToString(), project.Name));
         outbox.Enqueue(new ProjectChanged(project.OrganizationId, project.Id, "archived", context.ActorId));
         await store.SaveChangesAsync(cancellationToken);
+        await cache.InvalidateAsync(DetailKey(project.Id), cancellationToken);
         return Result.Success(true);
     }
 
@@ -145,12 +169,15 @@ public sealed class ProjectUseCases(
     {
         if (!await authorizer.HasPermissionAsync(Permissions.ProjectsManage, cancellationToken))
             return Result.Failure<bool>("forbidden", "Projects cannot be changed by this membership.");
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<bool>("feature_unavailable", "Projects are unavailable in this organization.");
         Project? project = await store.FindAsync(context.OrganizationId, projectId, cancellationToken);
         if (project is null) return Result.Failure<bool>("not_found", "Project was not found.");
         if (!project.Restore()) return Result.Success(true);
         auditWriter.Record(AuditActions.ProjectRestored, new AuditTarget("Project", project.Id.ToString(), project.Name));
         outbox.Enqueue(new ProjectChanged(project.OrganizationId, project.Id, "restored", context.ActorId));
         await store.SaveChangesAsync(cancellationToken);
+        await cache.InvalidateAsync(DetailKey(project.Id), cancellationToken);
         return Result.Success(true);
     }
 
@@ -158,6 +185,8 @@ public sealed class ProjectUseCases(
     {
         if (!await authorizer.HasPermissionAsync(Permissions.ProjectsManage, cancellationToken))
             return Result.Failure<bool>("forbidden", "Projects cannot be changed by this membership.");
+        if (!await featureEvaluator.IsEnabledAsync(ProjectFeatures.Writes, cancellationToken))
+            return Result.Failure<bool>("feature_unavailable", "Projects are unavailable in this organization.");
         Project? project = await store.FindAsync(context.OrganizationId, projectId, cancellationToken);
         if (project is null) return Result.Failure<bool>("not_found", "Project was not found.");
         if (project.LifecycleState != global::Trykatch.Domain.Common.RecordLifecycleState.Archived)
@@ -171,8 +200,18 @@ public sealed class ProjectUseCases(
             AuditDetails.ReasonProvided(project.DeletionReason));
         outbox.Enqueue(new ProjectChanged(project.OrganizationId, project.Id, "deleted", context.ActorId));
         await store.SaveChangesAsync(cancellationToken);
+        await cache.InvalidateAsync(DetailKey(project.Id), cancellationToken);
         return Result.Success(true);
     }
+
+    private static ModuleCacheKey DetailKey(Guid projectId) => new(
+        "projects",
+        "projects.detail",
+        1,
+        1,
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(projectId.ToString("N")))).ToLowerInvariant(),
+        ModuleCacheAudience.Organization,
+        "short");
 
     private static ProjectDto ToDto(Project project) =>
         new(project.Id, project.Name, project.Description, project.CreatedAt, project.UpdatedAt, RecordLifecycle.ToDto(project));

@@ -19,8 +19,11 @@ internal static class HostPostgresPolicyContracts
 
     private const string Organization = "(\"OrganizationId\" = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)";
     private const string Actor = "(\"ActorId\" = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)";
+    private const string CacheActor = "((NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid <> '00000000-0000-0000-0000-000000000000'::uuid)";
+    private const string CurrentOrganization = "((NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid <> '00000000-0000-0000-0000-000000000000'::uuid)";
     private const string OutboxWorker = "(CURRENT_USER = 'trykatch_outbox_worker'::name)";
     private const string PlatformRuntime = "(CURRENT_USER = 'trykatch_platform_runtime'::name)";
+    private const string Coordinator = "(CURRENT_USER = 'trykatch_work_coordinator'::name)";
     private const string RequestedTime = "(\"RequestedAt\" = CURRENT_TIMESTAMP)";
     private const string MembershipRole = """
         (EXISTS ( SELECT 1
@@ -34,8 +37,129 @@ internal static class HostPostgresPolicyContracts
         AND (r."OrganizationId" = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid))))
         """;
 
-    public static IReadOnlyDictionary<string, Policy[]> All { get; } = new Dictionary<string, Policy[]>(StringComparer.Ordinal)
+    public static IReadOnlyDictionary<string, Policy[]> All { get; } = Create();
+
+    private static Dictionary<string, Policy[]> Create()
     {
+        Dictionary<string, Policy[]> policies = new(StringComparer.Ordinal)
+    {
+        ["platform.feature_environment_controls"] =
+        [
+            new("feature_environment_controls_read", "r", $"({CacheActor} AND {CurrentOrganization})", Roles: ["trykatch_org_runtime"]),
+            new("feature_environment_controls_platform_read", "r", $"({PlatformRuntime} AND {CacheActor})", Roles: ["trykatch_platform_runtime"]),
+            new("feature_environment_controls_insert", "a", "", $"({PlatformRuntime} AND {CacheActor})", ["trykatch_platform_runtime"]),
+            new("feature_environment_controls_update", "w", $"({PlatformRuntime} AND {CacheActor})", $"({PlatformRuntime} AND {CacheActor})", ["trykatch_platform_runtime"])
+        ],
+        ["platform.organization_feature_overrides"] =
+        [
+            new("organization_feature_overrides_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),
+            new("organization_feature_overrides_platform_read", "r", $"({PlatformRuntime} AND {CacheActor})", Roles: ["trykatch_platform_runtime"]),
+            new("organization_feature_overrides_insert", "a", "", $"({PlatformRuntime} AND {CacheActor})", ["trykatch_platform_runtime"]),
+            new("organization_feature_overrides_update", "w", $"({PlatformRuntime} AND {CacheActor})", $"({PlatformRuntime} AND {CacheActor})", ["trykatch_platform_runtime"])
+        ],
+        ["platform.feature_control_history"] =
+        [
+            new("feature_control_history_read", "r", $"({PlatformRuntime} AND {CacheActor})", Roles: ["trykatch_platform_runtime"]),
+            new("feature_control_history_insert", "a", "", $"({PlatformRuntime} AND {CacheActor} AND {Actor})", ["trykatch_platform_runtime"])
+        ],
+        ["platform.entitlement_publication_history"] =
+        [
+            new("entitlement_publication_history_platform_read", "r", $"({Organization} AND {CacheActor} AND {PlatformRuntime})", Roles: ["trykatch_platform_runtime"]),
+            new("entitlement_publication_history_platform_insert", "a", "", $"({Organization} AND {CacheActor} AND {PlatformRuntime} AND {Actor})", ["trykatch_platform_runtime"])
+        ],
+        ["app.mutation_receipts"] =
+        [
+            new("mutation_receipts_read", "r", $"({Organization} AND {Actor})", Roles: ["trykatch_org_runtime"]),
+            new("mutation_receipts_insert", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
+            new("mutation_receipts_update", "w", $"({Organization} AND {Actor})", $"({Organization} AND {Actor})", ["trykatch_org_runtime"])
+        ],
+        ["app.realtime_streams"] =
+        [
+            new("realtime_streams_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("realtime_streams_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"]),
+            new("realtime_streams_update", "w", Organization, $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
+        ["app.realtime_history"] =
+        [
+            new("realtime_history_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("realtime_history_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
+        ["app.cache_invalidations"] =
+        [
+            new("cache_invalidations_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("cache_invalidations_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"]),
+            new("cache_invalidations_update", "w", Organization, $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
+        ["app.organization_entitlements"] =
+        [
+            new("organization_entitlements_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),
+            new("organization_entitlements_platform_read", "r", $"({Organization} AND {CacheActor} AND {PlatformRuntime})", Roles: ["trykatch_platform_runtime"]),
+            new("organization_entitlements_platform_insert", "a", "", $"({Organization} AND {CacheActor} AND {PlatformRuntime})", ["trykatch_platform_runtime"]),
+            new("organization_entitlements_platform_update", "w", $"({Organization} AND {CacheActor} AND {PlatformRuntime})", $"({Organization} AND {CacheActor} AND {PlatformRuntime})", ["trykatch_platform_runtime"])
+        ],
+        ["app.organization_request_limits"] =
+        [
+            new("organization_request_limits_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),
+            new("organization_request_limits_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"]),
+            new("organization_request_limits_update", "w", $"({Organization} AND {CacheActor})", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
+        ["app.organization_quota_reservations"] =
+        [
+            new("organization_quota_reservations_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),
+            new("organization_quota_reservations_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"]),
+            new("organization_quota_reservations_update", "w", $"({Organization} AND {CacheActor})", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
+        ["app.organization_quota_inventory"] =
+        [
+            new("organization_quota_inventory_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),
+            new("organization_quota_inventory_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"]),
+            new("organization_quota_inventory_update", "w", $"({Organization} AND {CacheActor})", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
+        ["app.module_upload_operations"] =
+        [
+            new("module_upload_operations_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),
+            new("module_upload_operations_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"]),
+            new("module_upload_operations_update", "w", $"({Organization} AND {CacheActor})", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
+        ["app.organization_usage"] =
+        [
+            new("organization_usage_read", "r", $"({Organization} AND {CacheActor})", Roles: ["trykatch_org_runtime"]),
+            new("organization_usage_insert", "a", "", $"({Organization} AND {CacheActor})", ["trykatch_org_runtime"])
+        ],
+        ["infrastructure.email_deliveries"] =
+        [
+            new("email_deliveries_append", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
+            new("email_deliveries_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])
+        ],
+        ["infrastructure.quota_maintenance_work"] =
+        [
+            new("quota_maintenance_work_append", "a", "",
+                $"({Organization} AND {CacheActor} AND (\"State\" = 0) AND (\"Attempts\" = 0) AND (\"LeaseId\" IS NULL) AND (\"LeaseUntilUtc\" IS NULL) AND (\"LastFailureCode\" IS NULL))",
+                ["trykatch_org_runtime"]),
+            new("quota_maintenance_work_read", "r", Coordinator, Roles: ["trykatch_work_coordinator"]),
+            new("quota_maintenance_work_update", "w", Coordinator, Coordinator, ["trykatch_work_coordinator"])
+        ],
+        ["infrastructure.module_work_items"] =
+        [
+            new("module_work_items_append", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"]),
+            new("module_work_items_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])
+        ],
+        ["infrastructure.module_event_deliveries"] =
+        [
+            new("module_event_deliveries_outbox_read", "r", OutboxWorker, Roles: ["trykatch_outbox_worker"]),
+            new("module_event_deliveries_outbox_insert", "a", "", OutboxWorker, ["trykatch_outbox_worker"]),
+            new("module_event_deliveries_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])
+        ],
+        ["app.module_work_completions"] =
+        [
+            new("module_work_completions_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("module_work_completions_insert", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"])
+        ],
+        ["app.module_event_inbox"] =
+        [
+            new("module_event_inbox_read", "r", Organization, Roles: ["trykatch_org_runtime"]),
+            new("module_event_inbox_insert", "a", "", $"({Organization} AND {Actor})", ["trykatch_org_runtime"])
+        ],
         ["platform.organization_assistant_settings"] = [new("organization_assistant_settings_isolation", "*", Organization, Organization)],
         ["platform.audit_entries"] =
         [
@@ -86,5 +210,9 @@ internal static class HostPostgresPolicyContracts
                 AND (m."UserId" = (NULLIF(current_setting('app.actor_id'::text, true), ''::text))::uuid)))))
                 """, Roles: ["trykatch_org_runtime"])
         ]
-    };
+        };
+        foreach (string table in Jobs.QuartzSchemaContract.Tables.Concat(["module_schedule_cursors", "module_work_controls"]))
+            policies.Add("infrastructure." + table, [new(table + "_coordinate", "*", Coordinator, Coordinator, ["trykatch_work_coordinator"])]);
+        return policies;
+    }
 }

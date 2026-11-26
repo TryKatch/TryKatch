@@ -16,6 +16,11 @@ public static class PlatformPermissions
     public const string AuthenticationManage = "platform.authentication.manage";
     public const string OutboxRead = "platform.outbox.read";
     public const string OutboxReplay = "platform.outbox.replay";
+    public const string JobsRead = "platform.jobs.read";
+    public const string JobsManage = "platform.jobs.manage";
+    public const string EmailRead = "platform.email.read";
+    public const string FeaturesRead = "platform.features.read";
+    public const string FeaturesManage = "platform.features.manage";
 
     public static readonly IReadOnlyList<PlatformPermissionModuleDefinition> Modules =
     [
@@ -42,6 +47,20 @@ public static class PlatformPermissions
         [
             new(AuthenticationRead, "View authentication", "View authentication policy and provider status.", false),
             new(AuthenticationManage, "Manage authentication", "Change security-sensitive authentication settings.", true)
+        ]),
+        new("jobs", "Module work", "Inspect and control registered module work.",
+        [
+            new(JobsRead, "View module work", "View bounded operational job metadata.", false),
+            new(JobsManage, "Manage module work", "Pause, resume and request controlled retries.", true)
+        ]),
+        new("features", "Feature availability", "Control installed features in this environment and organization workspaces.",
+        [
+            new(FeaturesRead, "View feature controls", "View feature policy values and change history.", false),
+            new(FeaturesManage, "Manage feature controls", "Change feature defaults, force-disable controls and organization overrides.", true)
+        ]),
+        new("email", "Email delivery", "Inspect safe delivery status and synthetic template previews.",
+        [
+            new(EmailRead, "View email delivery", "View safe delivery metadata and synthetic template previews after an explicit grant.", true)
         ]),
         new("outbox", "Outbox recovery", "Inspect terminal deliveries and request controlled replay.",
         [
@@ -76,7 +95,8 @@ public static class PlatformRoles
 
     public static readonly IReadOnlyList<PlatformRoleDefinition> All =
     [
-        new(Administrator, "Administrator", "Full platform control, including access and authentication policy.", 10, PlatformPermissions.All),
+        new(Administrator, "Administrator", "Full platform control, including access and authentication policy.", 10,
+            PlatformPermissions.All.Where(permission => permission != PlatformPermissions.EmailRead).ToFrozenSet(StringComparer.Ordinal)),
         new(Operator, "Operator", "Operate tenants and invitations without changing privileged platform access.", 20, new[]
         {
             PlatformPermissions.DashboardRead,
@@ -138,7 +158,11 @@ public sealed record EffectivePlatformAccess(
     public static EffectivePlatformAccess None { get; } = new(false, false, null, FrozenSet<string>.Empty);
 
     public bool HasPermission(string permission) =>
-        IsActive && (IsAdministrator || Permissions.Contains(permission));
+        IsActive && (Permissions.Contains(permission) || IsAdministrator && permission != PlatformPermissions.EmailRead);
+
+    // Administrators can grant catalog permissions without receiving explicit-only read access themselves.
+    public IReadOnlySet<string> GrantBoundary => !IsActive ? FrozenSet<string>.Empty
+        : IsAdministrator ? PlatformPermissions.All : Permissions;
 }
 
 public interface IPlatformAccessDirectory

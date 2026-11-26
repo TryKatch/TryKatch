@@ -43,13 +43,13 @@ public sealed class PlatformManagementAuthorization(IPlatformAuthorityReader aut
             current = await authority.ReadAsync(target, cancellationToken);
             if (current.IsAdministrator && !actor.IsAdministrator)
                 return Denied("Only an Administrator can manage Administrator access.");
-            if (!PlatformAccessRules.CanGrant(current.Permissions, actor.Permissions))
+            if (!PlatformAccessRules.CanGrant(current.Permissions, actor.GrantBoundary))
                 return Denied("You cannot manage someone whose current access exceeds your authority.");
         }
 
         if (proposedRole is not null
             && ((proposedRole.Key == PlatformRoles.Administrator && !actor.IsAdministrator)
-                || !PlatformAccessRules.CanAssign(proposedRole, actor.Permissions)))
+                || !PlatformAccessRules.CanAssign(proposedRole, actor.GrantBoundary)))
             return Denied("You cannot assign this platform role.");
 
         bool removesAccess = operation is PlatformManagementOperation.Suspend or PlatformManagementOperation.Revoke

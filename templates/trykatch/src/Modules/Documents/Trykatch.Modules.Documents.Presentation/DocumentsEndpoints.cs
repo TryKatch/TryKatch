@@ -11,7 +11,8 @@ namespace Trykatch.Modules.Documents.Presentation;
 
 public sealed record UpdateDocumentRequest(string Title, string? Description, string? DocumentType = null);
 public sealed record DeleteDocumentRequest(string? Reason);
-public sealed record UploadDocumentForm(string Title, string? Description, IFormFile File, string? DocumentType = null);
+public sealed record UploadDocumentForm(string Title, string? Description, IFormFile File, string? DocumentType = null,
+    Guid? OperationId = null);
 
 public sealed class DocumentsEndpoints : IOrganizationEndpointContributor
 {
@@ -28,7 +29,9 @@ public sealed class DocumentsEndpoints : IOrganizationEndpointContributor
                 new RequestSizeLimitAttribute(DocumentUploadPolicy.MaximumRequestBytes))
             .Accepts<UploadDocumentForm>("multipart/form-data")
             .WithName("Documents_Upload").WithTags("Documents")
-            .Produces<DocumentDto>(StatusCodes.Status201Created).ProducesValidationProblem();
+            .Produces<DocumentDto>(StatusCodes.Status201Created).ProducesValidationProblem()
+            .Produces(StatusCodes.Status403Forbidden).Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         group.MapGet("/{id:guid}/content", DownloadAsync).RequireAuthorization("permission:documents.read")
             .WithName("Documents_Download").WithTags("Documents")
             .Produces<byte[]>(StatusCodes.Status200OK, "application/octet-stream")
@@ -62,6 +65,13 @@ public sealed class DocumentsEndpoints : IOrganizationEndpointContributor
             return Validation("file", "Use multipart/form-data to upload a document.");
 
         IFormCollection form = await request.ReadFormAsync(cancellationToken);
+        Guid? operationId = null;
+        if (form.TryGetValue("operationId", out var operationValues))
+        {
+            if (operationValues.Count != 1 || !Guid.TryParse(operationValues[0], out Guid parsed) || parsed == Guid.Empty)
+                return Validation("operationId", "Provide exactly one non-empty upload operation UUID.");
+            operationId = parsed;
+        }
         IFormFile? file = form.Files.GetFile("file");
         if (file is null)
             return Validation("file", "Choose a file to upload.");
@@ -85,7 +95,8 @@ public sealed class DocumentsEndpoints : IOrganizationEndpointContributor
                 file.Length,
                 checksum,
                 uploadStream,
-                form.ContainsKey("documentType") ? form["documentType"].ToString() : null),
+                form.ContainsKey("documentType") ? form["documentType"].ToString() : null,
+                operationId),
             cancellationToken);
         return result.IsSuccess && result.Value is not null
             ? Results.Created($"/api/v1/documents/{result.Value.Id}", result.Value)
@@ -131,6 +142,8 @@ public sealed class DocumentsEndpoints : IOrganizationEndpointContributor
             "forbidden" => Results.Forbid(),
             "not_found" => Results.NotFound(),
             "conflict" => Results.Conflict(new { detail = result.Error }),
+            "quota_exhausted" => Results.Conflict(new { code = result.Code, detail = result.Error }),
+            "unavailable" => Results.Problem(result.Error, statusCode: StatusCodes.Status503ServiceUnavailable),
             "validation" => Validation("document", result.Error!),
             _ => Results.Problem(result.Error)
         };

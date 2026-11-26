@@ -17,7 +17,12 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: process.env.services__api__https__0 ?? 'https://localhost:7240', secure: false },
+      '/api': {
+        target: process.env.services__api__https__0 ?? 'https://localhost:7240',
+        changeOrigin: false,
+        secure: false,
+        ws: true,
+      },
       '/connect': { target: process.env.services__api__https__0 ?? 'https://localhost:7240', secure: false },
     },
   },

@@ -17,11 +17,11 @@ The migrator is the only schema owner. After applying host and module migrations
 
 The migrator persists ownership declarations in `platform.module_data_resources`. Generated registries retain inert resource metadata for all installed modules while loading executable contributions only for enabled modules. Disabling or unregistering a module does not erase its installed schema contract; retained tables remain inspected. Changing a persisted ownership declaration requires an explicit reviewed migration rather than a silent overwrite.
 
-The generated database qualification derives its cases and foreign-key metadata from every enabled resource declaration. It migrates the host and modules, synchronizes and validates the installed catalog, provisions the same four runtime roles and access profiles as the migrator, revokes `PUBLIC`, and requires the full PostgreSQL inspector to pass before fixture assertions run. It reads referenced-key values from the generated target rows, including composite or unique non-`Id` keys, and executes every supported cross-organization attachment attempt; missing fixture metadata fails qualification explicitly instead of counting as a blocked attachment. It then proves default deny without context, organization A visibility, organization B write and cross-organization attachment rejection, immutable application organization context, and EF filter composition for Projects and the independently packaged Documents module.
+The generated database qualification derives its cases and foreign-key metadata from every enabled resource declaration. It migrates the host and modules, synchronizes and validates the installed catalog, provisions the same five runtime roles and access profiles as the migrator, revokes `PUBLIC`, and requires the full PostgreSQL inspector to pass before fixture assertions run. It reads referenced-key values from the generated target rows, including composite or unique non-`Id` keys, and executes every supported cross-organization attachment attempt; missing fixture metadata fails qualification explicitly instead of counting as a blocked attachment. It then proves default deny without context, organization A visibility, organization B write and cross-organization attachment rejection, immutable application organization context, and EF filter composition for Projects and the independently packaged Documents module.
 
 ## Runtime roles
 
-Production uses four named connections with different PostgreSQL roles:
+Production uses five named connections with different PostgreSQL roles:
 
 | Connection | Required role | Scope |
 |---|---|---|
@@ -29,6 +29,7 @@ Production uses four named connections with different PostgreSQL roles:
 | `trykatch-platform` | `trykatch_platform_runtime` | organization/placement control plane; immutable replay requests and recovery-event reads; no outbox-message access |
 | `trykatch-identity` | `trykatch_identity_runtime` | identity and OpenIddict records |
 | `trykatch-outbox` | `trykatch_outbox_worker` | select/update outbox records; read replay requests and insert/read recovery outcomes; project audit intents |
+| `trykatch-work` | `trykatch_work_coordinator` | no business-data access; exact operational grants only when approved coordination relations are introduced |
 
 Production startup rejects a missing connection, a reused role, or a role name outside this contract. Organization authorization and administration resolve through the organization connection, including tenant-owned control-plane tables. Organization request middleware sets only transaction-local organization and actor context. Platform permission endpoints use the fixed platform role but receive no tenant RBAC policy bypass; there is no user-controlled or session-variable platform bypass.
 

@@ -39,7 +39,7 @@ internal sealed class OutboxRecoveryDirectory(
         if (!await HasAsync(actorId, PlatformPermissions.OutboxReplay, cancellationToken))
             return Result.Failure<OutboxReplayAccepted>("forbidden", "Current platform access cannot request outbox replay.");
 
-        await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+        await dbContext.Database.ExecuteSqlAsync($"""
             INSERT INTO platform.outbox_replay_requests
               ("RequestId", "MessageId", "ExpectedFailedGeneration", "ActorId", "RequestedAt")
             VALUES ({request.RequestId}, {request.MessageId}, {request.ExpectedFailedGeneration}, {actorId}, CURRENT_TIMESTAMP)

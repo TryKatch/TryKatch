@@ -4,6 +4,7 @@ import type { RecordLifecycle } from '../../components/RecordLifecycle'
 import { workspaceModules } from '../../modules'
 
 export type ArchiveResourceKind = string
+export type ArchiveFeatureAvailability = (key: string) => boolean
 
 export interface ArchiveItem {
   id: string
@@ -25,7 +26,9 @@ export interface ArchiveResourceDefinition {
   typeLabel: string
   readPermission: string
   managePermission: string
-  load(): Promise<ArchiveItem[]>
+  readFeature?: string
+  manageFeature?: string
+  load(signal?: AbortSignal): Promise<ArchiveItem[]>
   restore(id: string, expectedVersion?: string): Promise<unknown>
   requestDeletion?(id: string, reason: string, expectedVersion?: string): Promise<unknown>
 }
@@ -38,12 +41,12 @@ function asArchiveItem(definition: Pick<ArchiveResourceDefinition, 'kind' | 'typ
   return { id: record.id, kind: definition.kind, typeLabel: definition.typeLabel, title, description, lifecycle: record.lifecycle }
 }
 
-async function loadAllProjectPages() {
+async function loadAllProjectPages(signal?: AbortSignal) {
   const path = '/api/v1/projects?lifecycle=recoverable&pageSize=100'
-  const first = await customFetch<ProjectPage>(`${path}&page=1`, { method: 'GET' })
+  const first = await customFetch<ProjectPage>(`${path}&page=1`, { method: 'GET', signal })
   const remainingPageCount = Math.max(0, Math.ceil(Number(first.totalCount) / first.pageSize) - 1)
   const remaining = await Promise.all(Array.from({ length: remainingPageCount }, (_, index) =>
-    customFetch<ProjectPage>(`${path}&page=${index + 2}`, { method: 'GET' })))
+    customFetch<ProjectPage>(`${path}&page=${index + 2}`, { method: 'GET', signal })))
   return [first, ...remaining].flatMap((page) => page.items)
 }
 
@@ -53,8 +56,10 @@ export const archiveResourceDefinitions: readonly ArchiveResourceDefinition[] = 
     typeLabel: 'Project',
     readPermission: 'projects.read',
     managePermission: 'projects.manage',
-    async load() {
-      return (await loadAllProjectPages()).map((record) =>
+    readFeature: 'projects.reads',
+    manageFeature: 'projects.writes',
+    async load(signal) {
+      return (await loadAllProjectPages(signal)).map((record) =>
         asArchiveItem({ kind: 'project', typeLabel: 'Project' }, record, record.name, record.description || 'Organization project'))
     },
     restore: (id) => customFetch<void>(`/api/v1/projects/${encode(id)}/restore`, { method: 'POST' }),
@@ -67,8 +72,8 @@ export const archiveResourceDefinitions: readonly ArchiveResourceDefinition[] = 
     typeLabel: 'Person',
     readPermission: 'members.read',
     managePermission: 'members.manage',
-    async load() {
-      const records = await customFetch<MemberRecord[]>('/api/v1/members?lifecycle=recoverable', { method: 'GET' })
+    async load(signal) {
+      const records = await customFetch<MemberRecord[]>('/api/v1/members?lifecycle=recoverable', { method: 'GET', signal })
       return records.map((record) => asArchiveItem({ kind: 'member', typeLabel: 'Person' }, record, record.displayName || record.email, `${record.email} · ${record.roles.map((role) => role.name).join(', ') || 'No roles'}`))
     },
     restore: (id) => customFetch<void>(`/api/v1/members/${encode(id)}/restore`, { method: 'POST' }),
@@ -81,8 +86,8 @@ export const archiveResourceDefinitions: readonly ArchiveResourceDefinition[] = 
     typeLabel: 'Invitation',
     readPermission: 'members.read',
     managePermission: 'members.manage',
-    async load() {
-      const records = await customFetch<InvitationRecord[]>('/api/v1/invitations?lifecycle=recoverable', { method: 'GET' })
+    async load(signal) {
+      const records = await customFetch<InvitationRecord[]>('/api/v1/invitations?lifecycle=recoverable', { method: 'GET', signal })
       return records.map((record) => asArchiveItem({ kind: 'invitation', typeLabel: 'Invitation' }, record, record.email, `${record.status} · expires ${new Date(record.expiresAt).toLocaleDateString()}`))
     },
     restore: (id) => customFetch<void>(`/api/v1/invitations/${encode(id)}/restore`, { method: 'POST' }),
@@ -92,8 +97,8 @@ export const archiveResourceDefinitions: readonly ArchiveResourceDefinition[] = 
     typeLabel: 'Role',
     readPermission: 'roles.read',
     managePermission: 'roles.manage',
-    async load() {
-      const records = await customFetch<RoleDto[]>('/api/v1/roles?lifecycle=recoverable', { method: 'GET' })
+    async load(signal) {
+      const records = await customFetch<RoleDto[]>('/api/v1/roles?lifecycle=recoverable', { method: 'GET', signal })
       return records.map((record) => asArchiveItem({ kind: 'role', typeLabel: 'Role' }, { ...record, lifecycle: record.lifecycle as RecordLifecycle }, record.name, `${record.isSystem ? 'System' : 'Custom'} role · ${record.permissions.length} permission grants`))
     },
     restore: (id) => customFetch<void>(`/api/v1/roles/${encode(id)}/restore`, { method: 'POST' }),
@@ -127,34 +132,43 @@ export const allArchiveResourceDefinitions: readonly ArchiveResourceDefinition[]
   ...moduleArchiveResources,
 ]
 
-export async function loadArchiveItems(permissions: readonly string[]) {
-  const readable = allArchiveResourceDefinitions.filter((definition) => permissions.includes(definition.readPermission))
-  const groups = await Promise.all(readable.map((definition) => definition.load()))
+export async function loadArchiveItems(permissions: readonly string[], isFeatureEnabled?: ArchiveFeatureAvailability, signal?: AbortSignal) {
+  const readable = allArchiveResourceDefinitions.filter((definition) =>
+    permissions.includes(definition.readPermission) && featureAvailable(definition.readFeature, isFeatureEnabled))
+  const groups = await Promise.all(readable.map((definition) => definition.load(signal)))
   return groups.flat().sort((left, right) => archiveTimestamp(right) - archiveTimestamp(left))
 }
 
-export function canRestoreArchiveItem(item: ArchiveItem, permissions: readonly string[]) {
-  return permissions.includes(allArchiveResourceDefinitions.find((definition) => definition.kind === item.kind)?.managePermission ?? '')
+export function canRestoreArchiveItem(item: ArchiveItem, permissions: readonly string[], isFeatureEnabled?: ArchiveFeatureAvailability) {
+  const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
+  return definition !== undefined && permissions.includes(definition.managePermission)
+    && featureAvailable(definition.manageFeature, isFeatureEnabled)
 }
 
-export function canRequestArchiveItemDeletion(item: ArchiveItem, permissions: readonly string[]) {
+export function canRequestArchiveItemDeletion(item: ArchiveItem, permissions: readonly string[], isFeatureEnabled?: ArchiveFeatureAvailability) {
   return item.lifecycle.status === 'Archived'
     && allArchiveResourceDefinitions.find((definition) => definition.kind === item.kind)?.requestDeletion !== undefined
-    && canRestoreArchiveItem(item, permissions)
+    && canRestoreArchiveItem(item, permissions, isFeatureEnabled)
+}
+
+function featureAvailable(feature: string | undefined, isFeatureEnabled?: ArchiveFeatureAvailability) {
+  return feature === undefined || isFeatureEnabled?.(feature) === true
 }
 
 export function archiveTimestamp(item: ArchiveItem) {
   return new Date(item.lifecycle.deletedAt ?? item.lifecycle.archivedAt ?? 0).getTime()
 }
 
-export function restoreArchiveItem(item: ArchiveItem) {
+export async function restoreArchiveItem(item: ArchiveItem, isFeatureEnabled?: ArchiveFeatureAvailability) {
   const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
   if (!definition) throw new Error(`Unknown archive resource '${item.kind}'.`)
+  if (!featureAvailable(definition.manageFeature, isFeatureEnabled)) throw new Error('Feature unavailable.')
   return definition.restore(item.id, item.version)
 }
 
-export function requestArchiveItemDeletion(item: ArchiveItem, reason: string) {
+export async function requestArchiveItemDeletion(item: ArchiveItem, reason: string, isFeatureEnabled?: ArchiveFeatureAvailability) {
   const definition = allArchiveResourceDefinitions.find((resource) => resource.kind === item.kind)
   if (!definition?.requestDeletion) throw new Error(`Archive resource '${item.kind}' cannot request deletion.`)
+  if (!featureAvailable(definition.manageFeature, isFeatureEnabled)) throw new Error('Feature unavailable.')
   return definition.requestDeletion(item.id, reason, item.version)
 }

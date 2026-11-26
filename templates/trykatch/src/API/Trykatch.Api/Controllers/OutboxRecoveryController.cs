@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Trykatch.Api.Security;
 using Trykatch.Application.Common;
+using Trykatch.Application.Eventing;
 using Trykatch.Application.Identity;
 using Trykatch.Application.Outbox;
 
@@ -11,7 +12,9 @@ namespace Trykatch.Api.Controllers;
 [ApiController]
 [PlatformDataScoped]
 [Route("api/v1/platform/outbox")]
-public sealed class OutboxRecoveryController(IOutboxRecoveryDirectory directory) : ControllerBase
+public sealed class OutboxRecoveryController(
+    IOutboxRecoveryDirectory directory,
+    IModuleEventDeliveryDirectory moduleEventDeliveryDirectory) : ControllerBase
 {
     [HttpGet("failures", Name = "Outbox_ListFailures")]
     [RequirePlatformPermission(PlatformPermissions.OutboxRead)]
@@ -21,6 +24,24 @@ public sealed class OutboxRecoveryController(IOutboxRecoveryDirectory directory)
         if (!TryGetActor(out Guid actorId)) return Unauthorized();
         Result<PagedResult<OutboxFailure>> result = await directory.ListFailuresAsync(actorId, page, pageSize, cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : Problem(statusCode: StatusCodes.Status403Forbidden, title: result.ErrorCode);
+    }
+
+    [HttpGet("module-deliveries", Name = "Outbox_ListModuleDeliveries")]
+    [RequirePlatformPermission(PlatformPermissions.OutboxRead)]
+    [ProducesResponseType<PagedResult<ModuleEventDeliveryView>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<ModuleEventDeliveryView>>> ListModuleDeliveries(
+        int page = 1, int pageSize = 25, string? state = null, CancellationToken cancellationToken = default)
+    {
+        if (!TryGetActor(out Guid actorId)) return Unauthorized();
+        Result<PagedResult<ModuleEventDeliveryView>> result = await moduleEventDeliveryDirectory.ListAsync(
+            actorId, page, pageSize, state, cancellationToken);
+        if (result.IsSuccess) return Ok(result.Value);
+        return Problem(statusCode: result.ErrorCode switch
+        {
+            "invalid_request" => StatusCodes.Status400BadRequest,
+            "forbidden" => StatusCodes.Status403Forbidden,
+            _ => StatusCodes.Status400BadRequest
+        }, title: result.ErrorCode);
     }
 
     [HttpPost("{messageId:guid}/replay", Name = "Outbox_RequestReplay")]

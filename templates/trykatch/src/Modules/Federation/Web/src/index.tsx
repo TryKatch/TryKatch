@@ -38,8 +38,8 @@ function SingleSignOnPage() {
     <PageHeader eyebrow="Authentication" title="Single sign-on" description="Test and activate trusted OpenID Connect providers." actions={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> Add connection</Button>} />
     <Surface className="federation-surface">
       {connections.isPending ? <div className="skeleton-list"><Skeleton /><Skeleton /></div>
-        : connections.isError ? <EmptyState title="Connections could not be loaded" description={connections.error.message} />
-          : !connections.data.length ? <EmptyState title="No SSO connections" description="Add an OIDC provider, test its discovery document, then enable it." />
+        : connections.isError ? <EmptyState headingLevel={2} title="Connections could not be loaded" description={connections.error.message} />
+          : !connections.data.length ? <EmptyState headingLevel={2} title="No SSO connections" description="Add an OIDC provider, test its discovery document, then enable it." />
             : <div className="federation-list">{connections.data.map((connection) => <article key={connection.id}>
               <span className="federation-icon"><KeyRound size={17} /></span>
               <div><strong>{connection.name}</strong><small>{connection.issuer}</small><small>{connection.lastTestResult ?? 'Not tested'}</small></div>

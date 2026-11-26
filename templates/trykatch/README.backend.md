@@ -4,7 +4,7 @@ Choose the customer-facing name independently of namespaces with `--display-name
 
 > Start secure. Build freely.
 
-Trykatch is a clean-room backend foundation for .NET 10, PostgreSQL, Aspire, and the open Grafana observability stack.
+Trykatch is a clean-room backend foundation for .NET 11, PostgreSQL, Aspire, and the open Grafana observability stack.
 
 ## Start locally
 
@@ -14,7 +14,7 @@ New to this application? Start with [developer onboarding](docs/developer-onboar
 
 For deployment, first read [production identity](docs/production-identity.md): three certificate/password pairs are required, and an existing plaintext key ring needs an explicit privileged dry-run/apply before the API can start.
 
-Prerequisites: .NET SDK 10.0.301 or a later patch in the 10.0.3xx feature band, and Docker. The generated `global.json` permits patch roll-forward only. See [dependency reproducibility](docs/dependency-reproducibility.md) ([Français](docs/dependency-reproducibility.fr.md)) for first-restore and upgrade boundaries; omit frontend commands.
+Prerequisites: .NET SDK 11.0.100 or a later patch in the 11.0.1xx feature band, and Docker. The generated `global.json` permits patch roll-forward only. See [dependency reproducibility](docs/dependency-reproducibility.md) ([Français](docs/dependency-reproducibility.fr.md)) for first-restore and upgrade boundaries; omit frontend commands.
 
 Open a terminal in the generated application's root directory—the folder that contains `Trykatch.slnx`, `src/`, and `tests/`—then run the commands from there:
 
@@ -34,7 +34,16 @@ Development AppHost seeds `tenant@trykatch.net` with password `Admin@123` as Own
 
 Before the first API run, apply the migrations with the migrator role as described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
 
-For Compose, copy `.env.example`, set the required immutable `TRYKATCH_RELEASE_VERSION`, and replace every secret placeholder. Protect the directly published API and deny public `/health/*` routes. The base OTLP path is private single-host plaintext; use `compose.observability-tls.yml` for authenticated TLS ingestion. See [operations](docs/operations.md) for sampling, privacy, queues, retention, alerts, validation, and staging drills.
+For Compose, copy `.env.example`, set the required immutable `TRYKATCH_RELEASE_VERSION`, and replace every secret placeholder. Protect the directly published API and deny public `/health/*` routes. The base OTLP path is private single-host plaintext; use `compose.observability-tls.yml` for authenticated TLS ingestion. See [operations](docs/operations.md) for sampling, privacy, queues, retention, alerts, validation, and staging drills, and [local and published object storage](docs/operations/local-object-storage.md) for storage configuration.
+
+For a clean starter, generate with `--module-profile minimal`, for example
+`trykatch new Katch --ui none --module-profile minimal`. It starts with no example
+module enabled while keeping the Projects, Documents, and Federation source and
+migration history available. Use `trykatch module create` from the application
+root to add your first capability. The default profile continues to include
+Projects and Documents. A fresh database still retains the historical
+`app.projects` table with forced row-level security and no organization-runtime
+access; enabling Projects later reuses that table and any preserved data.
 
 ## Build with a coding agent
 

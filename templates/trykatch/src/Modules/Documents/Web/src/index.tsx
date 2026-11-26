@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { customFetch, type DocumentDto } from '@trykatch/api-client'
+import { customFetch, getWorkspaceCurrentQueryKey, workspaceCurrent, type DocumentDto } from '@trykatch/api-client'
 import { defineWebModule, ModuleExtensionSlot, useModuleI18n, type ArchiveLifecycle } from '@trykatch/module-sdk'
 import { Button, DataTable, Dialog, EmptyState, FloatingInput, FloatingTextarea, PageHeader, RowActions, Surface, type DataTableColumn, type RowAction } from '@trykatch/ui'
 import { Download, FileText, LoaderCircle, Upload } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import './documents.css'
 import { documentSchema } from './validation'
 
@@ -18,7 +18,8 @@ const acceptedFiles = '.pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp'
 const maximumFileBytes = 25 * 1024 * 1024
 const documentTypeLabel = (value: string) => documentTypes.find((type) => type.value === value)?.label ?? 'Other'
 
-interface OrganizationAccess { permissions: string[] }
+interface OrganizationAccess { organizationId: string; permissions: string[] }
+interface UploadIntent { operationId: string; organizationId: string; file: File; title: string; description: string; documentType: string }
 type LoadResult<T> = { value: T; failure?: never } | { value?: never; failure: string }
 
 async function loadResult<T>(load: () => Promise<T>): Promise<LoadResult<T>> {
@@ -56,19 +57,43 @@ export function DocumentsPage() {
   const [fileError, setFileError] = useState<string>()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [fileInputKey, setFileInputKey] = useState(0)
+  const uploadIntent = useRef<UploadIntent | undefined>(undefined)
   const formId = useId()
-  const documents = useQuery({
-    queryKey: ['documents'],
-    queryFn: () => loadResult(() => customFetch<DocumentDto[]>('/api/v1/documents/?lifecycle=active', { method: 'GET' })),
-  })
   const access = useQuery({
     queryKey: ['access'],
     queryFn: () => customFetch<OrganizationAccess>('/api/v1/access', { method: 'GET' }),
   })
-  const permissions = access.data?.permissions ?? []
-  const canManage = permissions.includes('documents.manage')
+  const workspace = useQuery({
+    queryKey: getWorkspaceCurrentQueryKey(),
+    queryFn: ({ signal }) => workspaceCurrent({ signal }),
+    retry: false,
+  })
+  const organizationId = workspace.data?.organizationId ?? access.data?.organizationId
+  const authorityReady = Boolean(organizationId) && access.isSuccess && access.fetchStatus === 'idle'
+    && workspace.isSuccess && workspace.fetchStatus === 'idle'
+    && access.data.organizationId === workspace.data.organizationId
+  const permissions = authorityReady ? access.data!.permissions : []
+  const canRead = permissions.includes('documents.read') && Boolean(workspace.data?.permissions.includes('documents.read'))
+  const canManage = canRead && permissions.includes('documents.manage') && Boolean(workspace.data?.permissions.includes('documents.manage'))
+  const currentAuthority = useRef({ organizationId, canManage })
+  currentAuthority.current = { organizationId, canManage }
+  useEffect(() => {
+    currentAuthority.current = { organizationId, canManage }
+    return () => { currentAuthority.current.canManage = false }
+  }, [organizationId, canManage])
+  useEffect(() => { uploadIntent.current = undefined }, [organizationId])
+  const requireManage = () => {
+    if (!currentAuthority.current.canManage || currentAuthority.current.organizationId !== organizationId)
+      throw new Error(t('Access unavailable'))
+  }
+  const documents = useQuery({
+    queryKey: ['documents', organizationId],
+    queryFn: ({ signal }) => loadResult(() => customFetch<DocumentDto[]>('/api/v1/documents/?lifecycle=active', { method: 'GET', signal })),
+    enabled: canRead,
+  })
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (upload?: UploadIntent) => {
+      requireManage()
       if (editing) {
         return customFetch<DocumentDto>(`/api/v1/documents/${editing.id}`, {
           method: 'PUT',
@@ -76,12 +101,15 @@ export function DocumentsPage() {
           body: JSON.stringify({ title, description, documentType }),
         })
       }
-      if (!file) throw new Error(t('Choose a file to upload.'))
+      if (!upload) throw new Error(t('Choose a file to upload.'))
+      if (upload.organizationId !== currentAuthority.current.organizationId)
+        throw new Error(t('Access unavailable'))
       const form = new FormData()
-      form.append('title', title)
-      form.append('description', description)
-      form.append('documentType', documentType)
-      form.append('file', file)
+      form.append('title', upload.title)
+      form.append('description', upload.description)
+      form.append('documentType', upload.documentType)
+      form.append('file', upload.file)
+      form.append('operationId', upload.operationId)
       return customFetch<DocumentDto>('/api/v1/documents/', { method: 'POST', body: form })
     },
     onSuccess: async () => {
@@ -90,7 +118,7 @@ export function DocumentsPage() {
     },
   })
   const archive = useMutation({
-    mutationFn: (id: string) => customFetch<void>(`/api/v1/documents/${id}/archive`, { method: 'POST' }),
+    mutationFn: (id: string) => { requireManage(); return customFetch<void>(`/api/v1/documents/${id}/archive`, { method: 'POST' }) },
     onSuccess: async () => {
       await Promise.all([
         client.invalidateQueries({ queryKey: ['documents'] }),
@@ -99,6 +127,7 @@ export function DocumentsPage() {
     },
   })
   const openUpload = () => {
+    uploadIntent.current = undefined
     setFieldErrors({})
     save.reset()
     setEditing(null)
@@ -110,6 +139,7 @@ export function DocumentsPage() {
     setFileInputKey((key) => key + 1)
   }
   const openEdit = (document: DocumentDto) => {
+    uploadIntent.current = undefined
     setFieldErrors({})
     save.reset()
     setEditing(document)
@@ -120,6 +150,7 @@ export function DocumentsPage() {
     setFileError(undefined)
   }
   const closeEditor = () => {
+    uploadIntent.current = undefined
     setFieldErrors({})
     setEditing(undefined)
     setTitle('')
@@ -127,6 +158,18 @@ export function DocumentsPage() {
     setFile(undefined)
     setFileError(undefined)
   }
+  const authorityDenied = [access.error, workspace.error].some((error) => [401, 403].includes((error as { status?: number } | null)?.status ?? 0))
+    || access.isSuccess && workspace.isSuccess && access.data.organizationId !== workspace.data.organizationId
+  const readDenied = authorityDenied
+    || access.isSuccess && access.fetchStatus === 'idle' && !access.data.permissions.includes('documents.read')
+    || workspace.isSuccess && workspace.fetchStatus === 'idle' && !workspace.data.permissions.includes('documents.read')
+  const manageDenied = readDenied
+    || access.isSuccess && access.fetchStatus === 'idle' && !access.data.permissions.includes('documents.manage')
+    || workspace.isSuccess && workspace.fetchStatus === 'idle' && !workspace.data.permissions.includes('documents.manage')
+  useEffect(() => {
+    if (manageDenied) closeEditor()
+    if (readDenied) setViewing(undefined)
+  }, [manageDenied, readDenied])
   const selectFile = (selected: File | undefined) => {
     // Cancelling the chooser leaves the previous selection intact.
     if (!selected) return
@@ -157,23 +200,24 @@ export function DocumentsPage() {
     { id: 'updated', header: t('Updated'), cell: (document) => formatDate(document.metadata.updatedAt ?? document.createdAt, { dateStyle: 'medium', timeStyle: 'short' }), sortValue: (document) => new Date(document.metadata.updatedAt ?? document.createdAt) },
     { id: 'actions', header: t('Actions'), cell: (document) => <RowActions label={t('Actions for {name}', { name: document.title })} actions={actionsFor(document)} />, hideable: false, align: 'right', width: 90 },
   ]
-  const loadFailure = documents.data?.failure ?? access.error?.message ?? documents.error?.message
-  const documentRecords = documents.data?.value ?? []
+  const loadFailure = documents.data?.failure ?? access.error?.message ?? workspace.error?.message ?? documents.error?.message
+    ?? (authorityReady && !canRead || authorityDenied ? t('Access unavailable') : undefined)
+  const documentRecords = canRead ? documents.data?.value ?? [] : []
   return <>
     <PageHeader eyebrow={t('Application')} title={t('Documents')} description={t('Upload and manage organization documents securely.')} actions={canManage && <Button variant="primary" onClick={openUpload}><Upload size={14} /> {t('Upload document')}</Button>} />
     <Surface className="collection">
       {archive.error && <div className="page-alert" role="alert">{archive.error.message}</div>}
-      {access.isLoading || documents.isLoading
+      {(!authorityReady && !loadFailure) || canRead && documents.isLoading
         ? <p role="status">{t('Loading documents…')}</p>
         : loadFailure
-          ? <EmptyState title={t('Documents could not be loaded')} description={loadFailure} action={<Button onClick={() => { access.refetch(); documents.refetch() }}>{t('Try again')}</Button>} />
-          : <DataTable labels={dataTableLabels} ariaLabel={t('Documents')} data={documentRecords} columns={columns} getRowId={(document) => document.id} searchPlaceholder={t('Search documents…')} initialSort={{ id: 'updated', direction: 'desc' }} empty={<EmptyState title={t('No documents')} description={t(canManage ? 'Upload the first document for this workspace.' : 'No documents are available in this workspace.')} action={canManage ? <Button variant="primary" onClick={openUpload}>{t('Upload document')}</Button> : undefined} />} />}
+          ? <EmptyState headingLevel={2} title={t('Documents could not be loaded')} description={loadFailure} action={<Button onClick={() => { void access.refetch(); void workspace.refetch(); if (canRead) void documents.refetch() }}>{t('Try again')}</Button>} />
+          : <DataTable labels={dataTableLabels} ariaLabel={t('Documents')} data={documentRecords} columns={columns} getRowId={(document) => document.id} searchPlaceholder={t('Search documents…')} initialSort={{ id: 'updated', direction: 'desc' }} empty={<EmptyState headingLevel={2} title={t('No documents')} description={t(canManage ? 'Upload the first document for this workspace.' : 'No documents are available in this workspace.')} action={canManage ? <Button variant="primary" onClick={openUpload}>{t('Upload document')}</Button> : undefined} />} />}
       <ModuleExtensionSlot point="documents.list.after-table" context={{ resultCount: documentRecords.length }} permissions={permissions} />
     </Surface>
-    <Dialog className="document-editor" open={editing !== undefined} onOpenChange={(open) => { if (!open && !save.isPending) closeEditor() }} title={t(editing ? 'Edit document' : 'Upload document')} description={t(editing ? 'Update the searchable document metadata.' : 'Add a file and classify it for your workspace.')}>
+    <Dialog className="document-editor" open={canManage && editing !== undefined} onOpenChange={(open) => { if (!open && canManage && !save.isPending) closeEditor() }} title={t(editing ? 'Edit document' : 'Upload document')} description={t(editing ? 'Update the searchable document metadata.' : 'Add a file and classify it for your workspace.')}>
       <form noValidate onSubmit={(event) => {
         event.preventDefault()
-        if (save.isPending || fileError) return
+        if (!canManage || save.isPending || fileError) return
         const result = documentSchema.safeParse({ title, description, documentType })
         if (!result.success) {
           setFieldErrors(Object.fromEntries(result.error.issues.map((issue) => [String(issue.path[0]), issue.message])))
@@ -181,7 +225,20 @@ export function DocumentsPage() {
         }
         setFieldErrors({})
         if (!editing && !file) { setFileError('Choose a file to upload.'); return }
-        if (!fileError) save.mutate()
+        if (editing) {
+          if (!fileError) save.mutate()
+          return
+        }
+        if (!fileError && file && organizationId) {
+          const canonical = result.data
+          const previous = uploadIntent.current
+          if (!previous || previous.organizationId !== organizationId || previous.file !== file
+            || previous.title !== canonical.title || previous.description !== canonical.description
+            || previous.documentType !== canonical.documentType) {
+            uploadIntent.current = { operationId: crypto.randomUUID(), organizationId, file, ...canonical }
+          }
+          save.mutate(uploadIntent.current)
+        }
       }} className="dialog-form document-editor-form" aria-busy={save.isPending}>
         <fieldset disabled={save.isPending} className="document-editor-fields">
           {!editing && <div className="document-file-field">
@@ -207,7 +264,7 @@ export function DocumentsPage() {
         </div>
       </form>
     </Dialog>
-    <Dialog open={viewing !== undefined} onOpenChange={(open) => !open && setViewing(undefined)} title={viewing?.title ?? t('Document')} description={t('Document details and secure download.')}>
+    <Dialog open={canRead && viewing !== undefined} onOpenChange={(open) => canRead && !open && setViewing(undefined)} title={viewing?.title ?? t('Document')} description={t('Document details and secure download.')}>
       {viewing && <>
         <dl className="record-details document-details">
           <div><dt>{t('File')}</dt><dd>{viewing.fileName}</dd></div>
@@ -236,7 +293,7 @@ function ProjectDocumentsExtension() {
 export const documentsModule = defineWebModule({
   id: 'documents',
   name: 'Documents',
-  version: '1.1.0',
+  version: '1.3.0',
   description: 'Organization-isolated object storage proof module.',
   requires: ['projects'],
   optionalDependencies: [],

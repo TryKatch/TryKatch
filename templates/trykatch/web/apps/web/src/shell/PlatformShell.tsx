@@ -4,7 +4,7 @@ import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { customFetch } from '@trykatch/api-client'
 import type { NavigationContribution } from '@trykatch/module-sdk'
 import { Button, Skeleton } from '@trykatch/ui'
-import { Bell, Building2, ChevronDown, LayoutDashboard, LogOut, Menu, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen, ShieldCheck, Sun, UserRound, Users, X } from 'lucide-react'
+import { Bell, Building2, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Mail, Menu, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen, ShieldCheck, SlidersHorizontal, Sun, UserRound, Users, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ProductLogo } from '../components/ProductLogo'
 import { SignOutDialog } from '../components/SignOutDialog'
@@ -20,6 +20,9 @@ const corePlatformNavigation: readonly NavigationContribution[] = [
   { id: 'platform.tenants', surface: 'platform', section: 'Administration', order: 20, to: '/dashboard/tenants', label: 'Tenant management', icon: Building2, requiredPermission: 'platform.tenants.read' },
   { id: 'platform.users', surface: 'platform', section: 'Administration', order: 30, to: '/dashboard/users', label: 'User management', icon: Users, requiredPermission: 'platform.users.read' },
   { id: 'platform.authentication', surface: 'platform', section: 'Administration', order: 40, to: '/dashboard/authentication', label: 'Authentication', icon: ShieldCheck, requiredPermission: 'platform.authentication.read' },
+  { id: 'platform.module-work', surface: 'platform', section: 'Administration', order: 50, to: '/dashboard/module-work', label: 'Platform work', icon: ClipboardList, requiredPermission: 'platform.jobs.read' },
+  { id: 'platform.email-delivery', surface: 'platform', section: 'Administration', order: 60, to: '/dashboard/email-delivery', label: 'Email delivery', icon: Mail, requiredPermission: 'platform.email.read' },
+  { id: 'platform.features', surface: 'platform', section: 'Administration', order: 70, to: '/dashboard/features', label: 'Feature controls', icon: SlidersHorizontal, requiredPermission: 'platform.features.read' },
 ]
 const platformNavigation = [...corePlatformNavigation, ...workspaceModules.navigationFor('platform')]
   .toSorted((left, right) => left.order - right.order || left.id.localeCompare(right.id))
@@ -73,7 +76,9 @@ export function PlatformShell() {
   }, [])
 
   const identity = session.data?.displayName || session.data?.email || t('Account')
-  const visibleNavigation = platformNavigation.filter((item) => session.data?.isPlatformAdministrator || !item.requiredPermission || session.data?.platformPermissions?.includes(item.requiredPermission))
+  const visibleNavigation = platformNavigation.filter((item) => item.id === 'platform.email-delivery' || item.id === 'platform.features'
+    ? session.isSuccess && session.data.platformPermissions?.includes(item.requiredPermission ?? '') === true
+    : session.data?.isPlatformAdministrator || !item.requiredPermission || session.data?.platformPermissions?.includes(item.requiredPermission))
   const currentLabel = platformNavigation.find((item) => item.exact ? pathname === item.to : pathname.startsWith(item.to))?.label ?? 'Administration'
 
   return <div className={`app-shell platform-shell${collapsed ? ' is-collapsed' : ''}${mobileNavOpen ? ' is-mobile-nav-open' : ''}`}>

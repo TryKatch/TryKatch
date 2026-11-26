@@ -1,10 +1,10 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0.301@sha256:ea8bde36c11b6e7eec2656d0e59101d4462f6bd630730f2c8201ed0572b295d5 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100@sha256:2794448a07118a6eaf00f29ab5d2bf44928517ce5ff86505a63a69230374f599 AS build
 WORKDIR /src
 COPY . .
 RUN dotnet restore src/API/Trykatch.Migrator/Trykatch.Migrator.csproj --locked-mode \
     && dotnet publish src/API/Trykatch.Migrator/Trykatch.Migrator.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.11@sha256:011bb5f30180717b1c8b65822ff2c99bcb96bc65af0164589751b83c7b4949f7 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0@sha256:ca396ece3f2a2e62c7a03f1d7d710b8bc7e8c9dea5597d091178d9f5bfca13f0 AS final
 RUN apt-get update \
     && apt-get install --no-install-recommends -y libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/*

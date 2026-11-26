@@ -1,0 +1,48 @@
+name: trykatch-app-slug
+
+x-bounded-logging: &bounded-logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
+services:
+  api:
+    environment:
+      Realtime__Mode: Distributed
+      Realtime__ApplicationNamespace: ${TRYKATCH_REALTIME_NAMESPACE:?set the realtime application namespace}
+      ConnectionStrings__realtime: "realtime:6379,password=${TRYKATCH_REALTIME_PASSWORD:?set the realtime password}"
+    depends_on:
+      realtime:
+        condition: service_started
+    networks: [default, realtime]
+
+  realtime:
+    logging: *bounded-logging
+    image: valkey/valkey:9.1.2-alpine3.24@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+    command:
+      - --requirepass
+      - ${TRYKATCH_REALTIME_PASSWORD:?set the realtime password}
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - noeviction
+      - --dir
+      - /tmp
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    networks: [realtime]
+    user: "999:1000"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+    stop_grace_period: 15s
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 128M }
+
+networks:
+  realtime:
+    internal: true

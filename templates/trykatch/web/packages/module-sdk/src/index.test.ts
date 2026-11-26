@@ -77,4 +77,38 @@ describe('WebModuleCatalog', () => {
     expect(hidden.routes).toEqual([])
     expect(() => new WebModuleCatalog([projects], { routes: { 'unknown.route': null } })).toThrow("unknown Trykatch route 'unknown.route'")
   })
+
+  it('collects module-owned realtime query invalidations and deduplicates finite subscriptions', () => {
+    const subscription = { policy: { ownerModuleId: 'projects', policyKey: 'projects.read', policyVersion: 1 }, kind: 0 }
+    const contribution = (id: string) => ({
+      id,
+      subscription,
+      matches: (notification: { moduleId: string }) => notification.moduleId === 'projects',
+      queryKeys: [['/api/v1/projects', { page: 1 }], ['projects']],
+    })
+    const catalog = new WebModuleCatalog([
+      { ...module('projects'), realtimeInvalidations: [contribution('projects.changed')] },
+      { ...module('reporting', ['projects']), realtimeInvalidations: [contribution('reporting.projects')] },
+    ])
+
+    expect(catalog.realtimeInvalidations.map((item) => item.id)).toEqual(['projects.changed', 'reporting.projects'])
+    expect(catalog.realtimeSubscriptions).toEqual([subscription])
+    expect(catalog.realtimeInvalidations[0].matches({
+      moduleId: 'projects', eventKey: 'projects.created', schemaVersion: 1, eventId: 'event-1',
+      audience: { policy: subscription.policy, kind: 0 },
+    })).toBe(true)
+  })
+
+  it('rejects an invalid module-owned realtime audience selector', () => {
+    const invalid = {
+      ...module('projects'),
+      realtimeInvalidations: [{
+        id: 'projects.changed',
+        subscription: { policy: { ownerModuleId: 'projects', policyKey: 'projects.read', policyVersion: 1 }, kind: 2 },
+        matches: () => true,
+        queryKeys: [['projects']],
+      }],
+    }
+    expect(() => new WebModuleCatalog([invalid])).toThrow("invalid audience selector")
+  })
 })

@@ -24,7 +24,7 @@ public static class OrganizationTransactionEnlistment
             ?? throw new InvalidOperationException("Application data could not enlist in the organization transaction.");
         string organization = organizationId.ToString();
         string actor = actorId.ToString();
-        await application.Database.ExecuteSqlInterpolatedAsync(
+        await application.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {organization}, true), set_config('app.actor_id', {actor}, true)",
             cancellationToken);
         return applicationTransaction;

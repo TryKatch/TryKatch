@@ -13,6 +13,18 @@ public static class EnabledModules
         new ProjectsModule(),
         new DocumentsModule(),
     ];
+    static EnabledModules()
+    {
+        ModuleFeatureRegistrationRules.ValidateManifest(All,
+        [
+            new("projects", new("projects.reads", "Project reads", "View projects and their details.", true)),
+            new("projects", new("projects.writes", "Project writes", "Create, change, archive, restore, and request deletion of projects.", true)),
+        ]);
+        ModuleQuotaRegistrationRules.ValidateManifest(All,
+        [
+            new("documents", new("documents.storage-bytes", "Document storage", "Logical uploaded bytes in Active, Archived and pending-deletion documents.", ModuleQuotaUnit.Bytes) { UploadPolicy = new("documents", "documents.upload", 1, "documents.manage"), InventorySource = new("documents", "documents.inventory", 1), }),
+        ]);
+    }
     public static IReadOnlyList<InstalledDataResource> InstalledDataResources { get; } =
     [
         new("documents", new("documents", "app", "documents", ModuleDataOwnership.Organization, "Trykatch.Modules.Documents.Domain.DocumentRecord", "documents_organization_isolation", null)),

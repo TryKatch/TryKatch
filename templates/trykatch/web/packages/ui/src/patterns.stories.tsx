@@ -32,6 +32,18 @@ export const EnterpriseCollection: Story = {
   render: () => <DataTable ariaLabel="Example projects" data={rows} columns={columns} getRowId={(row) => row.id} searchPlaceholder="Search projects…" initialSort={{ id: 'updated', direction: 'desc' }} />,
 }
 
+export const KeyboardScrollableHistory: Story = {
+  render: () => <div style={{ width: 320 }}><DataTable ariaLabel="Read-only history" data={[{ ...rows[0], name: 'OrganizationProjectHistoryEntry000000000000000000000000000001' }]}
+    columns={columns.map(({ sortValue: _sortValue, ...column }) => column)} getRowId={(row) => row.id} searchable={false} /></div>,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const region = canvas.getByRole('group', { name: 'Read-only history' })
+    await expect(region.scrollWidth).toBeGreaterThan(region.clientWidth)
+    for (let attempt = 0; attempt < 6 && region !== canvasElement.ownerDocument.activeElement; attempt++) await userEvent.tab()
+    await expect(region).toHaveFocus()
+  },
+}
+
 export const ExpandableCollection: Story = {
   render: () => <DataTable
     ariaLabel="Example expandable projects"

@@ -14,6 +14,7 @@ using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Trykatch.Application.Identity;
+using Trykatch.Application.Mailing;
 using Trykatch.Application.Organizations;
 using Trykatch.Domain.Organizations;
 using Trykatch.Identity;
@@ -28,7 +29,7 @@ namespace Trykatch.IntegrationTests;
 [TestClass]
 [TestCategory("Integration")]
 [DoNotParallelize]
-public sealed class AccessManagementBoundaryTests
+public sealed partial class AccessManagementBoundaryTests
 {
     private static readonly string[] OrdinaryOrganizationPermissions = ["projects.read"];
     private static readonly string[] LimitedOrganizationManagementPermissions = ["members.manage", "members.read", "roles.read", "roles.manage"];
@@ -41,15 +42,31 @@ public sealed class AccessManagementBoundaryTests
     public async Task SelectedInvitationRoleIsAssignedOnAcceptance(string roleName)
     {
         RecordingInvitationNotifier notifier = new();
-        await using AccessHost host = await AccessHost.StartAsync(notifier);
+        await using AccessHost host = await AccessHost.StartAsync(notifier, queuedEmail: true);
         using HttpClient administrator = await host.SignInAsync(AccessHost.AdministratorEmail);
         using HttpClient owner = await host.CreateOrganizationOwnerAsync(administrator);
         JsonElement role = (await owner.GetFromJsonAsync<JsonElement>("/api/v1/roles")).EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == roleName);
         Guid roleId = role.GetProperty("id").GetGuid();
-        using HttpClient invitee = await host.InviteAndActivateAsync(owner, "selected-role@trykatch.test", roleId);
-        notifier.RoleName.ShouldBe(roleName);
-        notifier.Recipient.ShouldBe("selected-role@trykatch.test");
+        JsonElement created = await AccessHost.SuccessAsync(owner, HttpMethod.Post, "/api/v1/invitations", new { email = "selected-role@trykatch.test", roleId, expiresInDays = 7 });
+        created.GetProperty("emailDelivered").GetBoolean().ShouldBeFalse();
+        notifier.Recipient.ShouldBeNull();
+#if TRYKATCH_EMAIL
+        created.GetProperty("emailQueued").GetBoolean().ShouldBeTrue();
+        using (IServiceScope scope = host.Services.CreateScope())
+        {
+            IEmailDeliverySource source = scope.ServiceProvider.GetServices<IEmailDeliverySource>().Single(candidate => candidate.Boundary == EmailDeliveryBoundary.Organization);
+            EmailDeliveryLease lease = (await source.ClaimAsync(1, CancellationToken.None)).Single();
+            EmailDeliveryPreparation prepared = await source.PrepareAsync(lease, CancellationToken.None);
+            prepared.Disposition.ShouldBe(EmailPreparationDisposition.Ready);
+            prepared.Message!.Recipient.ShouldBe("selected-role@trykatch.test");
+            prepared.Message.TextBody.ShouldContain($"Workspace role: {roleName}");
+            await source.CompleteAsync(lease, new(EmailAttemptDisposition.Suppressed, EmailFailureCode.SourceDenied), CancellationToken.None);
+        }
+#else
+        created.GetProperty("emailQueued").GetBoolean().ShouldBeFalse();
+#endif
+        using HttpClient invitee = await host.ActivateOrganizationInvitationAsync(new Uri(created.GetProperty("invitationUrl").GetString()!).Segments.Last());
         JsonElement member = await AccessHost.OrganizationMemberAsync(owner, "selected-role@trykatch.test");
         member.GetProperty("roles").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()).ShouldBe([roleId]);
         JsonElement access = await invitee.GetFromJsonAsync<JsonElement>("/api/v1/access");
@@ -759,11 +776,12 @@ public sealed class AccessManagementBoundaryTests
         }
     }
 
-    private sealed class AccessHost(PostgreSqlContainer? postgres, WebApplicationFactory<Program> factory, string ownerConnection, string? maintenanceConnection, string? databaseName) : IAsyncDisposable
+    private sealed class AccessHost(PostgreSqlContainer? postgres, WebApplicationFactory<Program> factory, string ownerConnection, string? maintenanceConnection, string? databaseName, bool ownsDatabase = true) : IAsyncDisposable
     {
         public const string AdministratorEmail = "authority-admin@trykatch.test";
         private const string Password = "Local-only!Authority-Password-42";
         public IServiceProvider Services => factory.Services;
+        public string OwnerConnection => ownerConnection;
 
         public async Task RejectAiAuditInsertsAsync()
         {
@@ -790,11 +808,15 @@ public sealed class AccessManagementBoundaryTests
             return await database.AuditIntents.CountAsync(intent => intent.Operation == "organization.ai.updated");
         }
 
-        public static async Task<AccessHost> StartAsync(IInvitationNotifier? invitationNotifier = null)
+        public static async Task<AccessHost> StartAsync(
+            IInvitationNotifier? invitationNotifier = null,
+            bool queuedEmail = false,
+            Action<IServiceCollection>? configureServices = null,
+            IReadOnlyDictionary<string, string?>? additionalSettings = null)
         {
             string? configuredPostgres = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
             PostgreSqlContainer? postgres = string.IsNullOrWhiteSpace(configuredPostgres)
-                ? new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build()
+                ? new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build()
                 : null;
             if (postgres is not null) await postgres.StartAsync();
             string ownerConnection = postgres?.GetConnectionString() ?? configuredPostgres!;
@@ -810,7 +832,8 @@ public sealed class AccessManagementBoundaryTests
             }
             try
             {
-                return new(postgres, await CreateFactoryAsync(ownerConnection, invitationNotifier), ownerConnection, configuredPostgres, databaseName);
+                return new(postgres, await CreateFactoryAsync(ownerConnection, invitationNotifier, queuedEmail,
+                    configureServices, additionalSettings), ownerConnection, configuredPostgres, databaseName);
             }
             catch
             {
@@ -820,30 +843,47 @@ public sealed class AccessManagementBoundaryTests
             }
         }
 
-        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(string ownerConnection, IInvitationNotifier? invitationNotifier)
+        private static async Task<WebApplicationFactory<Program>> CreateFactoryAsync(
+            string ownerConnection,
+            IInvitationNotifier? invitationNotifier,
+            bool queuedEmail,
+            Action<IServiceCollection>? configureServices,
+            IReadOnlyDictionary<string, string?>? additionalSettings,
+            bool initializeDatabase = true)
         {
             var connections = await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(ownerConnection);
-            await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ownerConnection).Options);
-            await identity.Database.MigrateAsync();
-            await using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(ownerConnection).Options);
-            await platform.Database.MigrateAsync();
-            ProjectsModule projects = new();
-            DocumentsModule documents = new();
-            ModuleCatalog catalog = new([projects, documents]);
-            await using ApplicationDbContext application = new(
-                new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(ownerConnection).Options,
-                [new ProjectsModelContributor(), new DocumentsModelContributor()], moduleCatalog: catalog);
-            await application.Database.MigrateAsync();
-            await using NpgsqlConnection connection = new(ownerConnection);
-            await connection.OpenAsync();
-            foreach (ModuleMigration migration in documents.Migrations)
+            string workCoordinatorConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
             {
-                await using NpgsqlCommand command = new(migration.Sql, connection);
-                await command.ExecuteNonQueryAsync();
+                Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+                Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+            }.ConnectionString;
+            if (initializeDatabase)
+            {
+                await using IdentityDbContext identity = new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ownerConnection).Options);
+                await identity.Database.MigrateAsync();
+                await using PlatformDbContext platform = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(ownerConnection).Options);
+                await platform.Database.MigrateAsync();
+                ProjectsModule projects = new();
+                DocumentsModule documents = new();
+                ModuleCatalog catalog = new([projects, documents]);
+                await using ApplicationDbContext application = new(
+                    new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(ownerConnection).Options,
+                    [new ProjectsModelContributor(), new DocumentsModelContributor()], moduleCatalog: catalog);
+                await application.Database.MigrateAsync();
+                await using NpgsqlConnection connection = new(ownerConnection);
+                await connection.OpenAsync();
+                foreach (ModuleMigration migration in documents.Migrations)
+                {
+                    await using NpgsqlCommand command = new(migration.Sql, connection);
+                    await command.ExecuteNonQueryAsync();
+                }
+                await InstalledSchemaCatalog.SynchronizeAsync(ownerConnection, catalog.Descriptors.SelectMany(module =>
+                    module.DataResources.Select(resource => new InstalledDataResource(module.Id, resource))));
+                await RuntimeRoleProvisioner.ProvisionAsync(ownerConnection, new RuntimeDatabaseRoles(
+                    PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.PlatformRole,
+                    PostgresRuntimeRoleFixture.IdentityRole, PostgresRuntimeRoleFixture.OutboxRole,
+                    PostgresRuntimeRoleFixture.WorkCoordinatorRole));
             }
-            await InstalledSchemaCatalog.SynchronizeAsync(ownerConnection, catalog.Descriptors.SelectMany(module =>
-                module.DataResources.Select(resource => new InstalledDataResource(module.Id, resource))));
-            await PostgresRuntimeRoleFixture.GrantApplicationPrivilegesAsync(ownerConnection);
 
             Dictionary<string, string?> settings = new()
             {
@@ -852,10 +892,15 @@ public sealed class AccessManagementBoundaryTests
                 ["ConnectionStrings:trykatch-platform"] = connections.Platform,
                 ["ConnectionStrings:trykatch-identity"] = connections.Identity,
                 ["ConnectionStrings:trykatch-outbox"] = connections.Outbox,
+                ["ConnectionStrings:trykatch-work"] = workCoordinatorConnection,
                 ["Bootstrap:PlatformAdminEmail"] = AdministratorEmail,
                 ["Bootstrap:PlatformAdminPassword"] = Password,
                 ["DevelopmentDemo:Enabled"] = "false"
             };
+            if (queuedEmail) settings["Application:PublicUrl"] = "https://app.trykatch.test";
+            if (additionalSettings is not null)
+                foreach ((string key, string? value) in additionalSettings)
+                    settings[key] = value;
             WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>().WithWebHostBuilder(webHost =>
             {
                 webHost.UseEnvironment("Development");
@@ -863,6 +908,16 @@ public sealed class AccessManagementBoundaryTests
                 webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
                 if (invitationNotifier is not null)
                     webHost.ConfigureTestServices(services => services.AddSingleton(invitationNotifier));
+                if (queuedEmail)
+                    webHost.ConfigureTestServices(services =>
+                    {
+                        // Admission/source tests drive the dispatcher explicitly, without racing the hosted poller.
+                        foreach (ServiceDescriptor descriptor in services.Where(descriptor =>
+                            descriptor.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
+                            && descriptor.ImplementationType?.Name == "QueuedEmailDeliveryWorker").ToArray())
+                            services.Remove(descriptor);
+                    });
+                if (configureServices is not null) webHost.ConfigureTestServices(configureServices);
             });
             return factory;
         }
@@ -871,6 +926,11 @@ public sealed class AccessManagementBoundaryTests
         {
             BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false, HandleCookies = true
         });
+
+        public async Task<AccessHost> CreateReplicaAsync(IReadOnlyDictionary<string, string?> additionalSettings) =>
+            new(null, await CreateFactoryAsync(ownerConnection, null, queuedEmail: false, configureServices: null,
+                    additionalSettings: additionalSettings, initializeDatabase: false),
+                ownerConnection, null, null, ownsDatabase: false);
 
         public async Task<ManagementBarrier> BlockManagementAsync(Guid? organizationId = null)
         {
@@ -1007,7 +1067,7 @@ public sealed class AccessManagementBoundaryTests
             return role.Id;
         }
 
-        private async Task<HttpClient> ActivateOrganizationInvitationAsync(string token)
+        public async Task<HttpClient> ActivateOrganizationInvitationAsync(string token)
         {
             HttpClient client = CreateClient();
             await SuccessAsync(client, HttpMethod.Post, "/api/v1/invitations/activate", new
@@ -1053,6 +1113,7 @@ public sealed class AccessManagementBoundaryTests
         public async ValueTask DisposeAsync()
         {
             await factory.DisposeAsync();
+            if (!ownsDatabase) return;
             if (postgres is not null) await postgres.DisposeAsync();
             else await DropDatabaseAsync(maintenanceConnection!, databaseName!);
         }

@@ -78,6 +78,88 @@ public sealed class ReferenceModuleTests
         tools.Select(value => value.GetProperty("operationId").GetString()).ShouldBe(descriptor.AssistantTools.Select(tool => tool.OperationId));
         tools.Select(value => value.GetProperty("requiresHumanConfirmation").GetBoolean())
             .ShouldBe(descriptor.AssistantTools.Select(tool => tool.RequiresHumanConfirmation));
+
+        if (!root.TryGetProperty("execution", out JsonElement execution))
+        {
+            descriptor.Operations.ShouldBeEmpty();
+            descriptor.SystemGrants.ShouldBeEmpty();
+            descriptor.IntegrationEvents.ShouldBeEmpty();
+            descriptor.EventConsumers.ShouldBeEmpty();
+            descriptor.Jobs.ShouldBeEmpty();
+            descriptor.RecurringSchedules.ShouldBeEmpty();
+            return;
+        }
+
+        JsonElement.ArrayEnumerator operations = execution.GetProperty("operations").EnumerateArray();
+        operations.Select(item => item.GetProperty("operationKey").GetString()).ShouldBe(descriptor.Operations.Select(item => item.OperationKey));
+        operations.Select(item => item.GetProperty("operationVersion").GetInt32()).ShouldBe(descriptor.Operations.Select(item => item.OperationVersion));
+        operations.Select(item => item.GetProperty("executionKind").GetString()).ShouldBe(descriptor.Operations.Select(item => item.ExecutionKind switch
+        {
+            ModuleExecutionKind.UserCommand => "user-command",
+            ModuleExecutionKind.CommittedEvent => "committed-event",
+            ModuleExecutionKind.ScheduledSystem => "scheduled-system",
+            _ => throw new InvalidOperationException($"Unknown execution kind '{item.ExecutionKind}'.")
+        }));
+        operations.Select(item => item.GetProperty("payloadSchemaKey").GetString()).ShouldBe(descriptor.Operations.Select(item => item.PayloadSchemaKey));
+        operations.Select(item => item.GetProperty("payloadSchemaVersion").GetInt32()).ShouldBe(descriptor.Operations.Select(item => item.PayloadSchemaVersion));
+        operations.Select(item => item.GetProperty("requiredPermissionKeys").EnumerateArray().Select(permission => permission.GetString()).ToArray())
+            .ShouldBe(descriptor.Operations.Select(item => item.RequiredPermissionKeys.ToArray()));
+        operations.Select(item => item.GetProperty("resourcePolicyKey").GetString()).ShouldBe(descriptor.Operations.Select(item => item.ResourcePolicyKey));
+        operations.Select(item => item.GetProperty("systemGrantKey").ValueKind == JsonValueKind.Null ? null : item.GetProperty("systemGrantKey").GetString())
+            .ShouldBe(descriptor.Operations.Select(item => item.SystemGrantKey));
+        operations.Select(item => item.GetProperty("maximumPayloadBytes").GetInt32()).ShouldBe(descriptor.Operations.Select(item => item.MaximumPayloadBytes));
+
+        JsonElement.ArrayEnumerator grants = execution.GetProperty("systemGrants").EnumerateArray();
+        grants.Select(item => item.GetProperty("grantKey").GetString()).ShouldBe(descriptor.SystemGrants.Select(item => item.GrantKey));
+        grants.Select(item => item.GetProperty("grantVersion").GetInt32()).ShouldBe(descriptor.SystemGrants.Select(item => item.GrantVersion));
+        grants.Select(item => item.GetProperty("auditActorId").GetGuid()).ShouldBe(descriptor.SystemGrants.Select(item => item.AuditActorId));
+        grants.Select(item => item.GetProperty("allowedOperationKeys").EnumerateArray().Select(value => value.GetString()).ToArray())
+            .ShouldBe(descriptor.SystemGrants.Select(item => item.AllowedOperationKeys.ToArray()));
+        grants.Select(item => item.GetProperty("allowedResourceKeys").EnumerateArray().Select(value => value.GetString()).ToArray())
+            .ShouldBe(descriptor.SystemGrants.Select(item => item.AllowedResourceKeys.ToArray()));
+
+        JsonElement.ArrayEnumerator integrationEvents = execution.GetProperty("integrationEvents").EnumerateArray();
+        integrationEvents.Select(item => item.GetProperty("eventKey").GetString()).ShouldBe(descriptor.IntegrationEvents.Select(item => item.EventKey));
+        integrationEvents.Select(item => item.GetProperty("schemaVersion").GetInt32()).ShouldBe(descriptor.IntegrationEvents.Select(item => item.SchemaVersion));
+        integrationEvents.Select(item => item.GetProperty("maximumPayloadBytes").GetInt32()).ShouldBe(descriptor.IntegrationEvents.Select(item => item.MaximumPayloadBytes));
+        integrationEvents.Any(item => item.TryGetProperty("payloadType", out _) || item.TryGetProperty("readPayload", out _)).ShouldBeFalse();
+
+        JsonElement.ArrayEnumerator eventConsumers = execution.GetProperty("eventConsumers").EnumerateArray();
+        eventConsumers.Select(item => item.GetProperty("consumerKey").GetString()).ShouldBe(descriptor.EventConsumers.Select(item => item.ConsumerKey));
+        eventConsumers.Select(item => item.GetProperty("acceptedEvents").EnumerateArray().Select(value => (value.GetProperty("eventKey").GetString()!, value.GetProperty("schemaVersion").GetInt32())).ToArray())
+            .ShouldBe(descriptor.EventConsumers.Select(item => item.AcceptedEvents.Select(value => (value.EventKey, value.SchemaVersion)).ToArray()));
+        eventConsumers.Select(item => item.GetProperty("operationKey").GetString()).ShouldBe(descriptor.EventConsumers.Select(item => item.OperationKey));
+        eventConsumers.Select(item => item.GetProperty("operationVersion").GetInt32()).ShouldBe(descriptor.EventConsumers.Select(item => item.OperationVersion));
+        eventConsumers.Select(item => item.GetProperty("systemGrantKey").GetString()).ShouldBe(descriptor.EventConsumers.Select(item => item.SystemGrantKey));
+
+        JsonElement.ArrayEnumerator jobs = execution.GetProperty("jobs").EnumerateArray();
+        jobs.Select(item => item.GetProperty("jobKey").GetString()).ShouldBe(descriptor.Jobs.Select(item => item.JobKey));
+        jobs.Select(item => item.GetProperty("jobVersion").GetInt32()).ShouldBe(descriptor.Jobs.Select(item => item.JobVersion));
+        jobs.Select(item => item.GetProperty("operationKey").GetString()).ShouldBe(descriptor.Jobs.Select(item => item.OperationKey));
+        jobs.Select(item => item.GetProperty("operationVersion").GetInt32()).ShouldBe(descriptor.Jobs.Select(item => item.OperationVersion));
+        jobs.Select(item => item.GetProperty("executionKind").GetString()).ShouldBe(descriptor.Jobs.Select(item => item.ExecutionKind switch
+        {
+            ModuleExecutionKind.UserCommand => "user-command",
+            ModuleExecutionKind.CommittedEvent => "committed-event",
+            ModuleExecutionKind.ScheduledSystem => "scheduled-system",
+            _ => throw new InvalidOperationException($"Unknown execution kind '{item.ExecutionKind}'.")
+        }));
+        jobs.Select(item => item.GetProperty("payloadSchemaKey").GetString()).ShouldBe(descriptor.Jobs.Select(item => item.PayloadSchemaKey));
+        jobs.Select(item => item.GetProperty("payloadSchemaVersion").GetInt32()).ShouldBe(descriptor.Jobs.Select(item => item.PayloadSchemaVersion));
+        jobs.Select(item => item.GetProperty("maximumPayloadBytes").GetInt32()).ShouldBe(descriptor.Jobs.Select(item => item.MaximumPayloadBytes));
+
+        JsonElement.ArrayEnumerator schedules = execution.GetProperty("recurringSchedules").EnumerateArray();
+        schedules.Select(item => item.GetProperty("scheduleKey").GetString()).ShouldBe(descriptor.RecurringSchedules.Select(item => item.ScheduleKey));
+        schedules.Select(item => item.GetProperty("jobKey").GetString()).ShouldBe(descriptor.RecurringSchedules.Select(item => item.JobKey));
+        schedules.Select(item => item.GetProperty("jobVersion").GetInt32()).ShouldBe(descriptor.RecurringSchedules.Select(item => item.JobVersion));
+        schedules.Select(item => item.GetProperty("utcSchedule").GetString()).ShouldBe(descriptor.RecurringSchedules.Select(item => item.UtcSchedule));
+        schedules.Select(item => item.GetProperty("misfirePolicy").GetString()).ShouldBe(descriptor.RecurringSchedules.Select(item => item.MisfirePolicy switch
+        {
+            ModuleMisfirePolicy.Coalesce => "coalesce",
+            ModuleMisfirePolicy.CatchUp => "catch-up",
+            _ => throw new InvalidOperationException($"Unknown misfire policy '{item.MisfirePolicy}'.")
+        }));
+        schedules.Select(item => item.GetProperty("systemGrantKey").GetString()).ShouldBe(descriptor.RecurringSchedules.Select(item => item.SystemGrantKey));
     }
 
     private static ModuleCapabilities ParseCapabilities(JsonElement capabilities)

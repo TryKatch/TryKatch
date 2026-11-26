@@ -11,7 +11,7 @@ public static class AccountSecurityPurposes
     public static bool IsAllowed(string purpose) => purpose is Enroll or Replace or Disable or RecoveryCodes;
 }
 
-// Adapters construct this from the authenticated cookie ticket, never request JSON.
+// Adapters use the validated durable session hash and stamp, never request JSON or the raw cookie session ID.
 public sealed record AccountSecurityContext(Guid UserId, string SessionId, string SecurityStamp);
 public sealed record ReauthenticationCommand(string Purpose, string Password, string? Code, bool IsRecoveryCode);
 public sealed record RecentAssuranceGrant(string Grant, DateTimeOffset ExpiresAt);

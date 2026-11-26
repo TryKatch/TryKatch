@@ -21,6 +21,10 @@ Web modules use `@trykatch/module-sdk`. Each definition owns lazy-loadable typed
 
 Data-capable modules declare their ownership and relations, then explicitly register `IApplicationModelContributor`. Organization entities implement `IOrganizationOwned`; the host supplies their named EF isolation filter and validates the entity shape, tenant-first index, declared relation, and policy contract. The migrator consumes the same generated ordered catalog as the API, rejects undeclared SQL tables, and inspects the live PostgreSQL schema after migration. A package may also implement `IModuleMigrationContributor` for immutable forward-only SQL changes. PostgreSQL serializes those changes with an advisory transaction lock and records module, version, migration ID, checksum, and application time in `platform.module_migrations`. Editing or removing an applied migration fails closed. Existing migrations and tables are retained; disabling or unregistering a module is never a data-deletion operation. See [Module data isolation](module-data-isolation.md).
 
+Modules that publish invalidations or contribute browser subscriptions must follow the [realtime module-authoring guidance](assistant/module-authoring.md#add-a-realtime-invalidation) and [authorized realtime operations](operations/realtime.md).
+
+Organization mutation endpoints may opt in to [bounded response replay](operations/idempotency.md) ([Français](operations/idempotency.fr.md)) with separate module-owned request and prereplay authorization gates. Enrollment keeps the module's use case and the host's cookie/antiforgery/transaction boundary; it does not authorize replay by itself.
+
 ## Package lifecycle
 
 - `register` adds reviewed workspace source and leaves it disabled.
@@ -105,6 +109,33 @@ The explicit `--resource` value must be lower-case snake_case, must not be a Pos
 Decimal values are validated against `numeric(18,2)`, and decimal plus 64-bit integer values use invariant JSON strings to prevent JavaScript precision loss. Date-time fields are converted from the browser's local editor to ISO UTC, then normalized to UTC before persistence. This is deliberate API behavior: do not change these generated transports to JavaScript `number` or store a non-UTC `DateTimeOffset`.
 
 Platform-managed fields such as `Id`, `OrganizationId`, audit timestamps, archive metadata and deletion metadata are reserved. They are derived from the authenticated organization and actor context and are never accepted from generated HTTP requests.
+
+## Declare and enforce feature availability
+
+Use a module feature declaration for a reversible availability control, not for authorization or module installation. Each declaration has a stable key prefixed by its owning module, a nonblank name and description, and an explicit Boolean default. Keep the manifest, runtime descriptor, and Web descriptor in parity; the generated registries and module doctor validate that contract. Features absent from an installed module's declaration are unavailable even if old configuration or control rows remain.
+
+For example, Projects declares the independent keys `projects.reads` and `projects.writes`. These are different from the `projects.read` and `projects.manage` permissions. The actor must pass the ordinary permission and organization checks as well as the feature check. Availability never grants membership, permission, entitlement, or access to another module's data.
+
+Check availability inside application use cases through `IOrganizationFeatureEvaluator`; an HTTP endpoint feature annotation is an additional early boundary and does not replace the use-case check. In particular, evaluate the feature before returning protected data from a cache. Apply read and write keys independently to every relevant operation, including direct application entry points, assistant reads, queued work, and mutation replay. Do not cache an enabled server decision or treat a feature as a substitute for current authorization.
+
+The Web SDK exposes the current organization's feature state through `useModuleFeature(key)` and `useModuleFeatures()`. Use these hooks to hide gated routes, navigation, actions, and content until a successful snapshot matches the selected organization and declares the key enabled. Loading, failed, unknown, or mismatched snapshots are unavailable. Combine the feature check with the route or action's normal permission requirement; a hidden browser control is not a security boundary. The host refreshes the current snapshot on window focus and every 30 seconds, while the server remains authoritative for each request. See [feature availability operations](operations/features.md) for operator precedence, configuration, and recovery.
+
+Bind workspace route and navigation contributions with `requiredFeature` alongside `requiredPermission`. Archive contributions use independent `readFeature` and `manageFeature` keys. The catalog validates references against installed declarations and rejects organization-feature bindings on platform surfaces. On the server, `RequireModuleFeature` belongs to an endpoint inside its owning module's secured organization group; it does not replace permission checks or the evaluator inside the use case.
+
+## Declare organization quota resources
+
+Use the optional manifest `quotaResources` list and matching `ModuleDescriptor.QuotaResources` for stable module-owned accounting resources. Each entry requires an owner-prefixed key (maximum120characters), name (160), description (1000) and explicit unit: manifest `bytes`/`count`, runtime `ModuleQuotaUnit.Bytes`/`Count`. A module may declare at most100resources. Omitted metadata is an empty list for existing modules. Module doctor and generated API/migrator registries reject malformed declarations and descriptor drift; `module facts` includes the validated metadata, including declarations retained for disabled installations.
+
+```json
+"quotaResources": [{
+  "key": "documents.storage-bytes",
+  "name": "Document storage",
+  "description": "Logical uploaded bytes in Active, Archived and pending-deletion documents.",
+  "unit": "bytes"
+}]
+```
+
+A declaration supplies accounting identity, not permission, feature availability or an enforced allowance. Disabled modules are omitted from the runtime registry. A system-work grant must separately list any quota authority in manifest `allowedQuotaResources` and runtime `AllowedQuotaResources`; its default is empty, and its business-data resource set grants no quota authority. Each quota grant must reference a resource declared by that same module. These contracts are the S5 foundation; durable reservation, publication, inventory and upload adapters require their own runtime qualification before finite enforcement.
 
 ## Lifecycle commands
 

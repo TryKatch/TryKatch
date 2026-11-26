@@ -8,6 +8,16 @@ test_root=$(cd "$test_root" && pwd -P)
 trap 'rm -rf "$test_root"' EXIT
 template_hive="$test_root/template-hive"
 template_manifest="$repository_root/templates/trykatch/.template.config/template.json"
+template_profile=${TRYKATCH_TEMPLATE_PROFILE:-full}
+quota_artifact_root=${TRYKATCH_TEMPLATE_ARTIFACTS:-}
+if [[ -n $quota_artifact_root && $quota_artifact_root != /* ]]; then
+  printf 'TRYKATCH_TEMPLATE_ARTIFACTS must be an absolute directory path.\n' >&2
+  exit 2
+fi
+case "$template_profile" in
+  full|features|quotas|minimal) ;;
+  *) printf 'TRYKATCH_TEMPLATE_PROFILE must be full, features, quotas or minimal.\n' >&2; exit 2 ;;
+esac
 
 fail() {
   printf 'Template contract failed: %s\n' "$1" >&2
@@ -78,6 +88,8 @@ grep -Fq 'trykatch start [--root <path>]' <<<"$start_help_output" ||
 new_help_output=$("$test_root/tools/trykatch" new --help)
 grep -Fq 'trykatch new <name> [options]' <<<"$new_help_output" ||
   fail 'new help does not document application generation'
+grep -Fq -- '--module-profile <full|minimal>' <<<"$new_help_output" ||
+  fail 'new help does not document the example-module profile'
 grep -Fq 'initialized as a Git repository on the main branch' <<<"$new_help_output" ||
   fail 'new help does not explain Git initialization'
 grep -Fq 'Live progress shows validation and template/Git setup' <<<"$new_help_output" ||
@@ -91,6 +103,10 @@ generate_and_build() {
   shift
   local namespace_name=${name//-/.}
   local output="$test_root/$namespace_name"
+  local configuration=Debug
+  if [[ $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ]]; then
+    configuration=Release
+  fi
   "$test_root/tools/trykatch" new "$name" --output "$output" "$@" --debug:custom-hive "$template_hive" | tee "$test_root/$namespace_name.creation.log"
   node "$repository_root/scripts/test-development-skills.mjs" "$output" "$namespace_name"
   grep -Fq 'Running application template and packaged Git setup' "$test_root/$namespace_name.creation.log" ||
@@ -98,6 +114,20 @@ generate_and_build() {
   grep -Fq 'Application generation completed in ' "$test_root/$namespace_name.creation.log" ||
     fail 'application creation does not report completion and elapsed time'
   test -d "$output/.git" || fail "generated application '$name' was not initialized as a Git repository"
+  local identity_email_tests="$output/tests/$namespace_name.IntegrationTests/IdentityEmailHostingTests.cs"
+  if [[ -d "$output/src/Common/$namespace_name.Infrastructure/Optional/Email" ]]; then
+    if grep -Fq 'EmailDisabledBuildRegistersUnavailableSubmissionWithoutQueueServices' "$identity_email_tests"; then
+      fail "generated email application '$name' contains the disabled-only Identity hosting test"
+    fi
+    grep -Fq 'ActiveRegistrationUsesOnlyNamedIdentityConnectionAndNoRetryQueueOptions' "$identity_email_tests" ||
+      fail "generated email application '$name' omits its active Identity hosting test"
+  else
+    grep -Fq 'EmailDisabledBuildRegistersUnavailableSubmissionWithoutQueueServices' "$identity_email_tests" ||
+      fail "generated no-email application '$name' omits its unavailable Identity hosting test"
+    if grep -Fq 'ActiveRegistrationUsesOnlyNamedIdentityConnectionAndNoRetryQueueOptions' "$identity_email_tests"; then
+      fail "generated no-email application '$name' contains the enabled-only Identity hosting test"
+    fi
+  fi
   test "$(git -C "$output" branch --show-current)" = main ||
     fail "generated application '$name' did not use main as its initial Git branch"
   grep -Fq '<FrameworkReference Include="Microsoft.AspNetCore.App" />' \
@@ -107,10 +137,13 @@ generate_and_build() {
     "$output/tests/Modules/Documents/$namespace_name.Modules.Documents.UnitTests/$namespace_name.Modules.Documents.UnitTests.csproj" ||
     fail "generated Documents unit tests omit their directly consumed module contract"
   dotnet test \
-    "$output/tests/Modules/Documents/$namespace_name.Modules.Documents.UnitTests/$namespace_name.Modules.Documents.UnitTests.csproj"
+    "$output/tests/Modules/Documents/$namespace_name.Modules.Documents.UnitTests/$namespace_name.Modules.Documents.UnitTests.csproj" -c "$configuration"
   dotnet restore "$output/$namespace_name.slnx"
-  dotnet build "$output/$namespace_name.slnx" --no-restore
-  dotnet run --project "$output/tools/$namespace_name.ModuleTool" --no-build -- module doctor --root "$output"
+  if [[ $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ]]; then
+    dotnet restore "$output/$namespace_name.slnx" --locked-mode
+  fi
+  dotnet build "$output/$namespace_name.slnx" -c "$configuration" --no-restore
+  dotnet run --project "$output/tools/$namespace_name.ModuleTool" -c "$configuration" --no-build -- module doctor --root "$output"
   TRYKATCH_RELEASE_VERSION=ci-validation docker compose --env-file "$output/.env.example" -f "$output/compose.yml" config --quiet
   test -f "$output/deploy/observability/otel-collector.tls.yml"
   test -f "$output/compose.observability-tls.yml"
@@ -129,7 +162,7 @@ generate_and_build() {
       fail "generated email application '$name' omits its SMTP tests"
     grep -Fq 'Email__Security:' "$output/compose.yml" ||
       fail "generated email application '$name' omits production SMTP configuration"
-    dotnet test "$output/tests/$namespace_name.IntegrationTests" --no-build --filter FullyQualifiedName~SmtpTransportTests
+    dotnet test "$output/tests/$namespace_name.IntegrationTests" -c "$configuration" --no-build --filter FullyQualifiedName~SmtpTransportTests
   else
     if grep -Fq 'services.AddEmailModule(' "$output/src/Common/$namespace_name.Infrastructure/DependencyInjection.cs" ||
       grep -Fq 'RealSmtpDeliveryUsesConfiguredTransport' "$output/tests/$namespace_name.IntegrationTests/SmtpTransportTests.cs" ||
@@ -158,10 +191,91 @@ generate_and_build() {
     )
   fi
   if [[ $namespace_name == Horizon || $namespace_name == Trykatch ]]; then
-    dotnet test "$output/tests/$namespace_name.UnitTests/$namespace_name.UnitTests.csproj" --no-build \
+    dotnet test "$output/tests/$namespace_name.UnitTests/$namespace_name.UnitTests.csproj" -c "$configuration" --no-build \
       --filter 'GeneratedApplicationsKeepTheirPreviewNineEventName|MovedIntegrationEventsKeepTheirExistingWireContractNames'
-    dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" --no-build \
+    dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" -c "$configuration" --no-build \
       --filter PreviewNine
+  fi
+  if [[ $template_profile != quotas && ( $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ) ]]; then
+    local feature_facts="$test_root/$namespace_name.feature-facts.json"
+    local feature_results="$test_root/$namespace_name.feature-results"
+    # Several real HTTP cases share a partial test class; select their method names too.
+    local feature_filter='FullyQualifiedName~OrganizationFeature|FullyQualifiedName~FeatureControlStoreIntegrationTests|FullyQualifiedName~PlatformFeature|FullyQualifiedName~ModuleFeatureHttpTests|FullyQualifiedName~ProjectsFeature|FullyQualifiedName~FeatureAdministrationRejects|FullyQualifiedName~FeatureBusyLock|FullyQualifiedName~FeatureSnapshotSurvives|FullyQualifiedName~ProjectsAssistant|FullyQualifiedName~PersistedProjectsCreateWorkCanRetryAfterWritesFeatureIsEnabled|FullyQualifiedName~ProjectsReadFeature'
+    "$test_root/tools/trykatch" module facts projects --root "$output" >"$feature_facts"
+    dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" \
+      -c "$configuration" --no-build --no-restore \
+      --filter "$feature_filter" --logger 'trx;LogFileName=feature-policy.trx' --results-directory "$feature_results"
+    node "$repository_root/scripts/assert-feature-policy-output.mjs" "$output" "$namespace_name" "$feature_facts" "$feature_results/feature-policy.trx"
+  fi
+  if [[ ( $template_profile == quotas && ( $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ) ) \
+     || ( $template_profile == full && ( $namespace_name == Horizon || $namespace_name == Acme.Tools.Portal ) ) ]]; then
+    local quota_facts="$test_root/$namespace_name.quota-facts.json"
+    local quota_results="$test_root/$namespace_name.quota-results"
+    local quota_filter
+    quota_filter=$(node --input-type=module - "$repository_root/scripts/assert-quota-policy-output.mjs" <<'NODE'
+import { pathToFileURL } from 'node:url'
+const { requiredTestCases } = await import(pathToFileURL(process.argv[2]))
+console.log(requiredTestCases.map(name => `FullyQualifiedName~${name}`).join('|'))
+NODE
+    )
+    "$test_root/tools/trykatch" module facts documents --root "$output" >"$quota_facts"
+    local quota_test_status=0
+    dotnet test "$output/tests/$namespace_name.IntegrationTests/$namespace_name.IntegrationTests.csproj" \
+      -c "$configuration" --no-build --no-restore \
+      --filter "$quota_filter" --logger 'trx;LogFileName=quota-policy.trx' --results-directory "$quota_results" ||
+      quota_test_status=$?
+    if [[ -n $quota_artifact_root ]]; then
+      local retained_dir="$quota_artifact_root/$namespace_name"
+      local quota_openapi
+      local artifact
+      local retention_failed=0
+      if [[ -f "$output/web/package.json" ]]; then
+        quota_openapi="$output/web/packages/api-client/openapi/$namespace_name.Api.json"
+      else
+        quota_openapi="$output/src/API/$namespace_name.Api/obj/openapi/$namespace_name.Api.json"
+      fi
+      if ! mkdir -p "$retained_dir"; then
+        retention_failed=1
+        printf 'Template contract failed: could not create quota artifact directory %s\n' "$retained_dir" >&2
+      else
+        for artifact in \
+          "$quota_results/quota-policy.trx" \
+          "$quota_openapi" \
+          "$quota_facts" \
+          "$output/docs/generated/assistant-contract.json"; do
+          if [[ ! -f $artifact ]]; then
+            retention_failed=1
+            printf 'Template contract failed: requested quota artifact is missing: %s\n' "$artifact" >&2
+          fi
+        done
+        if [[ -f "$quota_results/quota-policy.trx" ]] && ! cp "$quota_results/quota-policy.trx" "$retained_dir/quota-policy.trx"; then
+          retention_failed=1
+          printf 'Template contract failed: could not retain quota TRX in %s\n' "$retained_dir" >&2
+        fi
+        if [[ -f $quota_openapi ]] && ! cp "$quota_openapi" "$retained_dir/openapi.json"; then
+          retention_failed=1
+          printf 'Template contract failed: could not retain quota OpenAPI in %s\n' "$retained_dir" >&2
+        fi
+        if [[ -f $quota_facts ]] && ! cp "$quota_facts" "$retained_dir/module-facts.json"; then
+          retention_failed=1
+          printf 'Template contract failed: could not retain quota module facts in %s\n' "$retained_dir" >&2
+        fi
+        if [[ -f "$output/docs/generated/assistant-contract.json" ]] &&
+          ! cp "$output/docs/generated/assistant-contract.json" "$retained_dir/assistant-contract.json"; then
+          retention_failed=1
+          printf 'Template contract failed: could not retain quota assistant contract in %s\n' "$retained_dir" >&2
+        fi
+      fi
+      if (( retention_failed != 0 && quota_test_status == 0 )); then
+        fail "could not retain all quota qualification artifacts for '$namespace_name'"
+      fi
+    fi
+    if (( quota_test_status != 0 )); then
+      printf 'Quota qualification tests failed for %s with exit code %d.\n' "$namespace_name" "$quota_test_status" >&2
+      exit "$quota_test_status"
+    fi
+    node "$repository_root/scripts/assert-quota-policy-output.mjs" \
+      "$output" "$namespace_name" "$quota_facts" "$quota_results/quota-policy.trx"
   fi
   # Each generated solution can produce several gigabytes of runtime assets.
   # Retain the generated source for assertions, but release build intermediates
@@ -169,9 +283,52 @@ generate_and_build() {
   find "$output" -path '*/node_modules' -prune -o -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
 }
 
+if [[ $template_profile == features ]]; then
+  generate_and_build Horizon
+  generate_and_build Acme.Tools-Portal --ui none
+  printf 'Renamed React and backend-only feature policy qualification passed.\n'
+  exit 0
+fi
+
+if [[ $template_profile == quotas ]]; then
+  generate_and_build Horizon
+  generate_and_build Acme.Tools-Portal --ui none
+  printf 'Renamed React and backend-only quota qualification passed.\n'
+  exit 0
+fi
+
+if [[ $template_profile == minimal ]]; then
+  generate_and_build Katch --module-profile minimal
+  corepack pnpm --dir "$test_root/Katch/web" generate
+  node "$test_root/Katch/tools/api-client-openapi.test.mjs"
+  corepack pnpm --dir "$test_root/Katch/web" typecheck
+  node "$repository_root/scripts/assert-minimal-profile.mjs" "$test_root/Katch" --openapi
+  printf 'Renamed React minimal module profile qualification passed.\n'
+  exit 0
+fi
+
 generate_and_build Horizon
 grep -Fq 'rustfs/rustfs' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
   fail 'default storage-enabled template output omits the RustFS Aspire resource'
+grep -Fq '1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output does not pin the reviewed RustFS image'
+grep -Fq '.WithEnvironment("RUSTFS_ACCESS_KEY", accessKey)' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output does not pass the local access key to RustFS'
+grep -Fq '.WithEnvironment("RUSTFS_SECRET_KEY", secretKey)' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output does not pass the local secret key to RustFS'
+grep -Fq '.WithVolume("horizon-object-storage-data", "/data")' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'default storage-enabled template output omits its dedicated object-storage volume'
+grep -Fq 'if (!builder.ExecutionContext.IsRunMode)' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'storage-enabled template output does not separate AppHost run mode from publish mode'
+for parameter in storage-service-url storage-access-key storage-secret-key storage-bucket storage-region; do
+  grep -Fq "builder.AddParameter(\"$parameter\"" "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+    fail "storage-enabled template output omits the publish-mode '$parameter' parameter"
+done
+grep -Fq '.WithEnvironment("Storage__CreateBucket", "false")' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'storage-enabled template output does not disable automatic bucket creation in publish mode'
+if grep -Fq 'quay.io/minio/minio' "$test_root/Horizon/src/API/Horizon.AppHost/ApplicationHostingExtensions.cs"; then
+  fail 'default storage-enabled template output still registers the retired MinIO image'
+fi
 test -d "$test_root/Horizon/web"
 test ! -e "$test_root/Horizon/web/apps/web/src/views/LandingPage.tsx" ||
   fail 'generated React application includes the Trykatch marketing landing page'
@@ -303,14 +460,21 @@ test -f "$test_root/Acme.Tools.Portal/README.md"
 if grep -RFq --include='*.cs' 'AddViteApp(' "$test_root/Acme.Tools.Portal/src/API/Acme.Tools.Portal.AppHost"; then
   fail 'Backend-only template output registers a Vite application'
 fi
+grep -RFq --include='*.cs' 'rustfs/rustfs' "$test_root/Acme.Tools.Portal/src/API/Acme.Tools.Portal.AppHost" ||
+  fail 'Backend-only storage-enabled template output omits the RustFS development container'
 grep -Fq 'ports: ["8080:8080"]' "$test_root/Acme.Tools.Portal/compose.yml"
 generate_and_build Email.Sample --ui none --email
 generate_and_build Storage.Sample --ui none --storage
 grep -Fq 'rustfs/rustfs' "$test_root/Storage.Sample/src/API/Storage.Sample.AppHost/ApplicationHostingExtensions.cs" ||
   fail 'explicit storage-enabled template output omits the RustFS Aspire resource'
+grep -Fq 'Storage__ServiceUrl' "$test_root/Storage.Sample/src/API/Storage.Sample.AppHost/ApplicationHostingExtensions.cs" ||
+  fail 'explicit storage-enabled template output omits the S3 service URL configuration'
 dotnet new trykatch -n NoStorage -o "$test_root/NoStorage" --storage false --allow-scripts yes --debug:custom-hive "$template_hive"
 if grep -Fq 'rustfs/rustfs' "$test_root/NoStorage/src/API/NoStorage.AppHost/ApplicationHostingExtensions.cs"; then
   fail 'storage-disabled template output unexpectedly registers RustFS'
+fi
+if grep -Fq 'storage-service-url' "$test_root/NoStorage/src/API/NoStorage.AppHost/ApplicationHostingExtensions.cs"; then
+  fail 'storage-disabled template output unexpectedly declares S3 publish parameters'
 fi
 generate_and_build Documents.Sample --ui none --documents
 generate_and_build Images.Sample --ui none --images

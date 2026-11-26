@@ -174,11 +174,22 @@ public sealed record ModuleDescriptor(
     ModuleCapabilities Capabilities,
     IReadOnlyList<ExtensionPointDescriptor> ExtensionPoints)
 {
+    public IReadOnlyList<ModuleFeatureDescriptor> Features { get; init; } = [];
+    public IReadOnlyList<ModuleQuotaResourceDescriptor> QuotaResources { get; init; } = [];
     public IReadOnlyList<AssistantToolDescriptor> AssistantTools { get; init; } = [];
     public ModuleDataOwnership? DefaultDataOwnership { get; init; }
     public IReadOnlyList<DataResourceDescriptor> DataResources { get; init; } = [];
     public string Publisher { get; init; } = "try" + "katch";
     public IReadOnlyList<PermissionDescriptor> Permissions { get; init; } = [];
+    public IReadOnlyList<ModuleOperationDescriptor> Operations { get; init; } = [];
+    public IReadOnlyList<ModuleSystemGrantDescriptor> SystemGrants { get; init; } = [];
+    public IReadOnlyList<IntegrationEventDescriptor> IntegrationEvents { get; init; } = [];
+    public IReadOnlyList<ModuleEventConsumerDescriptor> EventConsumers { get; init; } = [];
+    public IReadOnlyList<ModuleJobDescriptor> Jobs { get; init; } = [];
+    public IReadOnlyList<ModuleRecurringScheduleDescriptor> RecurringSchedules { get; init; } = [];
+    public IReadOnlyList<ModuleEmailTemplateDescriptor> EmailTemplates { get; init; } = [];
+    public IReadOnlyList<ModuleEmailDisclosurePolicyDescriptor> EmailDisclosurePolicies { get; init; } = [];
+    public IReadOnlyList<ModuleRealtimeAudiencePolicyDescriptor> RealtimeAudiencePolicies { get; init; } = [];
 }
 
 /// <summary>
@@ -230,6 +241,11 @@ public sealed class ModuleCatalog
             module => module.Descriptor.Id,
             StringComparer.Ordinal);
         ValidateDependencies(byId);
+        ModuleFeatureRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
+        ModuleQuotaRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
+        ModuleWorkRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
+        ModuleEmailRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
+        ModuleRealtimeRegistrationRules.Validate(supplied.Select(module => module.Descriptor).ToArray());
 
         Modules = OrderByDependencies(byId);
         Descriptors = Modules.Select(module => module.Descriptor).ToArray();

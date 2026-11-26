@@ -1,0 +1,40 @@
+{
+  "$schema": "https://trykatch.net/schemas/module-catalog.v1.json",
+  "schemaVersion": 1,
+  "hostVersion": "0.1.0",
+  "hostCapabilities": [
+    "business-blueprints-v1",
+    "typed-tables-v1"
+  ],
+  "lockFile": "trykatch.modules.lock.json",
+  "trustedPublishers": [
+    "trykatch"
+  ],
+  "publisherTrust": {},
+  "outputs": {
+    "backend": "src/API/Trykatch.Api/Modules/EnabledModules.cs",
+    "backendNamespace": "Trykatch.Api.Modules",
+    "dotnetModuleContractNamespace": "Trykatch.Modules",
+    "migrator": "src/API/Trykatch.Migrator/Modules/EnabledModules.cs",
+    "migratorNamespace": "Trykatch.Migrator.Modules",
+    "web": "web/apps/web/src/modules.ts",
+    "webModuleSdkSpecifier": "@trykatch/module-sdk"
+  },
+  "modules": [
+    {
+      "id": "projects",
+      "manifest": "src/Modules/Projects/trykatch.module.json",
+      "enabled": false
+    },
+    {
+      "id": "federation",
+      "manifest": "src/Modules/Federation/trykatch.module.json",
+      "enabled": false
+    },
+    {
+      "id": "documents",
+      "manifest": "src/Modules/Documents/trykatch.module.json",
+      "enabled": false
+    }
+  ]
+}

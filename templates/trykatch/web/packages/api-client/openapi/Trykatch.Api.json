@@ -1,11 +1,116 @@
 {
-  "openapi": "3.1.1",
+  "openapi": "3.1.2",
   "info": {
     "title": "Trykatch API",
     "description": "The versioned HTTP contract for Trykatch's platform and organization workspaces. Organization-scoped operations infer their organization from the authenticated workspace context.",
     "version": "v1"
   },
   "paths": {
+    "/api/v1/realtime/state": {
+      "get": {
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Get state realtime",
+        "operationId": "Realtime_GetState",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeStateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/realtime/state', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/realtime/history": {
+      "get": {
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Get history realtime",
+        "operationId": "Realtime_GetHistory",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeHistoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/realtime/history', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/projects": {
       "get": {
         "tags": [
@@ -67,6 +172,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "x-codeSamples": [
@@ -89,7 +214,21 @@
           "Projects"
         ],
         "summary": "Create projects",
+        "description": "For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.",
         "operationId": "Projects_Create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Reuse this key with the same request intent after an uncertain network outcome.",
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -120,6 +259,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "x-codeSamples": [
@@ -129,6 +288,13 @@
             "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/projects/', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ],
+        "x-trykatch-idempotency": {
+          "keyRequired": false,
+          "replayLifetimeSeconds": 86400,
+          "maximumRequestBytes": 65536,
+          "maximumResponseBytes": 262144,
+          "responseLimitAlsoBoundedByAtomicStaging": true
+        },
         "x-trykatch-module": "projects"
       }
     },
@@ -161,6 +327,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "x-codeSamples": [
@@ -183,6 +369,7 @@
           "Projects"
         ],
         "summary": "Update projects",
+        "description": "For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.",
         "operationId": "Projects_Update",
         "parameters": [
           {
@@ -192,6 +379,17 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Reuse this key with the same request intent after an uncertain network outcome.",
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
             }
           }
         ],
@@ -225,6 +423,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "x-codeSamples": [
@@ -234,6 +452,13 @@
             "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/projects/{id:guid}', {\n  method: 'PUT',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ],
+        "x-trykatch-idempotency": {
+          "keyRequired": false,
+          "replayLifetimeSeconds": 86400,
+          "maximumRequestBytes": 65536,
+          "maximumResponseBytes": 262144,
+          "responseLimitAlsoBoundedByAtomicStaging": true
+        },
         "x-trykatch-module": "projects"
       },
       "delete": {
@@ -241,6 +466,7 @@
           "Projects"
         ],
         "summary": "Delete projects",
+        "description": "For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.",
         "operationId": "Projects_Delete",
         "parameters": [
           {
@@ -250,6 +476,17 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Reuse this key with the same request intent after an uncertain network outcome.",
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
             }
           }
         ],
@@ -276,6 +513,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "x-codeSamples": [
@@ -285,6 +542,13 @@
             "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/projects/{id:guid}', {\n  method: 'DELETE',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ],
+        "x-trykatch-idempotency": {
+          "keyRequired": false,
+          "replayLifetimeSeconds": 86400,
+          "maximumRequestBytes": 65536,
+          "maximumResponseBytes": 262144,
+          "responseLimitAlsoBoundedByAtomicStaging": true
+        },
         "x-trykatch-module": "projects"
       }
     },
@@ -294,6 +558,7 @@
           "Projects"
         ],
         "summary": "Archive projects",
+        "description": "For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.",
         "operationId": "Projects_Archive",
         "parameters": [
           {
@@ -304,11 +569,42 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Reuse this key with the same request intent after an uncertain network outcome.",
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "204": {
             "description": "No Content"
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "x-codeSamples": [
@@ -318,6 +614,13 @@
             "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/projects/{id:guid}/archive', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ],
+        "x-trykatch-idempotency": {
+          "keyRequired": false,
+          "replayLifetimeSeconds": 86400,
+          "maximumRequestBytes": 65536,
+          "maximumResponseBytes": 262144,
+          "responseLimitAlsoBoundedByAtomicStaging": true
+        },
         "x-trykatch-module": "projects"
       }
     },
@@ -327,6 +630,7 @@
           "Projects"
         ],
         "summary": "Restore projects",
+        "description": "For an uncertain outcome within the replay window, retry with the same key and same request intent. Current authentication, authorization, workspace and organization access, and CSRF checks still apply to replays. A changed request with the same key returns 409 (idempotency_conflict); an in-progress request returns 409 (idempotency_in_progress) with Retry-After: 1. The receipt lifetime is 86400 seconds (allowed range: 60–86400 seconds), and the response limit is also bounded by the host's atomic response-staging limit. Current policy may shorten an earlier receipt's window; after expiry, the same key may execute a new mutation.",
         "operationId": "Projects_Restore",
         "parameters": [
           {
@@ -337,11 +641,42 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Reuse this key with the same request intent after an uncertain network outcome.",
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "204": {
             "description": "No Content"
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "x-codeSamples": [
@@ -351,6 +686,13 @@
             "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/projects/{id:guid}/restore', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ],
+        "x-trykatch-idempotency": {
+          "keyRequired": false,
+          "replayLifetimeSeconds": 86400,
+          "maximumRequestBytes": 65536,
+          "maximumResponseBytes": 262144,
+          "responseLimitAlsoBoundedByAtomicStaging": true
+        },
         "x-trykatch-module": "projects"
       }
     },
@@ -435,6 +777,25 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1630,6 +1991,229 @@
         ]
       }
     },
+    "/api/v1/platform/email-deliveries": {
+      "get": {
+        "tags": [
+          "EmailDelivery"
+        ],
+        "summary": "List email delivery",
+        "operationId": "EmailDelivery_List",
+        "parameters": [
+          {
+            "name": "boundary",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "organization"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 25
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "organizationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "deliveryId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfEmailDeliveryView"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfEmailDeliveryView"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfEmailDeliveryView"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/email-deliveries', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/email-deliveries/templates": {
+      "get": {
+        "tags": [
+          "EmailDelivery"
+        ],
+        "summary": "List email templates",
+        "operationId": "EmailTemplates_List",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfEmailTemplateView"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfEmailTemplateView"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfEmailTemplateView"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/email-deliveries/templates', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/email-deliveries/templates/preview": {
+      "get": {
+        "tags": [
+          "EmailDelivery"
+        ],
+        "summary": "Preview email templates",
+        "operationId": "EmailTemplates_Preview",
+        "parameters": [
+          {
+            "name": "templateKey",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "templateVersion",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTemplatePreview"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTemplatePreview"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTemplatePreview"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/email-deliveries/templates/preview', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/invitations/preview/{token}": {
       "get": {
         "tags": [
@@ -1884,6 +2468,286 @@
             "lang": "TypeScript",
             "label": "TypeScript · fetch",
             "source": "const response = await fetch('/api/v1/modules', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/module-work": {
+      "get": {
+        "tags": [
+          "ModuleWork"
+        ],
+        "summary": "List module work",
+        "operationId": "ModuleWork_List",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 25
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfModuleWorkView"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfModuleWorkView"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfModuleWorkView"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/module-work', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/module-work/{workId}/pause": {
+      "post": {
+        "tags": [
+          "ModuleWork"
+        ],
+        "summary": "Pause module work",
+        "operationId": "ModuleWork_Pause",
+        "parameters": [
+          {
+            "name": "workId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/module-work/{workId}/pause', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/module-work/{workId}/resume": {
+      "post": {
+        "tags": [
+          "ModuleWork"
+        ],
+        "summary": "Resume module work",
+        "operationId": "ModuleWork_Resume",
+        "parameters": [
+          {
+            "name": "workId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/module-work/{workId}/resume', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/module-work/{workId}/retry": {
+      "post": {
+        "tags": [
+          "ModuleWork"
+        ],
+        "summary": "Retry module work",
+        "operationId": "ModuleWork_Retry",
+        "parameters": [
+          {
+            "name": "workId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleWorkActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleWorkActionReceipt"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/module-work/{workId}/retry', {\n  method: 'POST',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ]
       }
@@ -3073,6 +3937,44 @@
         ]
       }
     },
+    "/api/v1/features": {
+      "get": {
+        "tags": [
+          "OrganizationFeatures"
+        ],
+        "summary": "Current features",
+        "operationId": "Features_Current",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationFeatureSnapshot"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationFeatureSnapshot"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationFeatureSnapshot"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/features', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/tenants": {
       "get": {
         "tags": [
@@ -3634,6 +4536,79 @@
         ]
       }
     },
+    "/api/v1/platform/outbox/module-deliveries": {
+      "get": {
+        "tags": [
+          "OutboxRecovery"
+        ],
+        "summary": "List module deliveries outbox",
+        "operationId": "Outbox_ListModuleDeliveries",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 25
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfModuleEventDeliveryView"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfModuleEventDeliveryView"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfModuleEventDeliveryView"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/outbox/module-deliveries', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/platform/outbox/{messageId}/replay": {
       "post": {
         "tags": [
@@ -3788,6 +4763,281 @@
             "lang": "TypeScript",
             "label": "TypeScript · fetch",
             "source": "const response = await fetch('/api/v1/platform/outbox/replay-requests/{requestId}', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/features": {
+      "get": {
+        "tags": [
+          "PlatformFeatures"
+        ],
+        "summary": "List platform features",
+        "operationId": "PlatformFeatures_List",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureAdministrationSnapshot"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureAdministrationSnapshot"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureAdministrationSnapshot"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/features', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/features/{featureKey}/history": {
+      "get": {
+        "tags": [
+          "PlatformFeatures"
+        ],
+        "summary": "History platform features",
+        "operationId": "PlatformFeatures_History",
+        "parameters": [
+          {
+            "name": "featureKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "organizationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfFeatureControlHistoryEntry"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfFeatureControlHistoryEntry"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfFeatureControlHistoryEntry"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/platform/features/{featureKey}/history', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/features/{featureKey}/environment": {
+      "put": {
+        "tags": [
+          "PlatformFeatures"
+        ],
+        "summary": "Save environment platform features",
+        "operationId": "PlatformFeatures_SaveEnvironment",
+        "parameters": [
+          {
+            "name": "featureKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveEnvironmentFeatureControl"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveEnvironmentFeatureControl"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveEnvironmentFeatureControl"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/features/{featureKey}/environment', {\n  method: 'PUT',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/features/{featureKey}/organizations/{organizationId}": {
+      "put": {
+        "tags": [
+          "PlatformFeatures"
+        ],
+        "summary": "Save organization platform features",
+        "operationId": "PlatformFeatures_SaveOrganization",
+        "parameters": [
+          {
+            "name": "featureKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveOrganizationFeatureOverride"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveOrganizationFeatureOverride"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveOrganizationFeatureOverride"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureControlState"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const { token } = await fetch('/api/v1/auth/antiforgery', {\n  credentials: 'include',\n}).then((response) => response.json() as Promise<{ token: string }>);\n\nconst response = await fetch('/api/v1/platform/features/{featureKey}/organizations/{organizationId}', {\n  method: 'PUT',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n    'Content-Type': 'application/json',\n    'X-CSRF-TOKEN': token,\n  },\n  body: JSON.stringify({ /* fields from the request schema */ }),\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
           }
         ]
       }
@@ -4504,6 +5754,44 @@
         ]
       }
     },
+    "/api/v1/quotas/usage": {
+      "get": {
+        "tags": [
+          "Quotas"
+        ],
+        "summary": "Current usage quotas",
+        "operationId": "Quotas_CurrentUsage",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationQuotaUsage"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationQuotaUsage"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationQuotaUsage"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "TypeScript",
+            "label": "TypeScript · fetch",
+            "source": "const response = await fetch('/api/v1/quotas/usage', {\n  method: 'GET',\n  credentials: 'include',\n  headers: {\n    Accept: 'application/json',\n  },\n});\n\nif (!response.ok) throw new Error(`Request failed: ${response.status}`);\nconst result: unknown = response.status === 204 ? undefined : await response.json();\n// Handle result in memory; never log response bodies, which may contain credentials or personal data.\nconsole.log({ status: response.status });"
+          }
+        ]
+      }
+    },
     "/api/v1/workspace/select": {
       "post": {
         "tags": [
@@ -5158,7 +6446,8 @@
         "required": [
           "invitation",
           "invitationUrl",
-          "emailDelivered"
+          "emailDelivered",
+          "emailQueued"
         ],
         "type": "object",
         "properties": {
@@ -5169,6 +6458,9 @@
             "type": "string"
           },
           "emailDelivered": {
+            "type": "boolean"
+          },
+          "emailQueued": {
             "type": "boolean"
           }
         }
@@ -5404,6 +6696,328 @@
           },
           "sha256": {
             "type": "string"
+          }
+        }
+      },
+      "EmailDeliveryView": {
+        "required": [
+          "deliveryId",
+          "boundary",
+          "organizationId",
+          "templateKey",
+          "templateVersion",
+          "state",
+          "attempts",
+          "createdAtUtc",
+          "nextAttemptAtUtc",
+          "completedAtUtc",
+          "failureCode",
+          "smtpStatusCode"
+        ],
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "boundary": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "templateKey": {
+            "type": "string"
+          },
+          "templateVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "state": {
+            "type": "string"
+          },
+          "attempts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nextAttemptAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "completedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "failureCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "smtpStatusCode": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "EmailTemplatePreview": {
+        "required": [
+          "template",
+          "subject",
+          "textBody",
+          "htmlBody"
+        ],
+        "type": "object",
+        "properties": {
+          "template": {
+            "$ref": "#/components/schemas/EmailTemplateView"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "textBody": {
+            "type": "string"
+          },
+          "htmlBody": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "EmailTemplateView": {
+        "required": [
+          "templateKey",
+          "templateVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "templateKey": {
+            "type": "string"
+          },
+          "templateVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "FeatureAdministrationItem": {
+        "required": [
+          "moduleId",
+          "declaration",
+          "deploymentDisabled",
+          "configuredDefault",
+          "environmentControl",
+          "organizationControl"
+        ],
+        "type": "object",
+        "properties": {
+          "moduleId": {
+            "type": "string"
+          },
+          "declaration": {
+            "$ref": "#/components/schemas/ModuleFeatureDescriptor"
+          },
+          "deploymentDisabled": {
+            "type": "boolean"
+          },
+          "configuredDefault": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "environmentControl": {
+            "$ref": "#/components/schemas/FeatureControlState"
+          },
+          "organizationControl": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FeatureControlState"
+              }
+            ]
+          }
+        }
+      },
+      "FeatureAdministrationSnapshot": {
+        "required": [
+          "environment",
+          "organizationId",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureAdministrationItem"
+            }
+          }
+        }
+      },
+      "FeatureControlHistoryEntry": {
+        "required": [
+          "id",
+          "target",
+          "actorId",
+          "previousVersion",
+          "version",
+          "previousEnabled",
+          "enabled",
+          "previousForceDisabled",
+          "forceDisabled",
+          "changedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "target": {
+            "$ref": "#/components/schemas/FeatureControlTarget"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previousVersion": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previousEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "enabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "previousForceDisabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "forceDisabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "changedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FeatureControlState": {
+        "required": [
+          "target",
+          "enabled",
+          "forceDisabled",
+          "version",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/FeatureControlTarget"
+          },
+          "enabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "forceDisabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updatedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "FeatureControlTarget": {
+        "required": [
+          "featureKey"
+        ],
+        "type": "object",
+        "properties": {
+          "featureKey": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -5802,6 +7416,71 @@
           }
         }
       },
+      "ModuleEventDeliveryView": {
+        "required": [
+          "deliveryId",
+          "messageId",
+          "organizationId",
+          "consumerKey",
+          "state",
+          "attempts",
+          "replayGeneration",
+          "createdAtUtc",
+          "nextAttemptAtUtc",
+          "failureCode"
+        ],
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "consumerKey": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "attempts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "replayGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nextAttemptAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "failureCode": {
+            "type": "string"
+          }
+        }
+      },
       "ModuleExtensionPointDto": {
         "required": [
           "id",
@@ -5822,6 +7501,271 @@
           },
           "surface": {
             "type": "string"
+          }
+        }
+      },
+      "ModuleFeatureDescriptor": {
+        "required": [
+          "key",
+          "name",
+          "description",
+          "defaultEnabled"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "defaultEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ModuleRealtimeAudience": {
+        "required": [
+          "policy",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/ModuleRealtimePolicyRef"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ModuleRealtimeAudienceKind"
+          },
+          "userId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "resource": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ModuleRealtimeResourceRef"
+              }
+            ]
+          }
+        }
+      },
+      "ModuleRealtimeAudienceKind": {
+        "type": "integer"
+      },
+      "ModuleRealtimeNotification": {
+        "required": [
+          "moduleId",
+          "eventKey",
+          "schemaVersion",
+          "eventId",
+          "audience"
+        ],
+        "type": "object",
+        "properties": {
+          "moduleId": {
+            "type": "string"
+          },
+          "eventKey": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "audience": {
+            "$ref": "#/components/schemas/ModuleRealtimeAudience"
+          }
+        }
+      },
+      "ModuleRealtimePolicyRef": {
+        "required": [
+          "ownerModuleId",
+          "policyKey",
+          "policyVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "ownerModuleId": {
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ModuleRealtimeResourceRef": {
+        "required": [
+          "resourceKey",
+          "resourceId"
+        ],
+        "type": "object",
+        "properties": {
+          "resourceKey": {
+            "type": "string"
+          },
+          "resourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ModuleWorkActionReceipt": {
+        "required": [
+          "workId",
+          "action",
+          "recoveryGeneration",
+          "operatorPaused"
+        ],
+        "type": "object",
+        "properties": {
+          "workId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "recoveryGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "operatorPaused": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ModuleWorkActionRequest": {
+        "required": [
+          "requestId",
+          "expectedGeneration"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ModuleWorkView": {
+        "required": [
+          "workId",
+          "organizationId",
+          "jobKey",
+          "jobVersion",
+          "state",
+          "attempts",
+          "operatorPaused",
+          "recoveryGeneration",
+          "createdAtUtc",
+          "dueAtUtc",
+          "nextAttemptAtUtc",
+          "failureCode"
+        ],
+        "type": "object",
+        "properties": {
+          "workId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "jobKey": {
+            "type": "string"
+          },
+          "jobVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "state": {
+            "type": "string"
+          },
+          "attempts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "operatorPaused": {
+            "type": "boolean"
+          },
+          "recoveryGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "nextAttemptAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "failureCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -5969,6 +7913,118 @@
           }
         }
       },
+      "OrganizationFeatureSnapshot": {
+        "required": [
+          "organizationId",
+          "evaluatedAtUtc",
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "evaluatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "OrganizationQuotaUsage": {
+        "required": [
+          "resources"
+        ],
+        "type": "object",
+        "properties": {
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationQuotaUsageResource"
+            }
+          }
+        }
+      },
+      "OrganizationQuotaUsageResource": {
+        "required": [
+          "resourceKey",
+          "name",
+          "unit",
+          "mode",
+          "limit",
+          "version",
+          "source",
+          "committed",
+          "reserved",
+          "reconciliationHeld",
+          "state",
+          "installed"
+        ],
+        "type": "object",
+        "properties": {
+          "resourceKey": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "limit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "source": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "committed": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reserved": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reconciliationHeld": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean"
+          }
+        }
+      },
       "OutboxFailure": {
         "required": [
           "messageId",
@@ -6103,6 +8159,211 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "PagedResultOfEmailDeliveryView": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailDeliveryView"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "PagedResultOfEmailTemplateView": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailTemplateView"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "PagedResultOfFeatureControlHistoryEntry": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureControlHistoryEntry"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "PagedResultOfModuleEventDeliveryView": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleEventDeliveryView"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "PagedResultOfModuleWorkView": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleWorkView"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -6602,6 +8863,53 @@
           }
         }
       },
+      "RealtimeHistoryResponse": {
+        "required": [
+          "items",
+          "generation",
+          "cursor",
+          "hasMore"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleRealtimeNotification"
+            }
+          },
+          "generation": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RealtimeStateResponse": {
+        "required": [
+          "enabled",
+          "generation",
+          "cursor"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "generation": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
       "ReauthenticationRequest": {
         "required": [
           "purpose",
@@ -6736,6 +9044,48 @@
           },
           "lifecycle": {
             "$ref": "#/components/schemas/RecordLifecycleDto"
+          }
+        }
+      },
+      "SaveEnvironmentFeatureControl": {
+        "required": [
+          "defaultEnabled",
+          "forceDisabled",
+          "expectedVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "defaultEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "forceDisabled": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SaveOrganizationFeatureOverride": {
+        "required": [
+          "enabled",
+          "expectedVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "expectedVersion": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -7027,6 +9377,13 @@
               "null",
               "string"
             ]
+          },
+          "operationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -7156,12 +9513,6 @@
   },
   "tags": [
     {
-      "name": "Projects"
-    },
-    {
-      "name": "Documents"
-    },
-    {
       "name": "AccountProfile"
     },
     {
@@ -7174,10 +9525,19 @@
       "name": "Authentication"
     },
     {
+      "name": "Documents"
+    },
+    {
+      "name": "EmailDelivery"
+    },
+    {
       "name": "Invitations"
     },
     {
       "name": "Me"
+    },
+    {
+      "name": "ModuleWork"
     },
     {
       "name": "Modules"
@@ -7186,19 +9546,34 @@
       "name": "OrganizationAdministration"
     },
     {
-      "name": "Organizations"
+      "name": "OrganizationFeatures"
     },
     {
       "name": "OrganizationSettings"
     },
     {
+      "name": "Organizations"
+    },
+    {
       "name": "OutboxRecovery"
+    },
+    {
+      "name": "PlatformAccessActivation"
+    },
+    {
+      "name": "PlatformFeatures"
     },
     {
       "name": "PlatformUsers"
     },
     {
-      "name": "PlatformAccessActivation"
+      "name": "Projects"
+    },
+    {
+      "name": "Quotas"
+    },
+    {
+      "name": "Realtime"
     },
     {
       "name": "WorkspaceContext"
@@ -7211,7 +9586,7 @@
     {
       "id": "projects",
       "name": "Projects",
-      "version": "1.0.0",
+      "version": "1.4.0",
       "capabilities": [
         "Api",
         "Web",
@@ -7223,7 +9598,7 @@
     {
       "id": "documents",
       "name": "Documents",
-      "version": "1.1.0",
+      "version": "1.3.0",
       "capabilities": [
         "Api",
         "Web",

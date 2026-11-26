@@ -318,7 +318,7 @@ static async Task<int> RunNewAsync(string[] arguments, CancellationToken cancell
         else progress.Fail();
         string displayOutput = ApplicationCreationOutput.Format(result, verbose);
         if (!string.IsNullOrWhiteSpace(displayOutput))
-            await (result.ExitCode == 0 ? Console.Out : Console.Error).WriteLineAsync(displayOutput);
+            await (result.ExitCode == 0 ? Console.Out : Console.Error).WriteLineAsync(displayOutput, cancellationToken);
         return result.ExitCode;
     }
     catch (Exception exception) when (exception is IOException
@@ -539,6 +539,7 @@ static int ShowNewHelp(int exitCode = 0)
     Console.WriteLine("Options:");
     Console.WriteLine("  --output <path>     Write the application to a specific directory.");
     Console.WriteLine("  --ui <react|none>   Include the React frontend or generate a backend-only application.");
+    Console.WriteLine("  --module-profile <full|minimal>  Include reference modules or start with none enabled.");
     Console.WriteLine("  --display-name <name>  Customer-facing brand; defaults to the project name.");
     Console.WriteLine("  --email             Include SMTP email and local Mailpit support.");
     Console.WriteLine("  --storage           Include local and S3-compatible object storage.");

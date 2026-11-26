@@ -1,7 +1,6 @@
 using Trykatch.Application.Authorization;
 using Trykatch.Application.Auditing;
 using Trykatch.Application.Common;
-using Trykatch.Application.Identity;
 using Trykatch.Application.Organizations;
 using Trykatch.Api.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -16,16 +15,8 @@ namespace Trykatch.Api.Controllers;
 public sealed class OrganizationAdministrationController(
     OrganizationAdministration administration,
     IOrganizationContext context,
-    IInvitationNotifier invitationNotifier,
-    IApplicationUrlResolver applicationUrls,
-    ILogger<OrganizationAdministrationController> logger) : ControllerBase
+    IApplicationUrlResolver applicationUrls) : ControllerBase
 {
-    private static readonly Action<ILogger, Guid, Exception?> LogInvitationDeliveryFailure =
-        LoggerMessage.Define<Guid>(
-            LogLevel.Error,
-            new EventId(1001, nameof(CreateInvitation)),
-            "Invitation delivery failed for invitation {InvitationId}");
-
     [HttpGet("access", Name = "OrganizationAccess_Get")]
     public ActionResult<OrganizationAccessResponse> GetAccess()
     {
@@ -159,26 +150,7 @@ public sealed class OrganizationAdministrationController(
         }
 
         string invitationUrl = $"{applicationUrls.ResolveBaseUrl(Request)}/invite/{Uri.EscapeDataString(result.Value.Token)}";
-        bool emailDelivered = false;
-        if (invitationNotifier.IsConfigured)
-        {
-            try
-            {
-                await invitationNotifier.SendOrganizationInvitationAsync(
-                    result.Value.Invitation.Email,
-                    result.Value.OrganizationName,
-                    result.Value.RoleName,
-                    invitationUrl,
-                    cancellationToken);
-                emailDelivered = true;
-            }
-            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-            {
-                LogInvitationDeliveryFailure(logger, result.Value.Invitation.Id, exception);
-            }
-        }
-
-        return Ok(new CreateInvitationResponse(result.Value.Invitation, invitationUrl, emailDelivered));
+        return Ok(new CreateInvitationResponse(result.Value.Invitation, invitationUrl, false, result.Value.EmailQueued));
     }
 
     [HttpPut("invitations/{id:guid}", Name = "Invitations_Update")]
@@ -252,6 +224,6 @@ public sealed class OrganizationAdministrationController(
         Problem(statusCode: code switch { "forbidden" => 403, "not_found" => 404, "conflict" or "last_owner" => 409, _ => 400 }, title: code, detail: detail);
 }
 
-public sealed record CreateInvitationResponse(InvitationDto Invitation, string InvitationUrl, bool EmailDelivered);
+public sealed record CreateInvitationResponse(InvitationDto Invitation, string InvitationUrl, bool EmailDelivered, bool EmailQueued);
 
 public sealed record OrganizationAccessResponse(Guid OrganizationId, Guid MembershipId, IReadOnlyList<string> Permissions);

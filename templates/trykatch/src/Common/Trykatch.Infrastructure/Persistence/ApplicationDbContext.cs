@@ -5,6 +5,12 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Trykatch.Application.Organizations;
+using Trykatch.Infrastructure.Execution;
+using Trykatch.Infrastructure.Caching;
+using Trykatch.Infrastructure.Idempotency;
+using Trykatch.Infrastructure.Realtime;
+using Trykatch.Infrastructure.Mailing;
+using Trykatch.Infrastructure.Quotas;
 using Trykatch.Domain.Organizations;
 using Trykatch.Modules;
 
@@ -66,6 +72,8 @@ public sealed class ApplicationDbContext(
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Type).HasMaxLength(500);
             entity.Property(x => x.Payload).HasColumnType("jsonb");
+            entity.Property(x => x.ContextJson).HasColumnType("jsonb");
+            entity.Property(x => x.PayloadHash).HasMaxLength(64);
             entity.Property(x => x.LastErrorCode).HasMaxLength(80);
             entity.Property(x => x.LastErrorType).HasMaxLength(500);
             entity.HasIndex(x => new { x.ProcessedAt, x.ExhaustedAt, x.OccurredAt, x.Id });
@@ -98,6 +106,16 @@ public sealed class ApplicationDbContext(
             entity.HasIndex(x => new { x.OccurredAt, x.MessageId, x.ReplayGeneration });
         });
 
+        ModuleWorkPersistence.Configure(modelBuilder);
+        ModuleWorkCompletion.Configure(modelBuilder);
+        CacheInvalidation.Configure(modelBuilder);
+        MutationReceiptRecord.Configure(modelBuilder);
+        RealtimeStream.Configure(modelBuilder);
+        RealtimeHistoryRecord.Configure(modelBuilder);
+        OrganizationEmailDeliveryMapping.Configure(modelBuilder);
+        QuotaRecordMapping.Configure(modelBuilder);
+        QuotaMaintenanceWorkRecord.Configure(modelBuilder);
+        OrganizationRequestLimitRecord.Configure(modelBuilder);
         ApplyOrganizationIsolation(modelBuilder);
         ApplicationModelIsolationValidator.Validate(modelBuilder.Model, moduleCatalog?.Descriptors ?? []);
     }

@@ -12,7 +12,8 @@ public sealed record UploadDocumentCommand(
     long SizeBytes,
     string Sha256,
     Stream Content,
-    string? DocumentType = null);
+    string? DocumentType = null,
+    Guid? OperationId = null);
 public sealed record UpdateDocumentCommand(string Title, string? Description, string? DocumentType = null);
 public sealed record DocumentMetadataDto(DateTimeOffset? UpdatedAt, string MediaType, long SizeBytes, string Sha256);
 public sealed record DocumentLifecycleDto(string Status, DateTimeOffset? ArchivedAt, Guid? ArchivedBy,
@@ -32,6 +33,7 @@ public static class DocumentOperation
 public static class DocumentUploadPolicy
 {
     private static readonly DocumentMetadataValidator MetadataValidator = new();
+    public static ModuleUploadPolicyRef Admission { get; } = new("documents", "documents.upload", 1);
     public const long MaximumBytes = 25 * 1024 * 1024;
     public const long MaximumRequestBytes = MaximumBytes + (64 * 1024);
 
@@ -97,7 +99,9 @@ public sealed class DocumentsUseCases(
     IModuleTransactionCompensation transactionCompensation,
     IOrganizationModuleData context,
     IModulePermissionAuthorizer authorizer,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IConditionalObjectStorage conditionalStorage,
+    IModuleUploadAdmission uploadAdmission)
 {
     public async Task<DocumentOperationResult<DocumentDto[]>> ListAsync(string lifecycle, CancellationToken cancellationToken)
     {
@@ -121,31 +125,80 @@ public sealed class DocumentsUseCases(
         if (!await CanManage(cancellationToken)) return Forbidden<DocumentDto>();
         string? error = DocumentUploadPolicy.Validate(command);
         if (error is not null) return DocumentOperation.Failure<DocumentDto>("validation", error);
+        if (command.OperationId == Guid.Empty)
+            return DocumentOperation.Failure<DocumentDto>("validation", "The upload operation identifier must be a non-empty UUID.");
 
-        Guid id = Guid.CreateVersion7();
-        string safeFileName = DocumentUploadPolicy.SafeFileName(command.FileName);
-        string objectKey = $"organizations/{context.OrganizationId:N}/documents/{id:N}";
-        DocumentRecord document = DocumentRecord.CreateUpload(
-            id, context.OrganizationId, context.ActorId, command.Title, command.Description,
-            safeFileName, command.MediaType, command.SizeBytes, command.Sha256.ToUpperInvariant(),
-            objectKey, timeProvider.GetUtcNow(), command.DocumentType ?? DocumentTypes.Other);
+        ModuleUploadReserveResult admission = await uploadAdmission.ReserveAsync(new(
+            DocumentUploadPolicy.Admission, command.OperationId ?? Guid.CreateVersion7(), command.SizeBytes,
+            command.Sha256.ToLowerInvariant(), DocumentUploadFingerprint.Compute(command)), cancellationToken);
+        if (admission.Disposition is not (ModuleUploadReserveDisposition.Reserved
+                or ModuleUploadReserveDisposition.AlreadyReserved or ModuleUploadReserveDisposition.AlreadyCommitted))
+            return UploadFailure(admission.FailureCode,
+                admission.Disposition == ModuleUploadReserveDisposition.Conflict);
+        if (admission.Receipt is not { } receipt) return UploadFailure(null);
 
-        await objectStorage.PutAsync(objectKey, command.Content, command.SizeBytes, command.MediaType, cancellationToken);
-        try
+        if (admission.Disposition != ModuleUploadReserveDisposition.AlreadyCommitted)
         {
+            // The owner invokes this only after confirmed rollback. Unknown outcomes retain the durable hold.
+            transactionCompensation.EnlistRollback(async compensationToken =>
+            {
+                ModuleUploadCancelResult cancelled = await uploadAdmission.CancelAsync(receipt, compensationToken);
+                if (cancelled.Disposition == ModuleUploadCancelDisposition.Unavailable)
+                    throw new InvalidOperationException("Upload reconciliation is pending.");
+            });
+            ConditionalObjectWriteResult written = await conditionalStorage.TryCreateAsync(receipt.ObjectKey,
+                command.Content, command.SizeBytes, command.MediaType, receipt.Identity, cancellationToken);
+            if (written.Disposition == ConditionalObjectWriteDisposition.InvalidPayload)
+                return DocumentOperation.Failure<DocumentDto>("validation", "The uploaded content does not match its declared file identity.");
+            if (written.Disposition == ConditionalObjectWriteDisposition.Unavailable
+                || written.Snapshot?.State == ConditionalObjectState.Unavailable)
+                return UploadFailure(null);
+            if (written.Disposition != ConditionalObjectWriteDisposition.Written
+                && !(written.Disposition == ConditionalObjectWriteDisposition.AlreadyExists
+                    && written.Snapshot is { State: ConditionalObjectState.Provisional, Revision: not null } snapshot
+                    && snapshot.Length == command.SizeBytes && snapshot.Identity == receipt.Identity))
+                return UploadFailure(null, conflict: true);
+        }
+
+        ModuleUploadFinalization<DocumentDto> finalized = await uploadAdmission.FinalizeAsync(receipt, async token =>
+        {
+            DocumentRecord document = DocumentRecord.CreateUpload(
+                receipt.SubjectId, context.OrganizationId, context.ActorId, command.Title, command.Description,
+                DocumentUploadPolicy.SafeFileName(command.FileName), command.MediaType, command.SizeBytes,
+                command.Sha256.ToUpperInvariant(), receipt.ObjectKey, timeProvider.GetUtcNow(),
+                command.DocumentType ?? DocumentTypes.Other, receipt.OperationId);
             store.Add(document);
             RecordChange(document, "uploaded");
-            await store.SaveChangesAsync(cancellationToken);
-            transactionCompensation.EnlistRollback(
-                compensationToken => objectStorage.DeleteAsync(objectKey, compensationToken));
-        }
-        catch
-        {
-            await objectStorage.DeleteAsync(objectKey, CancellationToken.None);
-            throw;
-        }
-        return DocumentOperation.Success(ToDto(document));
+            await store.SaveChangesAsync(token);
+            return ToDto(document);
+        }, cancellationToken);
+        if (finalized.Disposition == ModuleUploadFinalizationDisposition.Committed && finalized.Value is not null)
+            return DocumentOperation.Success(finalized.Value);
+        if (finalized.Disposition != ModuleUploadFinalizationDisposition.AlreadyCommitted
+            || finalized.SubjectId != receipt.SubjectId)
+            return UploadFailure(finalized.FailureCode,
+                finalized.Disposition == ModuleUploadFinalizationDisposition.Conflict);
+
+        DocumentRecord? current = await store.FindAsync(receipt.SubjectId, includeRecoverable: true, cancellationToken);
+        if (current is null) return NotFound<DocumentDto>();
+        if (current.OrganizationId != context.OrganizationId || current.UploadOperationId != receipt.OperationId
+            || current.ObjectKey != receipt.ObjectKey || current.FileName != DocumentUploadPolicy.SafeFileName(command.FileName)
+            || current.MediaType != command.MediaType || current.SizeBytes != command.SizeBytes
+            || !string.Equals(current.Sha256, command.Sha256, StringComparison.OrdinalIgnoreCase)
+            || current.LifecycleState == DocumentLifecycleState.Deleted)
+            return UploadFailure(null, conflict: true);
+        return DocumentOperation.Success(ToDto(current));
     }
+
+    private static DocumentOperationResult<DocumentDto> UploadFailure(string? code, bool conflict = false) => code switch
+    {
+        "upload_authority_denied" => Forbidden<DocumentDto>(),
+        "quota_exhausted" => DocumentOperation.Failure<DocumentDto>("quota_exhausted", "Document storage capacity has been reached."),
+        "quota_unconfigured" => DocumentOperation.Failure<DocumentDto>("conflict", "Document storage is not available for this organization."),
+        "upload_request_invalid" or "quota_request_invalid" => DocumentOperation.Failure<DocumentDto>("validation", "The upload request is invalid."),
+        _ when conflict => DocumentOperation.Failure<DocumentDto>("conflict", "This upload no longer matches an available document operation."),
+        _ => DocumentOperation.Failure<DocumentDto>("unavailable", "Document storage is temporarily unavailable. Retry the same upload.")
+    };
 
     public async Task<DocumentOperationResult<DocumentDownload>> DownloadAsync(
         Guid id,

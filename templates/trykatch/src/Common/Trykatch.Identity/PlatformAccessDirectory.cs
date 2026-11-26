@@ -51,7 +51,7 @@ internal sealed class PlatformAccessDirectory(
     {
         Result<EffectivePlatformAccess> authority = await managementAuthorization.AuthorizeAsync(actorId, PlatformManagementOperation.ManageRole, null, null, cancellationToken);
         if (!authority.IsSuccess) return Result.Failure<PlatformRoleDefinition>(authority.ErrorCode!, authority.ErrorMessage!);
-        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, null, authority.Value!.Permissions, cancellationToken);
+        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, null, authority.Value!.GrantBoundary, cancellationToken);
         if (!normalized.IsSuccess) return Result.Failure<PlatformRoleDefinition>(normalized.ErrorCode!, normalized.ErrorMessage!);
 
         IdentityRole<Guid> role = new($"{CustomRolePrefix}{Guid.CreateVersion7():N}") { Id = Guid.CreateVersion7() };
@@ -74,7 +74,7 @@ internal sealed class PlatformAccessDirectory(
         if (current.IsSystem) return Result.Failure<PlatformRoleDefinition>("system_role", "Built-in platform roles cannot be changed.");
         IdentityRole<Guid>? role = await roles.FindByNameAsync(roleKey);
         if (role is null) return Result.Failure<PlatformRoleDefinition>("not_found", "Platform role was not found.");
-        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, roleKey, authority.Value!.Permissions, cancellationToken);
+        Result<NormalizedRoleInput> normalized = await ValidateRoleAsync(command, roleKey, authority.Value!.GrantBoundary, cancellationToken);
         if (!normalized.IsSuccess) return Result.Failure<PlatformRoleDefinition>(normalized.ErrorCode!, normalized.ErrorMessage!);
 
         Result<bool> claimsResult = await ReplaceCustomRoleClaimsAsync(role, normalized.Value!, cancellationToken);

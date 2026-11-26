@@ -1,5 +1,17 @@
 let antiforgeryToken: string | undefined
 
+export interface FeaturePolicyRejection {
+  url: string
+  code: 'feature_unavailable' | 'feature_policy_unavailable'
+}
+
+const featurePolicyListeners = new Set<(rejection: FeaturePolicyRejection) => void>()
+
+export function subscribeFeaturePolicyRejections(listener: (rejection: FeaturePolicyRejection) => void): () => void {
+  featurePolicyListeners.add(listener)
+  return () => { featurePolicyListeners.delete(listener) }
+}
+
 export function setAntiforgeryToken(token: string) {
   antiforgeryToken = token
 }
@@ -21,6 +33,14 @@ export async function customFetch<T>(url: string, options: RequestInit): Promise
   const response = await fetch(url, { ...options, headers, credentials: 'include' })
   if (!response.ok) {
     const problem = await response.json().catch(() => ({ title: response.statusText }))
+    const code = problem.code ?? problem.title
+    if (response.status === 409 && code === 'feature_unavailable'
+      || response.status === 503 && code === 'feature_policy_unavailable') {
+      for (const listener of featurePolicyListeners) {
+        try { listener({ url, code }) }
+        catch { /* A subscriber must not replace the original HTTP failure. */ }
+      }
+    }
     throw Object.assign(new Error(problem.detail ?? problem.title ?? 'Request failed'), { status: response.status, problem })
   }
 

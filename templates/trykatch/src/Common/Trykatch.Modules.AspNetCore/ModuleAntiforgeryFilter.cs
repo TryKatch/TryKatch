@@ -27,10 +27,8 @@ internal sealed class ModuleAntiforgeryFilter(IAntiforgery antiforgery) : IEndpo
             if (validation is { IsValid: false }) return VerificationFailed();
             try
             {
-                // Reuse middleware validation when present. Reading the form
-                // again after its recorded failure can itself throw; modules
-                // without validation metadata still require an explicit check.
-                if (validation is null) await antiforgery.ValidateRequestAsync(httpContext);
+                // ASP.NET Core can record a valid origin check before token validation.
+                await antiforgery.ValidateRequestAsync(httpContext);
             }
             catch (AntiforgeryValidationException)
             {

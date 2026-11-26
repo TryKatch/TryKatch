@@ -75,7 +75,7 @@ public sealed class ModuleWorkspaceTests
         {
             string directory = Path.Combine(temporary.Root, "src", "API", project);
             Directory.CreateDirectory(directory);
-            File.WriteAllText(Path.Combine(directory, project + ".csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><NuGetAudit>false</NuGetAudit></PropertyGroup></Project>");
+            File.WriteAllText(Path.Combine(directory, project + ".csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><NuGetAudit>false</NuGetAudit></PropertyGroup></Project>");
         }
         File.WriteAllText(Path.Combine(temporary.Root, "web/package.json"), "{\"name\":\"security-fixture\",\"private\":true}");
         File.WriteAllText(Path.Combine(temporary.Root, "web/pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
@@ -150,8 +150,49 @@ public sealed class ModuleWorkspaceTests
         inspected.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, inspected.Errors));
         File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedModules.cs")).ShouldContain("new ProjectsModule()");
         File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedMigratorModules.cs")).ShouldContain("new ProjectsModule()");
-        File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts")).ShouldContain("projectsModule");
+        string web = File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts"));
+        web.ShouldContain("projectsModule");
+        web.ShouldContain("const EXPECTED_FEATURES: readonly InstalledModuleFeature[] = [\n]");
+        web.ShouldContain("], workspaceOverrides, EXPECTED_FEATURES)");
         File.ReadAllText(Path.Combine(temporary.Root, "try" + "katch.modules.lock.json")).ShouldContain("manifestSha256");
+    }
+
+    [TestMethod]
+    public void GeneratedRegistriesIncludeDeterministicManifestFeatureExpectations()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        string manifestPath = Path.Combine(temporary.Root, "manifests/projects.json");
+        JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        manifest["features"] = new JsonArray(
+            new JsonObject
+            {
+                ["key"] = "projects.writes",
+                ["name"] = "Project writes",
+                ["description"] = "Change projects.",
+                ["defaultEnabled"] = false
+            },
+            new JsonObject
+            {
+                ["key"] = "projects.reads",
+                ["name"] = "Project reads",
+                ["description"] = "View projects.",
+                ["defaultEnabled"] = true
+            });
+        File.WriteAllText(manifestPath, manifest.ToJsonString());
+
+        ModuleDoctorReport generated = new ModuleWorkspace(temporary.Root).Generate();
+
+        generated.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, generated.Errors));
+        string backend = File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedModules.cs"));
+        string migrator = File.ReadAllText(Path.Combine(temporary.Root, "src/GeneratedMigratorModules.cs"));
+        string web = File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts"));
+        backend.ShouldContain("ModuleFeatureRegistrationRules.ValidateManifest(All,");
+        migrator.ShouldContain("ModuleFeatureRegistrationRules.ValidateManifest(All,");
+        backend.IndexOf("projects.reads", StringComparison.Ordinal)
+            .ShouldBeLessThan(backend.IndexOf("projects.writes", StringComparison.Ordinal));
+        web.ShouldContain("const EXPECTED_FEATURES: readonly InstalledModuleFeature[] = [");
+        web.ShouldContain("{ moduleId: \"projects\", feature: { key: \"projects.reads\", name: \"Project reads\", description: \"View projects.\", defaultEnabled: true } }");
+        web.ShouldContain("], workspaceOverrides, EXPECTED_FEATURES)");
     }
 
     [TestMethod]
@@ -233,8 +274,30 @@ public sealed class ModuleWorkspaceTests
             .ShouldContain("using Horizon.Modules;");
         File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts"))
             .ShouldContain("from '@horizon/module-sdk'");
+        File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts"))
+            .ShouldContain("import type { InstalledModuleFeature } from '@horizon/module-sdk'");
+        File.ReadAllText(Path.Combine(temporary.Root, "web/src/modules.ts"))
+            .ShouldContain("const EXPECTED_FEATURES: readonly InstalledModuleFeature[] = [\n]");
         File.ReadAllText(Path.Combine(temporary.Root, "try" + "katch.modules.lock.json")).ShouldBe(lockBeforeRename);
         lockBeforeRename.ShouldContain("template-normalized-sha256");
+    }
+
+    [TestMethod]
+    public void RenamingToKatchPreservesManifestDigestsAndTheOriginalNpmScope()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        ModuleWorkspace workspace = new(temporary.Root);
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string lockPath = Path.Combine(temporary.Root, "try" + "katch.modules.lock.json");
+        string expected = File.ReadAllText(lockPath);
+        foreach (string relative in new[] { "try" + "katch.modules.json", "manifests/projects.json" })
+        {
+            string path = Path.Combine(temporary.Root, relative);
+            File.WriteAllText(path, File.ReadAllText(path).Replace("Trykatch", "Katch", StringComparison.Ordinal));
+        }
+
+        new ModuleWorkspace(temporary.Root).Generate().IsHealthy.ShouldBeTrue();
+        File.ReadAllText(lockPath).ShouldBe(expected);
     }
 
     [TestMethod]

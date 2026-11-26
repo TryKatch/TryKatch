@@ -11,7 +11,7 @@ La réconciliation du 2026-09-17 porte sur Trykatch **0.1.0-preview.25** : la CI
 
 ## Critères de livraison du modèle
 
-La cible coordonnée **0.1.0-preview.33** utilise le nom du projet généré comme marque par défaut pour la connexion, la navigation et les e-mails, tout en conservant le remplacement explicite `--display-name`. Elle conserve la séparation des routes de preview.32 ainsi que la configuration d’organisation, les contrôles flottants partagés, l’accueil des développeurs et Storybook. Les tests de régression couvrent les modèles React et backend empaquetés, les marques personnalisées et le catalogue d’authentification. La disponibilité exige toujours la CI du commit exact sur main, la qualification scellée du tag et une publication réussie.
+La version cible des paquets CLI et du modèle est **0.1.0-preview.34**. Elle propose un profil minimal en option, sérialise les migrations en production et adopte .NET 11 et PostgreSQL 19.
 
 [Preview.29](https://github.com/TryKatch/TryKatch/releases/tag/v0.1.0-preview.29) est publiée avec les deux paquets NuGet et les artefacts qualifiés. Preview.30 vise la régression de libellé signalée ensuite. Ni la fondation Storybook ni cette correction ciblée ne terminent la couverture complète du catalogue ou ne constituent une certification entreprise.
 

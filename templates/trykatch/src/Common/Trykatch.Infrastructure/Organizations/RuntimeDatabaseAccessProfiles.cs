@@ -7,14 +7,16 @@ public enum RuntimeDatabaseRoleKind
     Organization,
     Platform,
     Identity,
-    Outbox
+    Outbox,
+    WorkCoordinator
 }
 
 public sealed record RuntimeDatabaseRoles(
     string Organization,
     string Platform,
     string Identity,
-    string Outbox)
+    string Outbox,
+    string WorkCoordinator = "trykatch_work_coordinator")
 {
     public IEnumerable<(RuntimeDatabaseRoleKind Kind, string Name)> All
     {
@@ -24,6 +26,7 @@ public sealed record RuntimeDatabaseRoles(
             yield return (RuntimeDatabaseRoleKind.Platform, Platform);
             yield return (RuntimeDatabaseRoleKind.Identity, Identity);
             yield return (RuntimeDatabaseRoleKind.Outbox, Outbox);
+            yield return (RuntimeDatabaseRoleKind.WorkCoordinator, WorkCoordinator);
         }
     }
 }
@@ -39,8 +42,11 @@ public static class RuntimeDatabaseAccessProfiles
         "app", "platform", "identity", "reference", "infrastructure"
     };
 
-    public static IReadOnlySet<string> HostOwnedRelations { get; } = new HashSet<string>(StringComparer.Ordinal)
-    {
+    public static IReadOnlySet<string> HostOwnedRelations { get; } = new HashSet<string>(
+    [
+        .. OperationalDataResources.All.Select(resource => $"{resource.Schema}.{resource.Table}"),
+        // InitialApplication created this table before Projects took ownership of its migrations.
+        "app.projects",
         "platform.organizations",
         "platform.organization_assistant_settings",
         "platform.memberships",
@@ -73,7 +79,7 @@ public static class RuntimeDatabaseAccessProfiles
         "identity.OpenIddictAuthorizations",
         "identity.OpenIddictScopes",
         "identity.OpenIddictTokens"
-    };
+    ], StringComparer.Ordinal);
 
     public static IReadOnlySet<string> PermissionsFor(
         RuntimeDatabaseRoleKind kind,
@@ -81,6 +87,46 @@ public static class RuntimeDatabaseAccessProfiles
         IReadOnlyDictionary<string, DataResourceDescriptor> resources)
     {
         DataResourceDescriptor? resource = resources.GetValueOrDefault(relation);
+        if (OperationalDataResources.IsReserved(relation))
+        {
+            if (resource is null || !OperationalDataResources.All.Any(expected =>
+                    expected.Schema == resource.Schema && expected.Table == resource.Table
+                    && expected.Ownership == resource.Ownership && expected.AccessRule == resource.AccessRule
+                    && expected.IsolationPolicy == resource.IsolationPolicy))
+                return None;
+            return (kind, relation) switch
+            {
+                (RuntimeDatabaseRoleKind.Organization, "platform.feature_environment_controls" or "platform.organization_feature_overrides") => Select,
+                (RuntimeDatabaseRoleKind.Platform, "platform.feature_environment_controls" or "platform.organization_feature_overrides") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Platform, "platform.feature_control_history") => SelectInsert,
+                (RuntimeDatabaseRoleKind.Platform, "platform.entitlement_publication_history") => SelectInsert,
+                (RuntimeDatabaseRoleKind.Organization, "app.mutation_receipts") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Organization, "app.cache_invalidations") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Organization, "app.realtime_streams") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Organization, "app.realtime_history") => SelectInsert,
+                (RuntimeDatabaseRoleKind.Organization, "app.organization_entitlements") => Select,
+                (RuntimeDatabaseRoleKind.Platform, "app.organization_entitlements") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Organization, "app.organization_quota_reservations" or "app.organization_quota_inventory" or "app.module_upload_operations") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Organization, "app.organization_usage") => SelectInsert,
+                (RuntimeDatabaseRoleKind.Organization, "app.organization_request_limits") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Organization, "infrastructure.quota_maintenance_work") => Insert,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.quota_maintenance_work") => SelectUpdate,
+                (RuntimeDatabaseRoleKind.Organization, "infrastructure.email_deliveries") => Insert,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.email_deliveries") => SelectUpdate,
+                (RuntimeDatabaseRoleKind.Identity, "identity.account_sessions") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Identity, "identity.email_deliveries") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.Organization, "infrastructure.module_work_items") => Insert,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_schedule_cursors") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_work_controls") => SelectInsert,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, _) when Jobs.QuartzSchemaContract.Tables.Any(table => relation == "infrastructure." + table) => Crud,
+                (RuntimeDatabaseRoleKind.Organization, "app.module_event_inbox") => SelectInsert,
+                (RuntimeDatabaseRoleKind.Organization, "app.module_work_completions") => SelectInsert,
+                (RuntimeDatabaseRoleKind.Outbox, "infrastructure.module_event_deliveries") => SelectInsert,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_work_items") => SelectInsertUpdate,
+                (RuntimeDatabaseRoleKind.WorkCoordinator, "infrastructure.module_event_deliveries") => SelectUpdate,
+                _ => None
+            };
+        }
         return kind switch
         {
             RuntimeDatabaseRoleKind.Organization => OrganizationPermissions(relation, resource),

@@ -1,4 +1,5 @@
 using Npgsql;
+using Trykatch.Infrastructure.Quotas;
 using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Organizations;
@@ -31,6 +32,14 @@ public static class PostgresIsolationInspector
         CancellationToken cancellationToken = default) =>
         await InspectAsync(connectionString, runtimeRoles.All, modules, cancellationToken);
 
+    /// <summary>Inspects through an already-open connection owned by the caller.</summary>
+    public static async Task<PostgresIsolationInspection> InspectAsync(
+        NpgsqlConnection connection,
+        RuntimeDatabaseRoles runtimeRoles,
+        IEnumerable<ModuleDescriptor> modules,
+        CancellationToken cancellationToken = default) =>
+        await InspectAsync(connection, runtimeRoles.All, modules, cancellationToken);
+
     private static async Task<PostgresIsolationInspection> InspectAsync(
         string connectionString,
         IEnumerable<(RuntimeDatabaseRoleKind Kind, string Name)> runtimeRoles,
@@ -38,6 +47,20 @@ public static class PostgresIsolationInspector
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        await using NpgsqlConnection connection = new(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        return await InspectAsync(connection, runtimeRoles, modules, cancellationToken);
+    }
+
+    private static async Task<PostgresIsolationInspection> InspectAsync(
+        NpgsqlConnection connection,
+        IEnumerable<(RuntimeDatabaseRoleKind Kind, string Name)> runtimeRoles,
+        IEnumerable<ModuleDescriptor> modules,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        if (connection.State != System.Data.ConnectionState.Open)
+            throw new InvalidOperationException("The PostgreSQL connection must already be open.");
         ArgumentNullException.ThrowIfNull(modules);
         (RuntimeDatabaseRoleKind Kind, string Name)[] roles = runtimeRoles.ToArray();
         if (roles.Length == 0 || roles.Any(role => string.IsNullOrWhiteSpace(role.Name)))
@@ -52,18 +75,16 @@ public static class PostgresIsolationInspector
         DataResourceDescriptor[] resources = modules.SelectMany(module => module.DataResources)
             .Append(audit)
             .Append(outbox)
+            .Concat(OperationalDataResources.All)
             .ToArray();
         List<string> errors = [];
-
-        await using NpgsqlConnection connection = new(connectionString);
-        await connection.OpenAsync(cancellationToken);
 
         IReadOnlyList<DataResourceDescriptor> retained = await InstalledSchemaCatalog.ReadAsync(connection, cancellationToken);
         Dictionary<string, DataResourceDescriptor> declarations = new(StringComparer.Ordinal);
         foreach (DataResourceDescriptor resource in retained.Concat(resources))
         {
             string key = $"{resource.Schema}.{resource.Table}";
-            ModuleDataResourceRules.Validate(resource, hostOwned: resource == audit || resource == outbox);
+            ModuleDataResourceRules.Validate(resource, hostOwned: resource == audit || resource == outbox || OperationalDataResources.All.Contains(resource));
             if (declarations.TryGetValue(key, out DataResourceDescriptor? existing) && existing != resource)
                 errors.Add($"Enabled and installed schema declarations disagree for '{key}'.");
             declarations[key] = resource;
@@ -71,6 +92,11 @@ public static class PostgresIsolationInspector
         resources = declarations.Values.ToArray();
 
         Dictionary<string, RelationPolicy> relations = await ReadRelationsAsync(connection, cancellationToken);
+        // Historical EF migrations create this table even on a fresh deployment without Projects.
+        // Check its policy without adding it to the declarations used to grant runtime access.
+        if (relations.ContainsKey("app.projects") && !declarations.ContainsKey("app.projects"))
+            resources = [.. resources, new("projects", "app", "projects", ModuleDataOwnership.Organization,
+                IsolationPolicy: "projects_organization_isolation")];
         IReadOnlyList<SequenceInfo> sequences = await ReadSequencesAsync(connection, cancellationToken);
         IReadOnlyList<string> functions = await ReadUserFunctionsAsync(connection, cancellationToken);
         IReadOnlyList<string> schemas = await ReadUserSchemasAsync(connection, cancellationToken);
@@ -388,6 +414,7 @@ public static class PostgresIsolationInspector
         List<string> errors,
         CancellationToken cancellationToken)
     {
+        await InspectQuotaTransitionContractsAsync(connection, errors, cancellationToken);
         await using NpgsqlCommand compatibility = new("""
             SELECT EXISTS (
                      SELECT 1 FROM pg_attribute
@@ -479,6 +506,55 @@ public static class PostgresIsolationInspector
             && triggerEnablement.SequenceEqual(["O"], StringComparer.Ordinal);
         if (!valid)
             errors.Add("Host function 'platform.redact_legacy_outbox_error()' differs from its approved body, privileges, ownership, execution mode, configuration, or trigger binding.");
+    }
+
+    private static async Task InspectQuotaTransitionContractsAsync(
+        NpgsqlConnection connection,
+        List<string> errors,
+        CancellationToken cancellationToken)
+    {
+        foreach (QuotaPostgresTransitionContracts.Contract contract in QuotaPostgresTransitionContracts.All)
+        {
+            await using NpgsqlCommand command = new("""
+                SELECT to_regclass(@relation) IS NOT NULL,
+                       p.prosrc, l.lanname, p.prosecdef, p.proleakproof, p.provolatile::text,
+                       COALESCE(p.proconfig, ARRAY[]::text[]),
+                       p.proowner = (SELECT relowner FROM pg_class WHERE oid = to_regclass(@relation)),
+                       NOT EXISTS (
+                         SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) privilege
+                         WHERE privilege.grantee = 0 AND privilege.privilege_type = 'EXECUTE'),
+                       pg_get_function_result(p.oid),
+                       ARRAY(SELECT pg_get_triggerdef(t.oid, false) FROM pg_trigger t
+                             WHERE t.tgfoid = p.oid AND NOT t.tgisinternal ORDER BY t.tgname),
+                       ARRAY(SELECT t.tgenabled::text FROM pg_trigger t
+                             WHERE t.tgfoid = p.oid AND NOT t.tgisinternal ORDER BY t.tgname)
+                FROM (SELECT to_regprocedure(@function) AS oid) approved
+                LEFT JOIN pg_proc p ON p.oid = approved.oid
+                LEFT JOIN pg_language l ON l.oid = p.prolang
+                """, connection);
+            command.Parameters.AddWithValue("relation", contract.Relation);
+            command.Parameters.AddWithValue("function", contract.Function);
+            await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+            await reader.ReadAsync(cancellationToken);
+            bool relationExists = reader.GetBoolean(0);
+            bool functionExists = !reader.IsDBNull(1);
+            // Provisioning may inspect an older schema before these relations exist.
+            // The complete isolation inspection separately requires every declared relation.
+            if (!relationExists && !functionExists) continue;
+            bool valid = functionExists && relationExists
+                && reader.GetString(2) == "plpgsql"
+                && !reader.GetBoolean(3) && !reader.GetBoolean(4) && reader.GetString(5) == "v"
+                && reader.GetFieldValue<string[]>(6).SequenceEqual(["search_path=pg_catalog"], StringComparer.Ordinal)
+                && reader.GetBoolean(7) && reader.GetBoolean(8) && reader.GetString(9) == "trigger"
+                && HostPostgresFunctionContracts.Normalize(reader.GetString(1))
+                    == HostPostgresFunctionContracts.Normalize(contract.Body)
+                && reader.GetFieldValue<string[]>(10) is [string trigger]
+                && HostPostgresFunctionContracts.Normalize(trigger)
+                    == HostPostgresFunctionContracts.Normalize(contract.TriggerDefinition)
+                && reader.GetFieldValue<string[]>(11).SequenceEqual(["O"], StringComparer.Ordinal);
+            if (!valid)
+                errors.Add($"Quota guard '{contract.Function}' differs from its approved body, privileges, ownership, execution mode, configuration, or trigger binding.");
+        }
     }
 
     private static async Task<IReadOnlyList<string>> ReadUserSchemasAsync(

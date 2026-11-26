@@ -32,14 +32,22 @@ public sealed class InvitationActivationRlsTests
     {
         string? configuredPostgres = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
         await using PostgreSqlContainer? postgres = string.IsNullOrWhiteSpace(configuredPostgres)
-            ? new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build()
+            ? new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build()
             : null;
         if (postgres is not null) await postgres.StartAsync();
         string ownerConnection = postgres?.GetConnectionString() ?? configuredPostgres!;
         (string organizationConnection, string platformConnection, string identityConnection, string outboxConnection) =
             await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(ownerConnection);
+        string workCoordinatorConnection = new NpgsqlConnectionStringBuilder(ownerConnection)
+        {
+            Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+            Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+        }.ConnectionString;
         await ApplyMigrationsAsync(ownerConnection);
-        await PostgresRuntimeRoleFixture.GrantApplicationPrivilegesAsync(ownerConnection);
+        await RuntimeRoleProvisioner.ProvisionAsync(ownerConnection, new RuntimeDatabaseRoles(
+            PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.PlatformRole,
+            PostgresRuntimeRoleFixture.IdentityRole, PostgresRuntimeRoleFixture.OutboxRole,
+            PostgresRuntimeRoleFixture.WorkCoordinatorRole));
         // Provisioning must accept the actual migrated schema under the least-privilege runtime role.
         (await PostgresIsolationInspector.InspectAsync(organizationConnection, PostgresRuntimeRoleFixture.OrganizationRole,
             new IModule[] { new ProjectsModule(), new DocumentsModule() }.Select(module => module.Descriptor))).ThrowIfInvalid();
@@ -53,6 +61,7 @@ public sealed class InvitationActivationRlsTests
                 webHost.UseSetting("ConnectionStrings:trykatch-platform", platformConnection);
                 webHost.UseSetting("ConnectionStrings:trykatch-identity", identityConnection);
                 webHost.UseSetting("ConnectionStrings:trykatch-outbox", outboxConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-work", workCoordinatorConnection);
                 webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:trykatchdb"] = organizationConnection,
@@ -60,6 +69,7 @@ public sealed class InvitationActivationRlsTests
                     ["ConnectionStrings:trykatch-platform"] = platformConnection,
                     ["ConnectionStrings:trykatch-identity"] = identityConnection,
                     ["ConnectionStrings:trykatch-outbox"] = outboxConnection,
+                    ["ConnectionStrings:trykatch-work"] = workCoordinatorConnection,
                     ["Bootstrap:PlatformAdminEmail"] = AdministratorEmail,
                     ["Bootstrap:PlatformAdminPassword"] = AdministratorPassword
                 }));

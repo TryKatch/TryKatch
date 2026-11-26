@@ -10,6 +10,7 @@ using Trykatch.Api.Development;
 using Trykatch.Api.Modules;
 using Trykatch.Api.OpenApi;
 using Trykatch.Api.Security;
+using Trykatch.Api.Realtime;
 using Trykatch.Application;
 using Trykatch.Identity;
 using Trykatch.Infrastructure;
@@ -20,6 +21,9 @@ using Trykatch.Modules.AspNetCore.Assistant;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.AspNetCore.RateLimiting;
+#if TRYKATCH_EMAIL
+using Trykatch.Infrastructure.Modules.Email;
+#endif
 
 namespace Trykatch.Api;
 
@@ -34,6 +38,7 @@ internal static class ApiHostingExtensions
         });
 
         bool isOpenApiGeneration = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
+        RuntimeDatabaseConnectionContract.ApplySeparateRuntimePasswords(builder.Configuration);
         if (isOpenApiGeneration)
         {
             builder.Configuration["ConnectionStrings:trykatchdb"] =
@@ -55,6 +60,10 @@ internal static class ApiHostingExtensions
             builder.Configuration,
             builder.Environment.IsDevelopment(),
             isOpenApiGeneration);
+        builder.Services.AddRealtime(builder.Configuration, isOpenApiGeneration);
+#if TRYKATCH_EMAIL
+        builder.Services.AddQueuedEmailDelivery(isOpenApiGeneration);
+#endif
         builder.Services.AddProblemDetails();
         builder.Services.AddOptions<AtomicMutationResponseOptions>()
             .BindConfiguration(AtomicMutationResponseOptions.SectionName)
@@ -64,7 +73,9 @@ internal static class ApiHostingExtensions
             .ValidateOnStart();
         builder.Services.AddExceptionHandler<AntiforgeryExceptionHandler>();
         builder.Services.AddExceptionHandler<RequestBindingExceptionHandler>();
+        builder.Services.AddExceptionHandler<OrganizationFeatureExceptionHandler>();
         builder.Services.AddSingleton<IWorkspaceContextCookie, WorkspaceContextCookie>();
+        builder.Services.AddScoped<WorkspaceSessionBinding>();
         builder.Services.AddSingleton<IApplicationUrlResolver, ApplicationUrlResolver>();
         builder.Services.AddScoped<ModuleTransactionCompensation>();
         builder.Services.AddScoped<IModuleTransactionCompensation>(services =>
@@ -76,6 +87,7 @@ internal static class ApiHostingExtensions
                 parts.FeatureProviders.Add(new ModuleControllerFeatureProvider(moduleCatalog.ModuleIds)));
         builder.Services.AddOpenApi(options =>
         {
+            options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_1;
             options.AddDocumentTransformer<ModuleOpenApiDocumentTransformer>();
             options.AddOperationTransformer<ModuleOpenApiOperationTransformer>();
         });
@@ -97,6 +109,15 @@ internal static class ApiHostingExtensions
             options.AddPolicy(
                 "PlatformAdministrator",
                 policy => policy.RequireClaim("platform_admin", "true"));
+            options.AddPolicy("OrganizationUsageRead", new AuthorizationPolicyBuilder(
+                    AuthenticationSchemes.ApplicationCookie,
+                    OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context => context.Resource is HttpContext http
+                    && http.RequestServices.GetRequiredService<global::Trykatch.Application.Organizations.IOrganizationContext>() is { IsResolved: true } organization
+                    && (organization.Permissions.Contains(global::Trykatch.Application.Authorization.Permissions.OrganizationsRead)
+                        || organization.Permissions.Contains(global::Trykatch.Application.Authorization.Permissions.OrganizationsManage)))
+                .Build());
         });
         builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
@@ -199,6 +220,7 @@ internal static class ApiHostingExtensions
     {
         app.UseForwardedHeaders();
         app.UseExceptionHandler();
+        app.Use((context, next) => AtomicMutationResponse.StageStartingCallbacksAsync(context, _ => next()));
         app.Use(async (context, next) =>
         {
             context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
@@ -215,7 +237,10 @@ internal static class ApiHostingExtensions
         app.UseMiddleware<OrganizationScopeMiddleware>();
         app.UseMiddleware<OrganizationTransactionMiddleware>();
         app.UseAuthorization();
+        app.UseMiddleware<RealtimeTransportSecurityMiddleware>();
         app.UseAntiforgery();
+        app.UseMiddleware<OrganizationRateLimitMiddleware>();
+        app.UseModuleMutationIdempotency();
 
         if (app.Environment.IsDevelopment())
         {
@@ -233,6 +258,8 @@ internal static class ApiHostingExtensions
         }
 
         app.MapControllers();
+        app.MapRealtimeHistory();
+        app.MapRealtimeHub();
         app.MapOrganizationModuleEndpoints();
         app.MapPlatformModuleEndpoints();
         app.MapDefaultEndpoints();

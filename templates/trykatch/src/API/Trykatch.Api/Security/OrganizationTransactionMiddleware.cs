@@ -1,7 +1,6 @@
 using Trykatch.Application.Organizations;
 using Trykatch.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Trykatch.Api.Security;
 
@@ -22,7 +21,8 @@ public sealed class OrganizationTransactionMiddleware(RequestDelegate next)
         if (platformDbContext.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Organization data requires an actor-scoped platform transaction.");
 
-        await using IDbContextTransaction applicationTransaction = await OrganizationTransactionEnlistment.EnlistAsync(
+        // The outer owner retains this enlistment through response capture and transaction finalization.
+        _ = await OrganizationTransactionEnlistment.EnlistAsync(
             platformDbContext,
             applicationDbContext,
             organization.OrganizationId,
@@ -30,7 +30,7 @@ public sealed class OrganizationTransactionMiddleware(RequestDelegate next)
             context.RequestAborted);
         string organizationId = organization.OrganizationId.ToString();
         string actorId = organization.ActorId.ToString();
-        await platformDbContext.Database.ExecuteSqlInterpolatedAsync(
+        await platformDbContext.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {organizationId}, true), set_config('app.actor_id', {actorId}, true)",
             context.RequestAborted);
         await next(context);

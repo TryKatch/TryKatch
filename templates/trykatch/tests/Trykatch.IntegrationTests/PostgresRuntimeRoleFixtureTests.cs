@@ -13,7 +13,7 @@ public sealed class PostgresRuntimeRoleFixtureTests
     {
         string? configuredPostgres = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
         await using PostgreSqlContainer? postgres = string.IsNullOrWhiteSpace(configuredPostgres)
-            ? new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build()
+            ? new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build()
             : null;
         if (postgres is not null) await postgres.StartAsync();
         string administratorConnection = postgres?.GetConnectionString() ?? configuredPostgres!;
@@ -38,7 +38,7 @@ public sealed class PostgresRuntimeRoleFixtureTests
         command.CommandText = """
             SELECT rolname, rolcanlogin, rolinherit, rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls
             FROM pg_roles
-            WHERE rolname IN ('trykatch_org_runtime', 'trykatch_platform_runtime', 'trykatch_identity_runtime', 'trykatch_outbox_worker')
+            WHERE rolname IN ('trykatch_org_runtime', 'trykatch_platform_runtime', 'trykatch_identity_runtime', 'trykatch_outbox_worker', 'trykatch_work_coordinator')
             ORDER BY rolname;
             """;
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync();
@@ -55,7 +55,8 @@ public sealed class PostgresRuntimeRoleFixtureTests
             PostgresRuntimeRoleFixture.IdentityRole,
             PostgresRuntimeRoleFixture.OrganizationRole,
             PostgresRuntimeRoleFixture.OutboxRole,
-            PostgresRuntimeRoleFixture.PlatformRole
+            PostgresRuntimeRoleFixture.PlatformRole,
+            PostgresRuntimeRoleFixture.WorkCoordinatorRole
         ]);
     }
 }

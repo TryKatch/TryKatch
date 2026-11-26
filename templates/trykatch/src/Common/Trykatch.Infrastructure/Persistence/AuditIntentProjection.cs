@@ -74,10 +74,10 @@ internal sealed class PostgresAuditIntentProjectionStore(AuditProjectionDbContex
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         string organization = intent.OrganizationId.ToString();
         string actor = intent.ActorId.ToString();
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+        await dbContext.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {organization}, true), set_config('app.actor_id', {actor}, true)",
             cancellationToken);
-        int inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+        int inserted = await dbContext.Database.ExecuteSqlAsync($"""
             INSERT INTO platform.audit_entries
                 ("Id", "OrganizationId", "ActorId", "Action", "SubjectType", "SubjectId", "SubjectDisplayName", "Details", "OccurredAt")
             VALUES

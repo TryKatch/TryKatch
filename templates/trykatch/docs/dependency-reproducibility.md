@@ -1,10 +1,10 @@
 # Dependency reproducibility
 
-Run commands from the generated application root. `global.json` requires the tested .NET 10.0.3xx SDK feature band, starting at 10.0.301, and permits patch roll-forward only. Install that band explicitly even if another .NET SDK is already installed. Upgrade the policy and generated workflow SDK selection together after qualification.
+Run commands from the generated application root. `global.json` requires the tested .NET 11.0.1xx SDK feature band, starting at 11.0.100, and permits patch roll-forward only. Install that band explicitly even if another .NET SDK is already installed. Upgrade the policy and generated workflow SDK selection together after qualification.
 
 The generated workflows pin third-party actions by commit. React output also pins pnpm through its root and web manifests; use Corepack. Backend-only output intentionally has no frontend manifest or commands.
 
-NuGet lockfiles from the template source are excluded because their project names and platform-specific AppHost assets are not a generated application's lock graph. Initialize them with:
+NuGet lockfiles from the template source are excluded because project references are renamed during generation. Initialize them with:
 
 ```bash
 dotnet restore Trykatch.slnx
@@ -19,6 +19,6 @@ For a committed runtime project graph, a locked restore rejects an unreviewed de
 dotnet restore src/API/Trykatch.Api/Trykatch.Api.csproj --locked-mode
 ```
 
-Exercise that command on the supported runner before enforcing it. Aspire AppHost includes an SDK/runtime/platform-specific dashboard dependency; its lockfile needs separate platform qualification. The shipped solution-wide restore is not claimed to enforce locked mode after initial generation. Completing that transition, clean Windows/macOS/Linux first CI and manual IDE qualification remains a template readiness gate. Do not silently disable runtime-project locked checks to accommodate an AppHost mismatch.
+Source CI restores the checked-in solution in locked mode. Generated CI performs a normal first restore so a newly named application can create its own locks. After committing those files and qualifying your deployment runners, use `dotnet restore Trykatch.slnx --locked-mode` in subsequent CI runs. Aspire 17 obtains its dashboard from its CLI bundle.
 
 After a reviewed package/module change, regenerate affected locks with a normal restore, inspect their differences, rebuild and rerun the relevant PostgreSQL/contract tests before committing. Existing generated products do not receive these source/workflow changes automatically when the template package is updated.

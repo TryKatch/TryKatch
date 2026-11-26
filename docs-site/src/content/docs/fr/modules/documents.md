@@ -7,9 +7,7 @@ Projects et Documents sont tous deux activés dans l’application de départ, m
 
 ## Développement local
 
-`trykatch start` démarre RustFS avec Aspire lorsque l’application a été générée avec l’option par défaut `--storage true`. Aspire lie les ports de développement dynamiques à l’interface locale et conserve les identifiants de stockage côté serveur.
-
-RustFS utilise son propre volume de développement. Si vous adoptez cette configuration AppHost dans un projet qui utilise déjà MinIO, copiez les fichiers à conserver via S3 avant de changer le point d’accès de l’application.
+`trykatch start` démarre un conteneur RustFS 1.0.7 compatible S3 avec Aspire lorsque l’application a été générée avec l’option par défaut `--storage true`. L’image Apache-2.0 est épinglée sur `rustfs/rustfs:1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c`. Aspire lie ses ports de développement dynamiques à l’interface locale et ne les publie pas comme points d’accès externes ; le navigateur ne reçoit jamais les identifiants de stockage.
 
 1. Démarrez Docker Desktop ou un autre moteur de conteneurs pris en charge par Aspire.
 2. Exécutez `trykatch start` depuis la racine de l’application générée.
@@ -36,6 +34,10 @@ L’archivage et la demande de suppression conservent les octets parce que le fl
 
 ## Production
 
-Documents dépend du contrat neutre `IObjectStorage`. L’adaptateur d’infrastructure fonctionne avec les points d’accès compatibles S3 et peut être remplacé en implémentant le même contrat. Utilisez un service compatible S3 corrigé et pris en charge en production.
+Documents dépend du contrat neutre `IObjectStorage`. RustFS est uniquement le service de développement local AppHost ; les couches Domain et Application du module ne référencent ni RustFS ni un SDK S3. L’adaptateur d’infrastructure fourni fonctionne avec les points d’accès compatibles S3, et un autre fournisseur peut le remplacer en implémentant le même contrat sans modifier le module Documents.
+
+RustFS est le service local de développement ; cela ne constitue pas une déclaration de préparation à la production ou de haute disponibilité. La production continue d’utiliser un stockage compatible S3 géré à l’extérieur, configuré avec les paramètres existants `Storage__ServiceUrl`, `Storage__AccessKey`, `Storage__SecretKey`, `Storage__Bucket` et `Storage__Region`.
+
+Une application déjà générée n’est pas mise à jour automatiquement lorsque son package CLI ou modèle change. Lors de la mise à niveau de son AppHost, le responsable doit utiliser le nouveau volume de stockage objet distinct et conserver l’ancien volume MinIO. Avant d’acheminer les documents existants vers le nouveau service ou de modifier leur URL de stockage, copiez et vérifiez les objets puis confirmez `Storage:ServiceUrl` sur la cible ; conservez l’ancien volume jusqu’à la fin des vérifications et à l’approbation de son propriétaire. Aucune migration automatique des objets n’a lieu.
 
 Configurez l’API de production avec `Storage__ServiceUrl`, `Storage__AccessKey`, `Storage__SecretKey`, `Storage__Bucket` et `Storage__Region`. Créez le compartiment privé à l’avance, définissez `Storage__CreateBucket` sur `false`, limitez l’identité de l’application à ce seul compartiment, utilisez TLS, activez le chiffrement et la gestion des versions selon votre politique de données, puis surveillez la capacité et les échecs d’opérations objet.

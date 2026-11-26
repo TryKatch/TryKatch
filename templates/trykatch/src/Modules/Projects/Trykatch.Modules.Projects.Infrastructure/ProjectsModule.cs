@@ -6,9 +6,11 @@ using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 using Trykatch.Modules.AspNetCore;
 using Trykatch.Modules.Projects.Presentation;
+using Trykatch.Modules.Projects.IntegrationEvents;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace Trykatch.Modules.Projects.Infrastructure;
 
@@ -21,7 +23,7 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
     public ModuleDescriptor Descriptor { get; } = new(
         Id: "projects",
         Name: "Projects",
-        Version: "1.0.0",
+        Version: "1.4.0",
         Description: "Organization-scoped project management and lifecycle reference feature.",
         Requires: [],
         OptionalDependencies: [],
@@ -39,6 +41,11 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
                 ModuleCapabilities.Web)
         ])
     {
+        Features =
+        [
+            new("projects.reads", "Project reads", "View projects and their details.", true),
+            new("projects.writes", "Project writes", "Create, change, archive, restore, and request deletion of projects.", true)
+        ],
         DefaultDataOwnership = ModuleDataOwnership.Organization,
         DataResources =
         [
@@ -80,6 +87,48 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
                 "Get one project by its identifier in the current organization workspace.",
                 AssistantToolRisk.ReadOnly,
                 RequiresHumanConfirmation: false)
+        ],
+        Operations =
+        [
+            new(
+                "projects",
+                "projects.create",
+                1,
+                ModuleExecutionKind.UserCommand,
+                "projects.create-command",
+                1,
+                [Permissions.ProjectsManage],
+                "projects",
+                null,
+                16_384),
+            new("projects", ProjectsRealtime.Operation, 1, ModuleExecutionKind.CommittedEvent,
+                "projects.created", 1, [], "projects", ProjectsRealtime.Grant, 1_024)
+        ],
+        SystemGrants =
+        [
+            new(ProjectsRealtime.Grant, 1, "projects", ProjectsRealtime.AuditActor,
+                [ProjectsRealtime.Operation], ["projects"])
+            { AllowedRealtimePolicies = [ProjectsRealtime.ReadPolicy] }
+        ],
+        EventConsumers =
+        [
+            new(ProjectsRealtime.Consumer, "projects", [new("projects.created", 1)], ProjectsRealtime.Operation, 1, ProjectsRealtime.Grant)
+        ],
+        RealtimeAudiencePolicies =
+        [
+            new("projects", "projects.read", 1,
+                [ModuleRealtimeAudienceKind.Organization, ModuleRealtimeAudienceKind.User, ModuleRealtimeAudienceKind.Resource],
+                ["projects"], [Permissions.ProjectsRead], [new("projects.created", 1)], [new("projects", ProjectsRealtime.Operation, 1)])
+        ],
+        IntegrationEvents =
+        [
+            new(
+                "projects.created",
+                1,
+                "projects",
+                typeof(ProjectCreated),
+                ReadProjectCreated,
+                1_024)
         ]
     };
 
@@ -132,10 +181,25 @@ public sealed class ProjectsModule : IModule, IModuleMigrationContributor
         services.AddScoped<IReadOnlyAssistantTool, GetProjectAssistantTool>();
         services.AddSingleton<IOrganizationEndpointContributor, ProjectsEndpoints>();
         services.AddScoped<ProjectUseCases>();
+        services.AddScoped<IModuleOperationHandler, ProjectsCreateOperationHandler>();
+        services.AddScoped<IModuleOperationResourcePolicy, ProjectsResourcePolicy>();
+        services.AddScoped<ProjectCreatedRealtimeConsumer>();
+        services.AddScoped<ModuleEventConsumerBinding>(provider => new("projects", ProjectsRealtime.Consumer,
+            provider.GetRequiredService<ProjectCreatedRealtimeConsumer>()));
+        services.AddScoped<ProjectsReadAudiencePolicy>();
+        services.AddScoped<ModuleRealtimeAudiencePolicyBinding>(provider => new(ProjectsRealtime.ReadPolicy,
+            provider.GetRequiredService<ProjectsReadAudiencePolicy>()));
         services.AddScoped<IProjectStore, ProjectStore>();
+        services.AddScoped<ProjectMutationAuthorization>();
         services.AddSingleton<IApplicationModelContributor, ProjectsModelContributor>();
         services.AddScoped<IWorkspaceOverviewMetricProvider, ProjectsOverviewMetricProvider>();
         services.AddSingleton<IValidator<CreateProjectCommand>, CreateProjectValidator>();
         services.AddSingleton<IValidator<UpdateProjectCommand>, UpdateProjectValidator>();
     }
+
+    private static readonly JsonSerializerOptions EventJson = new(JsonSerializerDefaults.Web);
+
+    private static ProjectCreated ReadProjectCreated(JsonElement payload) =>
+        payload.Deserialize<ProjectCreated>(EventJson)
+        ?? throw new JsonException("Project-created event payload is required.");
 }

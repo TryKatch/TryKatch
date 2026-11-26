@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Data;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules.AspNetCore;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,7 @@ public sealed partial class PlatformDataTransactionMiddleware(
     public async Task InvokeAsync(
         HttpContext context,
         OrganizationControlPlaneDbContext organizationDbContext,
+        ApplicationDbContext applicationDbContext,
         IWorkspaceContextCookie workspaceCookie,
         ModuleTransactionCompensation transactionCompensation)
     {
@@ -46,17 +48,27 @@ public sealed partial class PlatformDataTransactionMiddleware(
             .Any(metadata => metadata.Policy?.StartsWith("platform-permission:", StringComparison.Ordinal) == true);
         if (platformWorkflow && endpoint.Metadata.GetMetadata<IOrganizationScopedMetadata>() is not null)
             throw new InvalidOperationException("An organization endpoint cannot request platform database privileges.");
+        bool readOnly = endpoint.Metadata.GetMetadata<ModuleReadOnlyTransactionMetadata>() is not null;
+        if (readOnly && (platformWorkflow
+            || endpoint.Metadata.GetMetadata<IOrganizationScopedMetadata>() is null
+            || !(HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))))
+            throw new InvalidOperationException("Read-only organization transactions require an organization GET or HEAD endpoint.");
         DbContext platformDbContext = platformWorkflow
             ? context.RequestServices.GetRequiredService<PlatformDbContext>()
             : organizationDbContext;
-        await using IDbContextTransaction transaction = await platformDbContext.Database.BeginTransactionAsync(context.RequestAborted);
+        await using IDbContextTransaction transaction = readOnly
+            ? await platformDbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, context.RequestAborted)
+            : await platformDbContext.Database.BeginTransactionAsync(context.RequestAborted);
+        await using ApplicationEnlistmentLifetime applicationEnlistment = new(applicationDbContext, transaction);
+        if (readOnly)
+            await platformDbContext.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY", context.RequestAborted);
         string actor = actorId.ToString();
         Guid organizationId;
         string? organizationClaim = context.User.FindFirstValue("organization_id");
         bool hasOrganization = Guid.TryParse(organizationClaim, out organizationId)
             || workspaceCookie.TryRead(context, out organizationId);
         string organization = !platformWorkflow && hasOrganization ? organizationId.ToString() : string.Empty;
-        await platformDbContext.Database.ExecuteSqlInterpolatedAsync(
+        await platformDbContext.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.actor_id', {actor}, true), set_config('app.organization_id', {organization}, true)",
             context.RequestAborted);
 
@@ -82,7 +94,8 @@ public sealed partial class PlatformDataTransactionMiddleware(
                 next,
                 async cancellationToken =>
                 {
-                    if (context.Response.StatusCode < StatusCodes.Status500InternalServerError)
+                    if (context.Response.StatusCode < StatusCodes.Status500InternalServerError
+                        && context.Features.Get<IModuleMutationResponseCaptureFeature>()?.RequiresRollback != true)
                     {
                         try
                         {
@@ -126,6 +139,16 @@ public sealed partial class PlatformDataTransactionMiddleware(
                 await RollbackAfterFailureAsync(transaction, transactionCompensation);
             }
             throw;
+        }
+    }
+
+    private sealed class ApplicationEnlistmentLifetime(ApplicationDbContext application, IDbContextTransaction owner) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            IDbContextTransaction? enlisted = application.Database.CurrentTransaction;
+            if (enlisted is not null && ReferenceEquals(enlisted.GetDbTransaction(), owner.GetDbTransaction()))
+                await enlisted.DisposeAsync();
         }
     }
 

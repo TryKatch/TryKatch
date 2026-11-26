@@ -12,6 +12,8 @@ internal static class PostgresRuntimeRoleFixture
     public const string IdentityPassword = "identity-runtime-test-password";
     public const string OutboxRole = "trykatch_outbox_worker";
     public const string OutboxPassword = "outbox-runtime-test-password";
+    public const string WorkCoordinatorRole = "trykatch_work_coordinator";
+    public const string WorkCoordinatorPassword = "work-coordinator-runtime-test-password";
 
     public static async Task EnsureRuntimeRolesAsync(string connectionString)
     {
@@ -41,6 +43,9 @@ internal static class PostgresRuntimeRoleFixture
               IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'trykatch_outbox_worker') THEN
                 CREATE ROLE "trykatch_outbox_worker";
               END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'trykatch_work_coordinator') THEN
+                CREATE ROLE "trykatch_work_coordinator";
+              END IF;
 
               ALTER ROLE "trykatch_org_runtime" LOGIN PASSWORD 'organization-runtime-test-password'
                 VALID UNTIL 'infinity' CONNECTION LIMIT -1
@@ -52,6 +57,9 @@ internal static class PostgresRuntimeRoleFixture
                 VALID UNTIL 'infinity' CONNECTION LIMIT -1
                 NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
               ALTER ROLE "trykatch_outbox_worker" LOGIN PASSWORD 'outbox-runtime-test-password'
+                VALID UNTIL 'infinity' CONNECTION LIMIT -1
+                NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+              ALTER ROLE "trykatch_work_coordinator" LOGIN PASSWORD 'work-coordinator-runtime-test-password'
                 VALID UNTIL 'infinity' CONNECTION LIMIT -1
                 NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             END
@@ -81,22 +89,27 @@ internal static class PostgresRuntimeRoleFixture
             REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
             REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
             REVOKE TEMPORARY ON DATABASE {QuoteIdentifier(connection.Database)} FROM PUBLIC;
-            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {OrganizationRole}, {PlatformRole}, {IdentityRole}, {OutboxRole};
+            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {OrganizationRole}, {PlatformRole}, {IdentityRole}, {OutboxRole}, {WorkCoordinatorRole};
 
             GRANT USAGE ON SCHEMA app, platform TO {OrganizationRole};
             GRANT SELECT ON platform.organizations, platform.module_data_resources TO {OrganizationRole};
             GRANT SELECT, INSERT, UPDATE ON platform.organization_assistant_settings TO {OrganizationRole};
+            GRANT SELECT ON platform.feature_environment_controls, platform.organization_feature_overrides TO {OrganizationRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON platform.memberships, platform.roles,
                 platform.membership_roles, platform.role_permissions, platform.invitations TO {OrganizationRole};
             GRANT SELECT, INSERT ON platform.audit_entries TO {OrganizationRole};
             GRANT INSERT ON platform.audit_intents TO {OrganizationRole};
             GRANT INSERT ON platform.outbox_messages TO {OrganizationRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON app.projects, app.documents TO {OrganizationRole};
+            GRANT SELECT, INSERT, UPDATE ON app.cache_invalidations TO {OrganizationRole};
 
             GRANT USAGE ON SCHEMA platform TO {PlatformRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON platform.organizations,
                 platform.organization_data_placements, platform.organization_creation_intents TO {PlatformRole};
             GRANT SELECT, INSERT ON platform.roles, platform.role_permissions, platform.invitations TO {PlatformRole};
+            GRANT SELECT, INSERT, UPDATE ON platform.feature_environment_controls, platform.organization_feature_overrides TO {PlatformRole};
+            GRANT SELECT, INSERT ON platform.feature_control_history TO {PlatformRole};
+            GRANT SELECT, INSERT ON platform.entitlement_publication_history TO {PlatformRole};
 
             GRANT USAGE ON SCHEMA identity TO {IdentityRole};
             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity TO {IdentityRole};

@@ -18,4 +18,11 @@ describe('effective-permission navigation', () => {
     expect(permittedWorkspaceNavigation(navigation, ['roles.manage', 'cooperatives.read']).map((item) => item.id)).toEqual(['overview', 'people', 'custom'])
     expect(permittedWorkspaceNavigation(navigation, ['members.manage', 'audit.read']).map((item) => item.id)).toEqual(['overview', 'people', 'audit'])
   })
+  it('requires both permission and current feature availability for a contributed link', () => {
+    const guarded: WorkspaceNavigation[] = [{ ...navigation[3], requiredFeature: 'cooperatives.reads' }]
+    expect(permittedWorkspaceNavigation(guarded, ['cooperatives.read'])).toEqual([])
+    expect(permittedWorkspaceNavigation(guarded, ['cooperatives.read'], () => false)).toEqual([])
+    expect(permittedWorkspaceNavigation(guarded, [], () => true)).toEqual([])
+    expect(permittedWorkspaceNavigation(guarded, ['cooperatives.read'], key => key === 'cooperatives.reads')).toEqual(guarded)
+  })
 })

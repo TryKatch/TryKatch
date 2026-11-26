@@ -1,11 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?><Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
+    <OpenApiGenerateDocumentsOptions>--openapi-version OpenApi3_1</OpenApiGenerateDocumentsOptions>
     <OpenApiGenerateDocuments>true</OpenApiGenerateDocuments>
     <OpenApiDocumentsDirectory Condition="'$(SelectedUi)' == 'react'">$(MSBuildProjectDirectory)/../../../web/packages/api-client/openapi</OpenApiDocumentsDirectory>
     <OpenApiDocumentsDirectory Condition="'$(SelectedUi)' == 'none'">$(BaseIntermediateOutputPath)openapi</OpenApiDocumentsDirectory>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Trykatch.IntegrationTests" />
+    <InternalsVisibleTo Include="Trykatch.ExecutionAcceptance" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />

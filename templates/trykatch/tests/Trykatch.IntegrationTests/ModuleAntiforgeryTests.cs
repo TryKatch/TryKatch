@@ -35,11 +35,16 @@ public sealed class ModuleAntiforgeryTests
     [TestMethod]
     public async Task EveryModuleMutationRejectsMissingAndInvalidTokensBeforeExecuting()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
         await postgres.StartAsync();
         string connectionString = postgres.GetConnectionString();
         (string organizationConnection, string platformConnection, string identityConnection, string outboxConnection) =
             await PostgresRuntimeRoleFixture.CreateConnectionStringsAsync(connectionString);
+        string workCoordinatorConnection = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+            Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+        }.ConnectionString;
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:trykatchdb"] = identityConnection,
@@ -48,7 +53,10 @@ public sealed class ModuleAntiforgeryTests
         }).Build();
         IModule[] modules = [new ProjectsModule(), new DocumentsModule(), new FederationModule()];
         await MigrateAsync(connectionString, configuration, modules);
-        await PostgresRuntimeRoleFixture.GrantApplicationPrivilegesAsync(connectionString);
+        await RuntimeRoleProvisioner.ProvisionAsync(connectionString, new RuntimeDatabaseRoles(
+            PostgresRuntimeRoleFixture.OrganizationRole, PostgresRuntimeRoleFixture.PlatformRole,
+            PostgresRuntimeRoleFixture.IdentityRole, PostgresRuntimeRoleFixture.OutboxRole,
+            PostgresRuntimeRoleFixture.WorkCoordinatorRole));
 
         await using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(webHost =>
@@ -59,6 +67,7 @@ public sealed class ModuleAntiforgeryTests
                 webHost.UseSetting("ConnectionStrings:trykatch-platform", platformConnection);
                 webHost.UseSetting("ConnectionStrings:trykatch-identity", identityConnection);
                 webHost.UseSetting("ConnectionStrings:trykatch-outbox", outboxConnection);
+                webHost.UseSetting("ConnectionStrings:trykatch-work", workCoordinatorConnection);
                 webHost.ConfigureAppConfiguration((_, settings) => settings.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:trykatchdb"] = organizationConnection,
@@ -66,6 +75,7 @@ public sealed class ModuleAntiforgeryTests
                     ["ConnectionStrings:trykatch-platform"] = platformConnection,
                     ["ConnectionStrings:trykatch-identity"] = identityConnection,
                     ["ConnectionStrings:trykatch-outbox"] = outboxConnection,
+                    ["ConnectionStrings:trykatch-work"] = workCoordinatorConnection,
                     ["Bootstrap:PlatformAdminEmail"] = PlatformEmail,
                     ["Bootstrap:PlatformAdminPassword"] = Password,
                     ["DevelopmentDemo:Enabled"] = "true",
@@ -155,7 +165,7 @@ public sealed class ModuleAntiforgeryTests
         legacyDocuments.RootElement[0].GetProperty("documentType").GetString().ShouldBe("other");
         using HttpResponseMessage upload = await SendAsync(tenant, HttpMethod.Post, "/api/v1/documents",
             token: tenantToken, isMultipart: true, documentType: "invoice");
-        upload.StatusCode.ShouldBe(HttpStatusCode.Created);
+        upload.StatusCode.ShouldBe(HttpStatusCode.Created, await upload.Content.ReadAsStringAsync());
         using JsonDocument invoice = JsonDocument.Parse(await upload.Content.ReadAsStringAsync());
         invoice.RootElement.GetProperty("documentType").GetString().ShouldBe("invoice");
         Guid documentId = invoice.RootElement.GetProperty("id").GetGuid();

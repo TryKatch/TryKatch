@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Trykatch.Application.Auditing;
 using Trykatch.Domain.Organizations;
+using Trykatch.Infrastructure.Features;
+using Trykatch.Infrastructure.Quotas;
 
 namespace Trykatch.Infrastructure.Persistence;
 
@@ -22,6 +24,8 @@ public class PlatformDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("platform");
+        FeatureControlMapping.Configure(modelBuilder);
+        EntitlementPublicationHistoryMapping.Configure(modelBuilder);
 
         modelBuilder.Entity<OrganizationAssistantSetting>(entity =>
         {

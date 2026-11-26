@@ -13,6 +13,7 @@ namespace Trykatch.Api.Controllers;
 public sealed class WorkspaceContextController(
     IOrganizationAccessResolver resolver,
     IWorkspaceContextCookie workspaceCookie,
+    WorkspaceSessionBinding workspaceSession,
     IOrganizationContext organizationContext) : ControllerBase
 {
     [HttpPost("select", Name = "Workspace_Select")]
@@ -23,6 +24,7 @@ public sealed class WorkspaceContextController(
         OrganizationAccess? access = await resolver.ResolveAsync(actorId, request.OrganizationId, cancellationToken);
         if (access is null) return Problem(statusCode: 403, title: "Workspace access denied");
 
+        if (!await workspaceSession.RotateAsync(HttpContext, access.OrganizationId, actorId)) return Unauthorized();
         workspaceCookie.Write(HttpContext, access.OrganizationId, request.Remember);
         return NoContent();
     }
@@ -36,8 +38,9 @@ public sealed class WorkspaceContextController(
 
     [HttpDelete("current", Name = "Workspace_Clear")]
     [CookieAntiforgery]
-    public IActionResult Clear()
+    public async Task<IActionResult> Clear()
     {
+        await workspaceSession.RotateAsync(HttpContext, null);
         workspaceCookie.Clear(HttpContext);
         return NoContent();
     }

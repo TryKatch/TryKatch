@@ -14,7 +14,7 @@ internal sealed class OrganizationAdministrationStore(OrganizationControlPlaneDb
             throw new InvalidOperationException("Organization management requires an actor-scoped transaction.");
         if (dbContext.ChangeTracker.HasChanges())
             throw new InvalidOperationException("Organization authority must be resolved before staging changes.");
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+        await dbContext.Database.ExecuteSqlAsync(
             $"SELECT pg_advisory_xact_lock(hashtextextended({organizationId.ToString()}, 734002))", cancellationToken);
         dbContext.ChangeTracker.Clear();
     }
@@ -81,7 +81,7 @@ internal sealed class OrganizationAdministrationStore(OrganizationControlPlaneDb
             : null;
         try
         {
-            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            await dbContext.Database.ExecuteSqlAsync(
                 $"SELECT set_config('app.invitation_hash', {tokenHash}, true)", cancellationToken);
             return await dbContext.Invitations.SingleOrDefaultAsync(x => x.TokenHash == tokenHash, cancellationToken);
         }

@@ -20,10 +20,15 @@ public sealed class DocumentRecord : IOrganizationOwned
         string sha256,
         string objectKey,
         DateTimeOffset now,
-        string documentType)
+        string documentType,
+        Guid? uploadOperationId)
     {
+        if (uploadOperationId == Guid.Empty)
+            throw new ArgumentException("An upload operation identifier must be nonempty.", nameof(uploadOperationId));
+
         Id = id;
         OrganizationId = organizationId;
+        UploadOperationId = uploadOperationId;
         CreatedBy = actorId;
         Title = title.Trim();
         Description = description.Trim();
@@ -38,6 +43,7 @@ public sealed class DocumentRecord : IOrganizationOwned
 
     public Guid Id { get; private init; }
     public Guid OrganizationId { get; private init; }
+    public Guid? UploadOperationId { get; private init; }
     public string Title { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
     public string DocumentType { get; private set; } = DocumentTypes.Other;
@@ -70,9 +76,10 @@ public sealed class DocumentRecord : IOrganizationOwned
         string sha256,
         string objectKey,
         DateTimeOffset now,
-        string documentType = DocumentTypes.Other) =>
+        string documentType = DocumentTypes.Other,
+        Guid? uploadOperationId = null) =>
         new(id, organizationId, actorId, title, description ?? string.Empty, fileName, mediaType,
-            sizeBytes, sha256, objectKey, now, documentType);
+            sizeBytes, sha256, objectKey, now, documentType, uploadOperationId);
 
     public void UpdateMetadata(string title, string? description, DateTimeOffset now, string? documentType = null)
     {

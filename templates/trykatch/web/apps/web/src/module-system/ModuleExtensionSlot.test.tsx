@@ -2,7 +2,7 @@ import { WebModuleCatalog, defineWebModule } from '@trykatch/module-sdk'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ModuleProvider, ModuleExtensionSlot } from './ModuleExtensionSlot'
-import { workspaceModules } from '../modules'
+import { testWorkspaceModules as workspaceModules } from '../testWorkspaceModules'
 
 const PublicContribution = () => <span>Public contribution</span>
 const ProtectedContribution = () => <span>Protected contribution</span>

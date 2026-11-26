@@ -1,3 +1,14 @@
+using Trykatch.Application.Execution;
+using Trykatch.Application.Realtime;
+using Trykatch.Application.Eventing;
+using Trykatch.Infrastructure.Execution;
+using Trykatch.Infrastructure.Features;
+using Trykatch.Infrastructure.Quotas;
+using Trykatch.Infrastructure.Caching;
+using Trykatch.Infrastructure.Realtime;
+using Trykatch.Infrastructure.Jobs;
+using Trykatch.Application.Jobs;
+using Trykatch.Infrastructure.Eventing;
 using Trykatch.Application.Authorization;
 using Trykatch.Application.Auditing;
 using Trykatch.Application.Identity;
@@ -9,6 +20,8 @@ using Trykatch.Infrastructure.Identity;
 using Trykatch.Infrastructure.Persistence;
 using Trykatch.Infrastructure.Overview;
 using Trykatch.Infrastructure.Storage;
+using Trykatch.Infrastructure.Mailing;
+using Trykatch.Application.Mailing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,19 +37,50 @@ namespace Trykatch.Infrastructure;
 
 public static class DependencyInjection
 {
+    /// <summary>Opt-in for HTTP hosts that already configure the application Data Protection key ring.</summary>
+    public static IServiceCollection AddRealtimeHistoryCursors(this IServiceCollection services)
+    {
+        services.AddScoped<IRealtimeCursorProtector, RealtimeCursorProtector>();
+        return services;
+    }
+
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration, bool isDevelopment = false, bool isOpenApiGeneration = false)
     {
         string platformConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Platform);
         string organizationConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Organization);
         string outboxConnection = RuntimeDatabaseConnectionContract.Get(configuration, RuntimeDatabaseConnectionContract.Outbox);
 
+        services.AddLogging();
+        services.AddScoped<IModuleRealtimePublisher, ModuleRealtimePublisher>();
+        services.AddScoped<RealtimeHistoryStore>();
+        services.AddScoped<RealtimeAudienceRegistry>();
+        services.AddScoped<IRealtimeAudienceAuthorization, RealtimeAudienceAuthorization>();
+        services.AddScoped<IRealtimeHistoryReader, RealtimeHistoryReader>();
+        services.AddScoped<CacheInvalidationCommitState>();
+        services.AddScoped<CacheGenerationStore>();
+        services.AddOrganizationCache(configuration, isOpenApiGeneration);
+        services.AddFeaturePolicy(configuration);
+        services.AddOrganizationQuotas(configuration, isOpenApiGeneration);
+        services.AddSingleton(_ => OrganizationRequestLimitSettings.Create(configuration));
+        services.AddScoped<global::Trykatch.Application.Quotas.IOrganizationRequestAdmission>(provider =>
+            new OrganizationRequestAdmission(provider.GetRequiredService<IOrganizationContext>(),
+                provider.GetRequiredService<OrganizationRequestLimitSettings>(), organizationConnection));
+        services.AddHostedService<OrganizationRequestLimitStartupValidator>();
+        services.AddScoped<CacheInvalidationTransactionInterceptor>();
+        services.AddScoped<UploadFinalizationTransactionInterceptor>();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));
-        services.AddDbContext<OrganizationControlPlaneDbContext>(options => options.UseNpgsql(organizationConnection));
+        services.AddDbContext<OrganizationControlPlaneDbContext>((provider, options) => options
+            .UseNpgsql(organizationConnection)
+            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>(),
+                provider.GetRequiredService<UploadFinalizationTransactionInterceptor>()));
         // Organization-scoped requests use explicit transactions on both contexts so
         // PostgreSQL transaction-local RLS variables cannot leak between pooled
         // connections. Retrying an entire HTTP transaction could replay downstream
         // side effects, therefore these contexts deliberately avoid EF retries.
-        services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(organizationConnection));
+        services.AddDbContext<ApplicationDbContext>((provider, options) => options
+            .UseNpgsql(organizationConnection)
+            .AddInterceptors(provider.GetRequiredService<CacheInvalidationTransactionInterceptor>(),
+                provider.GetRequiredService<UploadFinalizationTransactionInterceptor>()));
         services.AddOptions<OutboxRecoveryOptions>()
             .BindConfiguration(OutboxRecoveryOptions.SectionName)
             .ValidateOnStart();
@@ -49,6 +93,7 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationContext>(provider => provider.GetRequiredService<OrganizationContext>());
         services.AddScoped<IOrganizationContextInitializer>(provider => provider.GetRequiredService<OrganizationContext>());
         services.AddScoped<IOrganizationAccessResolver, OrganizationAccessResolver>();
+        services.AddScoped<IModuleMutationIdempotencyStore, Idempotency.OrganizationRequestStore>();
         services.AddScoped<PermissionAuthorizer>();
         services.AddScoped<IPermissionAuthorizer>(provider => provider.GetRequiredService<PermissionAuthorizer>());
         services.AddScoped<IModulePermissionAuthorizer>(provider => provider.GetRequiredService<PermissionAuthorizer>());
@@ -75,6 +120,23 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationModuleData, OrganizationModuleData>();
         services.TryAddSingleton<IOutboxTransport, LoggingOutboxTransport>();
         services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IModuleWorkAdministration, ModuleWorkAdministration>();
+        services.AddModuleJobs(configuration, isOpenApiGeneration);
+        services.AddScoped<ModuleOperationRegistry>();
+        services.AddScoped<ModuleEventRegistry>();
+        services.AddScoped<IModuleEventDeliveryDirectory, ModuleEventDeliveryDirectory>();
+        services.AddScoped<ModuleEventFanout>();
+        services.AddScoped<ModuleWorkExecutionContext>();
+        services.AddSingleton<IModuleWorkStore, ModuleWorkStore>();
+        services.AddSingleton<OrganizationWorkExecutor>();
+        services.AddSingleton<IOrganizationWorkExecutor>(provider => provider.GetRequiredService<OrganizationWorkExecutor>());
+        services.AddSingleton<IModuleEventDeliveryStore, ModuleEventDeliveryStore>();
+        services.AddScoped<ModuleEventDeliveryProcessor>();
+        services.AddSingleton<ModuleEventWorkerState>();
+        services.AddHealthChecks().AddCheck<ModuleEventHealthCheck>("module-events", tags: ["ready"]);
+        if (!isOpenApiGeneration) services.AddHostedService<ModuleEventDeliveryWorker>();
+        services.AddHostedService(provider => new ModuleWorkStartupValidator(
+            provider.GetRequiredService<IServiceScopeFactory>(), configuration, isOpenApiGeneration));
         services.AddOptions<AuditProjectionOptions>()
             .BindConfiguration(AuditProjectionOptions.SectionName)
             .Validate(options => options.BatchSize is >= 1 and <= 500, "Audit projection batch size must be between 1 and 500.")
@@ -97,6 +159,8 @@ public static class DependencyInjection
         services.AddSingleton<IInvitationNotifier, NoOpInvitationNotifier>();
 #endif
         services.AddStorageModule(configuration);
+        services.TryAddSingleton<IModuleEmailQueue, UnavailableModuleEmailQueue>();
+        services.TryAddSingleton<IOrganizationInvitationEmailSubmission, UnavailableOrganizationInvitationEmailSubmission>();
         return services;
     }
 }

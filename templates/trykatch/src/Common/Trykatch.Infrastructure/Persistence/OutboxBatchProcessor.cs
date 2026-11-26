@@ -80,7 +80,7 @@ internal sealed class OutboxBatchProcessor(
         dbContext.Database.SetCommandTimeout(value.DatabaseCommandTimeout);
         string commandTimeout = $"{Math.Ceiling(value.DatabaseCommandTimeout.TotalMilliseconds)}ms";
         string lockTimeout = $"{Math.Ceiling(value.DatabaseLockTimeout.TotalMilliseconds)}ms";
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+        await dbContext.Database.ExecuteSqlAsync(
             $"SELECT set_config('statement_timeout', {commandTimeout}, true), set_config('lock_timeout', {lockTimeout}, true), set_config('app.actor_id', '', true), set_config('app.organization_id', '', true)",
             stoppingToken);
 
@@ -91,7 +91,7 @@ internal sealed class OutboxBatchProcessor(
         terminalized += await TerminalizeOversizeAsync(value.BatchSize, stoppingToken);
 
         DateTimeOffset deadline = timeProvider.GetUtcNow() + value.BatchWorkBudget;
-        OutboxMessage[] messages = await dbContext.Messages.FromSqlInterpolated($"""
+        OutboxMessage[] messages = await dbContext.Messages.FromSql($"""
             SELECT * FROM platform.outbox_messages
             WHERE "ProcessedAt" IS NULL AND "ExhaustedAt" IS NULL
               AND "Attempts" < {value.MaximumAttempts}
@@ -112,9 +112,13 @@ internal sealed class OutboxBatchProcessor(
             else
             {
                 failed++;
-                if (message.Attempts >= value.MaximumAttempts)
+                if (message.ExhaustedAt is null && message.Attempts >= value.MaximumAttempts)
                 {
                     message.ExhaustedAt = timeProvider.GetUtcNow();
+                }
+
+                if (message.ExhaustedAt is { } exhaustedAt)
+                {
                     dbContext.RecoveryEvents.Add(new OutboxRecoveryEvent
                     {
                         MessageId = message.Id,
@@ -122,7 +126,7 @@ internal sealed class OutboxBatchProcessor(
                         Outcome = "terminal",
                         FailureCode = message.LastErrorCode ?? "attempts_exhausted",
                         FailureType = message.LastErrorType ?? "transport_failure",
-                        OccurredAt = message.ExhaustedAt.Value
+                        OccurredAt = exhaustedAt
                     });
                     terminalized++;
                     RecoveryCounter.Add(1, new KeyValuePair<string, object?>("outcome", "terminal"));
@@ -152,7 +156,7 @@ internal sealed class OutboxBatchProcessor(
 
     private async Task<int> ApplyReplayRequestsAsync(int batchSize, CancellationToken cancellationToken)
     {
-        OutboxReplayRequest[] requests = await dbContext.ReplayRequests.FromSqlInterpolated($"""
+        OutboxReplayRequest[] requests = await dbContext.ReplayRequests.FromSql($"""
             SELECT request.* FROM platform.outbox_replay_requests request
             WHERE NOT EXISTS (SELECT 1 FROM platform.outbox_recovery_events event WHERE event."RequestId" = request."RequestId")
             ORDER BY request."RequestedAt", request."RequestId"
@@ -175,7 +179,7 @@ internal sealed class OutboxBatchProcessor(
         // re-read the immutable completion marker before any reset can take place.
         string messageKey = request.MessageId.ToString();
         string actor = request.ActorId.ToString();
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+        await dbContext.Database.ExecuteSqlAsync(
             $"SELECT pg_advisory_xact_lock(hashtextextended({messageKey}, 0)), set_config('app.actor_id', {actor}, true)",
             cancellationToken);
         if (await dbContext.RecoveryEvents.AnyAsync(x => x.RequestId == request.RequestId, cancellationToken))
@@ -220,7 +224,7 @@ internal sealed class OutboxBatchProcessor(
     }
 
     private Task<int> TerminalizeByPolicyAsync(int maximumAttempts, int batchSize, CancellationToken cancellationToken) =>
-        dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+        dbContext.Database.ExecuteSqlAsync($"""
             WITH candidates AS (
               SELECT "Id" FROM platform.outbox_messages
               WHERE "ProcessedAt" IS NULL AND "ExhaustedAt" IS NULL AND "Attempts" >= {maximumAttempts}
@@ -239,7 +243,7 @@ internal sealed class OutboxBatchProcessor(
             """, cancellationToken);
 
     private Task<int> TerminalizeOversizeAsync(int batchSize, CancellationToken cancellationToken) =>
-        dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+        dbContext.Database.ExecuteSqlAsync($"""
             WITH candidates AS (
               SELECT "Id" FROM platform.outbox_messages
               WHERE "ProcessedAt" IS NULL AND "ExhaustedAt" IS NULL

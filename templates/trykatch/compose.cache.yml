@@ -1,0 +1,51 @@
+name: trykatch-app-slug
+
+x-bounded-logging: &bounded-logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
+services:
+  api:
+    environment:
+      Cache__Mode: Distributed
+      Cache__TtlSeconds__short: ${TRYKATCH_CACHE_TTL_SHORT:-30}
+      Cache__TtlSeconds__standard: ${TRYKATCH_CACHE_TTL_STANDARD:-120}
+      ConnectionStrings__cache: "cache:6379,password=${TRYKATCH_CACHE_PASSWORD:?set the cache password}"
+    depends_on:
+      cache:
+        condition: service_started
+    networks: [default, cache]
+
+  cache:
+    logging: *bounded-logging
+    image: valkey/valkey:9.1.2-alpine3.24@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+    environment:
+      TRYKATCH_CACHE_PASSWORD: ${TRYKATCH_CACHE_PASSWORD:?set the cache password}
+    command:
+      - --requirepass
+      - ${TRYKATCH_CACHE_PASSWORD:?set the cache password}
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --dir
+      - /tmp
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    networks: [cache]
+    user: "999:1000"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+    stop_grace_period: 15s
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 128M }
+
+networks:
+  cache:
+    internal: true

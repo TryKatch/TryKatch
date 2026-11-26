@@ -1,0 +1,518 @@
+import { expect, test, type APIRequestContext, type APIResponse, type Frame, type Page, type Request, type Response } from '@playwright/test'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
+
+declare const process: { env: Record<string, string | undefined> }
+
+const realtimeAcceptanceEnabled = process.env.TRYKATCH_ACCEPTANCE_REALTIME === 'true'
+const acceptanceBaseUrl = process.env.TRYKATCH_ACCEPTANCE_BASE_URL
+const platformAdminEmail = process.env.TRYKATCH_ACCEPTANCE_ADMIN_EMAIL
+const platformAdminPassword = process.env.TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD
+const organizationAdminPassword = process.env.TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD
+const realtimeStatePath = process.env.TRYKATCH_ACCEPTANCE_REALTIME_STATE
+
+let moduleAbsenceFixture: { ownerEmail: string; organizationId: string } | undefined
+
+test('workspace refresh ignores a response from the document being reloaded', async ({ page }) => {
+  test.setTimeout(60_000)
+  let requestCount = 0
+  let releaseStaleResponse!: () => void
+  let signalStaleRequest!: () => void
+  const staleRequestStarted = new Promise<void>((resolve) => { signalStaleRequest = resolve })
+  const staleResponseGate = new Promise<void>((resolve) => { releaseStaleResponse = resolve })
+
+  await page.route('**/workspace-refresh-fixture', (route) => route.fulfill({
+    contentType: 'text/html',
+    body: '<!doctype html><script>window.refreshFixture = { focusCount: 0, allowRefresh: false }; const refresh = () => fetch("/api/v1/workspace/current").catch(() => fetch("/api/v1/workspace/current")); addEventListener("visibilitychange", () => { refreshFixture.focusCount++; if (refreshFixture.allowRefresh) refresh(); }); addEventListener("load", refresh);</script>',
+  }))
+  await page.route('**/api/v1/workspace/current', async (route) => {
+    requestCount += 1
+    if (requestCount === 1) {
+      signalStaleRequest()
+      await staleResponseGate
+      await route.fulfill({ json: { organizationId: 'stale-organization' } })
+      return
+    }
+    if (requestCount === 2) return route.abort('aborted')
+    if (requestCount === 4) return route.fulfill({ status: 429, json: { title: 'Too many requests' } })
+    if (requestCount === 7) return route.fulfill({ status: 503, json: { title: 'Unavailable' } })
+    await route.fulfill({ json: { organizationId: requestCount === 6 ? 'other-organization' : 'current-organization' } })
+  })
+
+  await page.goto('/workspace-refresh-fixture')
+  await staleRequestStarted
+  page.once('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) releaseStaleResponse()
+  })
+
+  await refreshCurrentWorkspace(page, 'current-organization', true)
+  expect(requestCount).toBe(3)
+  const mountedRefresh = refreshCurrentWorkspace(page, 'current-organization')
+  await page.waitForFunction(() => (window as unknown as { refreshFixture: { focusCount: number } }).refreshFixture.focusCount > 0)
+  await page.evaluate(() => { (window as unknown as { refreshFixture: { allowRefresh: boolean } }).refreshFixture.allowRefresh = true })
+  await mountedRefresh
+  expect(requestCount).toBe(5)
+  await expect(refreshCurrentWorkspace(page, 'current-organization')).rejects.toThrow('the refreshed workspace must match the selected organization')
+  expect(requestCount).toBe(6)
+  await expect(refreshCurrentWorkspace(page, 'current-organization')).rejects.toThrow('the current workspace request should succeed')
+  expect(requestCount).toBe(7)
+})
+
+test.describe('packaged application realtime acceptance', () => {
+  test.skip(!realtimeAcceptanceEnabled, 'Set TRYKATCH_ACCEPTANCE_REALTIME=true to run against the packaged application.')
+
+  test('reconciles project changes, revocation, and workspace switches across real sessions', async ({ browser }) => {
+    // Multiple workspace transitions can cross the existing one-minute request windows.
+    test.setTimeout(300_000)
+    expect(acceptanceBaseUrl, 'TRYKATCH_ACCEPTANCE_BASE_URL').toBeTruthy()
+    expect(platformAdminEmail, 'TRYKATCH_ACCEPTANCE_ADMIN_EMAIL').toBeTruthy()
+    expect(platformAdminPassword, 'TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD').toBeTruthy()
+    expect(organizationAdminPassword, 'TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD').toBeTruthy()
+
+    const runId = `${Date.now()}-${test.info().workerIndex}`
+    const slug = `realtime-${runId}`
+    const ownerEmail = `realtime-owner-${runId}@example.test`
+    const memberEmail = `realtime-member-${runId}@example.test`
+    const projectNames = {
+      live: `Live update ${runId}`,
+      recovered: `Recovered update ${runId}`,
+      revoked: `Revoked delivery ${runId}`,
+      alpha: `Alpha only ${runId}`,
+      beta: `Beta only ${runId}`,
+    }
+
+    const platformContext = await browser.newContext({ baseURL: acceptanceBaseUrl })
+    const ownerContext = await browser.newContext({ baseURL: acceptanceBaseUrl })
+    const memberContext = await browser.newContext({ baseURL: acceptanceBaseUrl })
+    let ownerActivationContext: Awaited<ReturnType<typeof browser.newContext>> | undefined
+    let memberActivationContext: Awaited<ReturnType<typeof browser.newContext>> | undefined
+
+    try {
+      const platformPage = await platformContext.newPage()
+      await signIn(platformPage, platformAdminEmail!, platformAdminPassword!)
+      const platformRequest = platformContext.request
+
+      const alpha = await createOrganization(platformRequest, `Realtime Alpha ${runId}`, `${slug}-alpha`, ownerEmail)
+      const beta = await createOrganization(platformRequest, `Realtime Beta ${runId}`, `${slug}-beta`, ownerEmail)
+
+      ownerActivationContext = await browser.newContext({ baseURL: acceptanceBaseUrl })
+      await activateInvitation(ownerActivationContext.request, alpha.invitationToken, 'Realtime', 'Owner')
+      await ownerActivationContext.close()
+      ownerActivationContext = undefined
+
+      const ownerPage = await ownerContext.newPage()
+      const ownerTransport = observeWebSockets(ownerPage)
+      await signIn(ownerPage, ownerEmail, organizationAdminPassword!)
+      expect((await mutate(ownerContext.request, 'POST', '/api/v1/invitations/accept', { token: beta.invitationToken })).status()).toBe(200)
+      await selectWorkspace(ownerContext.request, alpha.organization.id)
+      // Establish the initial fixture through navigation even when Alpha is already cached.
+      // The later Alpha/Beta transitions exercise the mounted lifecycle without reloading.
+      await refreshCurrentWorkspace(ownerPage, alpha.organization.id, true)
+
+      const invitationResponse = await mutate(ownerContext.request, 'POST', '/api/v1/invitations', { email: memberEmail })
+      expect(invitationResponse.status()).toBe(200)
+      const invitation = await invitationResponse.json() as InvitationResponse
+      const invitationToken = decodeURIComponent(new URL(invitation.invitationUrl).pathname.split('/').at(-1) ?? '')
+      expect(invitationToken).toBeTruthy()
+
+      memberActivationContext = await browser.newContext({ baseURL: acceptanceBaseUrl })
+      await activateInvitation(memberActivationContext.request, invitationToken, 'Realtime', 'Member')
+      await memberActivationContext.close()
+      memberActivationContext = undefined
+
+      const memberPage = await memberContext.newPage()
+      await installRealtimeDisconnectControl(memberPage)
+      const memberTransport = observeWebSockets(memberPage)
+      const historyReads = observeHistoryReads(memberPage)
+      await signIn(memberPage, memberEmail, organizationAdminPassword!)
+      await expect(memberPage).toHaveURL(/\/overview$/)
+      await expect(memberPage.getByRole('link', { name: 'Projects', exact: true })).toBeVisible()
+      await memberPage.goto('/projects')
+      await expect(memberPage.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible()
+      await expect(memberPage.getByText('No projects')).toBeVisible()
+
+      await ownerPage.goto('/projects')
+      await expect(ownerPage.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible()
+
+      await expect.poll(
+        () => memberTransport.lastSubscribedConnection,
+        { timeout: 30_000, message: 'the packaged application should establish a real SignalR WebSocket' },
+      ).toBeGreaterThan(0)
+
+      const beforeLiveEvent = await getJson<RealtimeStateResponse>(ownerContext.request, '/api/v1/realtime/state')
+      expect(beforeLiveEvent.enabled).toBe(true)
+      await createProject(ownerContext.request, projectNames.live)
+      await expect.poll(
+        () => hasRealtimeEvent(ownerContext.request, beforeLiveEvent.cursor),
+        { timeout: 30_000, message: 'the committed project.created event should become available through HTTP history' },
+      ).toBe(true)
+      await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.live) })).toBeVisible({ timeout: 30_000 })
+      await expect.poll(
+        () => memberTransport.projectNotifications,
+        { timeout: 30_000, message: 'SignalR should deliver the projects.created invalidation frame to the second browser' },
+      ).toBeGreaterThan(0)
+      await expect.poll(() => historyReads.projectEvents, { timeout: 30_000 }).toBeGreaterThan(0)
+
+      const historyEventsBeforeGap = historyReads.projectEvents
+      const openedBeforeGap = memberTransport.opened
+      const closedBeforeGap = memberTransport.closed
+      await memberContext.setOffline(true)
+      // Chromium's HTTP offline emulation does not reliably close existing WebSockets.
+      // Close the actual browser transport while new HTTP negotiation is unavailable.
+      await memberPage.evaluate(() => {
+        (window as unknown as { __trykatchAcceptanceCloseRealtime: () => void }).__trykatchAcceptanceCloseRealtime()
+      })
+      await expect.poll(() => memberTransport.closed, { timeout: 30_000 }).toBeGreaterThan(closedBeforeGap)
+
+      const beforeGapEvent = await getJson<RealtimeStateResponse>(ownerContext.request, '/api/v1/realtime/state')
+      await createProject(ownerContext.request, projectNames.recovered)
+      await expect.poll(
+        () => hasRealtimeEvent(ownerContext.request, beforeGapEvent.cursor),
+        { timeout: 30_000, message: 'the disconnected browser should still be able to recover the committed HTTP history later' },
+      ).toBe(true)
+      await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toHaveCount(0)
+
+      await memberContext.setOffline(false)
+      await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toBeVisible({ timeout: 30_000 })
+      await expect.poll(() => historyReads.projectEvents, { timeout: 30_000 }).toBeGreaterThan(historyEventsBeforeGap)
+      await expect.poll(() => memberTransport.opened, { timeout: 30_000 }).toBeGreaterThan(openedBeforeGap)
+
+      const members = await getJson<MemberResponse[]>(ownerContext.request, '/api/v1/members')
+      const member = members.find((item) => item.email === memberEmail)
+      expect(member, 'the invited member should have an active organization membership').toBeTruthy()
+      const closedBeforeRevocation = memberTransport.closed
+      expect((await mutate(ownerContext.request, 'POST', `/api/v1/members/${member!.id}/archive`)).status()).toBe(204)
+      await expect.poll(() => memberTransport.closed, { timeout: 30_000 }).toBeGreaterThan(closedBeforeRevocation)
+      await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.live) })).toHaveCount(0, { timeout: 30_000 })
+      await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toHaveCount(0)
+
+      const revokedProject = await createProject(ownerContext.request, projectNames.revoked)
+      expect(revokedProject.id).toBeTruthy()
+      await expect.poll(async () => {
+        const response = await afterRateLimit(() => memberContext.request.get('/api/v1/projects?page=1&pageSize=100&lifecycle=active'))
+        return [403, 409].includes(response.status())
+      }, { timeout: 90_000 }).toBe(true)
+      await expect(memberPage.getByRole('row', { name: new RegExp(projectNames.revoked) })).toHaveCount(0)
+
+      const ownerConnectionsBeforeBeta = ownerTransport.opened
+      await selectWorkspace(ownerContext.request, beta.organization.id)
+      await refreshCurrentWorkspace(ownerPage, beta.organization.id)
+      await waitForWorkspaceSubscription(ownerTransport, ownerConnectionsBeforeBeta, 'Beta')
+      const notificationsBeforeBeta = ownerTransport.projectNotifications
+      await createProject(ownerContext.request, projectNames.beta)
+      await expect.poll(() => ownerTransport.projectNotifications, {
+        timeout: 30_000, message: 'the current Beta lifecycle should receive a real notification after publication',
+      }).toBeGreaterThan(notificationsBeforeBeta)
+      // Delivery includes the outbox, event worker and relay; subsequent HTTP repair can be throttled.
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.beta) })).toBeVisible({ timeout: 90_000 })
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toHaveCount(0)
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toHaveCount(0)
+
+      const ownerConnectionsBeforeAlpha = ownerTransport.opened
+      await selectWorkspace(ownerContext.request, alpha.organization.id)
+      await refreshCurrentWorkspace(ownerPage, alpha.organization.id)
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toBeVisible({ timeout: 90_000 })
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toBeVisible({ timeout: 90_000 })
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.beta) })).toHaveCount(0)
+      moduleAbsenceFixture = { ownerEmail, organizationId: alpha.organization.id }
+
+      await waitForWorkspaceSubscription(ownerTransport, ownerConnectionsBeforeAlpha, 'Alpha')
+      const notificationsBeforeAlpha = ownerTransport.projectNotifications
+      await createProject(ownerContext.request, projectNames.alpha)
+      await expect.poll(() => ownerTransport.projectNotifications, {
+        timeout: 30_000, message: 'the current Alpha lifecycle should receive a real notification before workspace clear',
+      }).toBeGreaterThan(notificationsBeforeAlpha)
+      // A real domain refetch can be throttled after the push; HTTP repair must retry it after the window resets.
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.alpha) })).toBeVisible({ timeout: 90_000 })
+      const closedBeforeClear = ownerTransport.closed
+      expect((await mutate(ownerContext.request, 'DELETE', '/api/v1/workspace/current')).status()).toBe(204)
+      const missingWorkspace = await afterRateLimit(() => ownerContext.request.get('/api/v1/realtime/history'))
+      expect(missingWorkspace.status()).toBe(409)
+      expect((await missingWorkspace.json() as { title: string }).title).toBe('Workspace context required')
+      expect((await afterRateLimit(() => ownerContext.request.get('/api/v1/auth/session'))).status()).toBe(200)
+      await expect.poll(() => ownerTransport.closed, { timeout: 30_000 }).toBeGreaterThan(closedBeforeClear)
+      // A browser repair can receive 429 before workspace resolution; allow the existing
+      // one-minute rate window plus the periodic repair, then require the old rows to disappear.
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.live) })).toHaveCount(0, { timeout: 90_000 })
+      await expect(ownerPage.getByRole('row', { name: new RegExp(projectNames.recovered) })).toHaveCount(0)
+    } finally {
+      await Promise.all([
+        ownerActivationContext?.close(),
+        memberActivationContext?.close(),
+        platformContext.close(),
+        ownerContext.close(),
+        memberContext.close(),
+      ])
+    }
+  })
+
+  test.afterEach(async ({}, testInfo) => {
+    if (testInfo.status !== 'passed' || !moduleAbsenceFixture) return
+    expect(realtimeStatePath, 'TRYKATCH_ACCEPTANCE_REALTIME_STATE').toBeTruthy()
+    await mkdir(dirname(realtimeStatePath!), { recursive: true })
+    await writeFile(realtimeStatePath!, `${JSON.stringify(moduleAbsenceFixture, null, 2)}\n`, { mode: 0o600 })
+  })
+})
+
+async function signIn(page: Page, email: string, password: string) {
+  await page.goto('/login')
+  await page.getByLabel('Email address').fill(email)
+  await page.locator('input[name="password"]').fill(password)
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page).toHaveURL(/\/(overview|dashboard)$/)
+}
+
+async function createOrganization(request: APIRequestContext, name: string, slug: string, administratorEmail: string) {
+  const response = await mutate(request, 'POST', '/api/v1/tenants', { name, slug, administratorEmail })
+  expect(response.status()).toBe(201)
+  return await response.json() as CreateOrganizationResponse
+}
+
+async function activateInvitation(request: APIRequestContext, token: string, firstName: string, lastName: string) {
+  const response = await mutate(request, 'POST', '/api/v1/invitations/activate', {
+    token,
+    firstName,
+    lastName,
+    password: organizationAdminPassword,
+  })
+  expect(response.status()).toBe(200)
+}
+
+async function selectWorkspace(request: APIRequestContext, organizationId: string) {
+  const response = await mutate(request, 'POST', '/api/v1/workspace/select', { organizationId, remember: true })
+  expect(response.status()).toBe(204)
+}
+
+async function afterRateLimit(operation: () => Promise<APIResponse>) {
+  // This multi-session journey can exhaust the existing one-minute request window.
+  // Retry only rejected requests; the limiter runs before endpoints. Never replay an admitted mutation.
+  const deadline = Date.now() + 65_000
+  while (true) {
+    const response = await operation()
+    if (response.status() !== 429) return response
+    if (Date.now() >= deadline) throw new Error('Public request remained rate limited beyond one request window.')
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
+  }
+}
+
+async function refreshCurrentWorkspace(page: Page, organizationId: string, reload = false) {
+  let documentReady = !reload
+  const eligible = new WeakSet<Request>()
+  const completed: Request[] = []
+  let workspaceResponse: Response | null | undefined
+  const navigated = (frame: Frame) => { if (frame === page.mainFrame()) documentReady = true }
+  const requested = (request: Request) => {
+    if (documentReady && request.method() === 'GET'
+      && new URL(request.url()).pathname === '/api/v1/workspace/current'
+      && request.frame() === page.mainFrame()) eligible.add(request)
+  }
+  const finished = (request: Request) => { if (eligible.has(request)) completed.push(request) }
+  // Observe before navigation, but exclude requests initiated by the departing document.
+  page.on('framenavigated', navigated)
+  page.on('request', requested)
+  page.on('requestfinished', finished)
+  try {
+    await page.bringToFront()
+    if (reload) await page.reload()
+    await expect.poll(async () => {
+      while (completed.length) {
+        const response = await completed.shift()!.response()
+        if (response?.status() === 429) continue
+        workspaceResponse = response
+        return true
+      }
+      // A mounted query can remain fresh for 30 seconds. Focus only refetches once stale.
+      await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+      return false
+    }, { timeout: 65_000, intervals: [100, 250, 500, 1_000], message: 'the current document should complete its workspace fetch' }).toBe(true)
+
+    expect(workspaceResponse, 'the current workspace request should receive a response').toBeTruthy()
+    expect(workspaceResponse!.ok(), 'the current workspace request should succeed').toBe(true)
+    expect((await workspaceResponse!.json() as CurrentWorkspaceResponse).organizationId,
+      'the refreshed workspace must match the selected organization').toBe(organizationId)
+  } finally {
+    page.off('framenavigated', navigated)
+    page.off('request', requested)
+    page.off('requestfinished', finished)
+  }
+}
+
+async function createProject(request: APIRequestContext, name: string) {
+  const response = await mutate(request, 'POST', '/api/v1/projects', {
+    name,
+    description: 'Created by the packaged realtime acceptance journey.',
+  })
+  expect(response.status()).toBe(201)
+  return await response.json() as ProjectResponse
+}
+
+async function mutate(request: APIRequestContext, method: 'POST' | 'PUT' | 'DELETE', path: string, data?: unknown) {
+  const antiforgery = await getJson<{ token: string }>(request, '/api/v1/auth/antiforgery')
+  return afterRateLimit(() => request.fetch(path, {
+    method,
+    data,
+    headers: { 'X-CSRF-TOKEN': antiforgery.token },
+  }))
+}
+
+async function getJson<T>(request: APIRequestContext, path: string): Promise<T> {
+  const response = await afterRateLimit(() => request.get(path))
+  expect(response.ok(), `${path} returned ${response.status()}`).toBe(true)
+  return await response.json() as T
+}
+
+async function hasRealtimeEvent(request: APIRequestContext, cursor: string) {
+  const response = await afterRateLimit(() => request.get('/api/v1/realtime/history', { params: { cursor } }))
+  if (!response.ok()) return false
+  const history = await response.json() as RealtimeHistoryResponse
+  return history.items.some((item) => item.moduleId === 'projects'
+    && item.eventKey === 'projects.created'
+    && item.schemaVersion === 1)
+}
+
+async function installRealtimeDisconnectControl(page: Page) {
+  await page.addInitScript(() => {
+    const sockets = new Set<WebSocket>()
+    window.WebSocket = new Proxy(window.WebSocket, {
+      construct(target, args) {
+        const socket = Reflect.construct(target, args) as WebSocket
+        if (new URL(String(args[0]), window.location.href).pathname === '/api/v1/realtime/hub') {
+          sockets.add(socket)
+          socket.addEventListener('close', () => sockets.delete(socket))
+        }
+        return socket
+      },
+    })
+    Object.assign(window, {
+      __trykatchAcceptanceCloseRealtime: () => {
+        for (const socket of sockets) socket.close(1000, 'acceptance disconnect')
+      },
+    })
+  })
+}
+
+function observeWebSockets(page: Page) {
+  const events: Array<{ connection: number; phase: string; elapsedMs: number }> = []
+  const started = Date.now()
+  const record = (connection: number, phase: string) => {
+    events.push({ connection, phase, elapsedMs: Date.now() - started })
+    if (events.length > 64) events.shift()
+  }
+  const observed = { opened: 0, closed: 0, projectNotifications: 0, lastSubscribedConnection: 0, events }
+  page.on('websocket', (socket) => {
+    if (!socket.url().includes('/api/v1/realtime/hub')) return
+    const serial = ++observed.opened
+    record(serial, 'opened')
+    const subscriptions = new Set<string>()
+    socket.on('framesent', ({ payload }) => {
+      for (const invocation of hubMessages(payload)) {
+        if (invocation.type === 1 && invocation.target === 'ReplaceSubscriptions' && invocation.invocationId) {
+          subscriptions.add(invocation.invocationId)
+          record(serial, 'subscription-sent')
+        }
+      }
+    })
+    socket.on('framereceived', ({ payload }) => {
+      for (const invocation of hubMessages(payload)) {
+        if (invocation.type === 3 && invocation.invocationId && subscriptions.delete(invocation.invocationId)) {
+          record(serial, invocation.error ? 'subscription-denied' : 'subscribed')
+          if (!invocation.error) observed.lastSubscribedConnection = serial
+        }
+        if (invocation.type === 1 && invocation.target === 'invalidate'
+          && invocation.arguments?.some((notification) => notification.moduleId === 'projects'
+            && notification.eventKey === 'projects.created'
+            && notification.schemaVersion === 1)) observed.projectNotifications += 1
+      }
+    })
+    socket.on('close', () => {
+      observed.closed += 1
+      record(serial, 'closed')
+      if (observed.lastSubscribedConnection === serial) observed.lastSubscribedConnection = 0
+    })
+  })
+  return observed
+}
+
+async function waitForWorkspaceSubscription(transport: ReturnType<typeof observeWebSockets>, previousConnections: number, workspace: string) {
+  try {
+    await expect.poll(() => transport.lastSubscribedConnection, {
+      // Bootstrap can hit the one-minute request window, then resume on its 15-second repair.
+      timeout: 90_000, message: `the replacement ${workspace} socket should finish authorized subscription before publication`,
+    }).toBeGreaterThan(previousConnections)
+  } catch (error) {
+    await test.info().attach('realtime-transport-summary', {
+      body: JSON.stringify(transport), contentType: 'application/json',
+    })
+    throw error
+  }
+}
+
+function hubMessages(payload: string | { toString(encoding: 'utf8'): string }) {
+  const frame = typeof payload === 'string' ? payload : payload.toString('utf8')
+  const messages: Array<{
+    type?: number; target?: string; invocationId?: string; error?: string
+    arguments?: Array<{ moduleId?: string; eventKey?: string; schemaVersion?: number }>
+  }> = []
+  for (const message of frame.split('\u001e')) {
+    if (!message) continue
+    try { const value = JSON.parse(message); if (value && typeof value === 'object') messages.push(value) }
+    catch { /* Handshake/control frames need not contain an invocation. */ }
+  }
+  return messages
+}
+
+function observeHistoryReads(page: Page) {
+  const observed = { projectEvents: 0 }
+  page.on('response', async (response) => {
+    if (new URL(response.url()).pathname !== '/api/v1/realtime/history' || !response.ok()) return
+    try {
+      const history = await response.json() as RealtimeHistoryResponse
+      if (history.items.some((item) => item.moduleId === 'projects'
+        && item.eventKey === 'projects.created' && item.schemaVersion === 1)) observed.projectEvents += 1
+    } catch (error) {
+      // Chromium can discard a completed response body during the deliberate navigation/cleanup.
+      // Such a response cannot satisfy the history assertion; other failures still fail the test.
+      const message = String(error)
+      if (!page.isClosed() && !message.includes('No resource with given identifier found')
+        && !message.includes('Response body is not available')
+        && !message.includes('Target page, context or browser has been closed')) throw error
+    }
+  })
+  return observed
+}
+
+interface CreateOrganizationResponse {
+  organization: { id: string }
+  invitationToken: string
+}
+
+interface InvitationResponse {
+  invitation: { id: string }
+  invitationUrl: string
+}
+
+interface MemberResponse {
+  id: string
+  email: string
+}
+
+interface ProjectResponse {
+  id: string
+}
+
+interface CurrentWorkspaceResponse {
+  organizationId: string
+}
+
+interface RealtimeStateResponse {
+  enabled: boolean
+  cursor: string
+}
+
+interface RealtimeHistoryResponse {
+  items: Array<{
+    moduleId: string
+    eventKey: string
+    schemaVersion: number
+  }>
+}

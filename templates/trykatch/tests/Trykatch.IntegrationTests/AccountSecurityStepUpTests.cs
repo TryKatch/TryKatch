@@ -251,7 +251,9 @@ public sealed class AccountSecurityStepUpTests
             password = SecurityHost.Password,
             code = Totp(key)
         });
-        await AssertProblemAsync(staleCookie, HttpStatusCode.Forbidden, "reauthentication_required");
+        // Fresh durable-session stamp checks reject this cookie before the step-up use case.
+        staleCookie.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await second.GetAsync("/api/v1/auth/session")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [TestMethod]
@@ -460,6 +462,7 @@ public sealed class AccountSecurityStepUpTests
         public const string LegacyRecoveryCode = "ABCD2-EFGH3";
         public TestClock Clock => clock;
         public IServiceProvider Services => factory.Services;
+        public Microsoft.AspNetCore.TestHost.WebSocketClient CreateWebSocketClient() => factory.Server.CreateWebSocketClient();
         public string OwnerConnection => ownerConnection;
 
         public async Task RestartAsync(IReadOnlyDictionary<string, string?> overrides, string environment = "Production", Action<IServiceCollection>? configureServices = null)
@@ -486,7 +489,7 @@ public sealed class AccountSecurityStepUpTests
         {
             string? configured = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
             PostgreSqlContainer? postgres = string.IsNullOrWhiteSpace(configured)
-                ? new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build() : null;
+                ? new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build() : null;
             if (postgres is not null) await postgres.StartAsync();
             string ownerConnection = postgres?.GetConnectionString() ?? configured!;
             string? databaseName = null;
@@ -556,6 +559,11 @@ public sealed class AccountSecurityStepUpTests
                     ["ConnectionStrings:trykatch-platform"] = connections.Platform,
                     ["ConnectionStrings:trykatch-identity"] = connections.Identity,
                     ["ConnectionStrings:trykatch-outbox"] = connections.Outbox,
+                    ["ConnectionStrings:trykatch-work"] = new NpgsqlConnectionStringBuilder(ownerConnection)
+                    {
+                        Username = PostgresRuntimeRoleFixture.WorkCoordinatorRole,
+                        Password = PostgresRuntimeRoleFixture.WorkCoordinatorPassword
+                    }.ConnectionString,
                     ["Bootstrap:PlatformAdminEmail"] = Email,
                     ["Bootstrap:PlatformAdminPassword"] = Password,
                     ["DevelopmentDemo:Enabled"] = "false"

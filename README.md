@@ -2,14 +2,16 @@
 
 > Start secure. Build freely.
 
-Trykatch is an Apache-2.0 enterprise application template for .NET 10, PostgreSQL, React, TanStack, Aspire, and OpenTelemetry.
+Trykatch is an Apache-2.0 enterprise application template for .NET 11, PostgreSQL, React, TanStack, Aspire, and OpenTelemetry.
+
+Generated AppHosts require the Aspire 17 CLI bundle. Each application pins Aspire CLI 17.0.0 in its local .NET tool manifest; run `dotnet tool restore` from the generated application root before starting it. No global Aspire CLI installation is needed.
 
 ## Install and create
 
 `Trykatch.Templates` is the full-stack project generator. The recommended installer uses the official .NET template engine underneath while adding clear progress and completion states. Every default generation includes the .NET solution and the complete React/TanStack frontend workspace:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.33
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.34
 trykatch template install
 trykatch new Horizon
 trykatch new Acme.Operations
@@ -25,7 +27,7 @@ instead of creating a nested one.
 For automation or IDE-managed environments, the direct Microsoft CLI command remains supported:
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.33
+dotnet new install Trykatch.Templates@0.1.0-preview.34
 ```
 
 The default output includes `web/apps/web`, the reusable `web/packages/ui` component system, the generated TanStack Query API client, frontend tests, and the production web container. Create a backend-only solution only when it is explicitly requested with:
@@ -34,6 +36,23 @@ The default output includes `web/apps/web`, the reusable `web/packages/ui` compo
 trykatch new Horizon --ui none
 ```
 
+To start from the same application foundation without enabled example business
+modules, select the minimal module profile:
+
+```bash
+trykatch new Katch --module-profile minimal
+cd Katch
+dotnet tool restore
+trykatch start
+```
+
+`dotnet new trykatch -n Katch --module-profile minimal` is also supported. The
+profile keeps the Projects, Documents, and Federation source and migration history
+available, but starts with no example module enabled in the backend, migrator, or
+React navigation. The workspace overview also omits the Projects shortcut until
+that module is installed. Use `trykatch module create` when you are ready to add
+your first capability. The default profile remains unchanged.
+
 Optional modules are enabled with `--email`, `--storage`, `--documents`, and `--images`.
 
 Set a separate customer-facing brand with `trykatch new Kamenta.App --display-name "Kamenta" --email true`. The technical namespace stays `Kamenta.App`; UI and email branding use `Kamenta`.
@@ -41,7 +60,7 @@ Set a separate customer-facing brand with `trykatch new Kamenta.App --display-na
 `Trykatch.Cli` installs, updates, or removes the project template, starts generated applications through their Aspire AppHost, and manages the module lifecycle. Every generated application also contains its source under `tools/<ApplicationName>.ModuleTool`, so developers can run module commands without a global installation:
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.33
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.34
 trykatch update
 trykatch help
 trykatch template help
@@ -92,9 +111,9 @@ dotnet tool uninstall --global Trykatch.Cli
 ```bash
 dotnet pack Trykatch.Templates.csproj -c Release -o artifacts/packages
 dotnet pack templates/trykatch/tools/Trykatch.ModuleTool -c Release -o artifacts/packages
-dotnet new install artifacts/packages/Trykatch.Templates.0.1.0-preview.33.nupkg --force
+dotnet new install artifacts/packages/Trykatch.Templates.0.1.0-preview.34.nupkg --force
 dotnet new trykatch -n Horizon --allow-scripts yes
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.33 --add-source artifacts/packages
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.34 --add-source artifacts/packages
 ```
 
 The installed template uses the standard .NET template engine. Rider can install the `.nupkg` from **New Solution → More Templates → Install Template**, or discover it after `dotnet new install`. Visual Studio discovers installed SDK templates in the **Create a new project** dialog; search for **Trykatch** after installing the package and restarting the dialog or IDE.

@@ -1,4 +1,5 @@
 using System.Text;
+using Trykatch.Infrastructure.Quotas;
 
 namespace Trykatch.Infrastructure.Organizations;
 
@@ -22,10 +23,9 @@ internal static class HostPostgresFunctionContracts
         ON platform.outbox_messages FOR EACH ROW EXECUTE FUNCTION platform.redact_legacy_outbox_error()
         """;
 
-    public static IReadOnlySet<string> All { get; } = new HashSet<string>(StringComparer.Ordinal)
-    {
-        RedactLegacyOutboxError
-    };
+    public static IReadOnlySet<string> All { get; } = new HashSet<string>(
+        QuotaPostgresTransitionContracts.All.Select(contract => contract.Function).Append(RedactLegacyOutboxError),
+        StringComparer.Ordinal);
 
     public static string Normalize(string statement)
     {

@@ -76,6 +76,16 @@
         "enum": ["api", "web", "data", "background-work", "assistant"]
       }
     },
+    "features": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/moduleFeature" }
+    },
+    "quotaResources": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/moduleQuotaResource" }
+    },
     "dataOwnership": {
       "oneOf": [
         { "type": "null" },
@@ -223,7 +233,8 @@
           }
         }
       }
-    }
+    },
+    "execution": { "$ref": "#/$defs/execution" }
   },
   "allOf": [
     {
@@ -242,6 +253,173 @@
     }
   ],
   "$defs": {
+    "moduleQuotaResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "description", "unit"],
+      "properties": {
+        "key": { "$ref": "#/$defs/quotaStableKey" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "\\S" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" },
+        "unit": { "enum": ["bytes", "count"] },
+        "uploadPolicy": { "$ref": "#/$defs/quotaUploadPolicy" },
+        "inventorySource": { "$ref": "#/$defs/quotaInventorySource" },
+        "removalPolicy": { "$ref": "#/$defs/quotaRemovalPolicy" }
+      }
+    },
+    "quotaUploadPolicy": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "required": ["policyKey", "policyVersion", "requiredPermission"],
+      "properties": {
+        "policyKey": { "$ref": "#/$defs/quotaStableKey" },
+        "policyVersion": { "$ref": "#/$defs/positiveVersion" },
+        "requiredPermission": { "$ref": "#/$defs/quotaStableKey" }
+      }
+    },
+    "quotaInventorySource": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "required": ["sourceKey", "sourceVersion"],
+      "properties": {
+        "sourceKey": { "$ref": "#/$defs/quotaStableKey" },
+        "sourceVersion": { "$ref": "#/$defs/positiveVersion" }
+      }
+    },
+    "quotaRemovalPolicy": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "required": ["policyKey", "policyVersion"],
+      "properties": {
+        "policyKey": { "$ref": "#/$defs/quotaStableKey" },
+        "policyVersion": { "$ref": "#/$defs/positiveVersion" }
+      }
+    },
+    "quotaStableKey": {
+      "type": "string", "minLength": 1, "maxLength": 120,
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+      "not": { "pattern": "\\s" }
+    },
+    "moduleFeature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "description", "defaultEnabled"],
+      "properties": {
+        "key": { "$ref": "#/$defs/stableKey" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "defaultEnabled": { "type": "boolean" }
+      }
+    },
+    "stableKey": { "type": "string", "maxLength": 120, "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
+    "realtimeStableKey": { "type": "string", "maxLength": 160, "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
+    "realtimePolicyKey": { "type": "string", "maxLength": 158, "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$" },
+    "positiveVersion": { "type": "integer", "minimum": 1 },
+    "payloadBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+    "execution": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } },
+        "systemGrants": { "type": "array", "items": { "$ref": "#/$defs/systemGrant" } },
+        "integrationEvents": { "type": "array", "items": { "$ref": "#/$defs/integrationEvent" } },
+        "eventConsumers": { "type": "array", "items": { "$ref": "#/$defs/eventConsumer" } },
+        "jobs": { "type": "array", "items": { "$ref": "#/$defs/job" } },
+        "recurringSchedules": { "type": "array", "items": { "$ref": "#/$defs/recurringSchedule" } },
+        "realtimeAudiencePolicies": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeAudiencePolicy" } }
+      }
+    },
+    "operation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operationKey", "operationVersion", "executionKind", "payloadSchemaKey", "payloadSchemaVersion", "requiredPermissionKeys", "resourcePolicyKey", "maximumPayloadBytes"],
+      "properties": {
+        "operationKey": { "$ref": "#/$defs/stableKey" }, "operationVersion": { "$ref": "#/$defs/positiveVersion" },
+        "executionKind": { "enum": ["user-command", "committed-event", "scheduled-system"] },
+        "payloadSchemaKey": { "$ref": "#/$defs/stableKey" }, "payloadSchemaVersion": { "$ref": "#/$defs/positiveVersion" },
+        "requiredPermissionKeys": { "$ref": "#/$defs/contracts" }, "resourcePolicyKey": { "$ref": "#/$defs/stableKey" },
+        "systemGrantKey": { "anyOf": [{ "$ref": "#/$defs/stableKey" }, { "type": "null" }] }, "maximumPayloadBytes": { "$ref": "#/$defs/payloadBytes" }
+      }
+    },
+    "systemGrant": {
+      "type": "object", "additionalProperties": false,
+      "required": ["grantKey", "grantVersion", "auditActorId", "allowedOperationKeys", "allowedResourceKeys"],
+      "properties": {
+        "grantKey": { "$ref": "#/$defs/stableKey" }, "grantVersion": { "$ref": "#/$defs/positiveVersion" },
+        "auditActorId": { "type": "string", "format": "uuid" },
+        "allowedOperationKeys": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/stableKey" } },
+        "allowedResourceKeys": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/stableKey" } },
+        "allowedRealtimePolicies": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimePolicyRef" } },
+        "allowedQuotaResources": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/quotaStableKey" } }
+      }
+    },
+    "realtimeAudiencePolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policyKey", "policyVersion", "allowedAudiences", "allowedResourceKeys", "requiredUserPermissionKeys", "allowedEvents", "allowedSystemProducers"],
+      "properties": {
+        "policyKey": { "$ref": "#/$defs/realtimePolicyKey" },
+        "policyVersion": { "$ref": "#/$defs/positiveVersion" },
+        "allowedAudiences": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "enum": ["organization", "user", "resource"] } },
+        "allowedResourceKeys": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeStableKey" } },
+        "requiredUserPermissionKeys": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeStableKey" } },
+        "allowedEvents": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeEventVersion" } },
+        "allowedSystemProducers": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/realtimeProducer" } }
+      }
+    },
+    "realtimePolicyRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ownerModuleId", "policyKey", "policyVersion"],
+      "properties": {
+        "ownerModuleId": { "$ref": "#/$defs/moduleId" },
+        "policyKey": { "$ref": "#/$defs/realtimePolicyKey" },
+        "policyVersion": { "$ref": "#/$defs/positiveVersion" }
+      }
+    },
+    "realtimeEventVersion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["eventKey", "schemaVersion"],
+      "properties": {
+        "eventKey": { "$ref": "#/$defs/realtimeStableKey" },
+        "schemaVersion": { "$ref": "#/$defs/positiveVersion" }
+      }
+    },
+    "realtimeProducer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["moduleId", "operationKey", "operationVersion"],
+      "properties": {
+        "moduleId": { "$ref": "#/$defs/moduleId" },
+        "operationKey": { "$ref": "#/$defs/realtimeStableKey" },
+        "operationVersion": { "$ref": "#/$defs/positiveVersion" }
+      }
+    },
+    "integrationEvent": {
+      "type": "object", "additionalProperties": false, "required": ["eventKey", "schemaVersion", "maximumPayloadBytes"],
+      "properties": { "eventKey": { "$ref": "#/$defs/stableKey" }, "schemaVersion": { "$ref": "#/$defs/positiveVersion" }, "maximumPayloadBytes": { "$ref": "#/$defs/payloadBytes" } }
+    },
+    "eventVersion": {
+      "type": "object", "additionalProperties": false, "required": ["eventKey", "schemaVersion"],
+      "properties": { "eventKey": { "$ref": "#/$defs/stableKey" }, "schemaVersion": { "$ref": "#/$defs/positiveVersion" } }
+    },
+    "eventConsumer": {
+      "type": "object", "additionalProperties": false, "required": ["consumerKey", "acceptedEvents", "operationKey", "operationVersion", "systemGrantKey"],
+      "properties": {
+        "consumerKey": { "$ref": "#/$defs/stableKey" }, "acceptedEvents": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/eventVersion" } },
+        "operationKey": { "$ref": "#/$defs/stableKey" }, "operationVersion": { "$ref": "#/$defs/positiveVersion" }, "systemGrantKey": { "$ref": "#/$defs/stableKey" }
+      }
+    },
+    "job": {
+      "type": "object", "additionalProperties": false,
+      "required": ["jobKey", "jobVersion", "operationKey", "operationVersion", "executionKind", "payloadSchemaKey", "payloadSchemaVersion", "maximumPayloadBytes"],
+      "properties": {
+        "jobKey": { "$ref": "#/$defs/stableKey" }, "jobVersion": { "$ref": "#/$defs/positiveVersion" },
+        "operationKey": { "$ref": "#/$defs/stableKey" }, "operationVersion": { "$ref": "#/$defs/positiveVersion" },
+        "executionKind": { "enum": ["user-command", "committed-event", "scheduled-system"] },
+        "payloadSchemaKey": { "$ref": "#/$defs/stableKey" }, "payloadSchemaVersion": { "$ref": "#/$defs/positiveVersion" }, "maximumPayloadBytes": { "$ref": "#/$defs/payloadBytes" }
+      }
+    },
+    "recurringSchedule": {
+      "type": "object", "additionalProperties": false, "required": ["scheduleKey", "jobKey", "jobVersion", "utcSchedule", "misfirePolicy", "systemGrantKey"],
+      "properties": {
+        "scheduleKey": { "$ref": "#/$defs/stableKey" }, "jobKey": { "$ref": "#/$defs/stableKey" }, "jobVersion": { "$ref": "#/$defs/positiveVersion" },
+        "utcSchedule": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\r\\n]+$" },
+        "misfirePolicy": { "enum": ["coalesce", "catch-up"] }, "systemGrantKey": { "$ref": "#/$defs/stableKey" }
+      }
+    },
     "moduleId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"

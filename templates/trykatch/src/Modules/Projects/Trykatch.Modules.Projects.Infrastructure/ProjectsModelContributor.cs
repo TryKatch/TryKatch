@@ -13,7 +13,7 @@ public sealed class ProjectsModelContributor : IApplicationModelContributor
     {
         modelBuilder.Entity<Project>(entity =>
         {
-            entity.ToTable("projects", "app");
+            entity.ToTable("projects", "app", table => table.ExcludeFromMigrations());
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).HasMaxLength(120);
             entity.Property(x => x.Description).HasMaxLength(2000);
