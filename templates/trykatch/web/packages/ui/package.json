@@ -20,11 +20,11 @@
     "tailwind-merge": "3.6.0"
   },
   "devDependencies": {
-    "@storybook/react-vite": "10.6.0",
+    "@storybook/react-vite": "10.6.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "react-dom": "19.2.8",
-    "storybook": "10.6.0",
+    "storybook": "10.6.2",
     "typescript": "6.0.3",
     "vitest": "5.0.0"
   },

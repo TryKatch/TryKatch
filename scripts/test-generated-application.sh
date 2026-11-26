@@ -223,13 +223,12 @@ EOF
 
 cat >"$compose_override" <<EOF
 services:
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
-    command: ["server", "/data", "--console-address", ":9001"]
+  rustfs:
+    image: rustfs/rustfs:1.0.7@sha256:69bd3c4d8d79b74723bfd68c9fbd9085155d4d4b44a5a136d87502f3075cc68c
     environment:
-      MINIO_ROOT_USER: $storage_access_key
-      MINIO_ROOT_PASSWORD: $storage_secret_key
-    tmpfs: [/data]
+      RUSTFS_ACCESS_KEY: $storage_access_key
+      RUSTFS_SECRET_KEY: $storage_secret_key
+    tmpfs: ["/data:uid=10001,gid=10001"]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
   web:
@@ -245,7 +244,7 @@ services:
     environment:
       Storage__CreateBucket: "true"
     depends_on:
-      minio:
+      rustfs:
         condition: service_started
 EOF
 
@@ -261,7 +260,7 @@ TRYKATCH_ORG_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Userna
 TRYKATCH_PLATFORM_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_platform_runtime;Password=$runtime_password-platform
 TRYKATCH_IDENTITY_RUNTIME_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_identity_runtime;Password=$runtime_password-identity
 TRYKATCH_OUTBOX_WORKER_CONNECTION=Host=postgres;Port=5432;Database=trykatch;Username=trykatch_outbox_worker;Password=$runtime_password-outbox
-TRYKATCH_STORAGE_SERVICE_URL=http://minio:9000
+TRYKATCH_STORAGE_SERVICE_URL=http://rustfs:9000
 TRYKATCH_STORAGE_ACCESS_KEY=$storage_access_key
 TRYKATCH_STORAGE_SECRET_KEY=$storage_secret_key
 TRYKATCH_STORAGE_BUCKET=trykatch-documents

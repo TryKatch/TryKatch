@@ -19,7 +19,7 @@ Les styles génériques ne doivent ni modifier les libellés appartenant à `.fl
 
 **Forms → Floating fields → Search / Search filters** présente `SearchField`, avec une icône à gauche et un bouton de filtrage facultatif à droite. La liste propose Échap, fermeture extérieure et retour du focus. Les champs utilisent une seule bordure avec des couleurs de focus, sans anneau extérieur supplémentaire. La fonctionnalité fournit ses contrôles via `filters`, ses traductions et des compteurs/requêtes exacts. Les contrôles du portail ne doivent pas dépendre de la soumission d’un formulaire parent. `DataTable.searchFilters` offre la même interaction sans déplacer Columns ; voir **DataTables → Tables → Search filter dropdown**.
 
-Les formulaires de rôles d’organisation, projets et métadonnées de documents utilisent Zod 4.5.4. FluentValidation 12.1.1 valide indépendamment les commandes correspondantes côté serveur. Les autres formulaires peuvent encore utiliser une validation native/personnalisée. Les skills livrées demandent de consulter Storybook avant les tâches frontend et de maintenir les stories pertinentes.
+Les formulaires de rôles d’organisation, projets et métadonnées de documents utilisent Zod 4.6.6. FluentValidation 12.1.1 valide indépendamment les commandes correspondantes côté serveur. Les autres formulaires peuvent encore utiliser une validation native/personnalisée. Les skills livrées demandent de consulter Storybook avant les tâches frontend et de maintenir les stories pertinentes.
 
 Depuis la racine de l’application générée :
 

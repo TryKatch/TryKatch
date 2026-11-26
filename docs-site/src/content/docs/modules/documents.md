@@ -1,13 +1,15 @@
 ---
 title: Document uploads
-description: Understand the reference Documents module, local MinIO resource, and production storage boundary.
+description: Understand the reference Documents module, local RustFS resource, and production storage boundary.
 ---
 
 Projects and Documents are both enabled in the starter, but they demonstrate different module shapes. Projects is ordinary organization-owned CRUD. Documents is a full-stack file workflow: the browser uploads a file to the authorized API, PostgreSQL stores searchable metadata, and private object storage holds the bytes.
 
 ## Local development
 
-`trykatch start` starts MinIO with Aspire when the application was generated with the default `--storage true` option. Aspire binds MinIO's dynamic development ports to loopback and does not advertise them as external endpoints; the browser never receives its credentials.
+`trykatch start` starts RustFS with Aspire when the application was generated with the default `--storage true` option. Aspire binds the dynamic development ports to loopback and keeps storage credentials on the server.
+
+RustFS uses its own development volume. If you adopt this AppHost configuration in an existing MinIO-backed project, copy any files you need through S3 before switching the application endpoint.
 
 1. Start Docker Desktop or another Aspire-supported container runtime.
 2. Run `trykatch start` from the generated application root.
@@ -34,8 +36,6 @@ Archive and deletion-request operations retain file bytes because the central re
 
 ## Production
 
-Documents depends on the provider-neutral `IObjectStorage` contract. MinIO is only the Aspire development adapter; the module's domain and application layers do not reference MinIO or an S3 SDK. The included infrastructure adapter works with S3-compatible endpoints, and another provider can replace it by implementing the same contract without changing the Documents module.
-
-The pinned community MinIO image is a local-development convenience. Current upstream MinIO security advisories direct production users to patched supported releases, so Trykatch does not publish the local MinIO container as a production storage recommendation.
+Documents depends on the provider-neutral `IObjectStorage` contract. The infrastructure adapter works with S3-compatible endpoints, and you can replace it by implementing the same contract. Use a supported, patched S3-compatible service for production.
 
 Configure the production API with `Storage__ServiceUrl`, `Storage__AccessKey`, `Storage__SecretKey`, `Storage__Bucket`, and `Storage__Region`. Pre-create the private bucket, set `Storage__CreateBucket` to `false`, grant the application identity access only to that bucket, use TLS, enable encryption and versioning according to your data policy, and monitor capacity and failed object operations.
