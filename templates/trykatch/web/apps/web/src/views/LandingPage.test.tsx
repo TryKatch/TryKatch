@@ -33,6 +33,8 @@ describe('LandingPage', () => {
     expect(viewSource).toHaveAccessibleName('View source')
     expect(viewSource).toHaveAttribute('href', 'https://github.com/TryKatch/TryKatch')
     expect(viewSource).toHaveClass('landing-secondary-action')
+    expect(viewSource).toHaveTextContent(/^$/)
+    expect(viewSource.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
     expect(screen.getByRole('heading', { name: /the problem/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /structured for change/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /create your application/i })).toBeInTheDocument()
