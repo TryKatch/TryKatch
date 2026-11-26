@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import axe from 'axe-core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LandingPage } from './LandingPage'
@@ -24,11 +24,18 @@ describe('LandingPage', () => {
   it('explains the product and provides clear open-source adoption paths', async () => {
     const { container } = render(<LandingPage />)
 
-    expect(screen.getByRole('heading', { name: /ship the product/i })).toBeInTheDocument()
+    const hero = within(screen.getByRole('region', { name: 'Build multi-tenant apps with .NET and React' }))
+    expect(hero.getByRole('heading', { level: 1 })).toHaveTextContent('Build multi-tenant apps with .NET and React')
+    const [getStarted, viewSource] = hero.getAllByRole('link')
+    expect(getStarted).toHaveAccessibleName('Get started')
+    expect(getStarted).toHaveAttribute('href', '#install')
+    expect(getStarted).toHaveClass('landing-primary-action')
+    expect(viewSource).toHaveAccessibleName('View source')
+    expect(viewSource).toHaveAttribute('href', 'https://github.com/TryKatch/TryKatch')
+    expect(viewSource).toHaveClass('landing-secondary-action')
     expect(screen.getByRole('heading', { name: /the problem/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /structured for change/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /create your application/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /view source/i })).toHaveAttribute('href', 'https://github.com/TryKatch/TryKatch')
     expect(screen.getByText(/dotnet new trykatch -n horizon/i)).toBeInTheDocument()
 
     const result = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } })
@@ -75,10 +82,13 @@ describe('LandingPage', () => {
     expect(result.violations).toEqual([])
   })
 
-  it('translates the video description and credits into French', () => {
+  it('translates the hero and video details into French', () => {
     vi.stubEnv('VITE_TRYKATCH_LAUNCH_VIDEO', 'true')
     localStorage.setItem('trykatch-locale', 'fr')
     render(<I18nProvider><LandingPage /></I18nProvider>)
+    const hero = within(screen.getByRole('region', { name: 'Créez des applications multilocataires avec .NET et React' }))
+    expect(hero.getByRole('link', { name: 'Commencer' })).toHaveAttribute('href', '#install')
+    expect(hero.getByRole('link', { name: 'Voir le code source' })).toHaveAttribute('href', 'https://github.com/TryKatch/TryKatch')
     expect(screen.getByRole('heading', { name: 'Découvrez ce que vous pouvez construire' })).toBeInTheDocument()
     expect(screen.getByLabelText('Présentation du produit Trykatch')).toBeInTheDocument()
     expect(screen.getByText('Description de la vidéo et crédits')).toBeInTheDocument()

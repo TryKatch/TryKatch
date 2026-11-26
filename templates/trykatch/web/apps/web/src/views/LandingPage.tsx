@@ -42,11 +42,11 @@ export function LandingPage() {
     <section className="landing-hero" aria-labelledby="landing-title">
       <div>
         <span className="landing-kicker">{t('Enterprise application foundation')}</span>
-        <h1 id="landing-title">{t('Ship the product.')}<br />{t('Keep the hard parts dependable.')}</h1>
+        <h1 id="landing-title">{t('Build multi-tenant apps with .NET and React')}</h1>
         <p>{t('Trykatch gives .NET teams a secure multi-tenant foundation with an owned React experience, so every new product does not begin by rebuilding identity, isolation, permissions, and operations.')}</p>
         <div className="landing-actions">
-          <a className="landing-primary-action" href="https://github.com/TryKatch/TryKatch">{t('View source')} <ArrowRight size={16} /></a>
-          <a className="landing-secondary-action" href="#architecture">{t('See how it is structured')}</a>
+          <a className="landing-primary-action" href="#install">{t('Get started')} <ArrowRight size={16} /></a>
+          <a className="landing-secondary-action" href="https://github.com/TryKatch/TryKatch">{t('View source')}</a>
         </div>
       </div>
       <aside className="landing-principle" aria-label="Trykatch design principle">
