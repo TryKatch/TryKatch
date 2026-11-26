@@ -238,7 +238,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
                 scope.ServiceProvider.GetRequiredService<OrganizationControlPlaneDbContext>(), application,
                 seed.OrganizationId, seed.ActorId, CancellationToken.None);
             const string marker = "changed-in-transaction";
-            await application.Database.ExecuteSqlInterpolatedAsync(
+            await application.Database.ExecuteSqlAsync(
                 $"UPDATE app.probe_records SET \"Marker\"={marker} WHERE \"Id\"={seed.PayloadRecordId}");
             ModuleWorkReceipt receipt = await Scheduler(scope).EnqueueAsync(Request(requestId, payload));
             return receipt;

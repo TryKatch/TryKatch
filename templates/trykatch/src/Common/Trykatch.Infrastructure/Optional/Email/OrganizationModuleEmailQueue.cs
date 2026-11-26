@@ -67,7 +67,7 @@ internal sealed class OrganizationModuleEmailQueue(
         string storageKey = OrganizationModuleEmailIntentCodec.StorageKey(message.Template);
         string requestKey = string.Join('/', identity.OrganizationId.ToString("N"), admission, storageKey,
             message.Template.TemplateVersion.ToString(System.Globalization.CultureInfo.InvariantCulture), message.LogicalDedupId.ToString("N"));
-        await control.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({requestKey}, 20261024))", cancellationToken);
+        await control.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({requestKey}, 20261024))", cancellationToken);
         Guid deliveryId = Guid.CreateVersion7();
         EmailDeliveryPreparation current = await policy.PrepareAsync(deliveryId, identity, producer, message, cancellationToken);
         if (current.Disposition != EmailPreparationDisposition.Ready || current.Message is null)
@@ -95,7 +95,7 @@ internal sealed class OrganizationModuleEmailQueue(
         if (protectedIntent.Length > 262_144)
             return Rejected("invalid_payload");
         DateTimeOffset created = clock.GetUtcNow().ToUniversalTime();
-        await application.Database.ExecuteSqlInterpolatedAsync($"""
+        await application.Database.ExecuteSqlAsync($"""
             INSERT INTO infrastructure.email_deliveries
                 ("Id", "OrganizationId", "ActorId", "MessageId", "AdmissionIdentityKey", "TemplateKey", "TemplateVersion",
                  "ProtectedIntent", "State", "Attempts", "CreatedAtUtc")

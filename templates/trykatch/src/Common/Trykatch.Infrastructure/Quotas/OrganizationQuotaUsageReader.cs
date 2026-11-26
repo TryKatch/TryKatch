@@ -99,7 +99,7 @@ internal sealed class OrganizationQuotaUsageReader(
                 if (valid && !complete && current?.Resource.InventorySource is not null)
                 {
                     // Closed INSERT-only intent; the worker owns inventory reads and never runs in this request.
-                    await application.Database.ExecuteSqlInterpolatedAsync($"""
+                    await application.Database.ExecuteSqlAsync($"""
                         INSERT INTO infrastructure.quota_maintenance_work
                             ("OrganizationId", "Id", "Kind", "ResourceKey", "ReservationId", "UploadOperationId", "State",
                              "DueAtUtc", "CreatedAtUtc", "Attempts", "LeaseId", "LeaseUntilUtc", "LastFailureCode")

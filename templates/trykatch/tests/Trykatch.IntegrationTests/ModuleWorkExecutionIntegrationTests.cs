@@ -311,7 +311,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
 
         public static async Task<ExecutionFixture> StartAsync()
         {
-            PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+            PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
             await postgres.StartAsync();
             string owner = postgres.GetConnectionString();
             await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(owner);
@@ -917,7 +917,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
             if (data.HoldHandler)
                 await behavior.ReachAsync().WaitAsync(cancellationToken);
             Guid targetRecordId = data.TargetRecordId ?? data.RecordId;
-            await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE app.probe_records SET \"EffectCount\"=\"EffectCount\"+1, \"Marker\"={context.OperationKey} WHERE \"Id\"={targetRecordId}", cancellationToken);
+            await db.Database.ExecuteSqlAsync($"UPDATE app.probe_records SET \"EffectCount\"=\"EffectCount\"+1, \"Marker\"={context.OperationKey} WHERE \"Id\"={targetRecordId}", cancellationToken);
             outbox.Enqueue(new ProbeFollowup(data.RecordId, context.OperationKey), context.OperationKey, context.OperationVersion);
             await db.SaveChangesAsync(cancellationToken);
             if (data.Cancel)

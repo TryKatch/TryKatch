@@ -15,23 +15,23 @@ public static partial class RuntimeRoleProvisioner
         RuntimeDatabaseRoles roles,
         CancellationToken cancellationToken = default)
     {
-        string[] roleNames = roles.All.Select(role => role.Name).ToArray();
-        if (roleNames.Distinct(StringComparer.Ordinal).Count() != roleNames.Length)
-            throw new InvalidOperationException("Database runtime roles must be distinct.");
-        foreach (string roleName in roleNames)
-        {
-            if (!RoleNamePattern().IsMatch(roleName))
-                throw new InvalidOperationException("Database runtime role must be a lowercase PostgreSQL identifier.");
-        }
-
         await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync(cancellationToken);
-        foreach (string roleName in roleNames)
-            await VerifyRoleAsync(connection, roleName, cancellationToken);
-        if (roles.WorkCoordinator != "trykatch_work_coordinator")
-            throw new InvalidOperationException("Work coordinator role must match the host policy contract: trykatch_work_coordinator.");
-        if (roles.Platform != "trykatch_platform_runtime")
-            throw new InvalidOperationException("Platform role must match the host policy contract: trykatch_platform_runtime.");
+        await ProvisionAsync(connection, roles, cancellationToken);
+    }
+
+    /// <summary>
+    /// Provisions grants through an already-open session. The ordinary grant
+    /// rebuild is transactional; the approved legacy-function quarantine is
+    /// intentionally retained if its contract validation fails.
+    /// </summary>
+    public static async Task ProvisionAsync(
+        NpgsqlConnection connection,
+        RuntimeDatabaseRoles roles,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateOpenConnection(connection);
+        await ValidateRolesAsync(connection, roles, cancellationToken);
 
         string organization = QuoteIdentifier(roles.Organization);
         string platform = QuoteIdentifier(roles.Platform);
@@ -58,70 +58,125 @@ public static partial class RuntimeRoleProvisioner
                 "PostgreSQL host function validation failed:" + Environment.NewLine
                 + string.Join(Environment.NewLine, hostFunctionErrors));
 
-        IReadOnlyList<string> userSchemas = await ReadUserSchemasAsync(connection, cancellationToken);
-        foreach (string schema in userSchemas)
+        await RebuildGrantsAsync(connection, roles, hostFunctionExists, cancellationToken);
+    }
+
+    /// <summary>Checks role names and safety attributes without changing grants.</summary>
+    public static async Task ValidateRolesAsync(
+        NpgsqlConnection connection,
+        RuntimeDatabaseRoles roles,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateOpenConnection(connection);
+        ArgumentNullException.ThrowIfNull(roles);
+
+        string[] roleNames = roles.All.Select(role => role.Name).ToArray();
+        if (roleNames.Distinct(StringComparer.Ordinal).Count() != roleNames.Length)
+            throw new InvalidOperationException("Database runtime roles must be distinct.");
+        foreach (string roleName in roleNames)
         {
-            await using NpgsqlCommand revoke = new($"""
-                REVOKE ALL PRIVILEGES ON SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
-                REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
-                REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
-                REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
-                ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON TABLES FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
-                ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON SEQUENCES FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
-                ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON FUNCTIONS FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
-                """, connection);
-            await revoke.ExecuteNonQueryAsync(cancellationToken);
+            if (!RoleNamePattern().IsMatch(roleName))
+                throw new InvalidOperationException("Database runtime role must be a lowercase PostgreSQL identifier.");
         }
 
-        await using (NpgsqlCommand databaseGrants = new($"""
-            REVOKE ALL PRIVILEGES ON DATABASE {QuoteIdentifier(connection.Database)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
-            GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {organization}, {platform}, {identity}, {outbox}, {coordinator};
-            GRANT USAGE ON SCHEMA identity TO {identity};
-            GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity TO {identity};
-            """, connection))
-            await databaseGrants.ExecuteNonQueryAsync(cancellationToken);
+        if (roles.WorkCoordinator != "trykatch_work_coordinator")
+            throw new InvalidOperationException("Work coordinator role must match the host policy contract: trykatch_work_coordinator.");
+        if (roles.Platform != "trykatch_platform_runtime")
+            throw new InvalidOperationException("Platform role must match the host policy contract: trykatch_platform_runtime.");
 
-        IReadOnlyList<DataResourceDescriptor> installed =
-            await InstalledSchemaCatalog.ReadAsync(connectionString, cancellationToken);
-        Dictionary<string, DataResourceDescriptor> resources = installed.Concat(OperationalDataResources.All).ToDictionary(
-            resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
-        IReadOnlyList<(string Schema, string Table)> relations = await ReadRelationsAsync(connection, cancellationToken);
-        foreach ((RuntimeDatabaseRoleKind kind, string roleName) in roles.All)
+        foreach (string roleName in roleNames)
+            await VerifyRoleAsync(connection, roleName, transaction: null, cancellationToken);
+    }
+
+    private static async Task RebuildGrantsAsync(
+        NpgsqlConnection connection,
+        RuntimeDatabaseRoles roles,
+        bool hostFunctionExists,
+        CancellationToken cancellationToken)
+    {
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
+        try
         {
-            string quotedRole = QuoteIdentifier(roleName);
-            HashSet<string> grantedSchemas = new(StringComparer.Ordinal);
-            foreach ((string schema, string table) in relations)
+            string organization = QuoteIdentifier(roles.Organization);
+            string platform = QuoteIdentifier(roles.Platform);
+            string identity = QuoteIdentifier(roles.Identity);
+            string outbox = QuoteIdentifier(roles.Outbox);
+            string coordinator = QuoteIdentifier(roles.WorkCoordinator);
+
+            IReadOnlyList<string> userSchemas = await ReadUserSchemasAsync(connection, transaction, cancellationToken);
+            foreach (string schema in userSchemas)
             {
-                string relation = $"{schema}.{table}";
-                IReadOnlySet<string> permissions = RuntimeDatabaseAccessProfiles.PermissionsFor(kind, relation, resources);
-                if (permissions.Count == 0) continue;
-                if (grantedSchemas.Add(schema))
-                {
-                    await using NpgsqlCommand schemaGrant = new(
-                        $"GRANT USAGE ON SCHEMA {QuoteIdentifier(schema)} TO {quotedRole}", connection);
-                    await schemaGrant.ExecuteNonQueryAsync(cancellationToken);
-                }
-                await using NpgsqlCommand tableGrant = new(
-                    $"GRANT {string.Join(", ", permissions)} ON {QuoteIdentifier(schema)}.{QuoteIdentifier(table)} TO {quotedRole}", connection);
-                await tableGrant.ExecuteNonQueryAsync(cancellationToken);
+                await using NpgsqlCommand revoke = new($"""
+                    REVOKE ALL PRIVILEGES ON SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                    REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                    REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                    REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA {QuoteIdentifier(schema)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                    ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON TABLES FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                    ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON SEQUENCES FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                    ALTER DEFAULT PRIVILEGES IN SCHEMA {QuoteIdentifier(schema)} REVOKE ALL ON FUNCTIONS FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                    """, connection, transaction);
+                await revoke.ExecuteNonQueryAsync(cancellationToken);
             }
-        }
 
-        if (hostFunctionExists)
+            await using (NpgsqlCommand databaseGrants = new($"""
+                REVOKE ALL PRIVILEGES ON DATABASE {QuoteIdentifier(connection.Database)} FROM {organization}, {platform}, {identity}, {outbox}, {coordinator}, PUBLIC;
+                GRANT CONNECT ON DATABASE {QuoteIdentifier(connection.Database)} TO {organization}, {platform}, {identity}, {outbox}, {coordinator};
+                GRANT USAGE ON SCHEMA identity TO {identity};
+                GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA identity TO {identity};
+                """, connection, transaction))
+                await databaseGrants.ExecuteNonQueryAsync(cancellationToken);
+
+            IReadOnlyList<DataResourceDescriptor> installed =
+                await InstalledSchemaCatalog.ReadAsync(connection, transaction, cancellationToken);
+            Dictionary<string, DataResourceDescriptor> resources = installed.Concat(OperationalDataResources.All).ToDictionary(
+                resource => $"{resource.Schema}.{resource.Table}", StringComparer.Ordinal);
+            IReadOnlyList<(string Schema, string Table)> relations = await ReadRelationsAsync(connection, transaction, cancellationToken);
+            foreach ((RuntimeDatabaseRoleKind kind, string roleName) in roles.All)
+            {
+                string quotedRole = QuoteIdentifier(roleName);
+                HashSet<string> grantedSchemas = new(StringComparer.Ordinal);
+                foreach ((string schema, string table) in relations)
+                {
+                    string relation = $"{schema}.{table}";
+                    IReadOnlySet<string> permissions = RuntimeDatabaseAccessProfiles.PermissionsFor(kind, relation, resources);
+                    if (permissions.Count == 0) continue;
+                    if (grantedSchemas.Add(schema))
+                    {
+                        await using NpgsqlCommand schemaGrant = new(
+                            $"GRANT USAGE ON SCHEMA {QuoteIdentifier(schema)} TO {quotedRole}", connection, transaction);
+                        await schemaGrant.ExecuteNonQueryAsync(cancellationToken);
+                    }
+                    await using NpgsqlCommand tableGrant = new(
+                        $"GRANT {string.Join(", ", permissions)} ON {QuoteIdentifier(schema)}.{QuoteIdentifier(table)} TO {quotedRole}", connection, transaction);
+                    await tableGrant.ExecuteNonQueryAsync(cancellationToken);
+                }
+            }
+
+            if (hostFunctionExists)
+            {
+                await using NpgsqlCommand functionGrant = new($"""
+                    GRANT EXECUTE ON FUNCTION platform.redact_legacy_outbox_error() TO {organization}, {outbox};
+                    """, connection, transaction);
+                await functionGrant.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
         {
-            await using NpgsqlCommand functionGrant = new($"""
-                GRANT EXECUTE ON FUNCTION platform.redact_legacy_outbox_error() TO {organization}, {outbox};
-                """, connection);
-            await functionGrant.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
         }
     }
 
     private static async Task VerifyRoleAsync(
         NpgsqlConnection connection,
         string roleName,
+        NpgsqlTransaction? transaction,
         CancellationToken cancellationToken)
     {
         await using NpgsqlCommand verify = connection.CreateCommand();
+        verify.Transaction = transaction;
         verify.CommandText = """
             SELECT rolbypassrls OR rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolinherit OR NOT rolcanlogin
               OR EXISTS (SELECT 1 FROM pg_auth_members m WHERE m.member = r.oid)
@@ -139,13 +194,14 @@ public static partial class RuntimeRoleProvisioner
 
     private static async Task<IReadOnlyList<string>> ReadUserSchemasAsync(
         NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
         CancellationToken cancellationToken)
     {
         await using NpgsqlCommand command = new($"""
             SELECT n.nspname FROM pg_namespace n
             WHERE {PostgresSchemaContract.UserSchemaPredicate}
             ORDER BY n.nspname
-            """, connection);
+            """, connection, transaction);
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         List<string> result = [];
         while (await reader.ReadAsync(cancellationToken)) result.Add(reader.GetString(0));
@@ -154,6 +210,7 @@ public static partial class RuntimeRoleProvisioner
 
     private static async Task<IReadOnlyList<(string Schema, string Table)>> ReadRelationsAsync(
         NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
         CancellationToken cancellationToken)
     {
         await using NpgsqlCommand command = new($"""
@@ -162,7 +219,7 @@ public static partial class RuntimeRoleProvisioner
             WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f')
               AND {PostgresSchemaContract.UserSchemaPredicate}
             ORDER BY n.nspname, c.relname
-            """, connection);
+            """, connection, transaction);
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         List<(string Schema, string Table)> result = [];
         while (await reader.ReadAsync(cancellationToken)) result.Add((reader.GetString(0), reader.GetString(1)));
@@ -175,10 +232,15 @@ public static partial class RuntimeRoleProvisioner
     {
         await using NpgsqlCommand command = new(
             "SELECT to_regprocedure(@function) IS NOT NULL", connection);
-        command.Parameters.AddWithValue(
-            "function",
-            HostPostgresFunctionContracts.RedactLegacyOutboxError);
+        command.Parameters.AddWithValue("function", HostPostgresFunctionContracts.RedactLegacyOutboxError);
         return await command.ExecuteScalarAsync(cancellationToken) is true;
+    }
+
+    private static void ValidateOpenConnection(NpgsqlConnection connection)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        if (connection.State != System.Data.ConnectionState.Open)
+            throw new InvalidOperationException("The PostgreSQL connection must already be open.");
     }
 
     private static string QuoteIdentifier(string identifier) =>

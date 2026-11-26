@@ -78,7 +78,7 @@ public sealed partial class AuthenticationSecurityTests
     [TestMethod]
     public async Task PasswordRecoveryQueuesTheOriginalTokenWithoutDisclosingAccountState()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
         await postgres.StartAsync();
         await ApplyMigrationsAsync(postgres.GetConnectionString());
         RecoverySubmission submission = new();
@@ -138,7 +138,7 @@ public sealed partial class AuthenticationSecurityTests
     [DataRow(ModuleWorkState.Rejected, true)]
     public async Task PasswordRecoveryKeepsConfigurationGlobalWhenQueueDeclines(ModuleWorkState state, bool configured)
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
         await postgres.StartAsync();
         await ApplyMigrationsAsync(postgres.GetConnectionString());
         RecoverySubmission submission = new() { State = state, IsConfigured = configured };
@@ -169,7 +169,7 @@ public sealed partial class AuthenticationSecurityTests
     [TestMethod]
     public async Task PasswordRecoveryFailureDoesNotLogPrivateIntentOrException()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
         await postgres.StartAsync();
         await ApplyMigrationsAsync(postgres.GetConnectionString());
         RecoverySubmission submission = new() { ThrowPrivateFailure = true };

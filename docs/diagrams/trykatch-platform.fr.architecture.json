@@ -52,7 +52,7 @@
     {
       "id": "api",
       "type": "backend",
-      "label": "API .NET 10",
+      "label": "API .NET 11",
       "sublabel": "contrôleurs + composition",
       "pos": [400, 300],
       "size": [160, 64],

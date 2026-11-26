@@ -15,8 +15,8 @@ if [[ -n $quota_artifact_root && $quota_artifact_root != /* ]]; then
   exit 2
 fi
 case "$template_profile" in
-  full|features|quotas) ;;
-  *) printf 'TRYKATCH_TEMPLATE_PROFILE must be full, features or quotas.\n' >&2; exit 2 ;;
+  full|features|quotas|minimal) ;;
+  *) printf 'TRYKATCH_TEMPLATE_PROFILE must be full, features, quotas or minimal.\n' >&2; exit 2 ;;
 esac
 
 fail() {
@@ -88,6 +88,8 @@ grep -Fq 'trykatch start [--root <path>]' <<<"$start_help_output" ||
 new_help_output=$("$test_root/tools/trykatch" new --help)
 grep -Fq 'trykatch new <name> [options]' <<<"$new_help_output" ||
   fail 'new help does not document application generation'
+grep -Fq -- '--module-profile <full|minimal>' <<<"$new_help_output" ||
+  fail 'new help does not document the example-module profile'
 grep -Fq 'initialized as a Git repository on the main branch' <<<"$new_help_output" ||
   fail 'new help does not explain Git initialization'
 grep -Fq 'Live progress shows validation and template/Git setup' <<<"$new_help_output" ||
@@ -292,6 +294,16 @@ if [[ $template_profile == quotas ]]; then
   generate_and_build Horizon
   generate_and_build Acme.Tools-Portal --ui none
   printf 'Renamed React and backend-only quota qualification passed.\n'
+  exit 0
+fi
+
+if [[ $template_profile == minimal ]]; then
+  generate_and_build Katch --module-profile minimal
+  corepack pnpm --dir "$test_root/Katch/web" generate
+  node "$test_root/Katch/tools/api-client-openapi.test.mjs"
+  corepack pnpm --dir "$test_root/Katch/web" typecheck
+  node "$repository_root/scripts/assert-minimal-profile.mjs" "$test_root/Katch" --openapi
+  printf 'Renamed React minimal module profile qualification passed.\n'
   exit 0
 fi
 

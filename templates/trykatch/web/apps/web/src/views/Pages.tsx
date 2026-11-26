@@ -15,6 +15,7 @@ import { useDataTableLabels } from '../i18n/useDataTableLabels'
 import { useDeleteConfirmationLabels } from '../i18n/useDeleteConfirmationLabels'
 import { useI18n } from '../i18n/I18nProvider'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
+import { workspaceModules } from '../modules'
 
 type Role = RoleDto & { lifecycle: RecordLifecycle }
 interface Member { id: string; userId: string; email: string; displayName: string; status: string; joinedAt: string; roles: Role[]; lifecycle: RecordLifecycle }
@@ -79,6 +80,7 @@ function PlatformRolePicker({ roles, defaultValue }: { roles: readonly PlatformR
 
 export function DashboardPage() {
   const { locale, t } = useI18n()
+  const projectsRouteInstalled = workspaceModules.routesFor('workspace').some((route) => route.id === 'projects.list')
   const overview = useQuery({ queryKey: ['workspace-overview'], queryFn: () => customFetch<WorkspaceOverview>('/api/v1/workspace/overview', { method: 'GET' }) })
   const data = overview.data
   const accessCoverage = data?.activeMembers ? Math.round((data.membersWithAccess / data.activeMembers) * 100) : 100
@@ -88,7 +90,7 @@ export function DashboardPage() {
     { label: t('Access coverage'), value: `${accessCoverage}%`, note: `${data?.activeRoles ?? 0} ${t(data?.activeRoles === 1 ? 'active access level' : 'active access levels')}`, icon: ShieldCheck },
     { label: t('Events today'), value: data?.eventsToday ?? 0, note: t('Recorded audit events'), icon: Activity },
   ]
-  return <><PageHeader eyebrow={t('Workspace')} title={t('Overview')} description={t('Live activity, access, and application records for this workspace.')} actions={<Button asChild variant="primary"><Link to="/projects"><Plus size={14} /> {t('New project')}</Link></Button>} />{overview.isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div> : overview.isError ? <EmptyState title={t('Workspace overview could not be loaded')} description={overview.error.message} action={<Button onClick={() => overview.refetch()}>{t('Try again')}</Button>} /> : <><div className="stat-grid">{stats.map(({ label, value, note, icon: Icon }) => <Surface className="stat" key={label}><div className="stat-top"><span>{label}</span><Icon size={15} /></div><strong>{value}</strong><small>{note}</small></Surface>)}</div><Surface className="workspace-activity-panel"><div className="panel-title"><div><h2>{t('Recent activity')}</h2><p>{t('Latest audited changes in this workspace.')}</p></div><Button asChild variant="ghost"><Link to="/audit">{t('View all')} <ArrowUpRight size={13} /></Link></Button></div>{data?.recentActivity.length ? <div className="activity-list">{data.recentActivity.map((item) => <div className="activity-row" key={`${item.action}-${item.occurredAt}`}><span className="activity-dot" /><div><strong>{item.title}: {item.targetDisplayName}</strong><small>{relativeTime(item.occurredAt, locale)} · {item.actorDisplayName}</small></div></div>)}</div> : <EmptyState title={t('No activity yet')} description={t('Audited project and access changes will appear here.')} />}</Surface></>}</>
+  return <><PageHeader eyebrow={t('Workspace')} title={t('Overview')} description={t('Live activity, access, and application records for this workspace.')} actions={projectsRouteInstalled && <Button asChild variant="primary"><Link to="/projects"><Plus size={14} /> {t('New project')}</Link></Button>} />{overview.isLoading ? <div className="skeleton-list"><Skeleton /><Skeleton /><Skeleton /></div> : overview.isError ? <EmptyState title={t('Workspace overview could not be loaded')} description={overview.error.message} action={<Button onClick={() => overview.refetch()}>{t('Try again')}</Button>} /> : <><div className="stat-grid">{stats.map(({ label, value, note, icon: Icon }) => <Surface className="stat" key={label}><div className="stat-top"><span>{label}</span><Icon size={15} /></div><strong>{value}</strong><small>{note}</small></Surface>)}</div><Surface className="workspace-activity-panel"><div className="panel-title"><div><h2>{t('Recent activity')}</h2><p>{t('Latest audited changes in this workspace.')}</p></div><Button asChild variant="ghost"><Link to="/audit">{t('View all')} <ArrowUpRight size={13} /></Link></Button></div>{data?.recentActivity.length ? <div className="activity-list">{data.recentActivity.map((item) => <div className="activity-row" key={`${item.action}-${item.occurredAt}`}><span className="activity-dot" /><div><strong>{item.title}: {item.targetDisplayName}</strong><small>{relativeTime(item.occurredAt, locale)} · {item.actorDisplayName}</small></div></div>)}</div> : <EmptyState title={t('No activity yet')} description={t('Audited project and access changes will appear here.')} />}</Surface></>}</>
 }
 
 export function CollectionPage({ title, description }: { title: string; description: string }) {

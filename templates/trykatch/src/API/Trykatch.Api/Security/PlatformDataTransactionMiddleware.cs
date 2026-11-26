@@ -68,7 +68,7 @@ public sealed partial class PlatformDataTransactionMiddleware(
         bool hasOrganization = Guid.TryParse(organizationClaim, out organizationId)
             || workspaceCookie.TryRead(context, out organizationId);
         string organization = !platformWorkflow && hasOrganization ? organizationId.ToString() : string.Empty;
-        await platformDbContext.Database.ExecuteSqlInterpolatedAsync(
+        await platformDbContext.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.actor_id', {actor}, true), set_config('app.organization_id', {organization}, true)",
             context.RequestAborted);
 

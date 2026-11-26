@@ -15,7 +15,13 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.4xx
+          dotnet-version: 11.0.1xx
+      - name: Detect reference module composition
+        id: starter-profile
+        shell: bash
+        run: |
+          has_reference_modules=$(node -e 'const fs=require("node:fs"); const catalog=JSON.parse(fs.readFileSync("trykatch.modules.json","utf8")); const enabled=new Set(catalog.modules.filter(module => module.enabled).map(module => module.id)); console.log(enabled.has("projects") && enabled.has("documents") ? "true" : "false")')
+          echo "has_reference_modules=$has_reference_modules" >> "$GITHUB_OUTPUT"
       # Renamed lockfiles are created on first restore; do not enable a cache
       # that requires them before that first generated CI run.
       - run: dotnet tool restore
@@ -24,11 +30,36 @@ jobs:
       - name: Validate full-stack module composition
         run: dotnet run --project tools/Trykatch.ModuleTool -c Release --no-build -- module doctor --root .
       - run: dotnet test tests/Trykatch.UnitTests -c Release --no-build
-      - name: Enforce module architecture
+      - name: Enforce architecture for the current composition
+        run: dotnet test tests/Trykatch.ArchitectureTests -c Debug
+      - name: Enforce reference module architecture
+        if: steps.starter-profile.outputs.has_reference_modules == 'true'
         run: |
+          for project in tests/Modules/*/*Tests/*.csproj; do dotnet test "$project" -c Debug; done
+      - name: Verify full sample integration behavior
+        if: steps.starter-profile.outputs.has_reference_modules == 'true'
+        run: dotnet test tests/Trykatch.IntegrationTests -c Release --no-build
+      - name: Verify minimal platform and migration behavior
+        if: steps.starter-profile.outputs.has_reference_modules != 'true'
+        run: >-
+          dotnet test tests/Trykatch.IntegrationTests -c Release --no-build
+          --filter "FullyQualifiedName~ProductionMigratorTests|FullyQualifiedName~PostgresRuntimeGrantAtomicityTests|FullyQualifiedName~ProductionIdentityContinuityTests|FullyQualifiedName~AuthenticationSecurityTests|FullyQualifiedName~OrganizationScopeMiddlewareTests"
+      - name: Verify reference module suites against full sample composition
+        if: steps.starter-profile.outputs.has_reference_modules != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sample=$(mktemp -d "$RUNNER_TEMP/trykatch-full-sample.XXXXXX")
+          trap 'rm -rf "$sample"' EXIT
+          rsync -a --exclude '.git/' --exclude '**/bin/' --exclude '**/obj/' --exclude '**/node_modules/' ./ "$sample/"
+          cd "$sample"
+          dotnet run --project tools/Trykatch.ModuleTool -c Release -- module enable projects --root .
+          dotnet run --project tools/Trykatch.ModuleTool -c Release -- module enable documents --root .
+          dotnet restore Trykatch.slnx
+          dotnet build Trykatch.slnx -c Release --no-restore
           dotnet test tests/Trykatch.ArchitectureTests -c Debug
           for project in tests/Modules/*/*Tests/*.csproj; do dotnet test "$project" -c Debug; done
-      - run: dotnet test tests/Trykatch.IntegrationTests -c Release --no-build
+          dotnet test tests/Trykatch.IntegrationTests -c Release --no-build
       - name: Verify composite module packages
         run: bash scripts/test-module-packages.sh
       - name: Validate observability deployment contracts

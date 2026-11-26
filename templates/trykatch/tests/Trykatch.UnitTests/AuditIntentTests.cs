@@ -30,7 +30,7 @@ public sealed class AuditIntentTests
         intent.ActorId.ShouldBe(actorId);
         intent.Operation.ShouldBe(AuditActions.RoleUpdated);
         intent.OccurredAt.ShouldBe(occurredAt);
-        JsonDocument.Parse(intent.Details).RootElement.GetProperty("permissionCount").GetString().ShouldBe("4");
+        JsonElement.Parse(intent.Details).GetProperty("permissionCount").GetString().ShouldBe("4");
         typeof(AuditIntent).GetProperties().All(property => property.SetMethod is null || property.SetMethod.IsPrivate).ShouldBeTrue();
     }
 

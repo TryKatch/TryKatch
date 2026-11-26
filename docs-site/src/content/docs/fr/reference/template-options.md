@@ -8,6 +8,8 @@ description: Consultez l’interface générée et les adaptateurs optionnels pr
 | `--display-name "Kamenta"` | nom du projet (`-n`) | Remplace la marque affichée dans l’interface et les e-mails indépendamment du nom technique du projet. |
 | `--ui react` | activée | Génère l’espace de travail React, TanStack, Vite, l’interface possédée et le client API. |
 | `--ui none` | désactivée | Génère le backend sans l’espace de travail web. |
+| `--module-profile full` | valeur par défaut | Active les modules de référence Projects et Documents. |
+| `--module-profile minimal` | optionnelle | Conserve le code source et l’historique de migration des modules de référence, mais ne démarre avec aucun module exemple activé. |
 | `--email true` | désactivée | Ajoute MailKit SMTP et une ressource de développement Mailpit. |
 | `--storage true` | activée | Lance une ressource RustFS 1.0.3 privée avec Aspire en développement local et ajoute un adaptateur générique compatible S3. Utilisez `--storage false` pour le stockage local sur le système de fichiers. |
 | `--documents true` | désactivée | Ajoute les adaptateurs Open XML SDK et PDFsharp/MigraDoc. |

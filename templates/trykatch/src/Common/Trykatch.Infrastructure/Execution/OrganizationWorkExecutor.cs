@@ -166,7 +166,7 @@ internal sealed partial class OrganizationWorkExecutor(
             string lockKey = work.Delivery is { } eventDelivery
                 ? $"event/{work.OrganizationId:N}/{eventDelivery.MessageId:N}/{eventDelivery.ConsumerKey}"
                 : $"{work.OrganizationId:N}/{work.Id:N}";
-            await application.Database.ExecuteSqlInterpolatedAsync(
+            await application.Database.ExecuteSqlAsync(
                 $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 20261023))", ct);
 
             // Recovery reads only the host marker under RLS, before current authorization. It never reruns a handler.

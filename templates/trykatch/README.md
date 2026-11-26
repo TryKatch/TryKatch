@@ -4,7 +4,7 @@ Choose the customer-facing name independently of namespaces with `--display-name
 
 > Start secure. Build freely.
 
-Trykatch is a clean-room enterprise application foundation for .NET 10, PostgreSQL, React, TanStack, Aspire, and the open Grafana observability stack.
+Trykatch is a clean-room enterprise application foundation for .NET 11, PostgreSQL, React, TanStack, Aspire, and the open Grafana observability stack.
 
 ## Start locally
 
@@ -14,7 +14,7 @@ New to this application? Start with [developer onboarding](docs/developer-onboar
 
 For deployment, first read [production identity](docs/production-identity.md): three certificate/password pairs are required, and an existing plaintext key ring needs an explicit privileged dry-run/apply before the API can start.
 
-Prerequisites: .NET SDK 10.0.402 or a later patch in the 10.0.4xx feature band, Docker, Node.js 24+, and Corepack. The generated `global.json` allows patch roll-forward, not another SDK feature band. The generated root `package.json` pins pnpm 10.17.1, so the same package-manager version is selected on every machine. See [dependency reproducibility](docs/dependency-reproducibility.md) ([Français](docs/dependency-reproducibility.fr.md)) for first-restore and upgrade boundaries.
+Prerequisites: .NET SDK 11.0.100 or a later patch in the 11.0.1xx feature band, Docker, Node.js 24+, and Corepack. The generated tool manifest pins Aspire CLI 17.0.0; `dotnet tool restore` installs that matching CLI locally for the required Aspire bundle. The generated `global.json` allows patch roll-forward, not another SDK feature band. The generated root `package.json` pins pnpm 10.17.1, so the same package-manager version is selected on every machine. See [dependency reproducibility](docs/dependency-reproducibility.md) ([Français](docs/dependency-reproducibility.fr.md)) for first-restore and upgrade boundaries.
 
 Open a terminal in the generated application's root directory—the folder that contains `Trykatch.slnx`, `src/`, `tests/`, and `web/`. For example:
 
@@ -34,6 +34,16 @@ trykatch start
 If the Trykatch CLI is not installed, run `dotnet run --launch-profile https --project src/API/Trykatch.AppHost/Trykatch.AppHost.csproj`. In Rider, open `Trykatch.slnx` and run the **Trykatch.AppHost: https** profile. AppHost is the development startup project; it provisions PostgreSQL, runs migrations, and injects the separate least-privilege database connections before starting the API and React application. Do not run `Trykatch.Api` by itself.
 
 AppHost runs the one-shot `Migrator` project before the API. Production Compose also waits for it and gives the API a separate runtime credential. The role setup and deployment contract are described in [docs/database.md](docs/database.md). Set `Bootstrap__PlatformAdminEmail` and `Bootstrap__PlatformAdminPassword` only for a controlled bootstrap operation, then remove them.
+
+For a clean starter, generate with `--module-profile minimal`, for example
+`trykatch new Katch --module-profile minimal`. It starts with no example module
+enabled, while keeping the Projects, Documents, and Federation source and migration
+history available. Use `trykatch module create` from the application root to add
+your first capability. The default template profile continues to include Projects
+and Documents. The workspace overview also omits the Projects shortcut until
+that module is installed. A fresh database still retains the historical
+`app.projects` table with forced row-level security and no organization-runtime
+access; enabling Projects later reuses that table and any preserved data.
 
 For Compose, copy `.env.example`, set the required immutable `TRYKATCH_RELEASE_VERSION`, and replace every secret placeholder. The web port and Grafana bind to loopback by default. Connect the public TLS ingress directly to the Compose network at the dedicated `TRYKATCH_INGRESS_PROXY_IP`; the gateway, ingress, and web-proxy addresses are reserved outside Docker's automatic allocation range so host-published traffic and unrelated services cannot impersonate the ingress. The API accepts the normalized scheme/client pair only from the explicitly configured web proxy. The base OTLP path is private single-host plaintext; use `compose.observability-tls.yml` for authenticated TLS ingestion. See [operations](docs/operations.md) for ingress trust, sampling, privacy, queues, retention, alerts, validation, and deployment-owned staging drills, and [local and published object storage](docs/operations/local-object-storage.md) for storage configuration.
 
@@ -58,7 +68,7 @@ Demo seeding and its relaxed eight-character minimum are guarded by both the Dev
 - `web/apps/web` is the React application; `web/packages/ui` is the owned component system; `web/packages/api-client` is machine-generated from OpenAPI.
 - `web/packages/module-sdk` validates typed routes and navigation contributed by enabled full-stack modules.
 
-Projects and Documents are reference organization modules; Federation is the disabled-by-default platform module. The API references only their Infrastructure entrypoints, while their React routes and navigation are generated from the same catalog. Project-reference and ArchUnitNET tests enforce layer direction and module isolation. See [module authoring](docs/modules.md).
+Projects and Documents are reference organization modules; Federation is the disabled-by-default platform module. The API references only enabled Infrastructure entrypoints, while React routes and navigation are generated from the same catalog. In the minimal module profile, all three remain installed but disabled, so none contributes API endpoints or navigation. Project-reference and ArchUnitNET tests enforce layer direction and module isolation. See [module authoring](docs/modules.md).
 
 The customer-facing workspace word is **organization**. Platform administrators use the dedicated **Tenant Management** console at `/dashboard/tenants`; ordinary workspace navigation does not expose a tenant selector.
 

@@ -14,6 +14,7 @@ email_enabled=${TRYKATCH_ACCEPTANCE_EMAIL:-false}
 realtime_enabled=${TRYKATCH_ACCEPTANCE_REALTIME:-false}
 features_enabled=${TRYKATCH_ACCEPTANCE_FEATURES:-false}
 quotas_enabled=${TRYKATCH_ACCEPTANCE_QUOTAS:-false}
+module_profile=${TRYKATCH_ACCEPTANCE_MODULE_PROFILE:-full}
 compose_quota_override="$test_root/compose.quotas.yml"
 email_state_file="$test_root/email-state.json"
 realtime_state_file="$test_root/realtime-state.json"
@@ -27,7 +28,8 @@ generated_namespace=${generated_namespace// /.}
 workspace_suffix=${test_root##*.}
 compose_project="trykatch-acceptance-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${workspace_suffix}"
 compose_project=$(printf '%s' "$compose_project" | tr '[:upper:]_' '[:lower:]-' | cut -c1-63)
-web_url=${TRYKATCH_ACCEPTANCE_BASE_URL:-https://127.0.0.1:8443}
+acceptance_https_port=${TRYKATCH_ACCEPTANCE_HTTPS_PORT:-8443}
+web_url=${TRYKATCH_ACCEPTANCE_BASE_URL:-https://127.0.0.1:$acceptance_https_port}
 platform_admin_email=${TRYKATCH_ACCEPTANCE_ADMIN_EMAIL:-platform.admin@example.test}
 platform_admin_password=${TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD:-}
 platform_manager_password=${TRYKATCH_ACCEPTANCE_PLATFORM_MANAGER_PASSWORD:-}
@@ -383,6 +385,14 @@ if [[ $email_enabled == true && $realtime_enabled == true ]] \
   printf 'Select email, realtime, feature or quota acceptance separately.\n' >&2
   exit 2
 fi
+case "$module_profile" in
+  full|minimal) ;;
+  *) printf 'TRYKATCH_ACCEPTANCE_MODULE_PROFILE must be full or minimal.\n' >&2; exit 2 ;;
+esac
+if [[ $module_profile == minimal && ( $email_enabled == true || $realtime_enabled == true || $features_enabled == true || $quotas_enabled == true ) ]]; then
+  printf 'The minimal module profile acceptance cannot combine with feature-specific generated-app acceptance.\n' >&2
+  exit 2
+fi
 
 network_prefix=$(select_free_network_prefix)
 
@@ -417,7 +427,12 @@ install_qualification_cli "$test_root"
 "$test_root/tools/trykatch" new "$generated_name" \
   --debug:custom-hive "$template_hive" \
   --output "$generated_root" \
-  --email "$email_enabled"
+  --email "$email_enabled" \
+  --module-profile "$module_profile"
+
+if [[ $module_profile == minimal ]]; then
+  node "$repository_root/scripts/assert-minimal-profile.mjs" "$generated_root"
+fi
 
 test -f "$generated_root/$generated_namespace.slnx"
 test -f "$generated_root/web/package.json"
@@ -477,7 +492,7 @@ services:
     environment:
       TRYKATCH_INGRESS_PROXY_IP: 127.0.0.1
     ports: !override
-      - "127.0.0.1:8443:8443"
+      - "127.0.0.1:$acceptance_https_port:8443"
     volumes:
       - "$test_root/acceptance-tls.conf:/etc/nginx/conf.d/acceptance-tls.conf:ro"
       - "$test_root/ingress.crt:/run/acceptance-tls/ingress.crt:ro"
@@ -580,7 +595,27 @@ else
 fi
 wait_for_web
 
+if [[ $module_profile == minimal ]]; then
+  projects_rls=$(compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only \
+    --command "SELECT relrowsecurity::text || ':' || relforcerowsecurity::text FROM pg_class WHERE oid = 'app.projects'::regclass;" \
+    | tr -d '[:space:]')
+  [[ $projects_rls == true:true ]] || {
+    printf 'Fresh minimal database must retain the historical app.projects table with forced RLS.\n' >&2
+    exit 1
+  }
+  projects_select=$(compose exec -T postgres psql --username postgres --dbname trykatch --no-align --tuples-only \
+    --command "SELECT has_table_privilege('trykatch_org_runtime', 'app.projects', 'SELECT')::text;" \
+    | tr -d '[:space:]')
+  [[ $projects_select == false ]] || {
+    printf 'Fresh minimal database unexpectedly grants organization runtime SELECT on app.projects.\n' >&2
+    exit 1
+  }
+fi
+
 pnpm --dir "$generated_root/web" install --frozen-lockfile
+if [[ $module_profile == minimal ]]; then
+  pnpm --dir "$generated_root/web" test
+fi
 if [[ $quotas_enabled == true ]]; then
   run_quota_acceptance
   exit 0
@@ -711,15 +746,21 @@ if [[ $email_enabled == true ]]; then
   printf 'Generated email application restart/competing-worker acceptance passed for %s.\n' "$generated_name"
   exit 0
 fi
-TRYKATCH_ACCEPTANCE_BASE_URL="$web_url" \
-TRYKATCH_ACCEPTANCE_ADMIN_EMAIL="$platform_admin_email" \
-TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD="$platform_admin_password" \
-TRYKATCH_ACCEPTANCE_PLATFORM_MANAGER_PASSWORD="$platform_manager_password" \
-TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD="$organization_admin_password" \
-TRYKATCH_PLAYWRIGHT_OUTPUT_DIR="$generated_root/web/apps/web/test-results" \
-pnpm --dir "$generated_root/web/apps/web" exec playwright test \
-  e2e/generated-production.spec.ts \
-  --reporter=line
+export TRYKATCH_ACCEPTANCE_BASE_URL="$web_url"
+export TRYKATCH_ACCEPTANCE_ADMIN_EMAIL="$platform_admin_email"
+export TRYKATCH_ACCEPTANCE_ADMIN_PASSWORD="$platform_admin_password"
+export TRYKATCH_ACCEPTANCE_PLATFORM_MANAGER_PASSWORD="$platform_manager_password"
+export TRYKATCH_ACCEPTANCE_ORGANIZATION_PASSWORD="$organization_admin_password"
+export TRYKATCH_PLAYWRIGHT_OUTPUT_DIR="$generated_root/web/apps/web/test-results"
+if [[ $module_profile == minimal ]]; then
+  pnpm --dir "$generated_root/web/apps/web" exec playwright test \
+    e2e/generated-minimal.spec.ts \
+    --reporter=line
+else
+  pnpm --dir "$generated_root/web/apps/web" exec playwright test \
+    e2e/generated-production.spec.ts \
+    --reporter=line
+fi
 
 if [[ $features_enabled == true ]]; then
   mkdir -p "$feature_control_dir"

@@ -45,6 +45,8 @@ public static class RuntimeDatabaseAccessProfiles
     public static IReadOnlySet<string> HostOwnedRelations { get; } = new HashSet<string>(
     [
         .. OperationalDataResources.All.Select(resource => $"{resource.Schema}.{resource.Table}"),
+        // InitialApplication created this table before Projects took ownership of its migrations.
+        "app.projects",
         "platform.organizations",
         "platform.organization_assistant_settings",
         "platform.memberships",

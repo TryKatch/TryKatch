@@ -30,7 +30,7 @@ public sealed class OrganizationTransactionMiddleware(RequestDelegate next)
             context.RequestAborted);
         string organizationId = organization.OrganizationId.ToString();
         string actorId = organization.ActorId.ToString();
-        await platformDbContext.Database.ExecuteSqlInterpolatedAsync(
+        await platformDbContext.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {organizationId}, true), set_config('app.actor_id', {actorId}, true)",
             context.RequestAborted);
         await next(context);

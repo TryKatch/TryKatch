@@ -12,7 +12,7 @@ internal sealed class OrganizationAccessResolver(OrganizationControlPlaneDbConte
     {
         if (dbContext.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Membership resolution requires an actor-scoped organization transaction.");
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+        await dbContext.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {organizationId.ToString()}, true), set_config('app.actor_id', {actorId.ToString()}, true)", cancellationToken);
         Organization? organization = await dbContext.Organizations
             .AsNoTracking()

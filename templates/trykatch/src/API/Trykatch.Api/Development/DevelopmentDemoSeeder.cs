@@ -72,7 +72,7 @@ internal static class DevelopmentDemoSeeder
         await transaction.CommitAsync();
 
         await using IDbContextTransaction organizationTransaction = await organizationData.Database.BeginTransactionAsync();
-        await organizationData.Database.ExecuteSqlInterpolatedAsync(
+        await organizationData.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {organization.Id.ToString()}, true), set_config('app.actor_id', {tenantAdministrator.Id.ToString()}, true)");
 
         Role[] systemRoles = await organizationData.Roles

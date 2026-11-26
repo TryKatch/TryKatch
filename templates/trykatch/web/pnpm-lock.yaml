@@ -10,6 +10,7 @@ overrides:
   brace-expansion: 5.0.12
   source-map-js: 1.2.2
   markdown-it: 14.3.3
+  seroval: 1.6.8
 
 importers:
 
@@ -3053,10 +3054,10 @@ packages:
     resolution: {integrity: sha512-YJIec8RyWI5ZZzZF9Sj2G1gM7p2ua4f8O2Fi/qYDwR7/fQd1dhEM6mBOl9s9DZ9hyJo5SN5jKRhtsV1pkV7Qng==}
     engines: {node: '>=10'}
     peerDependencies:
-      seroval: ^1.0
+      seroval: 1.6.8
 
-  seroval@1.6.5:
-    resolution: {integrity: sha512-sNG8dL93a6zoDfB/+fw8d6Ovg01ydncHmPefPS54oS/3lk96EAFFWBcH79NrrHuP3Zzcb/w1lXZ5jfRabL2lHw==}
+  seroval@1.6.8:
+    resolution: {integrity: sha512-HlSgSAkTk4EqHcje1ptJjfZi1YDv5KbhVJ/d3P7T/nAXua2VmDu+AKDX5VTdFfZf48nDkWB2TKYt0DrCSa+3wg==}
     engines: {node: '>=10'}
 
   set-cookie-parser@2.7.3:
@@ -4899,8 +4900,8 @@ snapshots:
     dependencies:
       '@tanstack/history': 1.162.2
       cookie-es: 3.1.1
-      seroval: 1.6.5
-      seroval-plugins: 1.6.5(seroval@1.6.5)
+      seroval: 1.6.8
+      seroval-plugins: 1.6.5(seroval@1.6.8)
 
   '@tanstack/store@0.9.3': {}
 
@@ -6069,11 +6070,11 @@ snapshots:
 
   semver@7.8.5: {}
 
-  seroval-plugins@1.6.5(seroval@1.6.5):
+  seroval-plugins@1.6.5(seroval@1.6.8):
     dependencies:
-      seroval: 1.6.5
+      seroval: 1.6.8
 
-  seroval@1.6.5: {}
+  seroval@1.6.8: {}
 
   set-cookie-parser@2.7.3: {}
 

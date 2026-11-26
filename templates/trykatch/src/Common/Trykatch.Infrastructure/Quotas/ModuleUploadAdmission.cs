@@ -137,7 +137,7 @@ internal sealed class ModuleUploadAdmission(
         if (!complete && source is not null)
         {
             // INSERT-only organization role: no queue reads or coordinator privilege are needed.
-            await application.Database.ExecuteSqlInterpolatedAsync($"""
+            await application.Database.ExecuteSqlAsync($"""
                 INSERT INTO infrastructure.quota_maintenance_work
                     ("OrganizationId", "Id", "Kind", "ResourceKey", "ReservationId", "UploadOperationId", "State",
                      "DueAtUtc", "CreatedAtUtc", "Attempts", "LeaseId", "LeaseUntilUtc", "LastFailureCode")
@@ -166,14 +166,14 @@ internal sealed class ModuleUploadAdmission(
             UploadPolicyKey = policy.PolicyKey, UploadPolicyVersion = policy.PolicyVersion,
             State = ModuleUploadState.Admitted, CreatedAtUtc = now, ExpiresAtUtc = now + Lifetime
         };
-        await application.Database.ExecuteSqlInterpolatedAsync($"""
+        await application.Database.ExecuteSqlAsync($"""
             INSERT INTO app.organization_quota_reservations
                 ("OrganizationId", "Id", "ResourceKey", "ActorId", "Units", "OperationId", "EntitlementVersion",
                  "EffectKind", "State", "CreatedAtUtc", "ExpiresAtUtc", "ClosedAtUtc")
             VALUES ({user.OrganizationId}, {reservationId}, {resource.Key}, {user.ActorId}, {operation.Length},
                 {operation.OperationId}, {entitlement.Version}, 2, 0, {now}, {operation.ExpiresAtUtc}, NULL)
             """, token);
-        await application.Database.ExecuteSqlInterpolatedAsync($"""
+        await application.Database.ExecuteSqlAsync($"""
             INSERT INTO app.module_upload_operations
                 ("OrganizationId", "ResourceKey", "OperationId", "ActorId", "MembershipId", "ReservationId", "SubjectId",
                  "ObjectKey", "StorageNamespaceFingerprint", "Length", "Sha256", "MetadataFingerprint", "UploadPolicyKey",
@@ -183,7 +183,7 @@ internal sealed class ModuleUploadAdmission(
                 {operation.Length}, {operation.Sha256}, {operation.MetadataFingerprint}, {policy.PolicyKey}, {policy.PolicyVersion},
                 0, {now}, {operation.ExpiresAtUtc}, NULL)
             """, token);
-        await application.Database.ExecuteSqlInterpolatedAsync($"""
+        await application.Database.ExecuteSqlAsync($"""
             INSERT INTO infrastructure.quota_maintenance_work
                 ("OrganizationId", "Id", "Kind", "ResourceKey", "ReservationId", "UploadOperationId", "State",
                  "DueAtUtc", "CreatedAtUtc", "Attempts", "LeaseId", "LeaseUntilUtc", "LastFailureCode")
@@ -244,12 +244,12 @@ internal sealed class ModuleUploadAdmission(
                 throw new UploadFinalizationIncompleteException();
             DateTimeOffset now = Now();
             await new OrganizationUsageLedger(application).AppendUploadAsync(operation, now, token);
-            int closedHold = await application.Database.ExecuteSqlInterpolatedAsync($"""
+            int closedHold = await application.Database.ExecuteSqlAsync($"""
                 UPDATE app.organization_quota_reservations SET "State" = 1, "ClosedAtUtc" = {now}
                 WHERE "OrganizationId" = {operation.OrganizationId} AND "Id" = {operation.ReservationId}
                     AND "EffectKind" = 2 AND "State" = 0
                 """, token);
-            int closedUpload = await application.Database.ExecuteSqlInterpolatedAsync($"""
+            int closedUpload = await application.Database.ExecuteSqlAsync($"""
                 UPDATE app.module_upload_operations SET "State" = 1, "ClosedAtUtc" = {now}
                 WHERE "OrganizationId" = {operation.OrganizationId} AND "ResourceKey" = {operation.ResourceKey}
                     AND "OperationId" = {operation.OperationId} AND "State" = 0

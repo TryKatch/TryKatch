@@ -28,6 +28,18 @@ public static class InstalledSchemaCatalog
     {
         await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync(cancellationToken);
+        await SynchronizeAsync(connection, installed, cancellationToken);
+    }
+
+    public static async Task SynchronizeAsync(
+        NpgsqlConnection connection,
+        IEnumerable<InstalledDataResource> installed,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(installed);
+        if (connection.State != System.Data.ConnectionState.Open)
+            throw new InvalidOperationException("The migration connection must already be open.");
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using NpgsqlCommand initialize = new("""
             SELECT pg_advisory_xact_lock(hashtext('trykatch:installed-schema:v1'));
@@ -120,9 +132,19 @@ public static class InstalledSchemaCatalog
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(declaredRelations);
-        HashSet<string> declared = declaredRelations.ToHashSet(StringComparer.Ordinal);
         await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync(cancellationToken);
+        await ValidateDeclaredObjectsAsync(connection, declaredRelations, cancellationToken);
+    }
+
+    public static async Task ValidateDeclaredObjectsAsync(
+        NpgsqlConnection connection,
+        IEnumerable<string> declaredRelations,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(declaredRelations);
+        HashSet<string> declared = declaredRelations.ToHashSet(StringComparer.Ordinal);
         await using NpgsqlCommand command = new($"""
             SELECT n.nspname || '.' || c.relname,
                    CASE WHEN c.relkind = 'S' AND target.oid IS NOT NULL
@@ -165,12 +187,21 @@ public static class InstalledSchemaCatalog
                 ". Runtime grants were not applied.");
     }
 
-    internal static async Task<IReadOnlyList<DataResourceDescriptor>> ReadAsync(
-        NpgsqlConnection connection, CancellationToken cancellationToken)
+    public static Task<IReadOnlyList<DataResourceDescriptor>> ReadAsync(
+        NpgsqlConnection connection,
+        CancellationToken cancellationToken = default) =>
+        ReadAsync(connection, null, cancellationToken);
+
+    public static async Task<IReadOnlyList<DataResourceDescriptor>> ReadAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction? transaction,
+        CancellationToken cancellationToken = default)
     {
         await using NpgsqlCommand exists = new("SELECT to_regclass('platform.module_data_resources') IS NOT NULL", connection);
+        exists.Transaction = transaction;
         if (await exists.ExecuteScalarAsync(cancellationToken) is not true) return [];
         await using NpgsqlCommand read = new("SELECT declaration::text FROM platform.module_data_resources ORDER BY schema_name, table_name", connection);
+        read.Transaction = transaction;
         await using NpgsqlDataReader reader = await read.ExecuteReaderAsync(cancellationToken);
         List<DataResourceDescriptor> result = [];
         while (await reader.ReadAsync(cancellationToken))

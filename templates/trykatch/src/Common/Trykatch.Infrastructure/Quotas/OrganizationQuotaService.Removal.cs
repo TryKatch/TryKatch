@@ -81,7 +81,7 @@ internal sealed partial class OrganizationQuotaService
             if (refunded < 0 || refunded > source.Units) return RemovalUnavailable("quota_usage_invalid");
             if (units > source.Units - refunded) return RemovalDenied("quota_removal_exhausted");
 
-            int written = await application.Database.ExecuteSqlInterpolatedAsync($"""
+            int written = await application.Database.ExecuteSqlAsync($"""
                 INSERT INTO app.organization_usage
                     ("OrganizationId", "ResourceKey", "EffectId", "SourceId", "SourceEffectId", "ReservationId", "ActorId", "Units", "OccurredAtUtc")
                 VALUES ({organizationId}, {resourceKey}, {operationId}, {source.SourceId}, {sourceEffectId}, NULL,

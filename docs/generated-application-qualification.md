@@ -35,7 +35,7 @@ Existing PostgreSQL integration tests continue to prove the RLS policy directly.
 
 ## Running locally
 
-Prerequisites are the .NET 10 SDK, Docker Compose, Node.js, pnpm 10.17.1, OpenSSL, and the Playwright Chromium browser.
+Prerequisites are the .NET 11 SDK, Docker Compose, Node.js, pnpm 10.17.1, OpenSSL, and the Playwright Chromium browser.
 
 ```bash
 pnpm --dir templates/trykatch/web install --frozen-lockfile

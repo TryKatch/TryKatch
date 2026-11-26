@@ -15,7 +15,7 @@ public sealed class ModuleJobMigrationIntegrationTests
     public async Task MigratorAppliesDurableJobSchemaAndRuntimeProfilesOnFreshAndExistingDatabase()
     {
         await using PostgreSqlContainer postgres = new PostgreSqlBuilder(
-            "postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+            "postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
         await postgres.StartAsync();
         string connectionString = postgres.GetConnectionString();
         await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(connectionString);
@@ -29,7 +29,8 @@ public sealed class ModuleJobMigrationIntegrationTests
         await AssertQuartzSchemaAndPrivilegesAsync(connectionString);
     }
 
-    internal static async Task<(int Exit, string Output, string Error)> InvokeMigratorAsync(string connectionString)
+    internal static async Task<(int Exit, string Output, string Error)> InvokeMigratorAsync(
+        string connectionString, Action<ProcessStartInfo>? configure = null)
     {
         DirectoryInfo? root = new(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "Trykatch.slnx"))) root = root.Parent;
@@ -41,7 +42,7 @@ public sealed class ModuleJobMigrationIntegrationTests
             .Single()
             .Configuration;
         string migratorPath = Path.Combine(projectRoot.FullName,
-            $"src/API/Trykatch.Migrator/bin/{configuration}/net10.0/Trykatch.Migrator.dll");
+            $"src/API/Trykatch.Migrator/bin/{configuration}/net11.0/Trykatch.Migrator.dll");
         File.Exists(migratorPath).ShouldBeTrue($"Migrator output was not found at {migratorPath}.");
 
         string dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT") ?? string.Empty;
@@ -56,6 +57,8 @@ public sealed class ModuleJobMigrationIntegrationTests
             WorkingDirectory = projectRoot.FullName
         };
         start.ArgumentList.Add(migratorPath);
+        // Existing schema fixtures intentionally migrate as their container bootstrap administrator.
+        start.Environment["DOTNET_ENVIRONMENT"] = "Development";
         start.Environment["ConnectionStrings__trykatchdb"] = connectionString;
         start.Environment["Database__OrganizationRuntimeRole"] = PostgresRuntimeRoleFixture.OrganizationRole;
         start.Environment["Database__PlatformRuntimeRole"] = PostgresRuntimeRoleFixture.PlatformRole;
@@ -63,6 +66,7 @@ public sealed class ModuleJobMigrationIntegrationTests
         start.Environment["Database__OutboxWorkerRole"] = PostgresRuntimeRoleFixture.OutboxRole;
         start.Environment["Database__WorkCoordinatorRole"] = PostgresRuntimeRoleFixture.WorkCoordinatorRole;
 
+        configure?.Invoke(start);
         using Process process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the migrator process.");
         return await ProcessExecution.WaitAsync(process, TimeSpan.FromSeconds(30));
     }

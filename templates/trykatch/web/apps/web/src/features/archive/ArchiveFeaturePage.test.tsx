@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { customFetch, getWorkspaceCurrentQueryKey, workspaceCurrent } from '@trykatch/api-client'
 import { ModuleFeatureProvider, type FeatureAvailabilityState } from '@trykatch/module-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { workspaceModules } from '../../modules'
+import { testWorkspaceModules as workspaceModules } from '../../testWorkspaceModules'
 import { I18nProvider } from '../../i18n/I18nProvider'
 import { ArchivePage } from './ArchivePage'
 
@@ -11,6 +11,10 @@ vi.mock('@trykatch/api-client', async (original) => ({
   ...await original<typeof import('@trykatch/api-client')>(),
   customFetch: vi.fn(),
   workspaceCurrent: vi.fn(),
+}))
+
+vi.mock('../../modules', async () => ({
+  workspaceModules: (await import('../../testWorkspaceModules')).testWorkspaceModules,
 }))
 
 const organizationId = 'organization-1'

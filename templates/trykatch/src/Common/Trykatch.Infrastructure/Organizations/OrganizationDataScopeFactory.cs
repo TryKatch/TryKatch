@@ -25,7 +25,7 @@ internal sealed class OrganizationDataScopeFactory(
         {
             string organization = organizationId.ToString();
             string actor = actorId.ToString();
-            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            await dbContext.Database.ExecuteSqlAsync(
                 $"SELECT set_config('app.organization_id', {organization}, true), set_config('app.actor_id', {actor}, true)",
                 cancellationToken);
             return new OrganizationDataScope(transaction, applicationDbContext, cacheInvalidations);
@@ -61,7 +61,7 @@ internal sealed class OrganizationDataScopeFactory(
             await dbContext.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY", cancellationToken);
             string organization = organizationId.ToString();
             string actor = actorId.ToString();
-            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            await dbContext.Database.ExecuteSqlAsync(
                 $"SELECT set_config('app.organization_id', {organization}, true), set_config('app.actor_id', {actor}, true)",
                 cancellationToken);
             _ = await OrganizationTransactionEnlistment.EnlistAsync(

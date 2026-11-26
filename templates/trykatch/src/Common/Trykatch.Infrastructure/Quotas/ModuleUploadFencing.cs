@@ -60,7 +60,7 @@ internal sealed class ModuleUploadFencing(QuotaMaintenanceScopeFactory scopes, I
             return new(ModuleUploadCancelDisposition.AlreadyCancelled);
         if (operation.State == ModuleUploadState.Admitted)
         {
-            int changed = await application.Database.ExecuteSqlInterpolatedAsync($"""
+            int changed = await application.Database.ExecuteSqlAsync($"""
                 UPDATE app.module_upload_operations SET "State" = 2
                 WHERE "OrganizationId" = {expected.OrganizationId} AND "ResourceKey" = {expected.ResourceKey}
                     AND "OperationId" = {expected.OperationId} AND "State" = 0
@@ -99,12 +99,12 @@ internal sealed class ModuleUploadFencing(QuotaMaintenanceScopeFactory scopes, I
         if (operation.State != ModuleUploadState.Fencing) return Unavailable("upload_intent_unavailable");
         DateTimeOffset now = clock.GetUtcNow();
         if (now < operation.CreatedAtUtc) now = operation.CreatedAtUtc;
-        int released = await application.Database.ExecuteSqlInterpolatedAsync($"""
+        int released = await application.Database.ExecuteSqlAsync($"""
             UPDATE app.organization_quota_reservations SET "State" = 2, "ClosedAtUtc" = {now}
             WHERE "OrganizationId" = {operation.OrganizationId} AND "Id" = {operation.ReservationId}
                 AND "State" = 0 AND "EffectKind" = 2
             """, token);
-        int cancelled = await application.Database.ExecuteSqlInterpolatedAsync($"""
+        int cancelled = await application.Database.ExecuteSqlAsync($"""
             UPDATE app.module_upload_operations SET "State" = 3, "ClosedAtUtc" = {now}
             WHERE "OrganizationId" = {operation.OrganizationId} AND "ResourceKey" = {operation.ResourceKey}
                 AND "OperationId" = {operation.OperationId} AND "State" = 2

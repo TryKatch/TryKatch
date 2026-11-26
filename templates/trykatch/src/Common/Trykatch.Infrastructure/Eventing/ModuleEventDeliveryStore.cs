@@ -33,14 +33,14 @@ internal sealed class ModuleEventDeliveryStore(IConfiguration configuration, Tim
         ModuleEventDelivery? delivery;
         if (deliveryId is { } id)
         {
-            delivery = await db.Deliveries.FromSqlInterpolated($"""
+            delivery = await db.Deliveries.FromSql($"""
                 SELECT * FROM infrastructure.module_event_deliveries WHERE "Id" = {id}
                 FOR UPDATE SKIP LOCKED
                 """).SingleOrDefaultAsync(cancellationToken);
         }
         else
         {
-            delivery = await db.Deliveries.FromSqlInterpolated($"""
+            delivery = await db.Deliveries.FromSql($"""
                 SELECT * FROM infrastructure.module_event_deliveries
                 WHERE ("State" IN ('queued', 'paused') OR ("State" = 'leased' AND ("LeaseUntilUtc" IS NULL OR "LeaseUntilUtc" <= {now})))
                   AND ("NextAttemptAtUtc" IS NULL OR "NextAttemptAtUtc" <= {now})

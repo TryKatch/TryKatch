@@ -72,7 +72,7 @@ public sealed partial class AccessManagementBoundaryTests
         await using (PlatformDbContext holder = new(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(runtime).Options))
         await using (var transaction = await holder.Database.BeginTransactionAsync())
         {
-            await holder.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('app.actor_id', {actor.ToString()}, true)");
+            await holder.Database.ExecuteSqlAsync($"SELECT set_config('app.actor_id', {actor.ToString()}, true)");
             var store = new FeatureControlStore(holder, TimeProvider.System);
             (await store.TryLockAsync(actor, "development", new("projects.reads"), CancellationToken.None)).ShouldBeTrue();
             using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));

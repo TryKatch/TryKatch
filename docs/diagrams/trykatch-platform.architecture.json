@@ -53,7 +53,7 @@
     {
       "id": "api",
       "type": "backend",
-      "label": ".NET 10 API",
+      "label": ".NET 11 API",
       "sublabel": "controllers + composition root",
       "pos": [400, 300],
       "size": [160, 64],

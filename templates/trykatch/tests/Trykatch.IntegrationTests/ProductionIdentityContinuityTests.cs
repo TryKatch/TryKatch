@@ -135,6 +135,32 @@ public sealed class ProductionIdentityContinuityTests
     }
 
     [TestMethod]
+    public async Task PreviousFrameworkKeyTypeIdentitiesRetainAccessToProtectedData()
+    {
+        using IdentityCertificateFixture certificates = new();
+        await using SecurityHost host = await SecurityHost.StartAsync();
+        using HttpClient client = await host.SignInAsync();
+        Dictionary<string, string?> settings = ProductionSettings(certificates);
+        await MaintenanceAsync(host.OwnerConnection, settings, "apply");
+        await host.RestartAsync(settings);
+        var protector = host.Services.GetRequiredService<IDataProtectionProvider>().CreateProtector("upgrade");
+        string retained = protector.Protect("retained value");
+
+        XElement record = XElement.Parse(await ReadKeysAsync(host.OwnerConnection));
+        var types = record.Descendants().Attributes().Where(a => a.Name == "decryptorType" || a.Name == "deserializerType").ToArray();
+        types.Length.ShouldBe(2);
+        foreach (XAttribute type in types)
+        {
+            type.Value.ShouldContain("Version=11.0.0.0");
+            type.Value = type.Value.Replace("Version=11.0.0.0", "Version=10.0.0.0", StringComparison.Ordinal);
+        }
+        await ExecuteAsync(host.OwnerConnection, "UPDATE identity.data_protection_keys SET \"Xml\" = @xml", record.ToString());
+        await host.RestartAsync(settings);
+        host.Services.GetRequiredService<IDataProtectionProvider>().CreateProtector("upgrade")
+            .Unprotect(retained).ShouldBe("retained value");
+    }
+
+    [TestMethod]
     public async Task RepositoryRejectsPlaintextWritesAndPreservesEncryptedKeyAndRevocationWrites()
     {
         using IdentityCertificateFixture certificates = new();
@@ -365,7 +391,7 @@ public sealed class ProductionIdentityContinuityTests
     {
         var result = await InvokeMaintenanceAsync(connectionString, settings, mode);
         result.Exit.ShouldBe(0, result.Error);
-        return JsonDocument.Parse(result.Output).RootElement.Clone();
+        return JsonElement.Parse(result.Output);
     }
 
     private static async Task ExecuteAsync(string connectionString, string sql, string? xml = null)
@@ -385,7 +411,7 @@ public sealed class ProductionIdentityContinuityTests
         ProcessStartInfo start = new("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         string configuration = typeof(ProductionIdentityContinuityTests).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false)
             .Cast<System.Reflection.AssemblyConfigurationAttribute>().Single().Configuration;
-        start.ArgumentList.Add(Path.Combine(root!.FullName, $"src/API/Trykatch.Migrator/bin/{configuration}/net10.0/Trykatch.Migrator.dll"));
+        start.ArgumentList.Add(Path.Combine(root!.FullName, $"src/API/Trykatch.Migrator/bin/{configuration}/net11.0/Trykatch.Migrator.dll"));
         start.ArgumentList.Add("--data-protection-keys");
         start.ArgumentList.Add(mode);
         start.ArgumentList.Add("--confirm-key-backup");

@@ -334,7 +334,7 @@ public sealed class PostgresIsolationInspectionTests
         (await resolver.ResolveAsync(actor, organizationB.Id)).ShouldBeNull();
         await resolver.ResolveAsync(actor, organizationA.Id);
         tenant.Roles.Select(role => role.OrganizationId).Distinct().ToArray().ShouldBe([organizationA.Id]);
-        PostgresException denied = await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlInterpolatedAsync(
+        PostgresException denied = await Should.ThrowAsync<PostgresException>(() => tenant.Database.ExecuteSqlAsync(
             $"INSERT INTO platform.membership_roles (\"MembershipId\", \"RoleId\") VALUES ({membershipA.Id}, {roleB.Id})"));
         denied.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
     }
@@ -899,7 +899,7 @@ public sealed class PostgresIsolationInspectionTests
             PostgreSqlContainer? container = null;
             if (string.IsNullOrWhiteSpace(administrator))
             {
-                container = new PostgreSqlBuilder("postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+                container = new PostgreSqlBuilder("postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
                 await container.StartAsync();
                 administrator = container.GetConnectionString();
             }

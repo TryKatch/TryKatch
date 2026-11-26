@@ -7,7 +7,7 @@ import { ModuleProvider } from '@trykatch/module-sdk'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n/I18nProvider'
-import { workspaceModules } from '../modules'
+import { testWorkspaceModules as workspaceModules } from '../testWorkspaceModules'
 import { ModuleRouteBoundary } from '../features/availability/ModuleRouteBoundary'
 import { AppShell } from './AppShell'
 
@@ -16,6 +16,10 @@ vi.mock('@trykatch/api-client', async (original) => ({
   customFetch: vi.fn(),
   featuresCurrent: vi.fn(),
   workspaceCurrent: vi.fn(),
+}))
+
+vi.mock('../modules', async () => ({
+  workspaceModules: (await import('../testWorkspaceModules')).testWorkspaceModules,
 }))
 
 vi.mock('./useWorkspaceRealtimeLifecycle', () => ({ useWorkspaceRealtimeLifecycle: vi.fn() }))

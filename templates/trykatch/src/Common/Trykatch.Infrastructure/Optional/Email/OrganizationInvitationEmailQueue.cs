@@ -64,7 +64,7 @@ internal sealed class OrganizationInvitationEmailQueue(IOrganizationContext orga
         string protectedIntent = InvitationEmailIntentCodec.Protect(intent, protector);
         if (protectedIntent.Length > 262_144) return Rejected("invalid_payload");
         DateTimeOffset created = clock.GetUtcNow().ToUniversalTime();
-        await control.Database.ExecuteSqlInterpolatedAsync($"""
+        await control.Database.ExecuteSqlAsync($"""
             INSERT INTO infrastructure.email_deliveries
                 ("Id", "OrganizationId", "ActorId", "MessageId", "AdmissionIdentityKey", "TemplateKey", "TemplateVersion",
                  "ProtectedIntent", "State", "Attempts", "CreatedAtUtc")

@@ -9,13 +9,13 @@ Utilisez le bouton de copie de chaque bloc de commandes. Une coche et une confir
 
 ## Prérequis
 
-Installez le SDK .NET 10 et un runtime de conteneurs compatible avec Docker avant de démarrer une application générée. Utilisez Docker Desktop sous macOS ou Windows, ou Docker Engine sous Linux, puis vérifiez que le démon est disponible :
+Installez le SDK .NET 11 et un runtime de conteneurs compatible avec Docker avant de démarrer une application générée. Le manifeste d’outils généré fixe la CLI Aspire requise par le bundle à la version 17.0.0 ; `dotnet tool restore` l’installe localement et `trykatch setup` restaure les dépendances .NET de l’application. Utilisez Docker Desktop sous macOS ou Windows, ou Docker Engine sous Linux, puis vérifiez que le démon est disponible :
 
 ```bash
 docker info
 ```
 
-Docker est requis pour PostgreSQL et pour toute la chaîne d’observabilité locale : OpenTelemetry Collector, Prometheus, Loki, Tempo et Grafana. L’AppHost crée et coordonne ces conteneurs ; installer uniquement le client Docker ne suffit pas — le démon Docker doit être actif. Aspire 13.5 nécessite Docker CLI 25.0 ou une version ultérieure ; vérifiez donc aussi la version du client avec `docker version`.
+Docker est requis pour PostgreSQL et pour toute la chaîne d’observabilité locale : OpenTelemetry Collector, Prometheus, Loki, Tempo et Grafana. L’AppHost crée et coordonne ces conteneurs ; installer uniquement le client Docker ne suffit pas — le démon Docker doit être actif. Aspire 17 nécessite Docker CLI 25.0 ou une version ultérieure ; vérifiez donc aussi la version du client avec `docker version`.
 
 Lorsque le stockage est activé (par défaut), Aspire démarre aussi un conteneur RustFS 1.0.3 compatible S3 pour les téléversements de documents locaux. L’image Apache-2.0 est épinglée sur `rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b` ; il s’agit du service de développement, tandis que la production continue d’utiliser un stockage compatible S3 configuré à l’extérieur. Utilisez `--storage false` à la génération uniquement si vous ne souhaitez pas les adaptateurs de stockage ni RustFS. Une mise à jour de la CLI ne réécrit pas l’AppHost d’une application existante ni ne migre ses objets ; suivez le [guide de mise à niveau Documents](/fr/modules/documents/) pour changer son service de stockage local.
 
@@ -30,7 +30,7 @@ Suivez ces étapes dans l’ordre.
 Exécutez cette commande une seule fois sur votre ordinateur :
 
 ```bash
-dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.33
+dotnet tool install --global Trykatch.Cli --version 0.1.0-preview.34
 ```
 
 Cette commande installe la commande `trykatch`. Elle n’installe pas encore le modèle de projet.
@@ -67,7 +67,7 @@ imbriqué.
 Si vous ne souhaitez pas utiliser la CLI Trykatch avec progression, utilisez la commande suivante **à la place des étapes 1 et 2** :
 
 ```bash
-dotnet new install Trykatch.Templates@0.1.0-preview.33
+dotnet new install Trykatch.Templates@0.1.0-preview.34
 dotnet new trykatch -n Horizon --allow-scripts yes
 ```
 
@@ -83,7 +83,7 @@ Les noms contenant des points ou des tirets sont normalisés pour produire des e
 Mettez d’abord à jour la CLI, puis utilisez la commande de mise à jour dédiée de Trykatch. La CLI et le modèle restent ainsi sur la même version :
 
 ```bash
-dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.33
+dotnet tool update --global Trykatch.Cli --version 0.1.0-preview.34
 trykatch update
 ```
 
@@ -99,7 +99,7 @@ Lorsque NuGet signale une fin de flux inattendue (EOF) ou un flux de transport v
 
 ```bash
 dotnet nuget locals http-cache --clear
-trykatch update --version 0.1.0-preview.33
+trykatch update --version 0.1.0-preview.34
 ```
 
 Le moteur de modèles .NET peut supprimer l’ancienne version avant la fin d’une mise à jour forcée. Relancer la commande Trykatch restaure le modèle ; les applications déjà générées ne sont pas affectées.
@@ -141,6 +141,24 @@ React est inclus par défaut. Ne générez une solution limitée au backend que 
 trykatch new Horizon --ui none
 ```
 
+Le profil de modules par défaut active les modules de référence Projects et
+Documents. Pour conserver leur code source et leur historique de migration tout
+en démarrant sans module exemple activé, utilisez le profil minimal :
+
+```bash
+trykatch new Katch --module-profile minimal
+cd Katch
+trykatch start
+```
+
+Ajoutez ensuite votre première fonctionnalité avec `trykatch module create`
+depuis la racine de l’application générée. Cette option fonctionne aussi pour
+une application limitée au backend.
+La première migration de base de données crée toujours l’ancienne table
+`app.projects` ; la sortie minimale conserve sa sécurité RLS forcée sans donner
+d’accès à l’exécution d’organisation. L’activation ultérieure de Projects
+réutilise cette table et les données qu’elle conserve.
+
 Les modules gratuits optionnels sont désactivés par défaut :
 
 ```bash
@@ -178,6 +196,7 @@ trykatch module help
 Avant le premier démarrage, depuis la racine de l’application :
 
 ```bash
+dotnet tool restore
 trykatch setup
 trykatch doctor
 trykatch start

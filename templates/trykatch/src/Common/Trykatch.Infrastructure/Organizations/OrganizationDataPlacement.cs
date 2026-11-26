@@ -37,13 +37,13 @@ internal sealed class OrganizationDataPlacement(
         {
             if (transactionScopedLock)
             {
-                await controlPlane.Database.ExecuteSqlInterpolatedAsync(
+                await controlPlane.Database.ExecuteSqlAsync(
                     $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 20260910))",
                     cancellationToken);
             }
             else
             {
-                await controlPlane.Database.ExecuteSqlInterpolatedAsync(
+                await controlPlane.Database.ExecuteSqlAsync(
                     $"SELECT pg_advisory_lock(hashtextextended({lockKey}, 20260910))",
                     cancellationToken);
                 lockAcquired = true;
@@ -125,7 +125,7 @@ internal sealed class OrganizationDataPlacement(
     {
         try
         {
-            await controlPlane.Database.ExecuteSqlInterpolatedAsync(
+            await controlPlane.Database.ExecuteSqlAsync(
                 $"SELECT pg_advisory_unlock(hashtextextended({lockKey}, 20260910))",
                 CancellationToken.None);
         }

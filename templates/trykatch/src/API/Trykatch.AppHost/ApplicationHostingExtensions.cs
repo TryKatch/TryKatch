@@ -1,4 +1,5 @@
 using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Dotnet;
 
 namespace Trykatch.AppHost;
 
@@ -31,7 +32,7 @@ internal static class ApplicationHostingExtensions
             outboxPassword,
             workCoordinatorPassword);
         IResourceBuilder<ContainerResource> collector = builder.AddOpenTelemetryCollector();
-        IResourceBuilder<ProjectResource> api = builder.AddApplicationApi(
+        IResourceBuilder<DotnetProjectResource> api = builder.AddApplicationApi(
             database,
             collector,
             migratorPassword,
@@ -98,7 +99,7 @@ internal static class ApplicationHostingExtensions
 
     private static void AddOptionalCacheSetting(
         IDistributedApplicationBuilder builder,
-        IResourceBuilder<ProjectResource> api,
+        IResourceBuilder<DotnetProjectResource> api,
         string configurationKey,
         string environmentVariable)
     {
@@ -111,7 +112,7 @@ internal static class ApplicationHostingExtensions
 
     private static void AddDistributedCache(
         this IDistributedApplicationBuilder builder,
-        IResourceBuilder<ProjectResource> api)
+        IResourceBuilder<DotnetProjectResource> api)
     {
         IResourceBuilder<ParameterResource> cachePassword = builder.AddParameter("cache-password", secret: true);
         IResourceBuilder<ContainerResource> cache = builder
@@ -144,7 +145,7 @@ internal static class ApplicationHostingExtensions
 
     private static void AddDistributedRealtime(
         this IDistributedApplicationBuilder builder,
-        IResourceBuilder<ProjectResource> api)
+        IResourceBuilder<DotnetProjectResource> api)
     {
         IResourceBuilder<ParameterResource> realtimePassword = builder.AddParameter("realtime-password", secret: true);
         IResourceBuilder<ContainerResource> realtime = builder
@@ -188,7 +189,7 @@ internal static class ApplicationHostingExtensions
     {
         IResourceBuilder<PostgresServerResource> postgres = builder
             .AddPostgres("postgres", password: postgresAdminPassword)
-            .WithImageTag("18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f")
+            .WithImageTag("19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67")
             .WithEnvironment("TRYKATCH_MIGRATOR_PASSWORD", migratorPassword)
             .WithEnvironment("TRYKATCH_ORG_RUNTIME_PASSWORD", organizationPassword)
             .WithEnvironment("TRYKATCH_PLATFORM_RUNTIME_PASSWORD", platformPassword)
@@ -218,7 +219,7 @@ internal static class ApplicationHostingExtensions
             .WithHttpEndpoint(targetPort: 8888, name: "telemetry")
             .WithHttpEndpoint(targetPort: 8889, name: "prometheus");
 
-    private static IResourceBuilder<ProjectResource> AddApplicationApi(
+    private static IResourceBuilder<DotnetProjectResource> AddApplicationApi(
         this IDistributedApplicationBuilder builder,
         IResourceBuilder<PostgresDatabaseResource> database,
         IResourceBuilder<ContainerResource> collector,
@@ -229,22 +230,17 @@ internal static class ApplicationHostingExtensions
         IResourceBuilder<ParameterResource> outboxPassword,
         IResourceBuilder<ParameterResource> workCoordinatorPassword)
     {
-        ReferenceExpression migratorConnection = ReferenceExpression.Create(
-            $"{database.Resource.ConnectionStringExpression};Username=trykatch_migrator;Password={migratorPassword}");
-        ReferenceExpression organizationConnection = ReferenceExpression.Create(
-            $"{database.Resource.ConnectionStringExpression};Username=trykatch_org_runtime;Password={organizationPassword}");
-        ReferenceExpression platformConnection = ReferenceExpression.Create(
-            $"{database.Resource.ConnectionStringExpression};Username=trykatch_platform_runtime;Password={platformPassword}");
-        ReferenceExpression identityConnection = ReferenceExpression.Create(
-            $"{database.Resource.ConnectionStringExpression};Username=trykatch_identity_runtime;Password={identityPassword}");
-        ReferenceExpression outboxConnection = ReferenceExpression.Create(
-            $"{database.Resource.ConnectionStringExpression};Username=trykatch_outbox_worker;Password={outboxPassword}");
-        ReferenceExpression workCoordinatorConnection = ReferenceExpression.Create(
-            $"{database.Resource.ConnectionStringExpression};Username=trykatch_work_coordinator;Password={workCoordinatorPassword}");
+        ReferenceExpression migratorConnection = CreateRoleConnection(database, "trykatch_migrator");
+        ReferenceExpression organizationConnection = CreateRoleConnection(database, "trykatch_org_runtime");
+        ReferenceExpression platformConnection = CreateRoleConnection(database, "trykatch_platform_runtime");
+        ReferenceExpression identityConnection = CreateRoleConnection(database, "trykatch_identity_runtime");
+        ReferenceExpression outboxConnection = CreateRoleConnection(database, "trykatch_outbox_worker");
+        ReferenceExpression workCoordinatorConnection = CreateRoleConnection(database, "trykatch_work_coordinator");
 
-        IResourceBuilder<ProjectResource> migrator = builder
-            .AddProject<Projects.TemplateProjectIdentifier_Migrator>("migrator")
+        IResourceBuilder<DotnetProjectResource> migrator = builder
+            .AddDotnetProject("migrator", "../Trykatch.Migrator/Trykatch.Migrator.csproj")
             .WithEnvironment("ConnectionStrings__trykatchdb", migratorConnection)
+            .WithEnvironment("Database__MigratorPassword", migratorPassword)
             .WithEnvironment("Database__OrganizationRuntimeRole", "trykatch_org_runtime")
             .WithEnvironment("Database__PlatformRuntimeRole", "trykatch_platform_runtime")
             .WithEnvironment("Database__IdentityRuntimeRole", "trykatch_identity_runtime")
@@ -252,13 +248,18 @@ internal static class ApplicationHostingExtensions
             .WithEnvironment("Database__WorkCoordinatorRole", "trykatch_work_coordinator")
             .WaitFor(database);
 
-        IResourceBuilder<ProjectResource> api = builder
-            .AddProject<Projects.TemplateProjectIdentifier_Api>("api")
+        IResourceBuilder<DotnetProjectResource> api = builder
+            .AddDotnetProject("api", "../Trykatch.Api/Trykatch.Api.csproj")
             .WithEnvironment("ConnectionStrings__trykatch-organization", organizationConnection)
+            .WithEnvironment("Database__OrganizationRuntimePassword", organizationPassword)
             .WithEnvironment("ConnectionStrings__trykatch-platform", platformConnection)
+            .WithEnvironment("Database__PlatformRuntimePassword", platformPassword)
             .WithEnvironment("ConnectionStrings__trykatch-identity", identityConnection)
+            .WithEnvironment("Database__IdentityRuntimePassword", identityPassword)
             .WithEnvironment("ConnectionStrings__trykatch-outbox", outboxConnection)
+            .WithEnvironment("Database__OutboxWorkerPassword", outboxPassword)
             .WithEnvironment("ConnectionStrings__trykatch-work", workCoordinatorConnection)
+            .WithEnvironment("Database__WorkCoordinatorPassword", workCoordinatorPassword)
             .WaitFor(database)
             .WaitForCompletion(migrator)
             .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", collector.GetEndpoint("otlp-http"))
@@ -279,9 +280,20 @@ internal static class ApplicationHostingExtensions
         return api;
     }
 
+    private static ReferenceExpression CreateRoleConnection(
+        IResourceBuilder<PostgresDatabaseResource> database,
+        string username)
+    {
+        PostgresServerResource postgres = database.Resource.Parent;
+        return ReferenceExpression.Create(
+            $"Host={postgres.PrimaryEndpoint.Property(EndpointProperty.Host)};"
+            + $"Port={postgres.PrimaryEndpoint.Property(EndpointProperty.Port)};"
+            + $"Database={database.Resource.DatabaseName};Username={username}");
+    }
+
     private static void AddDevelopmentEmail(
         this IDistributedApplicationBuilder builder,
-        IResourceBuilder<ProjectResource> api)
+        IResourceBuilder<DotnetProjectResource> api)
     {
 #if TRYKATCH_EMAIL
         if (builder.ExecutionContext.IsRunMode)
@@ -304,7 +316,7 @@ internal static class ApplicationHostingExtensions
 
     private static void AddObjectStorage(
         this IDistributedApplicationBuilder builder,
-        IResourceBuilder<ProjectResource> api)
+        IResourceBuilder<DotnetProjectResource> api)
     {
 #if TRYKATCH_STORAGE
         if (!builder.ExecutionContext.IsRunMode)

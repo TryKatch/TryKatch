@@ -13,6 +13,10 @@ const signalr = vi.hoisted(() => {
   return { connection, state, requests }
 })
 
+vi.mock('../modules', async () => ({
+  workspaceModules: (await import('../testWorkspaceModules')).testWorkspaceModules,
+}))
+
 vi.mock('@microsoft/signalr', () => ({
   DefaultHttpClient: class {
     async send(request: { headers?: Record<string, string>; abortSignal?: unknown; timeout?: number }) {

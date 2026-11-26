@@ -172,7 +172,7 @@ internal sealed class OrganizationEmailDeliveryStore(
             ? null
             : timeProvider.GetUtcNow().ToUniversalTime();
         await using OrganizationEmailDeliveryDbContext context = CreateContext();
-        int updated = await context.Database.ExecuteSqlInterpolatedAsync($"""
+        int updated = await context.Database.ExecuteSqlAsync($"""
             UPDATE infrastructure.email_deliveries
             SET "State" = {state}, "LeaseId" = NULL, "LeaseUntilUtc" = NULL,
                 "NextAttemptAtUtc" = {transition.NextAttemptAtUtc}, "LastCompletedLeaseId" = {lease.LeaseId},

@@ -69,7 +69,7 @@ internal sealed class PostgresModuleJobScheduler(
         string identityKey = ModuleJobIntent.RequestIdentity(organization.ActorId);
         string requestScope = string.Join("/", organization.OrganizationId.ToString("N"), identityKey,
             request.JobKey, request.JobVersion.ToString(System.Globalization.CultureInfo.InvariantCulture), request.RequestId.ToString("N"));
-        await controlPlane.Database.ExecuteSqlInterpolatedAsync(
+        await controlPlane.Database.ExecuteSqlAsync(
             $"SELECT pg_advisory_xact_lock(hashtextextended({requestScope}, 0))",
             cancellationToken);
 
@@ -160,7 +160,7 @@ internal sealed class PostgresModuleJobScheduler(
                 : Receipt(Guid.Empty, ModuleWorkState.Rejected, "request_id_conflict");
         }
 
-        _ = await application.Database.ExecuteSqlInterpolatedAsync($"""
+        _ = await application.Database.ExecuteSqlAsync($"""
             INSERT INTO infrastructure.module_work_items
                 ("Id", "OrganizationId", "ActorId", "RequestId", "ExecutionIdentityKey", "JobKey", "JobVersion",
                  "OperationKey", "OperationVersion", "ContextVersion", "ExecutionContextJson", "Payload", "PayloadHash",

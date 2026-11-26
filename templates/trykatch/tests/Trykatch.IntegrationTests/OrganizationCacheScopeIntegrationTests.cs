@@ -19,7 +19,7 @@ namespace Trykatch.IntegrationTests;
 public sealed partial class OrganizationCacheScopeIntegrationTests
 {
     private const string PostgresImage =
-        "postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f";
+        "postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67";
 
     [TestMethod]
     public async Task ReadOnlyScopeUsesReadCommittedReadOnlyTransactionAndActorScopedRuntimeRole()

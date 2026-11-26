@@ -105,13 +105,13 @@ internal sealed class FeatureControlStore : IFeatureControlStore
         if (target.OrganizationId is Guid organizationId)
         {
             affected = expectedVersion == Guid.Empty
-                ? await context.Database.ExecuteSqlInterpolatedAsync($"""
+                ? await context.Database.ExecuteSqlAsync($"""
                     INSERT INTO platform.organization_feature_overrides
                       ("OrganizationId", "Environment", "FeatureKey", "Enabled", "Version", "UpdatedAtUtc")
                     VALUES ({organizationId}, {environment}, {target.FeatureKey}, {enabled}, {version}, {now})
                     ON CONFLICT ("OrganizationId", "Environment", "FeatureKey") DO NOTHING
                     """, ct)
-                : await context.Database.ExecuteSqlInterpolatedAsync($"""
+                : await context.Database.ExecuteSqlAsync($"""
                     UPDATE platform.organization_feature_overrides
                     SET "Enabled" = {enabled}, "Version" = {version}, "UpdatedAtUtc" = {now}
                     WHERE "OrganizationId" = {organizationId} AND "Environment" = {environment}
@@ -121,13 +121,13 @@ internal sealed class FeatureControlStore : IFeatureControlStore
         else
         {
             affected = expectedVersion == Guid.Empty
-                ? await context.Database.ExecuteSqlInterpolatedAsync($"""
+                ? await context.Database.ExecuteSqlAsync($"""
                     INSERT INTO platform.feature_environment_controls
                       ("Environment", "FeatureKey", "DefaultEnabled", "ForceDisabled", "Version", "UpdatedAtUtc")
                     VALUES ({environment}, {target.FeatureKey}, {enabled}, {forceDisabled}, {version}, {now})
                     ON CONFLICT ("Environment", "FeatureKey") DO NOTHING
                     """, ct)
-                : await context.Database.ExecuteSqlInterpolatedAsync($"""
+                : await context.Database.ExecuteSqlAsync($"""
                     UPDATE platform.feature_environment_controls
                     SET "DefaultEnabled" = {enabled}, "ForceDisabled" = {forceDisabled}, "Version" = {version}, "UpdatedAtUtc" = {now}
                     WHERE "Environment" = {environment} AND "FeatureKey" = {target.FeatureKey} AND "Version" = {expectedVersion}
@@ -138,7 +138,7 @@ internal sealed class FeatureControlStore : IFeatureControlStore
         Guid id = Guid.NewGuid();
         Guid? previousVersion = before.Version == Guid.Empty ? null : before.Version;
         bool? previousForce = target.OrganizationId is null && previousVersion is not null ? before.ForceDisabled : null;
-        await context.Database.ExecuteSqlInterpolatedAsync($"""
+        await context.Database.ExecuteSqlAsync($"""
             INSERT INTO platform.feature_control_history
               ("Id", "Environment", "FeatureKey", "OrganizationId", "ActorId", "PreviousVersion", "Version",
                "PreviousEnabled", "Enabled", "PreviousForceDisabled", "ForceDisabled", "ChangedAtUtc")

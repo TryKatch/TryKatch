@@ -19,7 +19,7 @@ internal sealed class OrganizationUsageLedger(ApplicationDbContext application)
                 throw new OrganizationQuotaUnavailableException();
             return;
         }
-        await application.Database.ExecuteSqlInterpolatedAsync($"""
+        await application.Database.ExecuteSqlAsync($"""
             INSERT INTO app.organization_usage
                 ("OrganizationId", "ResourceKey", "EffectId", "SourceId", "SourceEffectId", "ReservationId", "ActorId", "Units", "OccurredAtUtc")
             VALUES ({operation.OrganizationId}, {operation.ResourceKey}, {operation.OperationId}, {operation.SubjectId}, NULL,
@@ -55,7 +55,7 @@ internal sealed class OrganizationUsageLedger(ApplicationDbContext application)
         {
             EffectId = entry.OperationId, entry.SourceId, entry.Units
         }));
-        int written = await application.Database.ExecuteSqlInterpolatedAsync($"""
+        int written = await application.Database.ExecuteSqlAsync($"""
             INSERT INTO app.organization_usage
                 ("OrganizationId", "ResourceKey", "EffectId", "SourceId", "SourceEffectId", "ReservationId", "ActorId", "Units", "OccurredAtUtc")
             SELECT {organizationId}, {resourceKey}, item."EffectId", item."SourceId", NULL, NULL, {actorId}, item."Units", {now}
@@ -80,7 +80,7 @@ internal sealed class OrganizationUsageLedger(ApplicationDbContext application)
     }
 
     internal Task<int> CommitReservationAsync(OrganizationQuotaReservationRecord reservation, DateTimeOffset now,
-        CancellationToken cancellationToken) => application.Database.ExecuteSqlInterpolatedAsync($"""
+        CancellationToken cancellationToken) => application.Database.ExecuteSqlAsync($"""
             WITH closed AS (
                 UPDATE app.organization_quota_reservations SET "State" = 1, "ClosedAtUtc" = {now}
                 WHERE "OrganizationId" = {reservation.OrganizationId} AND "Id" = {reservation.Id}

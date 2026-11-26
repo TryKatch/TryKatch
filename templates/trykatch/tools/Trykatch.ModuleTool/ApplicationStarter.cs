@@ -10,19 +10,19 @@ internal sealed class ApplicationStarter(
     public async Task<int> StartAsync(string root, CancellationToken cancellationToken)
     {
         ApplicationLocation location = ApplicationLocation.Discover(root);
-        await output.WriteLineAsync("Checking Docker container runtime (Docker Desktop may take up to 15 seconds to wake)...");
+        await output.WriteLineAsync("Checking Docker container runtime (Docker Desktop may take up to 15 seconds to wake)...", cancellationToken);
         ContainerRuntimeStatus runtime = await containerRuntimeProbe.CheckAsync(cancellationToken);
         if (!runtime.IsReady)
         {
-            await output.WriteLineAsync("Trykatch stopped before Aspire because the container runtime is not ready.");
-            await output.WriteLineAsync(runtime.Message);
-            await output.WriteLineAsync("Start or update Docker Desktop, then wait until 'docker info' succeeds and run 'trykatch start' again.");
+            await output.WriteLineAsync("Trykatch stopped before Aspire because the container runtime is not ready.", cancellationToken);
+            await output.WriteLineAsync(runtime.Message, cancellationToken);
+            await output.WriteLineAsync("Start or update Docker Desktop, then wait until 'docker info' succeeds and run 'trykatch start' again.", cancellationToken);
             return 2;
         }
 
-        await output.WriteLineAsync($"Docker {runtime.ServerVersion} is ready (CLI {runtime.ClientVersion}).");
-        await output.WriteLineAsync($"Starting {location.Name} through its Aspire AppHost...");
-        await output.WriteLineAsync("Docker must remain available while the application is running.");
+        await output.WriteLineAsync($"Docker {runtime.ServerVersion} is ready (CLI {runtime.ClientVersion}).", cancellationToken);
+        await output.WriteLineAsync($"Starting {location.Name} through its Aspire AppHost...", cancellationToken);
+        await output.WriteLineAsync("Docker must remain available while the application is running.", cancellationToken);
 
         return await applicationProcess.RunAsync(
             location.ProjectPath,

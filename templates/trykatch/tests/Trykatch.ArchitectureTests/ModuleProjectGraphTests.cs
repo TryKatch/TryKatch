@@ -148,23 +148,22 @@ public sealed class ModuleProjectGraphTests
 
         source.ShouldContain("builder.AddParameter(\"postgres-admin-password\", \"local-postgres-admin-only\", secret: true)");
         source.ShouldContain(".AddPostgres(\"postgres\", password: postgresAdminPassword)");
+        source.Contains("database.Resource.ConnectionStringExpression", StringComparison.Ordinal).ShouldBeFalse(
+            "The database expression includes the bootstrap administrator credential.");
+        int apiStart = source.IndexOf(".AddDotnetProject(\"api\"", StringComparison.Ordinal);
+        apiStart.ShouldBeGreaterThanOrEqualTo(0);
+        string apiWiring = source[apiStart..source.IndexOf("return api;", apiStart, StringComparison.Ordinal)];
+        apiWiring.ShouldNotContain("migratorPassword");
+        apiWiring.ShouldNotContain("migratorConnection");
+        apiWiring.ShouldNotContain("postgresAdminPassword");
     }
 
     [TestMethod]
-    public void DefaultCatalogExposesDistinctProjectAndDocumentReferenceModules()
+    public void ReferenceModuleRegistryMatchesTheWorkspaceCatalog()
     {
-        using JsonDocument catalog = JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(Workspace, "trykatch.modules.json")));
-        Dictionary<string, bool> moduleStates = catalog.RootElement.GetProperty("modules")
-            .EnumerateArray()
-            .ToDictionary(
-                module => module.GetProperty("id").GetString()!,
-                module => module.GetProperty("enabled").GetBoolean(),
-                StringComparer.Ordinal);
-
-        moduleStates["projects"].ShouldBeTrue();
-        moduleStates["documents"].ShouldBeTrue(
-            "Documents demonstrates organization-isolated object storage rather than duplicating Projects CRUD.");
+        string apiModules = File.ReadAllText(Path.Combine(Workspace, "src/API/Trykatch.Api/Modules/EnabledModules.cs"));
+        apiModules.Contains("new ProjectsModule()", StringComparison.Ordinal).ShouldBe(ModuleEnabled("projects"));
+        apiModules.Contains("new DocumentsModule()", StringComparison.Ordinal).ShouldBe(ModuleEnabled("documents"));
 
         string appHost = File.ReadAllText(Path.Combine(
             Workspace,
@@ -183,11 +182,11 @@ public sealed class ModuleProjectGraphTests
     [TestMethod]
     public void DocumentUploadOpenApiPublishesAMultipartContractAndSample()
     {
-        using JsonDocument openApi = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            Workspace, "web/packages/api-client/openapi/Trykatch.Api.json")));
-        JsonElement upload = openApi.RootElement.GetProperty("paths")
-            .GetProperty("/api/v1/documents")
-            .GetProperty("post");
+        using JsonDocument openApi = ReadOpenApi();
+        bool published = openApi.RootElement.GetProperty("paths").TryGetProperty("/api/v1/documents", out JsonElement path);
+        published.ShouldBe(ModuleEnabled("documents"));
+        if (!published) return;
+        JsonElement upload = path.GetProperty("post");
 
         upload.GetProperty("requestBody").GetProperty("content")
             .TryGetProperty("multipart/form-data", out _).ShouldBeTrue();
@@ -202,11 +201,11 @@ public sealed class ModuleProjectGraphTests
     [TestMethod]
     public void DocumentDownloadOpenApiPublishesABinaryContractAndSample()
     {
-        using JsonDocument openApi = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            Workspace, "web/packages/api-client/openapi/Trykatch.Api.json")));
-        JsonElement download = openApi.RootElement.GetProperty("paths")
-            .GetProperty("/api/v1/documents/{id}/content")
-            .GetProperty("get");
+        using JsonDocument openApi = ReadOpenApi();
+        bool published = openApi.RootElement.GetProperty("paths").TryGetProperty("/api/v1/documents/{id}/content", out JsonElement path);
+        published.ShouldBe(ModuleEnabled("documents"));
+        if (!published) return;
+        JsonElement download = path.GetProperty("get");
 
         JsonElement binary = download.GetProperty("responses").GetProperty("200")
             .GetProperty("content").GetProperty("application/octet-stream")
@@ -218,6 +217,21 @@ public sealed class ModuleProjectGraphTests
         sample.ShouldContain("Accept: 'application/octet-stream'");
         sample.ShouldContain("await response.blob()");
         sample.ShouldNotContain("await response.json()");
+    }
+
+    private static bool ModuleEnabled(string id)
+    {
+        using JsonDocument catalog = JsonDocument.Parse(File.ReadAllText(Path.Combine(Workspace, "trykatch.modules.json")));
+        return catalog.RootElement.GetProperty("modules").EnumerateArray().Any(module =>
+            module.GetProperty("id").GetString() == id && module.GetProperty("enabled").GetBoolean());
+    }
+
+    private static JsonDocument ReadOpenApi()
+    {
+        string directory = Directory.Exists(Path.Combine(Workspace, "web/packages/api-client"))
+            ? "web/packages/api-client/openapi"
+            : "src/API/Trykatch.Api/obj/openapi";
+        return JsonDocument.Parse(File.ReadAllText(Path.Combine(Workspace, directory, "Trykatch.Api.json")));
     }
 
     private static string[] DiscoverModules(string root) => Directory
