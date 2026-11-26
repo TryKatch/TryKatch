@@ -46,7 +46,7 @@ internal sealed class QuotaMaintenanceExecutor(QuotaMaintenanceScopeFactory scop
         if (hold.State is ModuleQuotaReservationState.Committed or ModuleQuotaReservationState.Released) return Completed();
         DateTimeOffset now = await DatabaseNowAsync(application, token);
         if (hold.ExpiresAtUtc > now) return new(QuotaMaintenanceExecutionState.InProgress, "quota_reservation_not_expired");
-        int released = await application.Database.ExecuteSqlInterpolatedAsync($"""
+        int released = await application.Database.ExecuteSqlAsync($"""
             UPDATE app.organization_quota_reservations SET "State" = 2, "ClosedAtUtc" = {now}
             WHERE "OrganizationId" = {work.OrganizationId} AND "Id" = {hold.Id} AND "ResourceKey" = {work.ResourceKey}
                 AND "EffectKind" = 1 AND "State" = 0 AND "ExpiresAtUtc" <= {now}

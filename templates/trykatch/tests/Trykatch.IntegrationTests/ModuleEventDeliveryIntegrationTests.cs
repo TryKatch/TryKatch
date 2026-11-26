@@ -284,7 +284,7 @@ public sealed class ModuleEventDeliveryIntegrationTests
         public static async Task<EventFixture> StartAsync(int consumerCount = 2)
         {
             PostgreSqlContainer postgres = new PostgreSqlBuilder(
-                "postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+                "postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
             await postgres.StartAsync();
             string owner = postgres.GetConnectionString();
             await PostgresRuntimeRoleFixture.EnsureRuntimeRolesAsync(owner);
@@ -711,12 +711,12 @@ public sealed class ModuleEventDeliveryIntegrationTests
             EventPayload data = payload.Deserialize<EventPayload>(PayloadJson)!;
             if (consumerKey == ConsumerOne)
             {
-                await db.Database.ExecuteSqlInterpolatedAsync(
+                await db.Database.ExecuteSqlAsync(
                     $"UPDATE app.module_event_probe_records SET \"EffectOne\"=\"EffectOne\"+1 WHERE \"Id\"={data.RecordId}", cancellationToken);
             }
             else
             {
-                await db.Database.ExecuteSqlInterpolatedAsync(
+                await db.Database.ExecuteSqlAsync(
                     $"UPDATE app.module_event_probe_records SET \"EffectTwo\"=\"EffectTwo\"+1 WHERE \"Id\"={data.RecordId}", cancellationToken);
             }
             outbox.Enqueue(new ProbeFollowup(data.RecordId, consumerKey), "probe.apply", 1);

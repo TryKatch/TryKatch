@@ -208,12 +208,12 @@ public sealed partial class ModuleOpenApiOperationTransformer(ModuleCatalog cata
     {
         if (operation.Responses is null) return;
 
-        foreach (OpenApiResponse response in operation.Responses.Values)
+        foreach (OpenApiResponse response in operation.Responses.Values.OfType<OpenApiResponse>())
         {
             if (response.Content is null) continue;
-            foreach ((string mediaType, OpenApiMediaType content) in response.Content)
+            foreach ((string mediaType, IOpenApiMediaType definition) in response.Content)
             {
-                if (!mediaType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)) continue;
+                if (definition is not OpenApiMediaType content || !mediaType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)) continue;
                 content.Schema = new OpenApiSchema
                 {
                     Type = JsonSchemaType.String,

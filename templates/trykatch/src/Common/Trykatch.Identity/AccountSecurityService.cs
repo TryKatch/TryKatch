@@ -180,7 +180,7 @@ internal sealed class AccountSecurityService(
         database.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             await using IDbContextTransaction transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-            await database.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({actor.UserId.ToString()}, 734003))", cancellationToken);
+            await database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({actor.UserId.ToString()}, 734003))", cancellationToken);
             database.ChangeTracker.Clear();
             try
             {

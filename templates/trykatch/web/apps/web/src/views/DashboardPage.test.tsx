@@ -13,6 +13,7 @@ const overview = vi.hoisted(() => ({
     targetDisplayName: 'A very long project name', actorDisplayName: 'Tenant Administrator',
     occurredAt: '2026-09-17T10:00:00Z' }],
 }))
+const moduleState = vi.hoisted(() => ({ projectsRouteInstalled: true }))
 
 vi.mock('@tanstack/react-query', async (original) => ({
   ...await original<typeof import('@tanstack/react-query')>(),
@@ -22,8 +23,16 @@ vi.mock('@tanstack/react-router', async (original) => ({
   ...await original<typeof import('@tanstack/react-router')>(),
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
 }))
+vi.mock('../modules', () => ({
+  workspaceModules: {
+    routesFor: () => moduleState.projectsRouteInstalled ? [{ id: 'projects.list' }] : [],
+  },
+}))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  moduleState.projectsRouteInstalled = true
+})
 
 describe('Dashboard activity layout', () => {
   it('owns its spacing without depending on the removed content-grid wrapper', () => {
@@ -31,9 +40,16 @@ describe('Dashboard activity layout', () => {
     const card = screen.getByRole('heading', { name: 'Recent activity' }).closest('.surface')
     expect(card).toHaveClass('workspace-activity-panel')
     expect(screen.getByText('Project created: A very long project name')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'New project' })).toHaveAttribute('href', '/projects')
     expect(styles).toMatch(/\.workspace-activity-panel\s*\{[^}]*overflow:\s*hidden/s)
     expect(styles).toMatch(/\.workspace-activity-panel\s*>\s*\.panel-title\s*\{[^}]*padding:\s*16px/s)
     expect(styles).toMatch(/\.workspace-activity-panel\s+\.activity-row\s*\{[^}]*padding:\s*14px\s+16px/s)
+  })
+
+  it('omits the project shortcut when the Projects route is not installed', () => {
+    moduleState.projectsRouteInstalled = false
+    render(<DashboardPage />)
+    expect(screen.queryByRole('link', { name: 'New project' })).not.toBeInTheDocument()
   })
 
   it('allows activity text to wrap without shrinking the status dot', () => {

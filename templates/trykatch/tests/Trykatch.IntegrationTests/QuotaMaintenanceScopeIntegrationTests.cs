@@ -73,7 +73,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
         await using (QuotaMaintenanceScope? scope = await fixture.OpenQuotaMaintenanceScopeAsync(user.OrganizationId))
         {
             scope.ShouldNotBeNull();
-            await scope.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlInterpolatedAsync(
+            await scope.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlAsync(
                 $"SELECT set_config('app.actor_id', {user.ActorId.ToString()}, true)");
             await Should.ThrowAsync<InvalidOperationException>(() => scope.ValidateAsync(CancellationToken.None));
         }

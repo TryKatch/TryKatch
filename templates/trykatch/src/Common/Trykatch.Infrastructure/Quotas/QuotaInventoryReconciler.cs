@@ -58,7 +58,7 @@ internal sealed class QuotaInventoryReconciler(QuotaMaintenanceScopeFactory scop
             if (committed < 0 || held < 0) return Unavailable("quota_usage_invalid");
             _ = checked(committed + held);
             int state = page.IsComplete ? (int)QuotaInventoryState.Complete : (int)QuotaInventoryState.Initializing;
-            await application.Database.ExecuteSqlInterpolatedAsync($"""
+            await application.Database.ExecuteSqlAsync($"""
                 INSERT INTO app.organization_quota_inventory
                     ("OrganizationId", "ResourceKey", "SourceKey", "SourceVersion", "Cursor", "State", "UpdatedAtUtc")
                 VALUES ({organizationId}, {resourceKey}, {source.SourceKey}, {source.SourceVersion}, {page.NextCursor}, {state}, {now})

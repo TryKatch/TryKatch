@@ -2,7 +2,9 @@
 
 > Start secure. Build freely.
 
-Trykatch is an Apache-2.0 enterprise application template for .NET 10, PostgreSQL, React, TanStack, Aspire, and OpenTelemetry.
+Trykatch is an Apache-2.0 enterprise application template for .NET 11, PostgreSQL, React, TanStack, Aspire, and OpenTelemetry.
+
+Generated AppHosts require the Aspire 17 CLI bundle. Each application pins Aspire CLI 17.0.0 in its local .NET tool manifest; run `dotnet tool restore` from the generated application root before starting it. No global Aspire CLI installation is needed.
 
 ## Install and create
 
@@ -33,6 +35,23 @@ The default output includes `web/apps/web`, the reusable `web/packages/ui` compo
 ```bash
 trykatch new Horizon --ui none
 ```
+
+To start from the same application foundation without enabled example business
+modules, select the minimal module profile:
+
+```bash
+trykatch new Katch --module-profile minimal
+cd Katch
+dotnet tool restore
+trykatch start
+```
+
+`dotnet new trykatch -n Katch --module-profile minimal` is also supported. The
+profile keeps the Projects, Documents, and Federation source and migration history
+available, but starts with no example module enabled in the backend, migrator, or
+React navigation. The workspace overview also omits the Projects shortcut until
+that module is installed. Use `trykatch module create` when you are ready to add
+your first capability. The default profile remains unchanged.
 
 Optional modules are enabled with `--email`, `--storage`, `--documents`, and `--images`.
 

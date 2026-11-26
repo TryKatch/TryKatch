@@ -62,12 +62,12 @@ internal sealed class ModuleWorkAdministration(
         await using ModuleWorkDbContext db = CreateContext();
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         string requestLock = "module-work-control/" + request.RequestId.ToString("N");
-        _ = await db.Database.ExecuteSqlInterpolatedAsync(
+        _ = await db.Database.ExecuteSqlAsync(
             $"SELECT pg_advisory_xact_lock(hashtextextended({requestLock}, 0))", cancellationToken);
         access = await accessDirectory.ResolveEffectiveAccessAsync(actorId, cancellationToken);
         if (!access.HasPermission(PlatformPermissions.JobsManage))
             return Result.Failure<ModuleWorkActionReceipt>("forbidden", "Current platform access cannot control module work.");
-        ModuleWorkItem? work = await db.ModuleWorkItems.FromSqlInterpolated($"""
+        ModuleWorkItem? work = await db.ModuleWorkItems.FromSql($"""
             SELECT * FROM infrastructure.module_work_items WHERE "Id"={workId} FOR UPDATE
             """).SingleOrDefaultAsync(cancellationToken);
         if (work is null) return Result.Failure<ModuleWorkActionReceipt>("not_found", "Work was not found.");

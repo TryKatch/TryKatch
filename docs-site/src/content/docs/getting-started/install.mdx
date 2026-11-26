@@ -9,13 +9,13 @@ Use the copy button on any command block to copy it. A checkmark and “Copied!�
 
 ## Prerequisites
 
-Install the .NET 10 SDK and a Docker-compatible container runtime before starting a generated application. Use Docker Desktop on macOS or Windows, or Docker Engine on Linux, and confirm that the daemon is available:
+Install the .NET 11 SDK and a Docker-compatible container runtime before starting a generated application. The generated tool manifest pins the required Aspire CLI bundle to 17.0.0; `dotnet tool restore` installs it locally, and `trykatch setup` restores the generated application's .NET dependencies. Use Docker Desktop on macOS or Windows, or Docker Engine on Linux, and confirm that the daemon is available:
 
 ```bash
 docker info
 ```
 
-Docker is required for PostgreSQL and the complete local observability pipeline: the OpenTelemetry Collector, Prometheus, Loki, Tempo, and Grafana. The AppHost creates and coordinates these containers; installing only the Docker client is not sufficient—the Docker daemon must be running. Aspire 13.5 requires Docker CLI 25.0 or newer, so also confirm the client version with `docker version`.
+Docker is required for PostgreSQL and the complete local observability pipeline: the OpenTelemetry Collector, Prometheus, Loki, Tempo, and Grafana. The AppHost creates and coordinates these containers; installing only the Docker client is not sufficient—the Docker daemon must be running. Aspire 17 requires Docker CLI 25.0 or newer, so also confirm the client version with `docker version`.
 
 With storage enabled (the default), Aspire also starts a local RustFS 1.0.3 S3-compatible container for document uploads. The Apache-2.0 image is pinned to `rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b`; this is the development service, while production continues to use externally configured S3-compatible storage. Generate with `--storage false` only when you intentionally do not want the storage adapters or RustFS. Updating an installed CLI does not rewrite an older application's AppHost or migrate its objects; follow the [Documents upgrade guidance](/modules/documents/) when changing an existing application's local storage service.
 
@@ -142,6 +142,22 @@ React is included by default. Generate a backend-only solution only when that is
 trykatch new Horizon --ui none
 ```
 
+The default module profile enables the Projects and Documents reference modules.
+To keep their source and migration history while starting with no example module
+enabled, use the minimal profile:
+
+```bash
+trykatch new Katch --module-profile minimal
+cd Katch
+trykatch start
+```
+
+Add your first capability later with `trykatch module create` from the generated
+application root. The same option works with backend-only output.
+The first database migration still creates the historical `app.projects` table;
+minimal output keeps forced row-level security and grants no organization-runtime
+access to it. Enabling Projects later reuses that table and its retained data.
+
 Optional free modules are disabled by default:
 
 ```bash
@@ -179,6 +195,7 @@ trykatch module help
 Before the first run, use the local onboarding commands from the application root:
 
 ```bash
+dotnet tool restore
 trykatch setup
 trykatch doctor
 trykatch start

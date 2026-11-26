@@ -44,20 +44,20 @@ internal sealed class ApplicationDevelopment(
         string web = Path.Combine(location.WorkingDirectory, "web");
         if (HasWeb(location) && !await RestoreAsync(web, "Installing pinned frontend dependencies", "corepack",
                 ["pnpm", "install", "--frozen-lockfile"], cancellationToken)) return 2;
-        await output.WriteLineAsync("Dependencies are ready. No secrets, certificates or databases were changed.");
-        await output.WriteLineAsync("Next: 'trykatch doctor', then 'trykatch start'.");
+        await output.WriteLineAsync("Dependencies are ready. No secrets, certificates or databases were changed.", cancellationToken);
+        await output.WriteLineAsync("Next: 'trykatch doctor', then 'trykatch start'.", cancellationToken);
         return 0;
     }
 
     public async Task<int> StatusAsync(string root, string? apiUrl, CancellationToken cancellationToken)
     {
         ApplicationLocation location = ApplicationLocation.Discover(root);
-        await output.WriteLineAsync($"Application: {location.Name}");
-        await output.WriteLineAsync($"Surface: {(HasWeb(location) ? "backend + React" : "backend only")}");
+        await output.WriteLineAsync($"Application: {location.Name}", cancellationToken);
+        await output.WriteLineAsync($"Surface: {(HasWeb(location) ? "backend + React" : "backend only")}", cancellationToken);
         if (apiUrl is null)
         {
-            await output.WriteLineAsync("Runtime health: unknown (no API URL supplied). This is workspace configuration, not proof the app is running.");
-            await output.WriteLineAsync("Use 'trykatch status --api-url <loopback API URL from Aspire>' to check live and ready health.");
+            await output.WriteLineAsync("Runtime health: unknown (no API URL supplied). This is workspace configuration, not proof the app is running.", cancellationToken);
+            await output.WriteLineAsync("Use 'trykatch status --api-url <loopback API URL from Aspire>' to check live and ready health.", cancellationToken);
             return 0;
         }
         Uri origin = ValidateLocalApiUrl(apiUrl);
@@ -71,12 +71,12 @@ internal sealed class ApplicationDevelopment(
                 using HttpResponseMessage response = await http.GetAsync(new Uri(origin, endpoint), HttpCompletionOption.ResponseHeadersRead, timeout.Token);
                 bool passed = response.StatusCode == HttpStatusCode.OK;
                 healthy &= passed;
-                await output.WriteLineAsync($"{endpoint}: {(passed ? "healthy" : "unhealthy")} (HTTP {(int)response.StatusCode})");
+                await output.WriteLineAsync($"{endpoint}: {(passed ? "healthy" : "unhealthy")} (HTTP {(int)response.StatusCode})", cancellationToken);
             }
             catch (Exception exception) when (exception is HttpRequestException || exception is OperationCanceledException && !cancellationToken.IsCancellationRequested)
             {
                 healthy = false;
-                await output.WriteLineAsync($"{endpoint}: unavailable. Confirm the Aspire API URL and trust your local HTTPS certificate.");
+                await output.WriteLineAsync($"{endpoint}: unavailable. Confirm the Aspire API URL and trust your local HTTPS certificate.", cancellationToken);
             }
         }
         return healthy ? 0 : 2;
@@ -108,7 +108,7 @@ internal sealed class ApplicationDevelopment(
         List<DevelopmentCheck> checks =
         [
             CheckCommand(root, ".NET SDK", "dotnet", ["--version"], value => Major(value) >= 10,
-                "Install the .NET 10 SDK and check the SDK selected by global.json.", cancellationToken)
+                "Install the .NET 11 SDK and check the SDK selected by global.json.", cancellationToken)
         ];
         if (!HasWeb(location)) return checks;
         using JsonDocument package = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "web", "package.json")));
@@ -149,10 +149,10 @@ internal sealed class ApplicationDevelopment(
 
     private async Task<bool> RestoreAsync(string root, string label, string executable, string[] arguments, CancellationToken cancellationToken)
     {
-        await output.WriteLineAsync(label + "...");
+        await output.WriteLineAsync(label + "...", cancellationToken);
         WorkspaceCommandResult result = await Task.Run(() => runner.Run(executable, arguments, root, cancellationToken), cancellationToken);
         if (result.ExitCode == 0) return true;
-        await output.WriteLineAsync($"{label} failed (exit {result.ExitCode}). Run '{executable} {string.Join(' ', arguments)}' from the application to inspect dependency errors.");
+        await output.WriteLineAsync($"{label} failed (exit {result.ExitCode}). Run '{executable} {string.Join(' ', arguments)}' from the application to inspect dependency errors.", cancellationToken);
         return false;
     }
 

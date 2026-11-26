@@ -24,7 +24,7 @@ namespace Trykatch.IntegrationTests;
 public sealed class RealtimePublicationIntegrationTests
 {
     private const string PostgresImage =
-        "postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f";
+        "postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67";
     private static readonly Guid SystemActorId = Guid.Parse("33333333-3333-4333-8333-333333333333");
     private const string PolicyKey = "projects.realtime-test-audience";
     private const string OperationKey = "projects.realtime-test";
@@ -108,7 +108,7 @@ public sealed class RealtimePublicationIntegrationTests
         }
         await using (PublicationScope change = await fixture.BeginPublicationScopeAsync(organizationId))
         {
-            await change.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlInterpolatedAsync(
+            await change.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlAsync(
                 $"DELETE FROM app.projects WHERE \"Id\" = {visibleProject}");
             await change.Transaction.CommitAsync(CancellationToken.None);
         }
@@ -317,7 +317,7 @@ public sealed class RealtimePublicationIntegrationTests
 
             string wrongActor = Guid.NewGuid().ToString();
             await read.Services.GetRequiredService<OrganizationControlPlaneDbContext>().Database
-                .ExecuteSqlInterpolatedAsync($"SELECT set_config('app.actor_id', {wrongActor}, true)");
+                .ExecuteSqlAsync($"SELECT set_config('app.actor_id', {wrongActor}, true)");
             await Should.ThrowAsync<InvalidOperationException>(() => history.ReadPageAsync(0));
             await Should.ThrowAsync<InvalidOperationException>(() => recipient.ReadPageAsync(0));
         }
@@ -393,7 +393,7 @@ public sealed class RealtimePublicationIntegrationTests
         {
             string wrongOrganization = Guid.NewGuid().ToString();
             await publish.Services.GetRequiredService<OrganizationControlPlaneDbContext>().Database
-                .ExecuteSqlInterpolatedAsync($"SELECT set_config('app.organization_id', {wrongOrganization}, true)");
+                .ExecuteSqlAsync($"SELECT set_config('app.organization_id', {wrongOrganization}, true)");
         }
 
         ModuleRealtimeNotification notification = testCase switch
@@ -417,7 +417,7 @@ public sealed class RealtimePublicationIntegrationTests
 
     private static async Task InsertProjectAsync(PublicationScope scope, Guid organizationId, string name, Guid? projectId = null)
     {
-        await scope.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlInterpolatedAsync($"""
+        await scope.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlAsync($"""
             INSERT INTO app.projects ("Id", "OrganizationId", "Name", "Description", "CreatedBy", "CreatedAt")
             VALUES ({projectId ?? Guid.NewGuid()}, {organizationId}, {name}, 'Realtime transaction fixture', {SystemActorId}, CURRENT_TIMESTAMP)
             """);

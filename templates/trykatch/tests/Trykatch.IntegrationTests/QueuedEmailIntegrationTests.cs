@@ -71,7 +71,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
             ApplicationDbContext application = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             await OrganizationTransactionEnlistment.EnlistAsync(scope.ServiceProvider.GetRequiredService<OrganizationControlPlaneDbContext>(),
                 application, seed.OrganizationId, seed.ActorId, CancellationToken.None);
-            await application.Database.ExecuteSqlInterpolatedAsync($"UPDATE app.probe_records SET \"Marker\"={"email-transaction"} WHERE \"Id\"={seed.PayloadRecordId}");
+            await application.Database.ExecuteSqlAsync($"UPDATE app.probe_records SET \"Marker\"={"email-transaction"} WHERE \"Id\"={seed.PayloadRecordId}");
             OrganizationControlPlaneDbContext control = scope.ServiceProvider.GetRequiredService<OrganizationControlPlaneDbContext>();
             control.AuditIntents.Add(AuditIntent.Create(Guid.CreateVersion7(), seed.OrganizationId, seed.ActorId, "email.fixture",
                 new AuditTarget("probe", seed.PayloadRecordId.ToString(), "Email fixture"),

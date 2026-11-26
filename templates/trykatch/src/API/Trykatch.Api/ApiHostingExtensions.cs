@@ -38,6 +38,7 @@ internal static class ApiHostingExtensions
         });
 
         bool isOpenApiGeneration = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
+        RuntimeDatabaseConnectionContract.ApplySeparateRuntimePasswords(builder.Configuration);
         if (isOpenApiGeneration)
         {
             builder.Configuration["ConnectionStrings:trykatchdb"] =
@@ -86,6 +87,7 @@ internal static class ApiHostingExtensions
                 parts.FeatureProviders.Add(new ModuleControllerFeatureProvider(moduleCatalog.ModuleIds)));
         builder.Services.AddOpenApi(options =>
         {
+            options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_1;
             options.AddDocumentTransformer<ModuleOpenApiDocumentTransformer>();
             options.AddOperationTransformer<ModuleOpenApiOperationTransformer>();
         });

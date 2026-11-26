@@ -585,7 +585,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
             {
                 OrganizationControlPlaneDbContext control = scope.ServiceProvider.GetRequiredService<OrganizationControlPlaneDbContext>();
                 enlistment = await control.Database.BeginTransactionAsync();
-                await control.Database.ExecuteSqlInterpolatedAsync(
+                await control.Database.ExecuteSqlAsync(
                     $"SELECT set_config('app.organization_id', {user.OrganizationId.ToString()}, true), set_config('app.actor_id', {user.ActorId.ToString()}, true)");
                 OrganizationAccess access = (await scope.ServiceProvider.GetRequiredService<IOrganizationAccessResolver>()
                     .ResolveAsync(user.ActorId, user.OrganizationId, CancellationToken.None))!;

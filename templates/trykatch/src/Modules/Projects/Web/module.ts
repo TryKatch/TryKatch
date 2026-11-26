@@ -1,5 +1,4 @@
 import { defineWebModule } from '@trykatch/module-sdk'
-import { getProjectsListQueryKey } from '@trykatch/api-client'
 import { FolderKanban } from 'lucide-react'
 import { lazy } from 'react'
 
@@ -40,7 +39,7 @@ export const projectsModule = defineWebModule({
       },
       matches: (notification) => notification.moduleId === 'projects'
         && notification.eventKey === 'projects.created' && notification.schemaVersion === 1,
-      queryKeys: [getProjectsListQueryKey({ page: 1, pageSize: 100, lifecycle: 'active' }), ['projects']],
+      queryKeys: [['/api/v1/projects'], ['projects']],
     },
   ],
 })

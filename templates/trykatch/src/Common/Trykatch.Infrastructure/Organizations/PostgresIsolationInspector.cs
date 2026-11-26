@@ -32,6 +32,14 @@ public static class PostgresIsolationInspector
         CancellationToken cancellationToken = default) =>
         await InspectAsync(connectionString, runtimeRoles.All, modules, cancellationToken);
 
+    /// <summary>Inspects through an already-open connection owned by the caller.</summary>
+    public static async Task<PostgresIsolationInspection> InspectAsync(
+        NpgsqlConnection connection,
+        RuntimeDatabaseRoles runtimeRoles,
+        IEnumerable<ModuleDescriptor> modules,
+        CancellationToken cancellationToken = default) =>
+        await InspectAsync(connection, runtimeRoles.All, modules, cancellationToken);
+
     private static async Task<PostgresIsolationInspection> InspectAsync(
         string connectionString,
         IEnumerable<(RuntimeDatabaseRoleKind Kind, string Name)> runtimeRoles,
@@ -39,6 +47,20 @@ public static class PostgresIsolationInspector
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        await using NpgsqlConnection connection = new(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        return await InspectAsync(connection, runtimeRoles, modules, cancellationToken);
+    }
+
+    private static async Task<PostgresIsolationInspection> InspectAsync(
+        NpgsqlConnection connection,
+        IEnumerable<(RuntimeDatabaseRoleKind Kind, string Name)> runtimeRoles,
+        IEnumerable<ModuleDescriptor> modules,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        if (connection.State != System.Data.ConnectionState.Open)
+            throw new InvalidOperationException("The PostgreSQL connection must already be open.");
         ArgumentNullException.ThrowIfNull(modules);
         (RuntimeDatabaseRoleKind Kind, string Name)[] roles = runtimeRoles.ToArray();
         if (roles.Length == 0 || roles.Any(role => string.IsNullOrWhiteSpace(role.Name)))
@@ -57,9 +79,6 @@ public static class PostgresIsolationInspector
             .ToArray();
         List<string> errors = [];
 
-        await using NpgsqlConnection connection = new(connectionString);
-        await connection.OpenAsync(cancellationToken);
-
         IReadOnlyList<DataResourceDescriptor> retained = await InstalledSchemaCatalog.ReadAsync(connection, cancellationToken);
         Dictionary<string, DataResourceDescriptor> declarations = new(StringComparer.Ordinal);
         foreach (DataResourceDescriptor resource in retained.Concat(resources))
@@ -73,6 +92,11 @@ public static class PostgresIsolationInspector
         resources = declarations.Values.ToArray();
 
         Dictionary<string, RelationPolicy> relations = await ReadRelationsAsync(connection, cancellationToken);
+        // Historical EF migrations create this table even on a fresh deployment without Projects.
+        // Check its policy without adding it to the declarations used to grant runtime access.
+        if (relations.ContainsKey("app.projects") && !declarations.ContainsKey("app.projects"))
+            resources = [.. resources, new("projects", "app", "projects", ModuleDataOwnership.Organization,
+                IsolationPolicy: "projects_organization_isolation")];
         IReadOnlyList<SequenceInfo> sequences = await ReadSequencesAsync(connection, cancellationToken);
         IReadOnlyList<string> functions = await ReadUserFunctionsAsync(connection, cancellationToken);
         IReadOnlyList<string> schemas = await ReadUserSchemasAsync(connection, cancellationToken);

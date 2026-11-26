@@ -1079,11 +1079,8 @@ public sealed partial class ModuleWorkspace
             : string.Empty;
         if (!string.IsNullOrWhiteSpace(applicationNamespace))
         {
-            contents = contents.Replace(applicationNamespace, templateNamespace, StringComparison.Ordinal);
-            contents = contents.Replace(
-                applicationNamespace.ToLowerInvariant(),
-                templateNpmScope,
-                StringComparison.Ordinal);
+            contents = NormalizeApplicationToken(contents, applicationNamespace, templateNamespace);
+            contents = NormalizeApplicationToken(contents, applicationNamespace.ToLowerInvariant(), templateNpmScope);
 
             string webSpecifier = manifest.Entrypoints.Web.Specifier;
             int scopeEnd = webSpecifier.IndexOf('/', StringComparison.Ordinal);
@@ -1099,6 +1096,19 @@ public sealed partial class ModuleWorkspace
             }
         }
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contents))).ToLowerInvariant();
+    }
+
+    private static string NormalizeApplicationToken(string contents, string token, string canonical)
+    {
+        if (token == canonical) return contents;
+        if (!canonical.Contains(token, StringComparison.OrdinalIgnoreCase))
+            return contents.Replace(token, canonical, StringComparison.Ordinal);
+
+        // Names such as Katch overlap the unchanged npm scope and the normalized .NET namespace.
+        // Match the entire canonical spelling first to preserve those existing occurrences.
+        string pattern = $"(?i:{Regex.Escape(canonical)})|{Regex.Escape(token)}";
+        return Regex.Replace(contents, pattern, match => match.Value == token ? canonical : match.Value,
+            RegexOptions.CultureInvariant);
     }
 
     [GeneratedRegex("^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", RegexOptions.CultureInvariant)]

@@ -316,7 +316,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
                 ledger.RecordRemovalAsync(ProbeUsageResource, source.EffectId, 8, Guid.CreateVersion7()));
         }
         await using MutationScope scope = await ExecutionFixture.BeginUploadMutationScopeAsync(environment.Services, user);
-        await scope.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlInterpolatedAsync(
+        await scope.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlAsync(
             $"SELECT set_config('app.actor_id', {Guid.CreateVersion7().ToString()}, true)");
         await Should.ThrowAsync<InvalidOperationException>(() => scope.Services.GetRequiredService<IOrganizationUsageLedger>()
             .RecordRemovalAsync(ProbeUsageResource, source.EffectId, 8, Guid.CreateVersion7()));

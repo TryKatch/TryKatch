@@ -11,6 +11,44 @@ public static class RuntimeDatabaseConnectionContract
     public const string Outbox = "trykatch-outbox";
     public const string WorkCoordinator = "trykatch-work";
 
+    private static readonly (string Name, string PasswordSetting)[] RuntimePasswordSettings =
+    [
+        (Organization, "Database:OrganizationRuntimePassword"),
+        (Platform, "Database:PlatformRuntimePassword"),
+        (Identity, "Database:IdentityRuntimePassword"),
+        (Outbox, "Database:OutboxWorkerPassword"),
+        (WorkCoordinator, "Database:WorkCoordinatorPassword")
+    ];
+
+    public static void ApplySeparateRuntimePasswords(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        foreach ((string name, string passwordSetting) in RuntimePasswordSettings)
+        {
+            if (configuration.GetConnectionString(name) is null || configuration[passwordSetting] is null)
+                continue;
+
+            configuration[$"ConnectionStrings:{name}"] = ResolveConnectionString(
+                configuration,
+                name,
+                passwordSetting);
+        }
+    }
+
+    public static string ResolveConnectionString(
+        IConfiguration configuration,
+        string name,
+        string passwordSetting)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        string connectionString = configuration.GetConnectionString(name)
+            ?? throw new InvalidOperationException($"Connection string '{name}' is required.");
+        string? password = configuration[passwordSetting];
+        return password is null
+            ? connectionString
+            : new NpgsqlConnectionStringBuilder(connectionString) { Password = password }.ConnectionString;
+    }
+
     public static void Validate(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);

@@ -3,12 +3,16 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { customFetch, getWorkspaceCurrentQueryKey } from '@trykatch/api-client'
 import { ModuleFeatureProvider, ModuleProvider, type FeatureAvailabilityState, type OrganizationFeatureSnapshot } from '@trykatch/module-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { workspaceModules } from '../modules'
+import { testWorkspaceModules as workspaceModules } from '../testWorkspaceModules'
 import { ModuleRouteBoundary } from '../features/availability/ModuleRouteBoundary'
 import { ProjectsPage } from '../../../../../src/Modules/Projects/Web/ProjectsPage'
 
 vi.mock('@trykatch/api-client', async (original) => ({
   ...await original<typeof import('@trykatch/api-client')>(), customFetch: vi.fn(),
+}))
+
+vi.mock('../modules', async () => ({
+  workspaceModules: (await import('../testWorkspaceModules')).testWorkspaceModules,
 }))
 
 const project = {

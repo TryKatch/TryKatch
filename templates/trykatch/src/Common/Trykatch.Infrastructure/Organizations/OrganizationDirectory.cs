@@ -45,7 +45,7 @@ internal sealed class OrganizationDirectory(
         if (dbContext.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Organization creation requires a platform transaction.");
 
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+        await dbContext.Database.ExecuteSqlAsync(
             $"SELECT pg_advisory_xact_lock(hashtextextended({slug}, 20260911))",
             cancellationToken);
 
@@ -85,7 +85,7 @@ internal sealed class OrganizationDirectory(
     {
         if (dbContext.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Organization provisioning recovery requires a platform transaction.");
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+        await dbContext.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {organizationId.ToString()}, true)", cancellationToken);
         return await dbContext.Roles
             .Where(role => role.OrganizationId == organizationId && role.IsSystem && role.Name == "Owner")
@@ -100,7 +100,7 @@ internal sealed class OrganizationDirectory(
     {
         if (dbContext.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Organization provisioning requires a platform transaction.");
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+        await dbContext.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {organizationId.ToString()}, true)", cancellationToken);
         Role owner = Role.Create(organizationId, "Owner", "Full control of this workspace, including access management.", isSystem: true);
         owner.SetPermissions(permissionCatalog.Keys);

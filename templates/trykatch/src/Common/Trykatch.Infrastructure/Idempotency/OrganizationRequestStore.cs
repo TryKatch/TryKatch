@@ -98,7 +98,7 @@ internal sealed class OrganizationRequestStore(
         DateTimeOffset cutoff = completed - current.Request.Policy.ReplayLifetime;
         MutationRequest request = current.Request;
         MutationAuthority authority = current.Authority;
-        int affected = await application.Database.ExecuteSqlInterpolatedAsync($"""
+        int affected = await application.Database.ExecuteSqlAsync($"""
             INSERT INTO app.mutation_receipts
               ("OrganizationId", "ActorId", "ModuleId", "OperationId", "KeyHash", "RequestHash",
                "StatusCode", "ContentType", "Location", "Body", "ResourceKey", "ResourceId", "CompletedAtUtc", "ExpiresAtUtc")

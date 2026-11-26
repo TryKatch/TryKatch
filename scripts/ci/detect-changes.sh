@@ -59,7 +59,7 @@ classify_path() {
     scripts/test-observability.sh|templates/trykatch/scripts/test-observability.sh|templates/trykatch/deploy/observability/*)
       observability=true
       ;;
-    templates/trykatch/deploy/postgres/*)
+    templates/trykatch/deploy/postgres/*|scripts/test-postgres-upgrade.sh)
       deployment=true
       ;;
     scripts/test-migrator.sh|templates/trykatch/scripts/test-proxy-headers.sh)

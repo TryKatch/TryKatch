@@ -196,7 +196,7 @@ internal sealed class ModuleScheduleRegistry
         ModuleRecurringTarget target = registration.Target;
         string lockKey = string.Join('/', "module-schedule", registration.Schedule.ScheduleKey,
             target.TargetKey, target.OrganizationId.ToString("N"));
-        _ = await db.Database.ExecuteSqlInterpolatedAsync(
+        _ = await db.Database.ExecuteSqlAsync(
             $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))", cancellationToken);
 
         ModuleScheduleCursor? cursor = await db.Set<ModuleScheduleCursor>()

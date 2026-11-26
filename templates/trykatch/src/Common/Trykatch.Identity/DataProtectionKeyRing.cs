@@ -44,7 +44,7 @@ internal static class DataProtectionKeyRing
             foreach (string name in new[] { "creationDate", "activationDate", "expirationDate" })
                 _ = XmlConvert.ToDateTimeOffset((string?)element.Element(name) ?? "");
             XElement? descriptor = element.Element("descriptor");
-            if ((string?)descriptor?.Attribute("deserializerType") != typeof(AuthenticatedEncryptorDescriptorDeserializer).AssemblyQualifiedName) throw Invalid();
+            if (!IsSupportedKeyType((string?)descriptor?.Attribute("deserializerType"), typeof(AuthenticatedEncryptorDescriptorDeserializer))) throw Invalid();
             XElement inner = descriptor!.Element("descriptor") ?? throw Invalid();
             XElement[] encrypted = inner.Descendants(EncryptionNamespace + "encryptedSecret").ToArray();
             XElement[] plaintext = inner.Descendants().Where(value => value.Attribute(EncryptionNamespace + "requiresEncryption") is { } marker && XmlConvert.ToBoolean(marker.Value)).ToArray();
@@ -52,9 +52,19 @@ internal static class DataProtectionKeyRing
             if (encrypted.Length + plaintext.Length != 1 || (requireEncrypted && plaintext.Length != 0)) throw Invalid();
             if (plaintext.Length == 1 && (plaintext[0].Name != "masterKey" || plaintext[0].Parent != inner)) throw Invalid();
             if (encrypted.Length == 1 && (encrypted[0].Parent != inner || encrypted[0].Elements().Count() != 1 ||
-                (string?)encrypted[0].Attribute("decryptorType") != typeof(EncryptedXmlDecryptor).AssemblyQualifiedName)) throw Invalid();
+                !IsSupportedKeyType((string?)encrypted[0].Attribute("decryptorType"), typeof(EncryptedXmlDecryptor)))) throw Invalid();
         }
         return ids;
+    }
+
+    private static bool IsSupportedKeyType(string? storedName, Type expected)
+    {
+        string current = expected.AssemblyQualifiedName!;
+        if (storedName == current) return true;
+        // Existing .NET 10 rings store the framework version as part of the exact type identity.
+        var previousAssembly = expected.Assembly.GetName();
+        previousAssembly.Version = new Version(10, 0, 0, 0);
+        return storedName == $"{expected.FullName}, {previousAssembly.FullName}";
     }
 
     internal static void Verify(IKeyManager manager, IReadOnlySet<Guid> expected)

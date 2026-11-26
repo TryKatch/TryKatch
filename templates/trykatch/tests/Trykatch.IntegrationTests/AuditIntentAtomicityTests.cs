@@ -40,7 +40,7 @@ namespace Trykatch.IntegrationTests;
 [TestCategory("Integration")]
 public sealed class AuditIntentAtomicityTests
 {
-    private const string PostgresImage = "postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f";
+    private const string PostgresImage = "postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67";
 
     [TestMethod]
     public async Task ProductionAdministrationHostStartsAndResolvesServicesWithoutDatabaseAccess()
@@ -75,7 +75,7 @@ public sealed class AuditIntentAtomicityTests
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         response.Headers.GetValues("X-Atomic-Success").ShouldBe(["true"]);
-        Guid roleId = JsonDocument.Parse(body).RootElement.GetProperty("id").GetGuid();
+        Guid roleId = JsonElement.Parse(body).GetProperty("id").GetGuid();
         Guid eventId = await database.FindIntentIdAsync(roleId);
         (await CountAsync(database.OwnerConnection, "platform.roles", roleId)).ShouldBe(1);
         (await CountAsync(database.OwnerConnection, "platform.audit_intents", eventId)).ShouldBe(1);
@@ -116,7 +116,7 @@ public sealed class AuditIntentAtomicityTests
         using IHost host = await database.StartAdministrationHostAsync(actor);
         using HttpClient client = host.GetTestClient();
         using HttpResponseMessage response = await client.PostAsync("/test/roles", content: null);
-        Guid roleId = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+        Guid roleId = JsonElement.Parse(await response.Content.ReadAsStringAsync()).GetProperty("id").GetGuid();
         Guid eventId = await database.FindIntentIdAsync(roleId);
         foreach (string sql in new[]
                  {
@@ -331,7 +331,7 @@ public sealed class AuditIntentAtomicityTests
         application.OutboxMessages.Add(message);
         await control.SaveChangesAsync();
         await application.SaveChangesAsync();
-        await application.Database.ExecuteSqlInterpolatedAsync($"""
+        await application.Database.ExecuteSqlAsync($"""
             INSERT INTO platform.test_deferred_commit ("Id", "ParentId")
             VALUES ({Guid.CreateVersion7()}, {Guid.CreateVersion7()})
             """);
@@ -510,7 +510,7 @@ public sealed class AuditIntentAtomicityTests
                             if (failure == "commit")
                             {
                                 OrganizationControlPlaneDbContext control = context.RequestServices.GetRequiredService<OrganizationControlPlaneDbContext>();
-                                await control.Database.ExecuteSqlInterpolatedAsync($"""
+                                await control.Database.ExecuteSqlAsync($"""
                                     INSERT INTO platform.test_deferred_commit ("Id", "ParentId")
                                     VALUES ({Guid.CreateVersion7()}, {Guid.CreateVersion7()})
                                     """, context.RequestAborted);
@@ -536,7 +536,7 @@ public sealed class AuditIntentAtomicityTests
                                 .EnlistRollback(cancellationToken => storage.DeleteAsync(objectKey, cancellationToken));
                             OrganizationControlPlaneDbContext control = context.RequestServices
                                 .GetRequiredService<OrganizationControlPlaneDbContext>();
-                            await control.Database.ExecuteSqlInterpolatedAsync($"""
+                            await control.Database.ExecuteSqlAsync($"""
                                 INSERT INTO platform.test_deferred_commit ("Id", "ParentId")
                                 VALUES ({Guid.CreateVersion7()}, {Guid.CreateVersion7()})
                                 """, context.RequestAborted);

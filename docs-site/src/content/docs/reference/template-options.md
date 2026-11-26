@@ -8,6 +8,8 @@ description: Reference the generated UI and optional adapters available from dot
 | `--display-name "Kamenta"` | project name (`-n`) | Overrides the customer-facing UI and email brand independently of the technical project name. |
 | `--ui react` | enabled | Generates the React, TanStack, Vite, owned UI, and API-client workspace. |
 | `--ui none` | disabled | Generates the backend without the web workspace. |
+| `--module-profile full` | default | Enables the Projects and Documents reference modules. |
+| `--module-profile minimal` | opt-in | Keeps reference module source and migration history, but starts with no example module enabled. |
 | `--email true` | disabled | Adds MailKit SMTP and a Mailpit development resource. |
 | `--storage true` | enabled | Runs a private RustFS 1.0.3 resource in local Aspire development and adds a provider-neutral S3-compatible adapter. Use `--storage false` for filesystem-backed local storage. |
 | `--documents true` | disabled | Adds Open XML SDK and PDFsharp/MigraDoc adapters. |

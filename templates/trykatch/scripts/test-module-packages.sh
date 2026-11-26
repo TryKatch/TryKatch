@@ -24,14 +24,14 @@ for manifest in "${module_manifests[@]}"; do
   entries="$(unzip -Z1 "$package")"
 
   for layer in Domain Application IntegrationEvents Presentation Infrastructure; do
-    expected="lib/net10.0/Trykatch.Modules.$module.$layer.dll"
+    expected="lib/net11.0/Trykatch.Modules.$module.$layer.dll"
     if ! grep -Fxq "$expected" <<<"$entries"; then
       echo "Composite module package is missing $expected" >&2
       exit 1
     fi
   done
 
-  unexpected="$(grep -E '^lib/net10\.0/Trykatch\.Modules\..*\.dll$' <<<"$entries" | grep -v -E "^lib/net10\.0/Trykatch\.Modules\.$module\.(Domain|Application|IntegrationEvents|Presentation|Infrastructure)\.dll$" || true)"
+  unexpected="$(grep -E '^lib/net11\.0/Trykatch\.Modules\..*\.dll$' <<<"$entries" | grep -v -E "^lib/net11\.0/Trykatch\.Modules\.$module\.(Domain|Application|IntegrationEvents|Presentation|Infrastructure)\.dll$" || true)"
   if [[ -n "$unexpected" ]]; then
     echo "Composite module package contains assemblies outside the $module boundary:" >&2
     echo "$unexpected" >&2
@@ -44,7 +44,7 @@ for manifest in "${module_manifests[@]}"; do
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

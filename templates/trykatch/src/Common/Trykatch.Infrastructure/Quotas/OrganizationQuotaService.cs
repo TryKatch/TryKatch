@@ -121,14 +121,14 @@ internal sealed partial class OrganizationQuotaService(
                 EffectKind = QuotaReservationEffectKind.TransactionOnly, State = ModuleQuotaReservationState.Reserved,
                 CreatedAtUtc = now, ExpiresAtUtc = now + ReservationLifetime
             };
-            await application.Database.ExecuteSqlInterpolatedAsync($"""
+            await application.Database.ExecuteSqlAsync($"""
                 INSERT INTO app.organization_quota_reservations
                     ("OrganizationId", "Id", "ResourceKey", "ActorId", "Units", "OperationId", "EntitlementVersion",
                      "EffectKind", "State", "CreatedAtUtc", "ExpiresAtUtc", "ClosedAtUtc")
                 VALUES ({reservation.OrganizationId}, {reservation.Id}, {resourceKey}, {reservation.ActorId}, {units},
                         {operationId}, {projection.Version}, 1, 0, {now}, {reservation.ExpiresAtUtc}, NULL)
                 """, token);
-            await application.Database.ExecuteSqlInterpolatedAsync($"""
+            await application.Database.ExecuteSqlAsync($"""
                 INSERT INTO infrastructure.quota_maintenance_work
                     ("OrganizationId", "Id", "Kind", "ResourceKey", "ReservationId", "UploadOperationId", "State",
                      "DueAtUtc", "CreatedAtUtc", "Attempts", "LeaseId", "LeaseUntilUtc", "LastFailureCode")
@@ -195,7 +195,7 @@ internal sealed partial class OrganizationQuotaService(
             // One statement closes and charges the hold, including cancellation/error rollback.
             int changed = target == ModuleQuotaReservationState.Committed
                 ? await ledger.CommitReservationAsync(reservation, now, token)
-                : await application.Database.ExecuteSqlInterpolatedAsync($"""
+                : await application.Database.ExecuteSqlAsync($"""
                 UPDATE app.organization_quota_reservations SET "State" = {(int)target}, "ClosedAtUtc" = {now}
                 WHERE "OrganizationId" = {organization.OrganizationId} AND "Id" = {reservationId} AND "State" = 0
                 """, token);

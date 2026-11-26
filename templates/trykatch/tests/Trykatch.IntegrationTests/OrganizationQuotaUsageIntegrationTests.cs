@@ -70,7 +70,7 @@ public sealed partial class ModuleWorkExecutionIntegrationTests
         }
         ProjectsSeededUser framed = await fixture.SeedProjectsUserAsync([Permissions.OrganizationsRead]);
         await using MutationScope changed = await fixture.BeginMutationScopeAsync(framed);
-        await changed.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlInterpolatedAsync(
+        await changed.Services.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {Guid.NewGuid().ToString()}, true)");
         await Should.ThrowAsync<InvalidOperationException>(() => CreateUsageReader(changed).GetAsync());
         (await fixture.CountPublicationHeadersAsync(framed.OrganizationId)).ShouldBe(0);

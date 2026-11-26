@@ -66,7 +66,7 @@ internal sealed class TemplatePackageInstaller(
         if (isInteractive)
             await RenderProgressAsync("Uninstalling Trykatch template", uninstall, cancellationToken);
         else
-            await output.WriteLineAsync("Uninstalling Trykatch template...");
+            await output.WriteLineAsync("Uninstalling Trykatch template...", cancellationToken);
 
         TemplateEngineResult result = await uninstall;
         elapsed.Stop();
@@ -74,16 +74,16 @@ internal sealed class TemplatePackageInstaller(
         if (result.ExitCode != 0)
         {
             if (isInteractive)
-                await output.WriteLineAsync();
-            await error.WriteLineAsync("Could not uninstall the Trykatch template.");
-            await WriteFailureDetailsAsync(result);
+                await output.WriteLineAsync(cancellationToken);
+            await error.WriteLineAsync("Could not uninstall the Trykatch template.", cancellationToken);
+            await WriteFailureDetailsAsync(result, cancellationToken: cancellationToken);
             return result.ExitCode;
         }
 
         if (isInteractive)
-            await output.WriteAsync("\r");
-        await output.WriteLineAsync($"✓ Trykatch template uninstalled ({FormatElapsed(elapsed.Elapsed)}).");
-        await output.WriteLineAsync("  To remove the CLI too: dotnet tool uninstall --global Trykatch.Cli");
+            await output.WriteAsync("\r", cancellationToken);
+        await output.WriteLineAsync($"✓ Trykatch template uninstalled ({FormatElapsed(elapsed.Elapsed)}).", cancellationToken);
+        await output.WriteLineAsync("  To remove the CLI too: dotnet tool uninstall --global Trykatch.Cli", cancellationToken);
         return 0;
     }
 
@@ -99,7 +99,7 @@ internal sealed class TemplatePackageInstaller(
     {
         if (!SemanticVersion.IsMatch(version))
         {
-            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.33.");
+            await error.WriteLineAsync("error: --version requires a valid semantic version, for example 0.1.0-preview.33.", cancellationToken);
             return 1;
         }
 
@@ -107,8 +107,8 @@ internal sealed class TemplatePackageInstaller(
         if (skipIfAlreadyInstalled
             && await templateEngine.IsPackageInstalledAsync(packageId, version, cancellationToken))
         {
-            await output.WriteLineAsync($"✓ Trykatch template {version} is already installed; no update is required.");
-            await output.WriteLineAsync("  Next: trykatch new <name>");
+            await output.WriteLineAsync($"✓ Trykatch template {version} is already installed; no update is required.", cancellationToken);
+            await output.WriteLineAsync("  Next: trykatch new <name>", cancellationToken);
             return 0;
         }
 
@@ -119,7 +119,7 @@ internal sealed class TemplatePackageInstaller(
         if (isInteractive)
             await RenderProgressAsync(status, install, cancellationToken);
         else
-            await output.WriteLineAsync($"{status}...");
+            await output.WriteLineAsync($"{status}...", cancellationToken);
 
         TemplateEngineResult result = await install;
         elapsed.Stop();
@@ -127,23 +127,24 @@ internal sealed class TemplatePackageInstaller(
         if (result.ExitCode != 0)
         {
             if (isInteractive)
-                await output.WriteLineAsync();
-            await error.WriteLineAsync(failure);
-            await WriteFailureDetailsAsync(result, package, retryCommand);
+                await output.WriteLineAsync(cancellationToken);
+            await error.WriteLineAsync(failure, cancellationToken);
+            await WriteFailureDetailsAsync(result, package, retryCommand, cancellationToken);
             return result.ExitCode;
         }
 
         if (isInteractive)
-            await output.WriteAsync("\r");
-        await output.WriteLineAsync($"✓ {completion} ({FormatElapsed(elapsed.Elapsed)}).");
-        await output.WriteLineAsync("  Next: trykatch new <name>");
+            await output.WriteAsync("\r", cancellationToken);
+        await output.WriteLineAsync($"✓ {completion} ({FormatElapsed(elapsed.Elapsed)}).", cancellationToken);
+        await output.WriteLineAsync("  Next: trykatch new <name>", cancellationToken);
         return 0;
     }
 
     private async Task WriteFailureDetailsAsync(
         TemplateEngineResult result,
         string? package = null,
-        string? retryCommand = null)
+        string? retryCommand = null,
+        CancellationToken cancellationToken = default)
     {
         string[] diagnostics = new[] { result.StandardOutput, result.StandardError }
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -157,18 +158,18 @@ internal sealed class TemplatePackageInstaller(
             && retryCommand is not null
             && diagnostics.Any(IsUnexpectedNuGetDownloadTermination))
         {
-            await error.WriteLineAsync("  Reason: NuGet package download ended unexpectedly (unexpected EOF).");
-            await error.WriteLineAsync($"  Package: {package}");
-            await error.WriteLineAsync($"  Retry: {retryCommand}");
-            await error.WriteLineAsync("  If it continues:");
-            await error.WriteLineAsync("    dotnet nuget locals http-cache --clear");
-            await error.WriteLineAsync($"    {retryCommand}");
-            await error.WriteLineAsync("  Retrying restores the template if the .NET engine removed the previous copy.");
+            await error.WriteLineAsync("  Reason: NuGet package download ended unexpectedly (unexpected EOF).", cancellationToken);
+            await error.WriteLineAsync($"  Package: {package}", cancellationToken);
+            await error.WriteLineAsync($"  Retry: {retryCommand}", cancellationToken);
+            await error.WriteLineAsync("  If it continues:", cancellationToken);
+            await error.WriteLineAsync("    dotnet nuget locals http-cache --clear", cancellationToken);
+            await error.WriteLineAsync($"    {retryCommand}", cancellationToken);
+            await error.WriteLineAsync("  Retrying restores the template if the .NET engine removed the previous copy.", cancellationToken);
             return;
         }
 
         foreach (string diagnostic in diagnostics)
-            await error.WriteLineAsync($"  {diagnostic}");
+            await error.WriteLineAsync($"  {diagnostic}", cancellationToken);
     }
 
     private static bool IsUnexpectedNuGetDownloadTermination(string diagnostic) =>
@@ -184,7 +185,7 @@ internal sealed class TemplatePackageInstaller(
         int frame = 0;
         while (!install.IsCompleted)
         {
-            await output.WriteAsync($"\r{frames[frame++ % frames.Length]} {status}...");
+            await output.WriteAsync($"\r{frames[frame++ % frames.Length]} {status}...", cancellationToken);
             await output.FlushAsync(cancellationToken);
             await Task.WhenAny(install, Task.Delay(TimeSpan.FromMilliseconds(80), cancellationToken));
         }

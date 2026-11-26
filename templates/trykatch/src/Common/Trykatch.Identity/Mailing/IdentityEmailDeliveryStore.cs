@@ -20,7 +20,7 @@ internal sealed class IdentityEmailDeliveryStore(
         ValidateForInsert(record);
         await using IdentityEmailDeliveryDbContext context = CreateContext();
         DateTimeOffset created = record.CreatedAtUtc == default ? timeProvider.GetUtcNow().ToUniversalTime() : record.CreatedAtUtc.ToUniversalTime();
-        int inserted = await context.Database.ExecuteSqlInterpolatedAsync($"""
+        int inserted = await context.Database.ExecuteSqlAsync($"""
             INSERT INTO identity.email_deliveries
                 ("Id", "UserId", "TemplateKey", "TemplateVersion", "ProtectedIntent", "State", "Attempts",
                  "LeaseId", "LeaseUntilUtc", "NextAttemptAtUtc", "LastCompletedLeaseId", "LastOutcome",
@@ -169,7 +169,7 @@ internal sealed class IdentityEmailDeliveryStore(
         string state = ToState(transition.Status);
         DateTimeOffset? completedAt = transition.Status is EmailDeliveryStatus.Queued ? null : timeProvider.GetUtcNow().ToUniversalTime();
         await using IdentityEmailDeliveryDbContext context = CreateContext();
-        int updated = await context.Database.ExecuteSqlInterpolatedAsync($"""
+        int updated = await context.Database.ExecuteSqlAsync($"""
             UPDATE identity.email_deliveries
             SET "State" = {state}, "LeaseId" = NULL, "LeaseUntilUtc" = NULL,
                 "NextAttemptAtUtc" = {transition.NextAttemptAtUtc}, "LastCompletedLeaseId" = {lease.LeaseId},

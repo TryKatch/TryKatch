@@ -209,7 +209,7 @@ public sealed class GeneratedOrganizationIsolationTests
             .Options;
         await using ApplicationDbContext application = new(runtimeOptions, contributors, scope, catalog);
         await using var efTransaction = await application.Database.BeginTransactionAsync();
-        await application.Database.ExecuteSqlInterpolatedAsync(
+        await application.Database.ExecuteSqlAsync(
             $"SELECT set_config('app.organization_id', {organizationA.ToString()}, true), set_config('app.actor_id', {actorA.ToString()}, true)");
         foreach (DataResourceDescriptor resource in resources.Where(resource => resource.EntityType is not null))
         {
@@ -644,7 +644,7 @@ public sealed class GeneratedOrganizationIsolationTests
             string? external = Environment.GetEnvironmentVariable("TRYKATCH_TEST_POSTGRES");
             if (!string.IsNullOrWhiteSpace(external)) return new(null, external);
             PostgreSqlContainer container = new PostgreSqlBuilder(
-                "postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f").Build();
+                "postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
             await container.StartAsync();
             return new(container, container.GetConnectionString());
         }

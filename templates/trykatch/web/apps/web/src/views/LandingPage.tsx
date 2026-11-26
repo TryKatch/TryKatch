@@ -110,6 +110,6 @@ export function LandingPage() {
       <a href="https://docs.trykatch.net">{t('Read the documentation')} <ArrowRight size={15} /></a>
     </section>
 
-    <footer className="landing-footer"><span>{applicationName}</span><small>Open source · Apache-2.0 · .NET 10 · React · PostgreSQL</small></footer>
+    <footer className="landing-footer"><span>{applicationName}</span><small>Open source · Apache-2.0 · .NET 11 · React · PostgreSQL</small></footer>
   </main>
 }

@@ -40,6 +40,27 @@ public sealed class RuntimeDatabaseConnectionContractTests
     }
 
     [TestMethod]
+    public void SeparatePasswordOverrideRoundTripsConnectionStringSpecialCharacters()
+    {
+        const string password = "special;=\"\\password";
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:trykatch-organization"] =
+                    "Host=localhost;Port=5432;Database=trykatch;Username=trykatch_org_runtime",
+                ["Database:OrganizationRuntimePassword"] = password
+            })
+            .Build();
+
+        string resolved = RuntimeDatabaseConnectionContract.ResolveConnectionString(
+            configuration,
+            RuntimeDatabaseConnectionContract.Organization,
+            "Database:OrganizationRuntimePassword");
+
+        new Npgsql.NpgsqlConnectionStringBuilder(resolved).Password.ShouldBe(password);
+    }
+
+    [TestMethod]
     public void CoordinatorConnectionNeverFallsBackToMigratorConnection()
     {
         IConfiguration configuration = new ConfigurationBuilder()

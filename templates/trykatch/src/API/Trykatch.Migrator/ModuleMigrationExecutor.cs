@@ -17,6 +17,19 @@ internal static class ModuleMigrationExecutor
 
         await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync(cancellationToken);
+        await ApplyAsync(connection, enabledModules, cancellationToken);
+    }
+
+    public static async Task ApplyAsync(
+        NpgsqlConnection connection,
+        IReadOnlyList<IModule> enabledModules,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(enabledModules);
+        if (connection.State != System.Data.ConnectionState.Open)
+            throw new InvalidOperationException("The migration connection must already be open.");
+
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         await ExecuteAsync(connection, transaction, "SELECT pg_advisory_xact_lock(hashtext(@lock_name));", cancellationToken,

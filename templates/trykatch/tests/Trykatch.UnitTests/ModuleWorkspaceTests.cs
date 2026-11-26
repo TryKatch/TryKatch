@@ -75,7 +75,7 @@ public sealed class ModuleWorkspaceTests
         {
             string directory = Path.Combine(temporary.Root, "src", "API", project);
             Directory.CreateDirectory(directory);
-            File.WriteAllText(Path.Combine(directory, project + ".csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><NuGetAudit>false</NuGetAudit></PropertyGroup></Project>");
+            File.WriteAllText(Path.Combine(directory, project + ".csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><NuGetAudit>false</NuGetAudit></PropertyGroup></Project>");
         }
         File.WriteAllText(Path.Combine(temporary.Root, "web/package.json"), "{\"name\":\"security-fixture\",\"private\":true}");
         File.WriteAllText(Path.Combine(temporary.Root, "web/pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
@@ -280,6 +280,24 @@ public sealed class ModuleWorkspaceTests
             .ShouldContain("const EXPECTED_FEATURES: readonly InstalledModuleFeature[] = [\n]");
         File.ReadAllText(Path.Combine(temporary.Root, "try" + "katch.modules.lock.json")).ShouldBe(lockBeforeRename);
         lockBeforeRename.ShouldContain("template-normalized-sha256");
+    }
+
+    [TestMethod]
+    public void RenamingToKatchPreservesManifestDigestsAndTheOriginalNpmScope()
+    {
+        using TemporaryModuleWorkspace temporary = TemporaryModuleWorkspace.Create();
+        ModuleWorkspace workspace = new(temporary.Root);
+        workspace.Generate().IsHealthy.ShouldBeTrue();
+        string lockPath = Path.Combine(temporary.Root, "try" + "katch.modules.lock.json");
+        string expected = File.ReadAllText(lockPath);
+        foreach (string relative in new[] { "try" + "katch.modules.json", "manifests/projects.json" })
+        {
+            string path = Path.Combine(temporary.Root, relative);
+            File.WriteAllText(path, File.ReadAllText(path).Replace("Trykatch", "Katch", StringComparison.Ordinal));
+        }
+
+        new ModuleWorkspace(temporary.Root).Generate().IsHealthy.ShouldBeTrue();
+        File.ReadAllText(lockPath).ShouldBe(expected);
     }
 
     [TestMethod]

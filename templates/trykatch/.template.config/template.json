@@ -5,7 +5,7 @@
   "identity": "Trykatch.Templates.Enterprise",
   "groupIdentity": "Trykatch.Templates",
   "name": "Trykatch enterprise multi-tenant application",
-  "description": "A production-oriented .NET 10 and React solution with PostgreSQL tenant isolation, organization RBAC, secure identity, and open-source observability.",
+  "description": "A production-oriented .NET 11 and React solution with PostgreSQL tenant isolation, organization RBAC, secure identity, and open-source observability.",
   "shortName": "trykatch",
   "defaultName": "Trykatch",
   "preferNameDirectory": true,
@@ -76,6 +76,16 @@
       "choices": [
         { "choice": "react", "description": "React, Vite, TanStack, and the Trykatch component system." },
         { "choice": "none", "description": "Backend-only output." }
+      ]
+    },
+    "module-profile": {
+      "type": "parameter",
+      "datatype": "choice",
+      "description": "Example business modules to enable in the generated application.",
+      "defaultValue": "full",
+      "choices": [
+        { "choice": "full", "description": "Include the Projects and Documents reference modules." },
+        { "choice": "minimal", "description": "Start with no enabled example modules." }
       ]
     },
     "HAS_REACT_UI": {
@@ -206,6 +216,34 @@
           ]
         },
         {
+          "condition": "(module-profile == \"minimal\")",
+          "exclude": [
+            "trykatch.modules.json",
+            "trykatch.modules.lock.json",
+            "src/API/Trykatch.Api/Modules/EnabledModules.cs",
+            "src/API/Trykatch.Migrator/Modules/EnabledModules.cs",
+            "web/apps/web/src/modules.ts",
+            "web/packages/api-client/openapi/Trykatch.Api.json",
+            "web/packages/api-client/src/generated/client.ts",
+            "web/packages/api-client/src/generated/models/index.ts",
+            "web/packages/api-client/src/generated/models/createProjectCommand.ts",
+            "web/packages/api-client/src/generated/models/deleteDocumentRequest.ts",
+            "web/packages/api-client/src/generated/models/documentDto.ts",
+            "web/packages/api-client/src/generated/models/documentLifecycleDto.ts",
+            "web/packages/api-client/src/generated/models/documentMetadataDto.ts",
+            "web/packages/api-client/src/generated/models/documentsListParams.ts",
+            "web/packages/api-client/src/generated/models/httpValidationProblemDetails.ts",
+            "web/packages/api-client/src/generated/models/httpValidationProblemDetailsErrors.ts",
+            "web/packages/api-client/src/generated/models/iFormFile.ts",
+            "web/packages/api-client/src/generated/models/pagedResultOfProjectDto.ts",
+            "web/packages/api-client/src/generated/models/projectDto.ts",
+            "web/packages/api-client/src/generated/models/projectsListParams.ts",
+            "web/packages/api-client/src/generated/models/updateDocumentRequest.ts",
+            "web/packages/api-client/src/generated/models/uploadDocumentForm.ts",
+            "docs/generated/assistant-contract.json"
+          ]
+        },
+        {
           "condition": "(!email)",
           "exclude": ["src/Common/Trykatch.Infrastructure/Optional/Email/**"]
         },
@@ -222,7 +260,23 @@
     {
       "condition": "(ui == \"react\")",
       "source": ".template.config/generated/",
-      "target": "./"
+      "target": "./",
+      "exclude": ["minimal/**"]
+    },
+    {
+      "condition": "(module-profile == \"minimal\")",
+      "source": ".template.config/generated/minimal/",
+      "target": "./",
+      "exclude": ["web/**"],
+      "rename": {
+        "trykatch.modules.registry-lock": "trykatch.modules.lock.json"
+      }
+    },
+    {
+      "condition": "(module-profile == \"minimal\" && ui == \"react\")",
+      "source": ".template.config/generated/minimal/",
+      "target": "./",
+      "include": ["web/**"]
     },
     {
       "source": "./",

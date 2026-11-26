@@ -1,5 +1,5 @@
 {
-  "openapi": "3.1.1",
+  "openapi": "3.1.2",
   "info": {
     "title": "Trykatch API",
     "description": "The versioned HTTP contract for Trykatch's platform and organization workspaces. Organization-scoped operations infer their organization from the authenticated workspace context.",
@@ -163,6 +163,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfProjectDto"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Conflict",
             "content": {
@@ -179,16 +189,6 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PagedResultOfProjectDto"
                 }
               }
             }
@@ -240,26 +240,6 @@
           "required": true
         },
         "responses": {
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service Unavailable",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
           "201": {
             "description": "Created",
             "content": {
@@ -276,6 +256,26 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -318,6 +318,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Conflict",
             "content": {
@@ -334,16 +344,6 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectDto"
                 }
               }
             }
@@ -404,26 +404,6 @@
           "required": true
         },
         "responses": {
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service Unavailable",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
           "200": {
             "description": "OK",
             "content": {
@@ -440,6 +420,26 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -501,6 +501,19 @@
           "required": true
         },
         "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Conflict",
             "content": {
@@ -517,19 +530,6 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "204": {
-            "description": "No Content"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
                 }
               }
             }
@@ -583,6 +583,9 @@
           }
         ],
         "responses": {
+          "204": {
+            "description": "No Content"
+          },
           "409": {
             "description": "Conflict",
             "content": {
@@ -602,9 +605,6 @@
                 }
               }
             }
-          },
-          "204": {
-            "description": "No Content"
           }
         },
         "x-codeSamples": [
@@ -655,6 +655,9 @@
           }
         ],
         "responses": {
+          "204": {
+            "description": "No Content"
+          },
           "409": {
             "description": "Conflict",
             "content": {
@@ -674,9 +677,6 @@
                 }
               }
             }
-          },
-          "204": {
-            "description": "No Content"
           }
         },
         "x-codeSamples": [
@@ -9513,15 +9513,6 @@
   },
   "tags": [
     {
-      "name": "Realtime"
-    },
-    {
-      "name": "Projects"
-    },
-    {
-      "name": "Documents"
-    },
-    {
       "name": "AccountProfile"
     },
     {
@@ -9534,6 +9525,9 @@
       "name": "Authentication"
     },
     {
+      "name": "Documents"
+    },
+    {
       "name": "EmailDelivery"
     },
     {
@@ -9543,10 +9537,10 @@
       "name": "Me"
     },
     {
-      "name": "Modules"
+      "name": "ModuleWork"
     },
     {
-      "name": "ModuleWork"
+      "name": "Modules"
     },
     {
       "name": "OrganizationAdministration"
@@ -9555,13 +9549,16 @@
       "name": "OrganizationFeatures"
     },
     {
-      "name": "Organizations"
-    },
-    {
       "name": "OrganizationSettings"
     },
     {
+      "name": "Organizations"
+    },
+    {
       "name": "OutboxRecovery"
+    },
+    {
+      "name": "PlatformAccessActivation"
     },
     {
       "name": "PlatformFeatures"
@@ -9570,10 +9567,13 @@
       "name": "PlatformUsers"
     },
     {
-      "name": "PlatformAccessActivation"
+      "name": "Projects"
     },
     {
       "name": "Quotas"
+    },
+    {
+      "name": "Realtime"
     },
     {
       "name": "WorkspaceContext"
