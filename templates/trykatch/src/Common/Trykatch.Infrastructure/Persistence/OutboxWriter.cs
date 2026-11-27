@@ -16,7 +16,6 @@ internal sealed class OutboxWriter(
     ModuleWorkExecutionContext? execution = null) : IOutboxWriter
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-    private const int MaximumPayloadBytes = 1_048_576;
     private const int UserContextVersion = 1;
     private const int SystemContextVersion = 2;
 
@@ -24,7 +23,7 @@ internal sealed class OutboxWriter(
         dbContext.OutboxMessages.Add(new OutboxMessage
         {
             Type = OutboxContractName.For(typeof(T)),
-            Payload = JsonSerializer.Serialize(message, SerializerOptions)
+            Payload = SerializePayload(message, ModuleWorkRegistrationRules.HostMaximumPayloadBytes)
         });
 
     public void Enqueue<T>(T message, string operationKey, int operationVersion) where T : notnull
@@ -87,10 +86,8 @@ internal sealed class OutboxWriter(
         }
 
         IntegrationEventDescriptor integrationEvent = events[0];
-        int maximumPayloadBytes = Math.Min(MaximumPayloadBytes, integrationEvent.MaximumPayloadBytes);
-        string payload = JsonSerializer.Serialize<T>(message, SerializerOptions);
-        if (Encoding.UTF8.GetByteCount(payload) > maximumPayloadBytes)
-            throw new InvalidOperationException("The registered outbox event payload exceeds its size limit.");
+        int maximumPayloadBytes = Math.Min(ModuleWorkRegistrationRules.HostMaximumPayloadBytes, integrationEvent.MaximumPayloadBytes);
+        string payload = SerializePayload(message, maximumPayloadBytes);
 
         bool isSystem = systemExecution;
         OutboxContext context = new(
@@ -116,6 +113,14 @@ internal sealed class OutboxWriter(
             ContextJson = contextJson,
             PayloadHash = payloadHash
         });
+    }
+
+    private static string SerializePayload<T>(T message, int maximumBytes) where T : notnull
+    {
+        byte[] utf8 = JsonSerializer.SerializeToUtf8Bytes(message, SerializerOptions);
+        if (!OutboxPayloadSize.FitsSerializedJson(utf8, maximumBytes))
+            throw new InvalidOperationException("The outbox event payload exceeds its size limit.");
+        return Encoding.UTF8.GetString(utf8);
     }
 }
 

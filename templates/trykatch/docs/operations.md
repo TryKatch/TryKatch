@@ -94,6 +94,10 @@ Scope by service/environment and require the minimum traffic guard. Use sanitize
 
 Check the bounded `outcome` metric and database outbox state. Do not log payloads or exception messages. Downstream adapters must preserve and deduplicate the message ID.
 
+The outbox accepts up to 1,048,576 UTF-8 bytes, inclusive. Registered events can declare a smaller limit. Producers check the serialized event and account for numbers that PostgreSQL expands into decimal notation. When checking stored messages, the worker and event consumers exclude JSON separator whitespace from the byte count. Spaces inside string values and property names count. The worker bounds each database payload read at 2 MiB to accommodate the spaces that PostgreSQL adds after separators. A compact event one byte over its limit cannot be published.
+
+After deploying the updated worker and consumers, an administrator can use the normal replay workflow for an existing event previously marked `payload_too_large` solely due to JSON formatting. The original message ID and the recorded replay history are retained.
+
 Readiness is unhealthy for database/permanent faults and while a cancellation-ignoring transport invocation remains outstanding. Terminal count and oldest pending age are exported independently of message identifiers. Terminal metadata is readable by Platform Operator, Auditor, and Administrator; only Administrator has the sensitive replay permission. Replay is asynchronous and requires a stable request ID plus the observed failed generation. Reusing the request ID for the same tuple is idempotent; another tuple is a conflict. Never edit payloads or assign a new message ID.
 
 For recovery schema deployment, first quiesce every outbox worker, take and verify a backup, apply migrations, provision and inspect exact runtime grants/RLS, then deploy the new worker/API together. Mixed old/new workers are unsupported. Existing unprocessed rows with ten or more attempts become terminal at migration time; processed rows remain processed. A downgrade never deletes replay or recovery history.

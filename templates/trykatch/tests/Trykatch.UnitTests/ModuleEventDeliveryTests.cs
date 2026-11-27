@@ -74,6 +74,11 @@ public sealed class ModuleEventDeliveryTests
         registry.TryValidateSource(source with { ExecutionKind = "ScheduledSystem" }, "{}", out _, out _).ShouldBeFalse();
         registry.TryValidateSource(source with { OperationKey = "orders.missing" }, "{}", out _, out _).ShouldBeFalse();
         registry.TryValidateSource(source with { CatalogVersion = "different-catalog-fingerprint" }, "{}", out _, out _).ShouldBeTrue();
+
+        string overLimitPayload = "{\"OrderId\":\"" + new string('x', 4083) + "\"}";
+        overLimitPayload.Length.ShouldBe(4097);
+        registry.TryValidateSource(source, overLimitPayload, out _, out failure).ShouldBeFalse();
+        failure.ShouldBe("source_event_invalid");
     }
 
     [TestMethod]

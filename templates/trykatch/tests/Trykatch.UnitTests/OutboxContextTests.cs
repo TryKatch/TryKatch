@@ -247,14 +247,25 @@ public sealed class OutboxContextTests
     }
 
     [TestMethod]
-    public void NewEnqueueRejectsPayloadsAboveTheHostLimitBeforeTracking()
+    [DataRow(true)]
+    [DataRow(false)]
+    public void EnqueueAcceptsExactlyOneMibAndRejectsOneExtraByteBeforeTracking(bool registered)
     {
         Fixture fixture = CreateFixture();
+        var empty = new UntrustedMessage(OrganizationId, ActorId, "");
+        int overhead = JsonSerializer.SerializeToUtf8Bytes(empty, JsonSerializerOptions.Web).Length;
+        var exact = empty with { Change = new string('x', 1_048_576 - overhead) };
+        void Enqueue(UntrustedMessage message)
+        {
+            if (registered) fixture.Writer.Enqueue(message, OperationKey, 1);
+            else fixture.Writer.Enqueue(message);
+        }
 
-        Should.Throw<InvalidOperationException>(() => fixture.Writer.Enqueue(
-            new UntrustedMessage(Guid.NewGuid(), Guid.NewGuid(), new string('x', 1_048_576)), OperationKey, 1));
+        Enqueue(exact);
+        Should.Throw<InvalidOperationException>(() => Enqueue(exact with { Change = exact.Change + "x" }));
 
-        fixture.DbContext.OutboxMessages.Local.ShouldBeEmpty();
+        OutboxMessage tracked = fixture.DbContext.OutboxMessages.Local.ShouldHaveSingleItem();
+        Encoding.UTF8.GetByteCount(tracked.Payload).ShouldBe(1_048_576);
     }
 
     private static Fixture CreateFixture(

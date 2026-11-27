@@ -67,7 +67,12 @@ internal sealed class ModuleEventFanout(
             throw new InvalidOperationException("Module event fan-out requires the source outbox transaction.");
 
         OutboxMessage? source = await dbContext.Messages
-            .FromSql($"SELECT * FROM platform.outbox_messages WHERE \"Id\" = {envelope.MessageId} FOR UPDATE")
+            .FromSql($"""
+                SELECT * FROM platform.outbox_messages
+                WHERE "Id" = {envelope.MessageId}
+                  AND octet_length("Payload"::text) <= {OutboxPayloadSize.MaximumStoredBytes}
+                FOR UPDATE
+                """)
             .AsNoTracking()
             .SingleOrDefaultAsync(cancellationToken);
         if (source is null)
