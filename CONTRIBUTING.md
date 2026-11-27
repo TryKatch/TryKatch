@@ -4,6 +4,12 @@ Use conventional branches and commits, keep the canonical template runnable, and
 
 Contributions must not copy source or assets from commercial boilerplates. Dependencies must be compatible with commercial Apache-2.0 use.
 
+## UI changes
+
+Every pull request that changes the user-facing UI must include screenshots or a short screen recording in the PR description. Show the affected screens and interactions, including relevant desktop and mobile views when the layout changes across viewport sizes. Include before-and-after views when they help reviewers see what changed.
+
+Reviewers should verify that the PR includes visual evidence for the UI changes before approving it.
+
 ## CLI creation experience
 
 Every CLI command that creates an application, module, registry or package workspace must provide loading feedback before long-running work. Reuse `CliOperationProgress` for numbered steps, elapsed time, clean success/failure output and plain redirected logs; do not add a separate spinner implementation for a new creation command. Keep progress rendering outside domain/scaffolding logic, preserve underlying diagnostics and cancellation, and do not claim rollback or completion that the operation cannot guarantee. Add tests and corresponding English/French documentation for new creation paths.
