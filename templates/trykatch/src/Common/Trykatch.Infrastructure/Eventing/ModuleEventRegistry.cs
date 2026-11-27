@@ -1,6 +1,6 @@
-using System.Text;
 using System.Text.Json;
 using Trykatch.Application.Outbox;
+using Trykatch.Infrastructure.Persistence;
 using Trykatch.Modules;
 
 namespace Trykatch.Infrastructure.Eventing;
@@ -113,7 +113,7 @@ internal sealed class ModuleEventRegistry
 
         try
         {
-            if (Encoding.UTF8.GetByteCount(payload) > eventDescriptor.MaximumPayloadBytes) return false;
+            if (!OutboxPayloadSize.FitsStoredJson(payload, eventDescriptor.MaximumPayloadBytes)) return false;
             using JsonDocument document = JsonDocument.Parse(payload);
             object? parsed = eventDescriptor.ReadPayload(document.RootElement);
             if (parsed is null || parsed.GetType() != eventDescriptor.PayloadType) return false;

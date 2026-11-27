@@ -116,8 +116,8 @@ internal sealed partial class OrganizationWorkExecutor(
             || string.IsNullOrWhiteSpace(delivery.OperationKey) || string.IsNullOrWhiteSpace(delivery.GrantKey))
             return Terminal("delivery_context_invalid");
         await using AsyncServiceScope sourceScope = scopeFactory.CreateAsyncScope();
-        OutboxMessage? source = await sourceScope.ServiceProvider.GetRequiredService<OutboxDbContext>().Messages.AsNoTracking()
-            .SingleOrDefaultAsync(row => row.Id == delivery.MessageId, ct);
+        OutboxMessage? source = await LoadBoundedOutboxSourceAsync(
+            sourceScope.ServiceProvider.GetRequiredService<OutboxDbContext>(), delivery.MessageId, ct);
         if (source is null || source.ProcessedAt is null
             || !OutboxContextReader.TryRead(source, out OutboxContext? context, out bool legacy) || legacy || context is null
             || context.OrganizationId != delivery.OrganizationId || context.OriginActorId != delivery.OriginActorId
@@ -147,7 +147,10 @@ internal sealed partial class OrganizationWorkExecutor(
         JsonDocument payload;
         try
         {
-            if (Encoding.UTF8.GetByteCount(work.Payload) > 1_048_576
+            bool payloadWithinLimit = work.Delivery is null
+                ? Encoding.UTF8.GetByteCount(work.Payload) <= ModuleWorkRegistrationRules.HostMaximumPayloadBytes
+                : OutboxPayloadSize.FitsStoredJson(work.Payload, ModuleWorkRegistrationRules.HostMaximumPayloadBytes);
+            if (!payloadWithinLimit
                 || !string.Equals(work.PayloadHash, OutboxPayloadHash.Compute(work.Payload), StringComparison.OrdinalIgnoreCase))
                 return Terminal("payload_invalid");
             payload = JsonDocument.Parse(work.Payload);
@@ -239,7 +242,10 @@ internal sealed partial class OrganizationWorkExecutor(
             bool user = operation.ExecutionKind == ModuleExecutionKind.UserCommand;
             if (user ? !IsUser(identity) : !SystemWorkGrantValidator.TryValidate(registration, identity))
                 return new(ModuleExecutionState.Denied, "execution_identity_invalid");
-            if (Encoding.UTF8.GetByteCount(work.Payload) > operation.MaximumPayloadBytes)
+            bool operationPayloadWithinLimit = work.Delivery is null
+                ? Encoding.UTF8.GetByteCount(work.Payload) <= operation.MaximumPayloadBytes
+                : OutboxPayloadSize.FitsStoredJson(work.Payload, operation.MaximumPayloadBytes);
+            if (!operationPayloadWithinLimit)
                 return Terminal("payload_invalid");
 
             Organization? organization = await control.Organizations.AsNoTracking()
@@ -273,8 +279,10 @@ internal sealed partial class OrganizationWorkExecutor(
 
             if (operation.ExecutionKind == ModuleExecutionKind.CommittedEvent)
             {
-                OutboxMessage? source = work.Source ?? await services.GetRequiredService<OutboxDbContext>().Messages.AsNoTracking()
-                    .SingleOrDefaultAsync(row => row.Id == identity.SourceMessageId, ct);
+                OutboxMessage? source = work.Source ?? (identity.SourceMessageId is { } sourceMessageId
+                    ? await LoadBoundedOutboxSourceAsync(
+                        services.GetRequiredService<OutboxDbContext>(), sourceMessageId, ct)
+                    : null);
                 if (source is null || !OutboxContextReader.TryRead(source, out OutboxContext? sourceContext, out bool legacy)
                     || legacy || sourceContext is null || sourceContext.OrganizationId != identity.OrganizationId
                     || sourceContext.OriginActorId != identity.OriginActorId || source.PayloadHash != work.PayloadHash
@@ -353,6 +361,19 @@ internal sealed partial class OrganizationWorkExecutor(
         try { await store.ReleaseAsync(workId, leaseId, cleanup.Token); }
         catch (Exception) { /* An unreleased claim expires; no unbounded cleanup or stale acknowledgement. */ }
     }
+
+    private static Task<OutboxMessage?> LoadBoundedOutboxSourceAsync(
+        OutboxDbContext dbContext,
+        Guid messageId,
+        CancellationToken cancellationToken) =>
+        dbContext.Messages
+            .FromSql($"""
+                SELECT * FROM platform.outbox_messages
+                WHERE "Id" = {messageId}
+                  AND octet_length("Payload"::text) <= {OutboxPayloadSize.MaximumStoredBytes}
+                """)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(cancellationToken);
 
     [LoggerMessage(EventId = 4301, Level = LogLevel.Error,
         Message = "Module work {WorkId} failed with {ExceptionType}")]

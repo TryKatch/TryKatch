@@ -27,6 +27,15 @@ internal sealed partial class OutboxDelivery(
     {
         if (message.ProcessedAt is not null || message.ExhaustedAt is not null) return false;
         stoppingToken.ThrowIfCancellationRequested();
+        if (!OutboxPayloadSize.FitsStoredJson(message.Payload, ModuleWorkRegistrationRules.HostMaximumPayloadBytes))
+        {
+            message.ExhaustedAt = timeProvider.GetUtcNow();
+            message.LastErrorCode = "payload_too_large";
+            message.LastErrorType = "payload_guard";
+            DispatchCounter.Add(1, new KeyValuePair<string, object?>("outcome", "payload_too_large"));
+            return false;
+        }
+
         if (!OutboxContextReader.TryRead(message, out OutboxContext? context, out bool legacy))
         {
             message.ExhaustedAt = timeProvider.GetUtcNow();
@@ -174,7 +183,6 @@ internal static class OutboxContextReader
 {
     private const int UserContextVersion = 1;
     private const int SystemContextVersion = 2;
-    private const int MaximumPayloadBytes = 1_048_576;
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
     public static bool TryRead(OutboxMessage message, out OutboxContext? context, out bool legacy)
@@ -191,7 +199,7 @@ internal static class OutboxContextReader
             || string.IsNullOrWhiteSpace(message.ContextJson)
             || string.IsNullOrWhiteSpace(message.PayloadHash)
             || Encoding.UTF8.GetByteCount(message.ContextJson) > 16_384
-            || Encoding.UTF8.GetByteCount(message.Payload) > MaximumPayloadBytes)
+            || !OutboxPayloadSize.FitsStoredJson(message.Payload, ModuleWorkRegistrationRules.HostMaximumPayloadBytes))
             return false;
 
         OutboxContext? parsed;

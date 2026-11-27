@@ -184,7 +184,7 @@ public sealed partial class OutboxRecoveryIntegrationTests
     {
         await using RecoveryHost host = await RecoveryHost.StartAsync();
         Guid messageId = Guid.CreateVersion7();
-        await host.InsertAsync(messageId, JsonSerializer.Serialize(new { value = new string('x', 1_048_577) }));
+        await host.InsertAsync(messageId, JsonSerializer.Serialize(new { value = new string('x', 2_097_153) }));
 
         await host.WaitForAsync(messageId, exhausted: true);
 
@@ -501,7 +501,8 @@ public sealed partial class OutboxRecoveryIntegrationTests
         public IServiceProvider Services => factory.Services;
 
         public static async Task<RecoveryHost> StartAsync(int transportFailures = 1, string pollInterval = "00:00:00.100",
-            DbCommandInterceptor? interceptor = null, IInterceptor[]? interceptors = null)
+            DbCommandInterceptor? interceptor = null, IInterceptor[]? interceptors = null,
+            Action<IServiceCollection>? configureServices = null)
         {
             PostgreSqlContainer postgres = new PostgreSqlBuilder(
                 "postgres:19.0-alpine3.23@sha256:40ad7e457013448b5522c6c5d30dccb8248959c41adc0e56c1785be4293bbd67").Build();
@@ -549,6 +550,7 @@ public sealed partial class OutboxRecoveryIntegrationTests
                 webHost.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
                 webHost.ConfigureTestServices(services =>
                 {
+                    configureServices?.Invoke(services);
                     services.RemoveAll<IOutboxTransport>();
                     services.AddSingleton<IOutboxTransport>(transport);
                     services.RemoveAll<TimeProvider>();
@@ -741,13 +743,13 @@ public sealed partial class OutboxRecoveryIntegrationTests
             return (long)(await command.ExecuteScalarAsync())! == 1;
         });
 
-        public async Task<string> ReadFailureCodeAsync(Guid id)
+        public async Task<string?> ReadFailureCodeAsync(Guid id)
         {
             await using NpgsqlConnection connection = new(ownerConnection);
             await connection.OpenAsync();
             await using NpgsqlCommand command = new("SELECT \"LastErrorCode\" FROM platform.outbox_messages WHERE \"Id\"=@id", connection);
             command.Parameters.AddWithValue("id", id);
-            return (string)(await command.ExecuteScalarAsync())!;
+            return await command.ExecuteScalarAsync() as string;
         }
 
         public async Task<int> ReadAttemptsAsync(Guid id)

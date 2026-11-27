@@ -27,7 +27,7 @@ namespace Trykatch.IntegrationTests;
 [TestClass]
 [TestCategory("Integration")]
 [DoNotParallelize]
-public sealed class ModuleEventDeliveryIntegrationTests
+public sealed partial class ModuleEventDeliveryIntegrationTests
 {
     private const string EventKey = "probe.committed";
     private const string ConsumerOne = "probe.effect-one";
@@ -270,7 +270,7 @@ public sealed class ModuleEventDeliveryIntegrationTests
         safe.ShouldNotContain("recipient");
     }
 
-    private sealed class EventFixture(PostgreSqlContainer postgres, string owner, IConfiguration runtimeConfiguration,
+    private sealed partial class EventFixture(PostgreSqlContainer postgres, string owner, IConfiguration runtimeConfiguration,
         EventProbeBehavior behavior, int consumerCount) : IAsyncDisposable
     {
         private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
@@ -359,7 +359,7 @@ public sealed class ModuleEventDeliveryIntegrationTests
         }
 
         public async Task<SeededEvent> SeedEventAsync(int schemaVersion = 1, bool canDisclose = true,
-            bool failAfterWrite = false, bool processed = false)
+            bool failAfterWrite = false, bool processed = false, bool exactPayloadBoundary = false)
         {
             SeededOrganization seeded = await SeedOrganizationAsync();
             Guid record = Guid.CreateVersion7();
@@ -368,7 +368,10 @@ public sealed class ModuleEventDeliveryIntegrationTests
                 VALUES (@id,@organization,@recipient,@allowed,0,0)
                 """, ("id", record), ("organization", seeded.OrganizationId), ("recipient", seeded.ActorId), ("allowed", canDisclose));
             Guid message = Guid.CreateVersion7();
-            string payload = JsonSerializer.Serialize(new EventPayload(record, seeded.ActorId, failAfterWrite), WebJson);
+            EventPayload eventPayload = new(record, seeded.ActorId, failAfterWrite);
+            string payload = exactPayloadBoundary
+                ? ExactBoundaryPayload(eventPayload)
+                : JsonSerializer.Serialize(eventPayload, WebJson);
             ModuleCatalog catalog = services.GetRequiredService<ModuleCatalog>();
             OutboxContext context = new(seeded.OrganizationId, seeded.ActorId, seeded.ActorId, seeded.MembershipId,
                 "UserCommand", "probe.publish", 1, EventKey, schemaVersion, OutboxCatalogVersion.Compute(catalog), null);

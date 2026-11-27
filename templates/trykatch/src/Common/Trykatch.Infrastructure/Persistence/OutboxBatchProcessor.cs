@@ -60,7 +60,6 @@ internal sealed class OutboxBatchProcessor(
     OutboxWorkerState state,
     TimeProvider timeProvider)
 {
-    private const int MaximumPayloadBytes = 1_048_576;
     private static readonly Meter Meter = new("Trykatch.Outbox");
     private static readonly Histogram<double> BatchDuration = Meter.CreateHistogram<double>("trykatch.outbox.batch.duration", "s");
     private static readonly Histogram<double> LockDuration = Meter.CreateHistogram<double>("trykatch.outbox.lock.duration", "s");
@@ -95,7 +94,7 @@ internal sealed class OutboxBatchProcessor(
             SELECT * FROM platform.outbox_messages
             WHERE "ProcessedAt" IS NULL AND "ExhaustedAt" IS NULL
               AND "Attempts" < {value.MaximumAttempts}
-              AND octet_length("Payload"::text) <= {MaximumPayloadBytes}
+              AND octet_length("Payload"::text) <= {OutboxPayloadSize.MaximumStoredBytes}
             ORDER BY "OccurredAt", "Id"
             FOR UPDATE SKIP LOCKED
             LIMIT {value.BatchSize}
@@ -247,7 +246,7 @@ internal sealed class OutboxBatchProcessor(
             WITH candidates AS (
               SELECT "Id" FROM platform.outbox_messages
               WHERE "ProcessedAt" IS NULL AND "ExhaustedAt" IS NULL
-                AND octet_length("Payload"::text) > {MaximumPayloadBytes}
+                AND octet_length("Payload"::text) > {OutboxPayloadSize.MaximumStoredBytes}
               ORDER BY "OccurredAt", "Id" FOR UPDATE SKIP LOCKED LIMIT {batchSize}
             ), terminal AS (
               UPDATE platform.outbox_messages message SET "ExhaustedAt" = {timeProvider.GetUtcNow()},
