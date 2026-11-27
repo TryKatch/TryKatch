@@ -12,6 +12,11 @@ export const SignIn: Story = {
   render: () => <LoginPage navigate={() => undefined} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const formSection = canvas.getByRole('heading', { level: 1 }).parentElement!
+    const style = getComputedStyle(formSection)
+    await expect(style.backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    await expect(style.borderTopWidth).toBe('0px')
+    await expect(style.boxShadow).toBe('none')
     await expect(canvas.getByText(applicationName, { selector: 'strong' }).closest('a')).toHaveAttribute('href', '/')
     for (const input of Array.from(canvasElement.querySelectorAll<HTMLInputElement>('.floating-control-input'))) {
       const label = canvasElement.querySelector<HTMLLabelElement>(`label[for="${input.id}"]`)!
